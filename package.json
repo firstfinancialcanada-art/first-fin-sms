@@ -1,0 +1,19 @@
+{
+  "name": "jerry-ai-backend",
+  "version": "1.0.0",
+  "description": "Jerry AI dealership chatbot backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "twilio": "^4.19.0",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
