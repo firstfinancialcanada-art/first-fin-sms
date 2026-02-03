@@ -418,17 +418,16 @@ app.get('/dashboard', async (req, res) => {
             type="tel" 
             id="phoneNumber" 
             name="phoneNumber" 
-            placeholder="+14035550100"
+            placeholder="+1 (403) 555-0100"
             required
           >
         </div>
         <div class="form-group">
-          <label for="message">Message (Optional - uses default greeting)</label>
+          <label for="message">Message</label>
           <textarea 
             id="message" 
             name="message"
-            placeholder="Hi! 👋 I'm Jerry from the dealership..."
-          ></textarea>
+          >Hi! 👋 I'm Jerry from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
         </div>
         <button type="submit" class="btn-send" id="sendBtn">
           🚀 Send Message
@@ -460,11 +459,39 @@ app.get('/dashboard', async (req, res) => {
   </div>
   
   <script>
+    // Format phone number as user types
+    document.getElementById('phoneNumber').addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\\D/g, '');
+      
+      // Add +1 prefix if not present
+      if (value.length > 0 && !value.startsWith('1')) {
+        value = '1' + value;
+      }
+      
+      // Format: +1 (XXX) XXX-XXXX
+      let formatted = '';
+      if (value.length > 0) {
+        formatted = '+' + value.substring(0, 1);
+        if (value.length > 1) {
+          formatted += ' (' + value.substring(1, 4);
+        }
+        if (value.length > 4) {
+          formatted += ') ' + value.substring(4, 7);
+        }
+        if (value.length > 7) {
+          formatted += '-' + value.substring(7, 11);
+        }
+      }
+      
+      e.target.value = formatted;
+    });
+    
     // Send SMS Function
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value;
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\\D/g, '');
+      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
       const sendBtn = document.getElementById('sendBtn');
       const resultDiv = document.getElementById('messageResult');
       
@@ -476,14 +503,14 @@ app.get('/dashboard', async (req, res) => {
         const response = await fetch('/api/start-sms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phoneNumber })
+          body: JSON.stringify({ phone: fullPhone })
         });
         
         const data = await response.json();
         
         if (data.success) {
           resultDiv.className = 'message-result success';
-          resultDiv.textContent = '✅ SMS sent successfully to ' + phoneNumber;
+          resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
           resultDiv.style.display = 'block';
           document.getElementById('phoneNumber').value = '';
           
@@ -801,6 +828,18 @@ async function getJerryResponse(phone, message, conversation) {
     return "You've been unsubscribed. Reply START to resume.";
   }
   
+  // Handle location/dealership questions (can be asked at any stage)
+  if (lowerMsg.includes('location') || lowerMsg.includes('where') || lowerMsg.includes('address') || 
+      lowerMsg.includes('dealership') || lowerMsg.includes('calgary') || lowerMsg.includes('alberta')) {
+    return "We're located in Calgary, Alberta, and we deliver vehicles all across Canada! 🇨🇦 If you'd like specific dealership details or directions, I can have a manager call you back shortly. Just let me know!";
+  }
+  
+  // Handle requests for dealership details or more info
+  if (lowerMsg.includes('detail') || lowerMsg.includes('more info') || lowerMsg.includes('tell me more') ||
+      (lowerMsg.includes('manager') && lowerMsg.includes('call'))) {
+    return "I'd be happy to have one of our managers reach out to you with all the details! What's the best time to call you? (e.g., Tomorrow at 2pm, This afternoon, Friday morning)";
+  }
+  
   // ===== STAGE 1: VEHICLE TYPE =====
   if (conversation.stage === 'greeting' || !conversation.vehicle_type) {
     
@@ -975,17 +1014,17 @@ async function getJerryResponse(phone, message, conversation) {
     if (conversation.intent === 'test_drive') {
       await saveAppointment(appointmentData);
       await logAnalytics('appointment_booked', phone, appointmentData);
-      return `✅ Perfect ${conversation.customer_name}! I've booked your test drive for ${message}.\n\n📍 We're at 123 Auto Blvd, Calgary\n📧 Confirmation sent!\n\nLooking forward to seeing you! Reply STOP to opt out.`;
+      return `✅ Perfect ${conversation.customer_name}! I've booked your test drive for ${message}.\n\n📍 We're in Calgary, Alberta and we deliver all across Canada!\n📧 Confirmation sent!\n\nLooking forward to seeing you! Reply STOP to opt out.`;
     } else {
       await saveCallback(appointmentData);
       await logAnalytics('callback_requested', phone, appointmentData);
-      return `✅ Got it ${conversation.customer_name}! We'll call you ${message}.\n\nWe're excited to help you find your perfect ${conversation.vehicle_type}!\n\nTalk soon! Reply STOP to opt out.`;
+      return `✅ Got it ${conversation.customer_name}! One of our managers will call you ${message} with all the details.\n\nWe're excited to help you find your perfect ${conversation.vehicle_type}!\n\nTalk soon! Reply STOP to opt out.`;
     }
   }
   
   // ===== ALREADY CONFIRMED =====
   if (conversation.stage === 'confirmed') {
-    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. If you need to reschedule, just call us at (403) 555-0100!`;
+    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. If you need anything or want to reschedule, just let me know! We're located in Calgary, AB and deliver across Canada.`;
   }
   
   // ===== DEFAULT FALLBACK =====
