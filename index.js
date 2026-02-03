@@ -28,6 +28,7 @@ pool.connect()
   .catch(err => console.error('❌ Database connection error:', err));
 
 
+
 // ===== EMAIL NOTIFICATION SETUP (BREVO) =====
 const emailTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
@@ -41,7 +42,7 @@ const emailTransporter = nodemailer.createTransport({
 
 async function sendEmailNotification(subject, htmlContent) {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    console.log('⚠️ Email not configured - skipping notification');
+    console.log('⚠️  Email not configured - skipping');
     return false;
   }
   try {
@@ -1179,6 +1180,13 @@ app.post('/api/sms-webhook', async (req, res) => {
     await getOrCreateCustomer(phone);
     const conversation = await getOrCreateConversation(phone);
     await saveMessage(conversation.id, phone, 'user', message);
+
+    // 📧 Email notification for new message
+    try {
+      const emailHtml = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 20px; border-radius: 0 0 10px 10px;"><h2 style="color: #2d3748;">Customer Details</h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Phone:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${formatPhone(phone)}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Name:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.customer_name || 'Not provided yet'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Vehicle:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.vehicle_type || 'Not provided yet'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Budget:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.budget || 'Not provided yet'}</td></tr></table><h2 style="color: #2d3748; margin-top: 20px;">Message</h2><div style="background: white; padding: 15px; border-left: 4px solid #667eea; border-radius: 5px;"><p style="margin: 0; color: #2d3748; font-size: 16px;">${message}</p></div><p style="color: #718096; font-size: 12px; margin-top: 20px; text-align: center;">${new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton' })} MST</p></div></div>`;
+      await sendEmailNotification(`🚨 New Message from ${conversation.customer_name || formatPhone(phone)}`, emailHtml);
+    } catch (err) { console.error('Email error:', err); }
+
     await touchConversation(conversation.id);
     await logAnalytics('message_received', phone, { message });
     
@@ -1386,10 +1394,24 @@ async function getJerryResponse(phone, message, conversation) {
     
     if (conversation.intent === 'test_drive') {
       await saveAppointment(appointmentData);
+
+      // 📧 Email for appointment
+      try {
+        const apptEmail = `<div style="font-family: Arial, sans-serif; max-width: 600px;"><div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">📅 New Appointment Booked!</h1></div><div style="background: #f7fafc; padding: 20px; border-radius: 0 0 10px 10px;"><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Customer:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.customer_name}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Phone:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${formatPhone(phone)}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Vehicle:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.vehicle_type || 'Not specified'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Budget:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.budget || 'Not specified'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Date/Time:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"><strong>${message}</strong></td></tr></table><div style="margin-top: 20px; padding: 15px; background: #d1fae5; border-left: 4px solid #10b981; border-radius: 5px;"><p style="margin: 0; color: #065f46; font-weight: bold;">✅ Customer is coming to the dealership!</p></div></div></div>`;
+        await sendEmailNotification('📅 Appointment: ' + conversation.customer_name, apptEmail);
+      } catch (e) { console.error('Appointment email error:', e); }
+
       await logAnalytics('appointment_booked', phone, appointmentData);
       return `✅ Perfect ${conversation.customer_name}! I've booked your test drive for ${message}.\n\n📍 We're in Calgary, Alberta and we deliver all across Canada!\n📧 Confirmation sent!\n\nLooking forward to seeing you! Reply STOP to opt out.`;
     } else {
       await saveCallback(appointmentData);
+
+      // 📧 Email for callback
+      try {
+        const callbackEmail = `<div style="font-family: Arial, sans-serif; max-width: 600px;"><div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">📞 Callback Request!</h1></div><div style="background: #f7fafc; padding: 20px; border-radius: 0 0 10px 10px;"><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Customer:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.customer_name}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Phone:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${formatPhone(phone)}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Vehicle:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.vehicle_type || 'Not specified'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Budget:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${conversation.budget || 'Not specified'}</td></tr><tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Call Time:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;"><strong>${message}</strong></td></tr></table><div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 5px;"><p style="margin: 0; color: #92400e; font-weight: bold;">⚠️ Customer waiting for your call!</p></div></div></div>`;
+        await sendEmailNotification('📞 Callback: ' + conversation.customer_name, callbackEmail);
+      } catch (e) { console.error('Callback email error:', e); }
+
       await logAnalytics('callback_requested', phone, appointmentData);
       return `✅ Got it ${conversation.customer_name}! One of our managers will call you ${message} with all the details.\n\nWe're excited to help you find your perfect ${conversation.vehicle_type}!\n\nTalk soon! Reply STOP to opt out.`;
     }
