@@ -225,7 +225,8 @@ app.get('/', (req, res) => {
       apiDashboard: '/api/dashboard',
       conversations: '/api/conversations',
       conversation: '/api/conversation/:phone',
-      deleteConversation: 'DELETE /api/conversation/:phone'
+      deleteConversation: 'DELETE /api/conversation/:phone',
+      manualReply: 'POST /api/manual-reply'
     },
     timestamp: new Date()
   });
@@ -439,6 +440,69 @@ app.get('/dashboard', async (req, res) => {
     .message .content { color: #333; line-height: 1.5; white-space: pre-wrap; }
     .message .time { font-size: 0.75rem; color: #666; margin-top: 5px; }
     
+    .reply-form {
+      margin-top: 20px;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      border: 2px solid #667eea;
+    }
+    .reply-form h4 {
+      color: #667eea;
+      margin-bottom: 15px;
+      font-size: 1rem;
+    }
+    .reply-input-group {
+      display: flex;
+      gap: 10px;
+    }
+    .reply-input {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .reply-input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .btn-reply {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+      white-space: nowrap;
+    }
+    .btn-reply:hover {
+      background: #5568d3;
+    }
+    .btn-reply:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .reply-status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .reply-status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .reply-status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
     .appointment-card {
       padding: 15px;
       background: #f0fdf4;
@@ -463,6 +527,9 @@ app.get('/dashboard', async (req, res) => {
       h1 { font-size: 1.8rem; }
       .stats { grid-template-columns: repeat(2, 1fr); }
       .section { padding: 20px; }
+      .reply-input-group {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -612,6 +679,52 @@ app.get('/dashboard', async (req, res) => {
       }
     }
     
+    async function sendManualReply(phone, inputId, btnId, statusId) {
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(btnId);
+      const status = document.getElementById(statusId);
+      const message = input.value.trim();
+      
+      if (!message) {
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      status.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/manual-reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, message })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          status.className = 'reply-status success';
+          status.textContent = '✅ Reply sent!';
+          status.style.display = 'block';
+          input.value = '';
+          
+          setTimeout(() => {
+            viewConversation(phone, null);
+            status.style.display = 'none';
+          }, 2000);
+        } else {
+          throw new Error(data.error || 'Failed to send reply');
+        }
+      } catch (error) {
+        status.className = 'reply-status error';
+        status.textContent = '❌ ' + error.message;
+        status.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Reply';
+      }
+    }
+    
     async function deleteConversation(phone, event) {
       event.stopPropagation();
       
@@ -734,6 +847,11 @@ app.get('/dashboard', async (req, res) => {
           return;
         }
         
+        const replyFormId = 'reply-' + cleanPhone;
+        const inputId = 'input-' + cleanPhone;
+        const btnId = 'btn-' + cleanPhone;
+        const statusId = 'status-' + cleanPhone;
+        
         messagesContainer.innerHTML = '<div class="messages-title">💬 Full Conversation Thread</div>' + 
           data.messages.map(msg => \`
             <div class="message \${msg.role}">
@@ -741,7 +859,29 @@ app.get('/dashboard', async (req, res) => {
               <div class="content">\${msg.content}</div>
               <div class="time">\${new Date(msg.created_at).toLocaleString()}</div>
             </div>
-          \`).join('');
+          \`).join('') +
+          \`
+          <div class="reply-form" id="\${replyFormId}">
+            <h4>💬 Send Manual Reply</h4>
+            <div class="reply-input-group">
+              <input 
+                type="text" 
+                class="reply-input" 
+                id="\${inputId}" 
+                placeholder="Type your message to this customer..."
+                onkeypress="if(event.key === 'Enter') { event.preventDefault(); sendManualReply('\${phone}', '\${inputId}', '\${btnId}', '\${statusId}'); }"
+              >
+              <button 
+                class="btn-reply" 
+                id="\${btnId}"
+                onclick="sendManualReply('\${phone}', '\${inputId}', '\${btnId}', '\${statusId}')"
+              >
+                Send Reply
+              </button>
+            </div>
+            <div class="reply-status" id="\${statusId}"></div>
+          </div>
+          \`;
       } catch (error) {
         messagesContainer.innerHTML = '<div class="empty-state">Error loading messages</div>';
       }
@@ -855,6 +995,39 @@ app.delete('/api/conversation/:phone', async (req, res) => {
       res.json({ success: false, error: 'Conversation not found' });
     }
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// API: Manual reply (NEW)
+app.post('/api/manual-reply', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    
+    if (!phone || !message) {
+      return res.json({ success: false, error: 'Phone and message required' });
+    }
+    
+    const conversation = await getOrCreateConversation(phone);
+    await saveMessage(conversation.id, phone, 'assistant', message);
+    await touchConversation(conversation.id);
+    await logAnalytics('manual_reply_sent', phone, { message });
+    
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const client = twilio(accountSid, authToken);
+    
+    await client.messages.create({
+      body: message,
+      from: fromNumber,
+      to: phone
+    });
+    
+    console.log('✅ Manual reply sent to:', phone);
+    res.json({ success: true, message: 'Reply sent!' });
+  } catch (error) {
+    console.error('❌ Error sending manual reply:', error);
     res.json({ success: false, error: error.message });
   }
 });
