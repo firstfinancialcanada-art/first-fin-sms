@@ -174,7 +174,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Interactive HTML Dashboard
+// Interactive HTML Dashboard with Launch Jerry
 app.get('/dashboard', async (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -223,6 +223,70 @@ app.get('/dashboard', async (req, res) => {
       font-size: 1.5rem;
     }
     
+    /* Launch Jerry Form */
+    .launch-form {
+      display: grid;
+      gap: 15px;
+      max-width: 600px;
+    }
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .form-group textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    .btn-send {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .btn-send:hover {
+      background: #5568d3;
+    }
+    .btn-send:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .message-result {
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      display: none;
+    }
+    .message-result.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #34d399;
+    }
+    .message-result.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #f87171;
+    }
+    
+    /* Conversations */
     .conversation-list { display: flex; flex-direction: column; gap: 15px; }
     .conversation-item {
       padding: 20px;
@@ -346,6 +410,34 @@ app.get('/dashboard', async (req, res) => {
     </div>
     
     <div class="section">
+      <h2>📱 Launch Jerry - Send SMS Campaign</h2>
+      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
+        <div class="form-group">
+          <label for="phoneNumber">Phone Number</label>
+          <input 
+            type="tel" 
+            id="phoneNumber" 
+            name="phoneNumber" 
+            placeholder="+14035550100"
+            required
+          >
+        </div>
+        <div class="form-group">
+          <label for="message">Message (Optional - uses default greeting)</label>
+          <textarea 
+            id="message" 
+            name="message"
+            placeholder="Hi! 👋 I'm Jerry from the dealership..."
+          ></textarea>
+        </div>
+        <button type="submit" class="btn-send" id="sendBtn">
+          🚀 Send Message
+        </button>
+        <div id="messageResult" class="message-result"></div>
+      </form>
+    </div>
+    
+    <div class="section">
       <h2>📱 Recent Conversations (Click to View Messages)</h2>
       <div class="conversation-list" id="conversationList">
         <div class="loading">Loading conversations...</div>
@@ -368,6 +460,49 @@ app.get('/dashboard', async (req, res) => {
   </div>
   
   <script>
+    // Send SMS Function
+    async function sendSMS(event) {
+      event.preventDefault();
+      
+      const phoneNumber = document.getElementById('phoneNumber').value;
+      const sendBtn = document.getElementById('sendBtn');
+      const resultDiv = document.getElementById('messageResult');
+      
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ Sending...';
+      resultDiv.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/start-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phoneNumber })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          resultDiv.className = 'message-result success';
+          resultDiv.textContent = '✅ SMS sent successfully to ' + phoneNumber;
+          resultDiv.style.display = 'block';
+          document.getElementById('phoneNumber').value = '';
+          
+          // Refresh dashboard after 2 seconds
+          setTimeout(loadDashboard, 2000);
+        } else {
+          throw new Error(data.error || 'Failed to send SMS');
+        }
+      } catch (error) {
+        resultDiv.className = 'message-result error';
+        resultDiv.textContent = '❌ Error: ' + error.message;
+        resultDiv.style.display = 'block';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '🚀 Send Message';
+      }
+    }
+    
+    // Load Dashboard Data
     async function loadDashboard() {
       try {
         // Load stats
@@ -383,7 +518,7 @@ app.get('/dashboard', async (req, res) => {
         const conversationList = document.getElementById('conversationList');
         
         if (conversations.length === 0) {
-          conversationList.innerHTML = '<div class="empty-state">No conversations yet. Send your first SMS to get started!</div>';
+          conversationList.innerHTML = '<div class="empty-state">No conversations yet. Use "Launch Jerry" above to send your first SMS!</div>';
         } else {
           conversationList.innerHTML = conversations.map(conv => \`
             <div class="conversation-item" onclick="viewConversation('\${conv.customer_phone}', this)">
@@ -440,6 +575,7 @@ app.get('/dashboard', async (req, res) => {
       }
     }
     
+    // View Conversation Messages
     async function viewConversation(phone, element) {
       const cleanPhone = phone.replace(/[^0-9]/g, '');
       const messagesContainer = document.getElementById('messages-' + cleanPhone);
@@ -478,8 +614,11 @@ app.get('/dashboard', async (req, res) => {
       }
     }
     
+    // Load dashboard on page load
     loadDashboard();
-    setInterval(loadDashboard, 10000); // Refresh every 10 seconds
+    
+    // Auto-refresh every 10 seconds
+    setInterval(loadDashboard, 10000);
   </script>
 </body>
 </html>
