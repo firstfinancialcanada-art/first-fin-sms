@@ -14,6 +14,8 @@ const HOST = '0.0.0.0';
 
 // Store conversations (use database in production)
 const conversations = {};
+const appointments = [];
+const callbacks = [];
 
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
@@ -24,6 +26,41 @@ app.get('/', (req, res) => {
     twoway_sms: 'Ready',
     backend_url: `https://${req.get('host')}/api`
   });
+});
+
+// NEW: Get all conversations
+app.get('/api/conversations', (req, res) => {
+  const convList = Object.keys(conversations).map(phone => ({
+    phone: phone,
+    status: conversations[phone].status,
+    stage: conversations[phone].stage,
+    data: conversations[phone].data,
+    started: conversations[phone].started,
+    lastMessage: conversations[phone].messages[conversations[phone].messages.length - 1],
+    messageCount: conversations[phone].messages.length
+  }));
+  res.json({ success: true, conversations: convList });
+});
+
+// NEW: Get appointments
+app.get('/api/appointments', (req, res) => {
+  res.json({ success: true, appointments: appointments });
+});
+
+// NEW: Get callbacks
+app.get('/api/callbacks', (req, res) => {
+  res.json({ success: true, callbacks: callbacks });
+});
+
+// NEW: Get conversation details
+app.get('/api/conversation/:phone', (req, res) => {
+  const phone = req.params.phone;
+  const conv = conversations[phone];
+  if (conv) {
+    res.json({ success: true, conversation: conv });
+  } else {
+    res.json({ success: false, error: 'Conversation not found' });
+  }
 });
 
 // Start SMS conversation
@@ -47,7 +84,11 @@ app.post('/api/start-sms', async (req, res) => {
       body: initialMessage
     });
     
-    conversations[phone].messages.push({ role: 'assistant', content: initialMessage });
+    conversations[phone].messages.push({ 
+      role: 'assistant', 
+      content: initialMessage,
+      timestamp: new Date()
+    });
     
     res.json({ success: true, message: 'SMS conversation started!' });
   } catch (error) {
@@ -64,7 +105,6 @@ app.post('/api/sms-webhook', async (req, res) => {
     
     console.log('📱 SMS from:', customerPhone, '- Message:', customerMessage);
     
-    // Initialize if doesn't exist
     if (!conversations[customerPhone]) {
       conversations[customerPhone] = {
         messages: [],
@@ -75,16 +115,22 @@ app.post('/api/sms-webhook', async (req, res) => {
       };
     }
     
-    conversations[customerPhone].messages.push({ role: 'user', content: customerMessage });
+    conversations[customerPhone].messages.push({ 
+      role: 'user', 
+      content: customerMessage,
+      timestamp: new Date()
+    });
     
-    // Get intelligent response
     const aiResponse = await getJerryResponse(customerPhone, customerMessage);
     
-    // Send via Twilio
     const twiml = new twilio.twiml.MessagingResponse();
     twiml.message(aiResponse);
     
-    conversations[customerPhone].messages.push({ role: 'assistant', content: aiResponse });
+    conversations[customerPhone].messages.push({ 
+      role: 'assistant', 
+      content: aiResponse,
+      timestamp: new Date()
+    });
     
     res.type('text/xml').send(twiml.toString());
   } catch (error) {
@@ -100,7 +146,6 @@ async function getJerryResponse(phone, message) {
   const conversation = conversations[phone];
   const lowerMsg = message.toLowerCase();
   
-  // Check for STOP
   if (lowerMsg === 'stop') {
     conversation.status = 'stopped';
     return "You've been unsubscribed. Reply START to resume.";
@@ -112,7 +157,6 @@ async function getJerryResponse(phone, message) {
         lowerMsg.includes('car') || lowerMsg.includes('vehicle') || lowerMsg.includes('yes') || 
         lowerMsg.includes('interested')) {
       
-      // Extract vehicle type
       if (lowerMsg.includes('suv')) conversation.data.vehicleType = 'SUV';
       else if (lowerMsg.includes('truck')) conversation.data.vehicleType = 'Truck';
       else if (lowerMsg.includes('sedan')) conversation.data.vehicleType = 'Sedan';
@@ -129,7 +173,7 @@ async function getJerryResponse(phone, message) {
     if (lowerMsg.includes('30') || lowerMsg.includes('50') || lowerMsg.includes('k') || 
         lowerMsg.includes('$') || lowerMsg.includes('thousand')) {
       
-      if (lowerMsg.includes('30')) conversation.data.budget = 'Under $30k';
+      if (lowerMsg.includes('30') && !lowerMsg.includes('50')) conversation.data.budget = 'Under $30k';
       else if (lowerMsg.includes('50')) conversation.data.budget = '$30k-$50k';
       else conversation.data.budget = '$50k+';
       
@@ -173,38 +217,27 @@ async function getJerryResponse(phone, message) {
     conversation.data.datetime = message;
     conversation.stage = 'confirmed';
     
+    // Store appointment or callback
+    const entry = {
+      phone: phone,
+      name: conversation.data.name,
+      vehicleType: conversation.data.vehicleType,
+      budget: conversation.data.budget,
+      datetime: message,
+      createdAt: new Date()
+    };
+    
     if (conversation.data.intent === 'test_drive') {
+      appointments.push(entry);
       return `✅ Perfect ${conversation.data.name}! I've booked your test drive for ${message}. We'll text you the day before with our address. Excited to see you! Reply STOP to opt out.`;
     } else {
+      callbacks.push(entry);
       return `✅ Got it ${conversation.data.name}! We'll call you ${message}. Looking forward to helping you find your perfect ${conversation.data.vehicleType}! Reply STOP to opt out.`;
     }
   }
   
-  // Default helpful response
   return "Thanks for your message! To help you better, let me know:\n• What vehicle type interests you?\n• Your budget range?\n• If you'd like a test drive or callback?";
 }
-
-// Regular chat
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { message } = req.body;
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'sonar-small-chat',
-        messages: [{ role: 'user', content: message }]
-      })
-    });
-    const data = await response.json();
-    res.json({ success: true, message: data.choices[0].message.content });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
 
 app.listen(PORT, HOST, () => {
   console.log(`✅ Jerry AI Backend with 2-Way SMS on port ${PORT}`);
