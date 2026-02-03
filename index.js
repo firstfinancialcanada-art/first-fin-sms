@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const twilio = require('twilio');
+const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -25,6 +26,46 @@ const pool = new Pool({
 pool.connect()
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('❌ Database connection error:', err));
+
+
+// ===== EMAIL NOTIFICATION SETUP (BREVO) =====
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD
+  }
+});
+
+async function sendEmailNotification(subject, htmlContent) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+    console.log('⚠️ Email not configured - skipping notification');
+    return false;
+  }
+  try {
+    const info = await emailTransporter.sendMail({
+      from: `"Jerry AI - First Financial" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_TO || 'firstfinancialcanada@gmail.com',
+      subject: subject,
+      html: htmlContent
+    });
+    console.log('📧 Email sent:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('❌ Email error:', error.message);
+    return false;
+  }
+}
+
+function formatPhone(phone) {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `+1 (${cleaned.slice(1,4)}) ${cleaned.slice(4,7)}-${cleaned.slice(7)}`;
+  }
+  return phone;
+}
 
 // ===== DATABASE HELPER FUNCTIONS =====
 
@@ -226,7 +267,11 @@ app.get('/', (req, res) => {
       conversations: '/api/conversations',
       conversation: '/api/conversation/:phone',
       deleteConversation: 'DELETE /api/conversation/:phone',
-      manualReply: 'POST /api/manual-reply'
+      manualReply: 'POST /api/manual-reply',
+      exportAppointments: '/api/export/appointments',
+      exportCallbacks: '/api/export/callbacks',
+      exportConversations: '/api/export/conversations',
+      exportAnalytics: '/api/export/analytics'
     },
     timestamp: new Date()
   });
@@ -522,18 +567,7 @@ app.get('/dashboard', async (req, res) => {
     
     .loading { text-align: center; color: #666; padding: 40px; }
     .empty-state { text-align: center; color: #999; padding: 40px; font-style: italic; }
-    
-    @media (max-width: 768px) {
-      h1 { font-size: 1.8rem; }
-      .stats { grid-template-columns: repeat(2, 1fr); }
-      .section { padding: 20px; }
-      .reply-input-group {
-        flex-direction: column;
-      }
-    }
 
-
-    /* Search Box */
     .search-box {
       margin-bottom: 20px;
       padding: 12px;
@@ -551,101 +585,16 @@ app.get('/dashboard', async (req, res) => {
     .search-box::placeholder {
       color: #999;
     }
-
-    /* Export and Bulk Action Buttons */
-    .action-buttons {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-    }
-    .btn-export, .btn-bulk {
-      background: #10b981;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .btn-export:hover {
-      background: #059669;
-    }
-    .btn-bulk {
-      background: #ef4444;
-    }
-    .btn-bulk:hover {
-      background: #dc2626;
-    }
-
-    /* Status Dropdown and Notes */
-    .conversation-controls {
-      margin-top: 15px;
-      padding: 15px;
-      background: #f0f0f0;
-      border-radius: 6px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .status-dropdown {
-      padding: 8px 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    .btn-note {
-      background: #8b5cf6;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .btn-note:hover {
-      background: #7c3aed;
-    }
-    .conversation-note {
-      margin-top: 10px;
-      padding: 10px;
-      background: #fef3c7;
-      border-left: 4px solid #f59e0b;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      font-style: italic;
-    }
-
-    /* New Message Alert */
-    .new-message-alert {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #10b981;
-      color: white;
-      padding: 15px 25px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      font-weight: 600;
-      z-index: 9999;
-      animation: slideIn 0.3s ease;
-    }
-    @keyframes slideIn {
-      from {
-        transform: translateX(400px);
-        opacity: 0;
+    
+    @media (max-width: 768px) {
+      h1 { font-size: 1.8rem; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .section { padding: 20px; }
+      .reply-input-group {
+        flex-direction: column;
       }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }  </style>
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -703,6 +652,13 @@ app.get('/dashboard', async (req, res) => {
     
     <div class="section">
       <h2>📱 Recent Conversations (Click to View Messages)</h2>
+      <input 
+        type="text" 
+        id="searchBox" 
+        class="search-box" 
+        placeholder="🔍 Search by phone number or name..."
+        onkeyup="filterConversations()"
+      >
       <div class="conversation-list" id="conversationList">
         <div class="loading">Loading conversations...</div>
       </div>
@@ -864,129 +820,6 @@ app.get('/dashboard', async (req, res) => {
     }
     
     
-    // ===== EXPORT FUNCTIONS =====
-    async function exportAppointments() {
-      try {
-        const statsData = await fetch('/api/dashboard').then(r => r.json());
-        const appointments = statsData.recentAppointments;
-
-        if (appointments.length === 0) {
-          alert('No appointments to export');
-          return;
-        }
-
-        let csv = 'Name,Phone,Vehicle Type,Budget,Budget Amount,Date/Time,Booked At\n';
-        appointments.forEach(apt => {
-          csv += `"${apt.customer_name}","${apt.customer_phone}","${apt.vehicle_type}","${apt.budget}","${apt.budget_amount || 0}","${apt.datetime}","${new Date(apt.created_at).toLocaleString()}"\n`;
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'appointments_' + new Date().toISOString().split('T')[0] + '.csv';
-        a.click();
-      } catch (error) {
-        alert('Error exporting: ' + error.message);
-      }
-    }
-
-    async function exportCallbacks() {
-      try {
-        const statsData = await fetch('/api/dashboard').then(r => r.json());
-        const callbacks = statsData.recentCallbacks;
-
-        if (callbacks.length === 0) {
-          alert('No callbacks to export');
-          return;
-        }
-
-        let csv = 'Name,Phone,Vehicle Type,Budget,Budget Amount,Preferred Time,Requested At\n';
-        callbacks.forEach(cb => {
-          csv += `"${cb.customer_name}","${cb.customer_phone}","${cb.vehicle_type}","${cb.budget}","${cb.budget_amount || 0}","${cb.datetime}","${new Date(cb.created_at).toLocaleString()}"\n`;
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'callbacks_' + new Date().toISOString().split('T')[0] + '.csv';
-        a.click();
-      } catch (error) {
-        alert('Error exporting: ' + error.message);
-      }
-    }
-
-    // ===== BULK DELETE FUNCTION =====
-    async function bulkDeleteStopped() {
-      if (!confirm('Delete ALL stopped conversations? This cannot be undone!')) {
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/bulk-delete-stopped', {
-          method: 'POST'
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          alert(`✅ Deleted ${data.count} stopped conversation(s)`);
-          loadDashboard();
-        } else {
-          alert('Error: ' + (data.error || 'Unknown error'));
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    // ===== STATUS AND NOTES FUNCTIONS =====
-    async function updateStatus(phone, newStatus) {
-      try {
-        const response = await fetch('/api/update-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, status: newStatus })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          loadDashboard();
-        } else {
-          alert('Error: ' + (data.error || 'Unknown error'));
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    async function addNote(phone) {
-      const note = prompt('Enter internal note for this conversation:');
-      if (!note) return;
-
-      try {
-        const response = await fetch('/api/add-note', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, note })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          alert('✅ Note added!');
-          viewConversation(phone, null);
-        } else {
-          alert('Error: ' + (data.error || 'Unknown error'));
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
-    }
-
-    // ===== SEARCH/FILTER FUNCTION =====
     function filterConversations() {
       const searchBox = document.getElementById('searchBox');
       const searchTerm = searchBox.value.toLowerCase().replace(/[^0-9a-z]/g, '');
@@ -1007,41 +840,6 @@ app.get('/dashboard', async (req, res) => {
           }
         }
       });
-    }
-
-    // ===== REAL-TIME NOTIFICATIONS =====
-    let lastMessageCount = 0;
-
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-
-    async function checkNewMessages() {
-      try {
-        const statsData = await fetch('/api/dashboard').then(r => r.json());
-        const currentMessageCount = statsData.stats.totalMessages;
-
-        if (lastMessageCount > 0 && currentMessageCount > lastMessageCount) {
-          const newMessages = currentMessageCount - lastMessageCount;
-
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🚗 Jerry AI - New Message!', {
-              body: `${newMessages} new message(s) received`
-            });
-          }
-
-          const alertDiv = document.createElement('div');
-          alertDiv.className = 'new-message-alert';
-          alertDiv.textContent = `🔔 ${newMessages} new message(s) received!`;
-          document.body.appendChild(alertDiv);
-
-          setTimeout(() => alertDiv.remove(), 5000);
-        }
-
-        lastMessageCount = currentMessageCount;
-      } catch (error) {
-        console.error('Error checking messages:', error);
-      }
     }
 
     async function loadDashboard() {
@@ -1176,16 +974,6 @@ app.get('/dashboard', async (req, res) => {
             </div>
             <div class="reply-status" id="\${statusId}"></div>
           </div>
-          <div class="conversation-controls">
-            <label>Status:</label>
-            <select class="status-dropdown" onchange="updateStatus('\${phone}', this.value)">
-              <option value="active" \${data.conversation.status === 'active' ? 'selected' : ''}>Active</option>
-              <option value="converted" \${data.conversation.status === 'converted' ? 'selected' : ''}>Converted</option>
-              <option value="stopped" \${data.conversation.status === 'stopped' ? 'selected' : ''}>Stopped</option>
-            </select>
-            <button class="btn-note" onclick="addNote('\${phone}')">📝 Add/Edit Note</button>
-          </div>
-          \${data.conversation.internal_note ? '<div class="conversation-note">📌 Note: ' + data.conversation.internal_note + '</div>' : ''}
           \`;
       } catch (error) {
         messagesContainer.innerHTML = '<div class="empty-state">Error loading messages</div>';
@@ -1193,10 +981,7 @@ app.get('/dashboard', async (req, res) => {
     }
     
     loadDashboard();
-    setInterval(() => {
-      loadDashboard();
-      checkNewMessages();
-    }, 10000);
+    setInterval(loadDashboard, 10000);
   </script>
 </body>
 </html>
@@ -1244,7 +1029,6 @@ app.get('/api/conversations', async (req, res) => {
         c.status,
         c.vehicle_type,
         c.budget,
-        c.internal_note,
         c.started_at,
         c.updated_at,
         (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count
@@ -1619,70 +1403,83 @@ async function getJerryResponse(phone, message, conversation) {
 }
 
 
-// ===== NEW API ENDPOINTS =====
-
-// API: Bulk delete stopped conversations
-app.post('/api/bulk-delete-stopped', async (req, res) => {
+// ===== EXPORT ENDPOINTS =====
+app.get('/api/export/appointments', async (req, res) => {
   const client = await pool.connect();
   try {
-    const stoppedConvos = await client.query(
-      'SELECT id, customer_phone FROM conversations WHERE status = $1',
-      ['stopped']
-    );
-    
-    for (const conv of stoppedConvos.rows) {
-      await client.query('DELETE FROM messages WHERE conversation_id = $1', [conv.id]);
-      await client.query('DELETE FROM conversations WHERE id = $1', [conv.id]);
-    }
-    
-    console.log(`🗑️ Bulk deleted ${stoppedConvos.rows.length} stopped conversations`);
-    res.json({ success: true, count: stoppedConvos.rows.length });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
+    const result = await client.query('SELECT * FROM appointments ORDER BY created_at DESC');
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No appointments' });
+    const headers = ['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created', 'Status'];
+    const rows = [headers.join(',')];
+    result.rows.forEach(r => rows.push([r.id, `"${r.customer_phone}"`, `"${r.customer_name||''}"`, `"${r.vehicle_type||''}"`, `"${r.budget||''}"`, r.budget_amount||'', `"${r.datetime||''}"`, `"${r.created_at}"`, `"${r.status||'pending'}"`].join(',')));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="appointments_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(rows.join('\n'));
+    console.log('📊 Exported', result.rows.length, 'appointments');
+  } catch (e) {
+    res.status(500).json({ error: 'Export failed' });
   } finally {
     client.release();
   }
 });
 
-// API: Update conversation status
-app.post('/api/update-status', async (req, res) => {
+app.get('/api/export/callbacks', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { phone, status } = req.body;
-    
-    await client.query(
-      'UPDATE conversations SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE customer_phone = $2',
-      [status, phone]
-    );
-    
-    console.log(`✅ Status updated for ${phone}: ${status}`);
-    res.json({ success: true });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
+    const result = await client.query('SELECT * FROM callbacks ORDER BY created_at DESC');
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No callbacks' });
+    const headers = ['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created', 'Status'];
+    const rows = [headers.join(',')];
+    result.rows.forEach(r => rows.push([r.id, `"${r.customer_phone}"`, `"${r.customer_name||''}"`, `"${r.vehicle_type||''}"`, `"${r.budget||''}"`, r.budget_amount||'', `"${r.datetime||''}"`, `"${r.created_at}"`, `"${r.status||'pending'}"`].join(',')));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="callbacks_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(rows.join('\n'));
+    console.log('📊 Exported', result.rows.length, 'callbacks');
+  } catch (e) {
+    res.status(500).json({ error: 'Export failed' });
   } finally {
     client.release();
   }
 });
 
-// API: Add internal note
-app.post('/api/add-note', async (req, res) => {
+app.get('/api/export/conversations', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { phone, note } = req.body;
-    
-    await client.query(
-      'UPDATE conversations SET internal_note = $1, updated_at = CURRENT_TIMESTAMP WHERE customer_phone = $2',
-      [note, phone]
-    );
-    
-    console.log(`📝 Note added for ${phone}`);
-    res.json({ success: true });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
+    const result = await client.query('SELECT * FROM conversations ORDER BY started_at DESC');
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No conversations' });
+    const headers = ['ID', 'Phone', 'Status', 'Name', 'Vehicle', 'Budget', 'Amount', 'Started', 'Updated'];
+    const rows = [headers.join(',')];
+    result.rows.forEach(r => rows.push([r.id, `"${r.customer_phone}"`, `"${r.status}"`, `"${r.customer_name||''}"`, `"${r.vehicle_type||''}"`, `"${r.budget||''}"`, r.budget_amount||'', `"${r.started_at}"`, `"${r.updated_at}"`].join(',')));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="conversations_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(rows.join('\n'));
+    console.log('📊 Exported', result.rows.length, 'conversations');
+  } catch (e) {
+    res.status(500).json({ error: 'Export failed' });
   } finally {
     client.release();
   }
 });
+
+app.get('/api/export/analytics', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT * FROM analytics ORDER BY timestamp DESC');
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No analytics' });
+    const headers = ['ID', 'Event', 'Phone', 'Data', 'Timestamp'];
+    const rows = [headers.join(',')];
+    result.rows.forEach(r => rows.push([r.id, `"${r.event_type}"`, `"${r.customer_phone||''}"`, `"${JSON.stringify(r.data).replace(/"/g, '""')}"`, `"${r.timestamp}"`].join(',')));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="analytics_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(rows.join('\n'));
+    console.log('📊 Exported', result.rows.length, 'analytics');
+  } catch (e) {
+    res.status(500).json({ error: 'Export failed' });
+  } finally {
+    client.release();
+  }
+});
+
 
 app.listen(PORT, HOST, () => {
   console.log(`✅ Jerry AI Backend - Database Edition - Port ${PORT}`);
