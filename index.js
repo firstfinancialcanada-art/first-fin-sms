@@ -12,7 +12,7 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
-// Store conversations (use database in production)
+// Store conversations
 const conversations = {};
 const appointments = [];
 const callbacks = [];
@@ -23,12 +23,17 @@ const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_A
 app.get('/', (req, res) => {
   res.json({
     status: '✅ Jerry AI Backend LIVE',
-    twoway_sms: 'Ready',
-    backend_url: `https://${req.get('host')}/api`
+    endpoints: {
+      startSms: '/api/start-sms',
+      webhook: '/api/sms-webhook',
+      conversations: '/api/conversations',
+      appointments: '/api/appointments',
+      callbacks: '/api/callbacks'
+    }
   });
 });
 
-// NEW: Get all conversations
+// Get conversations
 app.get('/api/conversations', (req, res) => {
   const convList = Object.keys(conversations).map(phone => ({
     phone: phone,
@@ -36,34 +41,22 @@ app.get('/api/conversations', (req, res) => {
     stage: conversations[phone].stage,
     data: conversations[phone].data,
     started: conversations[phone].started,
-    lastMessage: conversations[phone].messages[conversations[phone].messages.length - 1],
     messageCount: conversations[phone].messages.length
   }));
   res.json({ success: true, conversations: convList });
 });
 
-// NEW: Get appointments
+// Get appointments
 app.get('/api/appointments', (req, res) => {
   res.json({ success: true, appointments: appointments });
 });
 
-// NEW: Get callbacks
+// Get callbacks
 app.get('/api/callbacks', (req, res) => {
   res.json({ success: true, callbacks: callbacks });
 });
 
-// NEW: Get conversation details
-app.get('/api/conversation/:phone', (req, res) => {
-  const phone = req.params.phone;
-  const conv = conversations[phone];
-  if (conv) {
-    res.json({ success: true, conversation: conv });
-  } else {
-    res.json({ success: false, error: 'Conversation not found' });
-  }
-});
-
-// Start SMS conversation
+// Start SMS
 app.post('/api/start-sms', async (req, res) => {
   try {
     const { phone, message } = req.body;
@@ -90,13 +83,13 @@ app.post('/api/start-sms', async (req, res) => {
       timestamp: new Date()
     });
     
-    res.json({ success: true, message: 'SMS conversation started!' });
+    res.json({ success: true, message: 'SMS sent!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
 
-// Twilio Webhook - Incoming SMS
+// Twilio Webhook
 app.post('/api/sms-webhook', async (req, res) => {
   try {
     const { From, Body } = req.body;
@@ -134,14 +127,13 @@ app.post('/api/sms-webhook', async (req, res) => {
     
     res.type('text/xml').send(twiml.toString());
   } catch (error) {
-    console.error('❌ Webhook error:', error);
+    console.error('❌ Error:', error);
     const twiml = new twilio.twiml.MessagingResponse();
     twiml.message("I'm having trouble right now. Please call us at (403) 555-0100!");
     res.type('text/xml').send(twiml.toString());
   }
 });
 
-// Intelligent Jerry AI Response
 async function getJerryResponse(phone, message) {
   const conversation = conversations[phone];
   const lowerMsg = message.toLowerCase();
@@ -185,7 +177,7 @@ async function getJerryResponse(phone, message) {
   
   // Stage 3: Appointment/Callback
   if (conversation.stage === 'appointment') {
-    if (lowerMsg.includes('1') || lowerMsg.includes('test') || lowerMsg.includes('drive') || lowerMsg.includes('appointment')) {
+    if (lowerMsg.includes('1') || lowerMsg.includes('test') || lowerMsg.includes('drive')) {
       conversation.data.intent = 'test_drive';
       conversation.stage = 'name';
       return "Awesome! What's your name?";
@@ -206,9 +198,9 @@ async function getJerryResponse(phone, message) {
     conversation.stage = 'datetime';
     
     if (conversation.data.intent === 'test_drive') {
-      return `Nice to meet you, ${message}! When works best for your test drive? (e.g., Tomorrow afternoon, This Saturday, Next week)`;
+      return `Nice to meet you, ${message}! When works best for your test drive? (e.g., Tomorrow afternoon, This Saturday)`;
     } else {
-      return `Nice to meet you, ${message}! When's the best time to call you? (e.g., Tomorrow morning, This afternoon, Evening)`;
+      return `Nice to meet you, ${message}! When's the best time to call you? (e.g., Tomorrow morning, This afternoon)`;
     }
   }
   
@@ -217,7 +209,6 @@ async function getJerryResponse(phone, message) {
     conversation.data.datetime = message;
     conversation.stage = 'confirmed';
     
-    // Store appointment or callback
     const entry = {
       phone: phone,
       name: conversation.data.name,
@@ -229,14 +220,14 @@ async function getJerryResponse(phone, message) {
     
     if (conversation.data.intent === 'test_drive') {
       appointments.push(entry);
-      return `✅ Perfect ${conversation.data.name}! I've booked your test drive for ${message}. We'll text you the day before with our address. Excited to see you! Reply STOP to opt out.`;
+      return `✅ Perfect ${conversation.data.name}! I've booked your test drive for ${message}. We'll text you the day before. Excited to see you!`;
     } else {
       callbacks.push(entry);
-      return `✅ Got it ${conversation.data.name}! We'll call you ${message}. Looking forward to helping you find your perfect ${conversation.data.vehicleType}! Reply STOP to opt out.`;
+      return `✅ Got it ${conversation.data.name}! We'll call you ${message}. Looking forward to helping you find your perfect ${conversation.data.vehicleType}!`;
     }
   }
   
-  return "Thanks for your message! To help you better, let me know:\n• What vehicle type interests you?\n• Your budget range?\n• If you'd like a test drive or callback?";
+  return "Thanks! To help you better:\n• What vehicle type interests you?\n• Your budget?\n• Test drive or callback?";
 }
 
 app.listen(PORT, HOST, () => {
