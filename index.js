@@ -542,21 +542,77 @@ app.get('/dashboard', async (req, res) => {
       color: #991b1b;
     }
     
-    .appointment-card {
+    .appointment-card, .callback-card {
       padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+    }
+    .appointment-card {
       background: #f0fdf4;
       border-left: 4px solid #4ade80;
-      border-radius: 4px;
-      margin-bottom: 15px;
+    }
+    .appointment-card:hover {
+      background: #dcfce7;
+      transform: translateX(5px);
     }
     .callback-card {
-      padding: 15px;
       background: #fef3c7;
       border-left: 4px solid #fbbf24;
-      border-radius: 4px;
-      margin-bottom: 15px;
     }
-    .card-title { font-weight: bold; color: #333; margin-bottom: 8px; font-size: 1.1rem; }
+    .callback-card:hover {
+      background: #fde68a;
+      transform: translateX(5px);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-title { 
+      font-weight: bold; 
+      color: #333; 
+      font-size: 1.1rem;
+      flex: 1;
+    }
+    .card-preview { 
+      font-size: 0.85rem; 
+      color: #666; 
+      margin-top: 8px; 
+    }
+    .expand-icon {
+      font-size: 1.5rem;
+      color: #667eea;
+      transition: transform 0.3s;
+      user-select: none;
+    }
+    .expand-icon.expanded {
+      transform: rotate(180deg);
+    }
+    .card-details {
+      display: none;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 2px solid rgba(0,0,0,0.1);
+    }
+    .card-details.visible {
+      display: block;
+    }
+    .detail-row {
+      display: flex;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #333;
+      min-width: 140px;
+    }
+    .detail-value {
+      color: #666;
+    }
     .card-info { font-size: 0.9rem; color: #666; margin-top: 4px; }
     
     .loading { text-align: center; color: #666; padding: 40px; }
@@ -849,6 +905,32 @@ app.get('/dashboard', async (req, res) => {
       });
     }
 
+    function toggleAppointment(id) {
+      const details = document.getElementById('apt-details-' + id);
+      const icon = document.getElementById('apt-icon-' + id);
+
+      if (details.classList.contains('visible')) {
+        details.classList.remove('visible');
+        icon.classList.remove('expanded');
+      } else {
+        details.classList.add('visible');
+        icon.classList.add('expanded');
+      }
+    }
+
+    function toggleCallback(id) {
+      const details = document.getElementById('cb-details-' + id);
+      const icon = document.getElementById('cb-icon-' + id);
+
+      if (details.classList.contains('visible')) {
+        details.classList.remove('visible');
+        icon.classList.remove('expanded');
+      } else {
+        details.classList.add('visible');
+        icon.classList.add('expanded');
+      }
+    }
+
     async function loadDashboard() {
       try {
         const statsData = await fetch('/api/dashboard').then(r => r.json());
@@ -1002,8 +1084,8 @@ app.get('/api/dashboard', async (req, res) => {
     const customers = await client.query('SELECT COUNT(*) as count FROM customers');
     const conversations = await client.query('SELECT COUNT(*) as count FROM conversations');
     const messages = await client.query('SELECT COUNT(*) as count FROM messages');
-    const appointments = await client.query('SELECT * FROM appointments ORDER BY created_at DESC LIMIT 10');
-    const callbacks = await client.query('SELECT * FROM callbacks ORDER BY created_at DESC LIMIT 10');
+    const appointments = await client.query('SELECT * FROM appointments ORDER BY created_at DESC LIMIT 25');
+    const callbacks = await client.query('SELECT * FROM callbacks ORDER BY created_at DESC LIMIT 25');
     
     res.json({
       stats: {
