@@ -1363,14 +1363,6 @@ app.post('/api/sms-webhook', async (req, res) => {
   }
 });
 
-    console.log('✅ Jerry replied:', aiResponse);
-    res.type('text/xml').send('<Response></Response>');
-  } catch (error) {
-    console.error('❌ Webhook error:', error);
-        res.type('text/xml').send('<Response></Response>');
-
-  }
-});
 
 // Jerry AI Logic
 async function getJerryResponse(phone, message, conversation) {
