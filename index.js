@@ -1344,14 +1344,8 @@ app.post('/api/sms-webhook', async (req, res) => {
           to: phone
         });
         
-        console.log('✅ Jerry replied:', aiResponse);
-      } catch (bgError) {
-        console.error('❌ Background processing error:', bgError);
-      }
-    })();
-    
-  } catch (error) {
-    console.error('❌ Webhook error:', error);        
+               console.log('✅ Jerry replied:', aiResponse);
+        
         // Send email notification (non-blocking, won't slow down SMS)
         sendEmailNotification(
           '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone)),
@@ -1359,6 +1353,15 @@ app.post('/api/sms-webhook', async (req, res) => {
         ).catch(err => {
           console.error('Email error:', err);
         });
+        
+      } catch (bgError) {
+        console.error('❌ Background processing error:', bgError);
+      }
+    })();
+    
+  } catch (error) {
+    console.error('❌ Webhook error:', error);        
+        
 
     res.type('text/xml').send('<Response></Response>');
   }
