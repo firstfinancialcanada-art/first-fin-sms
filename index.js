@@ -1413,7 +1413,31 @@ async function getJerryResponse(phone, message, conversation) {
       });
       return `Perfect! Sedans are reliable. What's your budget range? (e.g., $15k, $25k, $40k, $60k+)`;
     }
+        
+    if (lowerMsg.includes('sports') || lowerMsg.includes('coupe') || lowerMsg.includes('convertible')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Sports Car',
+        stage: 'budget'
+      });
+      return `Exciting! Sports cars are fun. What's your budget range? (e.g., $25k, $40k, $60k+)`;
+    }
     
+    if (lowerMsg.includes('minivan') || lowerMsg.includes('van')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Minivan',
+        stage: 'budget'
+      });
+      return `Great for families! What's your budget range? (e.g., $20k, $30k, $50k+)`;
+    }
+    
+    if (lowerMsg.includes('electric') || lowerMsg.includes('ev') || lowerMsg.includes('hybrid')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Electric/Hybrid',
+        stage: 'budget'
+      });
+      return `Excellent choice! Eco-friendly options. What's your budget range? (e.g., $30k, $50k, $70k+)`;
+    }
+
     if (lowerMsg.includes('car') || lowerMsg.includes('vehicle') || 
         lowerMsg.includes('yes') || lowerMsg.includes('interested') ||
         lowerMsg.includes('want') || lowerMsg.includes('looking')) {
@@ -1446,7 +1470,12 @@ async function getJerryResponse(phone, message, conversation) {
         }
       }
     }
-    
+       
+    // Validate budget amount is realistic
+    if (budgetAmount > 0 && budgetAmount < 5000) {
+      return "Just to clarify - is that $" + budgetAmount + " your total budget or down payment? Most vehicles start around $15k. Reply with your full budget (e.g., $20k, $30k).";
+    }
+ 
     if (budgetAmount > 0) {
       let budgetRange = '';
       if (budgetAmount < 30000) {
@@ -1570,8 +1599,23 @@ async function getJerryResponse(phone, message, conversation) {
     }
   }
   
-  if (conversation.stage === 'confirmed') {
-    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. If you need anything or want to reschedule, just let me know! We're located in Calgary, AB and deliver across Canada.`;
+ if (conversation.stage === 'confirmed') {
+    // Check for specific keywords after booking
+    if (lowerMsg.includes('reschedule') || lowerMsg.includes('change') || lowerMsg.includes('different time')) {
+      return `No problem ${conversation.customer_name}! What time works better for you? (e.g., Friday afternoon, Next Tuesday, This weekend)`;
+    }
+    
+    if (lowerMsg.includes('cancel')) {
+      await updateConversation(conversation.id, { status: 'cancelled' });
+      return `I've cancelled your appointment. No worries! If you change your mind, just text me back and we'll get you set up. 👍`;
+    }
+    
+    if (lowerMsg.includes('inventory') || lowerMsg.includes('photos') || lowerMsg.includes('pictures') || lowerMsg.includes('see vehicles')) {
+      return `Great question! I'll have one of our managers text you photos of ${conversation.vehicle_type}s in your ${conversation.budget} range. They'll reach out shortly! 📸`;
+    }
+    
+    // Default response for confirmed stage
+    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. 📅\n\nNeed to:\n• RESCHEDULE - Change your appointment time\n• INVENTORY - See photos of available vehicles\n• Just reply if you have questions!\n\nWe're in Calgary and deliver across Canada! 🚗`;
   }
   
   return "Thanks for your message! To help you better, let me know:\n• What type of vehicle? (SUV, Sedan, Truck)\n• Your budget? (e.g., $20k)\n• Test drive or callback?";
