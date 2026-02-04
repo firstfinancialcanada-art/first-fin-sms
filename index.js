@@ -1315,33 +1315,54 @@ app.post('/api/sms-webhook', async (req, res) => {
     console.log('📩 Received from:', phone);
     console.log('💬 Message:', message);
     
-    await getOrCreateCustomer(phone);
-    const conversation = await getOrCreateConversation(phone);
-    await saveMessage(conversation.id, phone, 'user', message);
-    try {
-      const emailSubject = '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone));
-      const emailBody = '<div style="font-family: Arial; max-width: 600px;"><div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 25px; border-radius: 0 0 10px 10px;"><table><tr><td style="padding: 12px; font-weight: bold;">Phone:</td><td style="padding: 12px;">' + formatPhone(phone) + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Name:</td><td style="padding: 12px;">' + (conversation.customer_name||'Not provided') + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Message:</td><td style="padding: 12px; font-weight: 600;">' + message + '</td></tr></table></div></div>';
-      await sendEmailNotification(emailSubject, emailBody);
-    } catch (err) { console.error('Email error:', err); }
-    await touchConversation(conversation.id);
-    await logAnalytics('message_received', phone, { message });
+    // Respond to Twilio IMMEDIATELY (prevents retries/duplicates)
+    res.type('text/xml').send('<Response></Response>');
     
-    const aiResponse = await getJerryResponse(phone, message, conversation);
+    // Now do all the work in background (won't block Twilio)
+    (async () => {
+      try {
+        await getOrCreateCustomer(phone);
+        const conversation = await getOrCreateConversation(phone);
+        await saveMessage(conversation.id, phone, 'user', message);
+        
+        try {
+          const emailSubject = '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone));
+          const emailBody = '<div style="font-family: Arial; max-width: 600px;"><div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 25px; border-radius: 0 0 10px 10px;"><table><tr><td style="padding: 12px; font-weight: bold;">Phone:</td><td style="padding: 12px;">' + formatPhone(phone) + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Name:</td><td style="padding: 12px;">' + (conversation.customer_name||'Not provided') + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Message:</td><td style="padding: 12px; font-weight: 600;">' + message + '</td></tr></table></div></div>';
+          await sendEmailNotification(emailSubject, emailBody);
+        } catch (err) { 
+          console.error('Email error:', err); 
+        }
+        
+        await touchConversation(conversation.id);
+        await logAnalytics('message_received', phone, { message });
+        
+        const aiResponse = await getJerryResponse(phone, message, conversation);
+        await saveMessage(conversation.id, phone, 'assistant', aiResponse);
+        
+        // Send SMS
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const authToken = process.env.TWILIO_AUTH_TOKEN;
+        const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+        const client = twilio(accountSid, authToken);
+        
+        await client.messages.create({
+          body: aiResponse,
+          from: fromNumber,
+          to: phone
+        });
+        
+        console.log('✅ Jerry replied:', aiResponse);
+      } catch (bgError) {
+        console.error('❌ Background processing error:', bgError);
+      }
+    })();
     
-    await saveMessage(conversation.id, phone, 'assistant', aiResponse);
-    
-     // ✅ CHANGE: Use Twilio client instead of TwiML
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-    const client = twilio(accountSid, authToken);
-    
-    await client.messages.create({
-      body: aiResponse,
-      from: fromNumber,
-      to: phone
-    });
-    
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    res.type('text/xml').send('<Response></Response>');
+  }
+});
+
     console.log('✅ Jerry replied:', aiResponse);
     res.type('text/xml').send('<Response></Response>');
   } catch (error) {
