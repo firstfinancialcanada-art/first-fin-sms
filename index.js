@@ -994,30 +994,35 @@ app.get('/dashboard', async (req, res) => {
     async function deleteAppointment(aptId) {
       if (!confirm('Delete this appointment?')) return;
       try {
-        const response = await fetch(`/api/appointment/${aptId}`, { method: 'DELETE' });
-        const data = await response.json();
+        const res = await fetch('/api/appointment/' + aptId, {method: 'DELETE'});
+        const data = await res.json();
         if (data.success) {
-          alert('✅ Appointment deleted!');
+          alert('Appointment deleted!');
           loadDashboard();
         } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
+          alert('Failed: ' + (data.error || 'Unknown'));
         }
-      } catch (error) {
-        alert('Error: ' + error.message);
+      } catch (err) {
+        alert('Error: ' + err.message);
       }
     }
 
     async function deleteCallback(cbId) {
       if (!confirm('Delete this callback?')) return;
       try {
-        const response = await fetch(`/api/callback/${cbId}`, { method: 'DELETE' });
-        const data = await response.json();
+        const res = await fetch('/api/callback/' + cbId, {method: 'DELETE'});
+        const data = await res.json();
         if (data.success) {
-          alert('✅ Callback deleted!');
+          alert('Callback deleted!');
           loadDashboard();
         } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
+          alert('Failed: ' + (data.error || 'Unknown'));
         }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
       } catch (error) {
         alert('Error: ' + error.message);
       }
