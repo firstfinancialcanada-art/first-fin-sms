@@ -1216,7 +1216,7 @@ app.get('/dashboard', async (req, res) => {
     }
     
     loadDashboard();
-    setInterval(loadDashboard, 30000);
+    setInterval(loadDashboard, 10000);
   </script>
 </body>
 </html>
