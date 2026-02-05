@@ -1290,7 +1290,8 @@ const conversation = await getOrCreateConversation(phone);
 // Save the outgoing message to database so it appears in Recent Messages
 await saveMessage(conversation.id, phone, 'assistant', messageBody);
 
-await logAnalytics('sms_sent', phone
+await logAnalytics('sms_sent', phone, { messageBody });
+
 
     
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
