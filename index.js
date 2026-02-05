@@ -442,20 +442,23 @@ app.get('/dashboard', async (req, res) => {
       flex: 1;
     }
     .btn-delete {
-    .btn-delete-small {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  margin-left: 10px;
+ .btn-delete-small {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 14px !important;
+  border-radius: 8px !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  margin-left: 12px !important;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.4) !important;
+  transition: all 0.3s !important;
 }
 .btn-delete-small:hover {
-  background: #dc2626;
-  transform: scale(1.05);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.6) !important;
 }
 
       background: #ef4444;
@@ -978,6 +981,42 @@ app.get('/dashboard', async (req, res) => {
       const details = document.getElementById('cb-details-' + id);
       const icon = document.getElementById('cb-icon-' + id);
       if (details && icon) {
+      // ⭐ ADD THESE TWO FUNCTIONS HERE ⭐
+
+// Frontend delete appointment - calls your existing backend API
+async function deleteAppointment(aptId) {
+  if (!confirm('Delete this appointment?')) return;
+  try {
+    const response = await fetch(`/api/appointment/${aptId}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (data.success) {
+      showNotification('✅ Appointment deleted!');
+      loadDashboard();  // Refresh dashboard
+    } else {
+      alert('Delete failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+// Frontend delete callback - calls your existing backend API
+async function deleteCallback(cbId) {
+  if (!confirm('Delete this callback?')) return;
+  try {
+    const response = await fetch(`/api/callback/${cbId}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (data.success) {
+      showNotification('✅ Callback deleted!');
+      loadDashboard();  // Refresh dashboard
+    } else {
+      alert('Delete failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
         if (details.classList.contains('visible')) {
           details.classList.remove('visible');
           icon.classList.remove('expanded');
