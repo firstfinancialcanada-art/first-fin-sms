@@ -1611,8 +1611,11 @@ async function getJerryResponse(phone, message, conversation) {
     }
     // END NEW CODE
     
-    await updateConversation(conversation.id, { 
-      datetime: finalDateTime,  // CHANGED from "message" to "finalDateTime"
+       await updateConversation(conversation.id, { 
+      datetime: finalDateTime,
+      stage: 'confirmed',
+      status: 'converted'
+    });
     
     const appointmentData = {
       phone: phone,
