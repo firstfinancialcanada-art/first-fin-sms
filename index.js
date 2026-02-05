@@ -1573,11 +1573,46 @@ async function getJerryResponse(phone, message, conversation) {
   }
   
   if (conversation.stage === 'datetime' && !conversation.datetime) {
+    // NEW CODE - Handle vague datetime responses
+    let finalDateTime = message;
+    const lowerMsg = message.toLowerCase().trim();
+    
+    // Handle "today" variations
+    if (lowerMsg.includes('today')) {
+      if (lowerMsg.includes('morning')) finalDateTime = 'Today morning';
+      else if (lowerMsg.includes('afternoon')) finalDateTime = 'Today afternoon';
+      else if (lowerMsg.includes('evening')) finalDateTime = 'Today evening';
+      else finalDateTime = 'Today afternoon';
+    }
+    // Handle "tomorrow" variations
+    else if (lowerMsg.includes('tomorrow')) {
+      if (lowerMsg.includes('morning')) finalDateTime = 'Tomorrow morning';
+      else if (lowerMsg.includes('afternoon')) finalDateTime = 'Tomorrow afternoon';
+      else if (lowerMsg.includes('evening')) finalDateTime = 'Tomorrow evening';
+      else finalDateTime = 'Tomorrow afternoon';
+    }
+    // Handle "this weekend"
+    else if (lowerMsg.includes('this weekend') || lowerMsg === 'weekend') {
+      finalDateTime = 'This weekend';
+    }
+    // Handle "next week"
+    else if (lowerMsg.includes('next week')) {
+      finalDateTime = 'Next week';
+    }
+    // Handle "this morning/afternoon/evening"
+    else if (lowerMsg.includes('this morning')) {
+      finalDateTime = 'Today morning';
+    }
+    else if (lowerMsg.includes('this afternoon')) {
+      finalDateTime = 'Today afternoon';
+    }
+    else if (lowerMsg.includes('this evening') || lowerMsg.includes('tonight')) {
+      finalDateTime = 'Today evening';
+    }
+    // END NEW CODE
+    
     await updateConversation(conversation.id, { 
-      datetime: message,
-      stage: 'confirmed',
-      status: 'converted'
-    });
+      datetime: finalDateTime,  // CHANGED from "message" to "finalDateTime"
     
     const appointmentData = {
       phone: phone,
