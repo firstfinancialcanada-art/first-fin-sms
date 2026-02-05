@@ -173,6 +173,40 @@ async function hasActiveConversation(phone) {
 
 // Delete conversation and its messages
 async function deleteConversation(phone) {
+  // API: Delete individual appointment
+async function deleteAppointment(appointmentId) {
+  if (!confirm('Delete this appointment?')) return;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('DELETE FROM appointments WHERE id = $1', [appointmentId]);
+    showNotification('✅ Appointment deleted');
+    loadStats();
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    showNotification('❌ Error deleting appointment', 'error');
+  } finally {
+    client.release();
+  }
+}
+
+// API: Delete individual callback
+async function deleteCallback(callbackId) {
+  if (!confirm('Delete this callback?')) return;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('DELETE FROM callbacks WHERE id = $1', [callbackId]);
+    showNotification('✅ Callback deleted');
+    loadStats();
+  } catch (error) {
+    console.error('Error deleting callback:', error);
+    showNotification('❌ Error deleting callback', 'error');
+  } finally {
+    client.release();
+  }
+}
+
   const client = await pool.connect();
   try {
     const conversation = await client.query(
@@ -408,6 +442,22 @@ app.get('/dashboard', async (req, res) => {
       flex: 1;
     }
     .btn-delete {
+    .btn-delete-small {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-left: 10px;
+}
+.btn-delete-small:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+
       background: #ef4444;
       color: white;
       border: none;
@@ -424,6 +474,7 @@ app.get('/dashboard', async (req, res) => {
       margin-left: 15px;
     }
     .btn-delete:hover {
+    
       background: #dc2626;
       transform: scale(1.1);
     }
@@ -1008,13 +1059,14 @@ app.get('/dashboard', async (req, res) => {
           appointmentsList.innerHTML = '<div class="empty-state">No appointments yet.</div>';
         } else {
           appointmentsList.innerHTML = statsData.recentAppointments.map(apt => \`
-            <div class="appointment-card" onclick="toggleAppointment(\${apt.id})">
+            <div class="appointment-card">
               <div class="card-header">
-                <div style="flex: 1;">
+                <div style="flex: 1;" onclick="toggleAppointment(\${apt.id})">
                   <div class="card-title">🚗 \${apt.customer_name} - \${apt.vehicle_type}</div>
                   <div class="card-preview">📞 \${apt.customer_phone} • 📅 \${apt.datetime}</div>
                 </div>
-                <span class="expand-icon" id="apt-icon-\${apt.id}">▼</span>
+                <button class="btn-delete-small" onclick="event.stopPropagation(); deleteAppointment(\${apt.id})">🗑️ Delete</button>
+<span class="expand-icon" id="apt-icon-\${apt.id}" onclick="toggleAppointment(\${apt.id})">▼</span>
               </div>
               <div class="card-details" id="apt-details-\${apt.id}">
                 <div class="detail-row"><span class="detail-label">Customer Name:</span><span class="detail-value">\${apt.customer_name}</span></div>
@@ -1033,13 +1085,14 @@ app.get('/dashboard', async (req, res) => {
           callbacksList.innerHTML = '<div class="empty-state">No callback requests yet.</div>';
         } else {
           callbacksList.innerHTML = statsData.recentCallbacks.map(cb => \`
-            <div class="callback-card" onclick="toggleCallback(\${cb.id})">
+            <div class="callback-card">
               <div class="card-header">
-                <div style="flex: 1;">
+               <div style="flex: 1;" onclick="toggleCallback(\${cb.id})">
                   <div class="card-title">📞 \${cb.customer_name} - \${cb.vehicle_type}</div>
                   <div class="card-preview">📞 \${cb.customer_phone} • ⏰ \${cb.datetime}</div>
                 </div>
-                <span class="expand-icon" id="cb-icon-\${cb.id}">▼</span>
+                <button class="btn-delete-small" onclick="event.stopPropagation(); deleteCallback(\${cb.id})">🗑️ Delete</button>
+<span class="expand-icon" id="cb-icon-\${cb.id}" onclick="toggleCallback(\${cb.id})">▼</span>
               </div>
               <div class="card-details" id="cb-details-\${cb.id}">
                 <div class="detail-row"><span class="detail-label">Customer Name:</span><span class="detail-value">\${cb.customer_name}</span></div>
@@ -1231,6 +1284,37 @@ app.delete('/api/conversation/:phone', async (req, res) => {
     }
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+// API Delete individual appointment
+app.delete('/api/appointment/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('DELETE FROM appointments WHERE id = $1', [id]);
+    console.log('✅ Appointment deleted:', id);
+    res.json({ success: true, message: 'Appointment deleted' });
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// API Delete individual callback
+app.delete('/api/callback/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('DELETE FROM callbacks WHERE id = $1', [id]);
+    console.log('✅ Callback deleted:', id);
+    res.json({ success: true, message: 'Callback deleted' });
+  } catch (error) {
+    console.error('Error deleting callback:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
