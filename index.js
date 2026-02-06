@@ -1064,14 +1064,27 @@ app.get('/dashboard', async (req, res) => {
         document.getElementById('totalAppointments').textContent = statsData.stats.totalAppointments;
         document.getElementById('totalCallbacks').textContent = statsData.stats.totalCallbacks;
         
-        const conversations = await fetch('/api/conversations').then(r => r.json());
-        const conversationList = document.getElementById('conversationList');
-        
-        if (conversations.length === 0) {
-          conversationList.innerHTML = '<div class="empty-state">No conversations yet. Use "Launch Jerry" above to send your first SMS!</div>';
-        } else {
-          conversationList.innerHTML = conversations.map(conv => \`
-            <div class="conversation-item">
+const conversations = await fetch('/api/conversations').then(r => r.json());
+const conversationList = document.getElementById('conversationList');
+
+// DEDUPLICATE conversations by phone number (fixes duplicate entries with 10+ messages)
+const uniqueConversations = {};
+conversations.forEach(conv => {
+  const phone = conv.customer_phone;
+  if (!uniqueConversations[phone] || 
+      new Date(conv.updated_at) > new Date(uniqueConversations[phone].updated_at)) {
+    uniqueConversations[phone] = conv;
+  }
+});
+
+const uniqueConvArray = Object.values(uniqueConversations);
+
+if (uniqueConvArray.length === 0) {
+  conversationList.innerHTML = '<div class="empty-state">No conversations yet. Use "Launch Jerry" above to send your first SMS!</div>';
+} else {
+  conversationList.innerHTML = uniqueConvArray.map(conv => `
+    <div class="conversation-item">
+
               <div class="conversation-header">
                 <div class="conversation-info" onclick="viewConversation('\${conv.customer_phone}', this)">
                   <div>
