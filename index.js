@@ -676,6 +676,7 @@ app.get('/dashboard', async (req, res) => {
           <a href="/api/export/callbacks" download style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(245,158,11,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">📞 Callbacks</a>
           <a href="/api/export/conversations" download style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(59,130,246,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">💬 Conversations</a>
           <a href="/api/export/analytics" download style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(139,92,246,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">📈 Analytics</a>
+      <a href="/api/export/engaged" download style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(249, 115, 22, 0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">Engaged</a>
         </div>
       </div>
 
@@ -1926,6 +1927,40 @@ app.get('/api/analytics', async (req, res) => {
   } catch (error) {
     console.error('❌ Analytics error:', error);
     res.json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+app.get('/api/export/engaged', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT c.* 
+      FROM conversations c
+      JOIN messages m ON m.conversation_id = c.id 
+      WHERE m.role = 'user'
+      ORDER BY c.started_at DESC
+    `);
+    const rows = [['ID', 'Phone', 'Status', 'Name', 'Vehicle', 'Budget', 'Started', 'Updated'].join(',')];
+    result.rows.forEach(r => {
+      rows.push([
+        r.id,
+        '"' + (r.customer_phone || '') + '"',
+        '"' + (r.status || '') + '"',
+        '"' + (r.customer_name || '') + '"',
+        '"' + (r.vehicle_type || '') + '"',
+        '"' + (r.budget || '') + '"',
+        '"' + (r.started_at || '') + '"',
+        '"' + (r.updated_at || '') + '"'
+      ].join(','));
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="engaged_' + new Date().toISOString().split('T')[0] + '.csv"');
+    res.send(rows.join('\n'));
+  } catch (e) {
+    res.status(500).send('Export failed');
   } finally {
     client.release();
   }
