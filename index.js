@@ -446,10 +446,10 @@ app.get('/dashboard', async (req, res) => {
   background: #ef4444 !important;
   color: white !important;
   border: none !important;
-  width: 40px !important;
-  height: 40px !important;
+  width: 42px !important;
+  height: 42px !important;
   border-radius: 50% !important;
-  font-size: 24px !important;
+  font-size: 26px !important;
   line-height: 1 !important;
   font-weight: normal !important;
   cursor: pointer !important;
@@ -460,15 +460,15 @@ app.get('/dashboard', async (req, res) => {
   flex-shrink: 0 !important;
   margin-left: 12px !important;
   padding: 0 !important;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+  box-shadow: 0 3px 6px rgba(239, 68, 68, 0.4) !important;
 }
 .btn-delete-small:hover {
   background: #dc2626 !important;
-  transform: scale(1.15) !important;
-  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.5) !important;
+  transform: scale(1.2) !important;
+  box-shadow: 0 5px 12px rgba(239, 68, 68, 0.6) !important;
 }
 .btn-delete-small:active {
-  transform: scale(0.95) !important;
+  transform: scale(0.9) !important;
 }
 
       background: #ef4444;
