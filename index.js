@@ -441,23 +441,22 @@ app.get('/dashboard', async (req, res) => {
     .conversation-info {
       flex: 1;
     }
-    .btn-delete {
     .btn-delete-small {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  margin-left: 10px;
-}
-.btn-delete-small:hover {
-  background: #dc2626;
-  transform: scale(1.05);
-}
-
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-left: 10px;
+    }
+    .btn-delete-small:hover {
+      background: #dc2626;
+      transform: scale(1.05);
+    }
+    .btn-delete {
       background: #ef4444;
       color: white;
       border: none;
@@ -474,7 +473,6 @@ app.get('/dashboard', async (req, res) => {
       margin-left: 15px;
     }
     .btn-delete:hover {
-    
       background: #dc2626;
       transform: scale(1.1);
     }
