@@ -1223,31 +1223,63 @@ app.get('/dashboard', async (req, res) => {
   </script>
 
     <script>
-      // Isolated badge updater - runs independently
-      let engagedConvIds = [];
-
-      function updateEngagedBadges() {
+      // Dynamically create and insert engaged badges
+      function addEngagedBadgesNow() {
         fetch('/api/engaged-ids')
           .then(r => r.json())
           .then(data => {
-            engagedConvIds = data.engagedIds || [];
-            document.querySelectorAll('.badge-engaged').forEach(badge => {
-              const convId = parseInt(badge.getAttribute('data-conv-id'));
-              if (engagedConvIds.includes(convId)) {
-                badge.style.display = 'inline-block';
-              } else {
-                badge.style.display = 'none';
+            const engagedIds = data.engagedIds || [];
+
+            // Find all conversation items
+            document.querySelectorAll('.conversation-item').forEach(item => {
+              // Get conversation ID from onclick attribute
+              const onclick = item.getAttribute('onclick');
+              if (onclick) {
+                const match = onclick.match(/viewConversation\((\d+)/);
+                if (match) {
+                  const convId = parseInt(match[1]);
+
+                  // If this conversation is engaged
+                  if (engagedIds.includes(convId)) {
+                    // Find where to insert badge (after status badge)
+                    const statusBadge = item.querySelector('.badge-active, .badge-stopped, .badge-converted');
+
+                    if (statusBadge) {
+                      // Check if engaged badge already exists
+                      const existingEngaged = item.querySelector('.badge-engaged');
+                      if (!existingEngaged) {
+                        // Create new engaged badge
+                        const engagedBadge = document.createElement('span');
+                        engagedBadge.className = 'badge badge-engaged';
+                        engagedBadge.textContent = 'Engaged';
+                        engagedBadge.style.marginLeft = '10px';
+
+                        // Insert after status badge
+                        statusBadge.parentNode.insertBefore(engagedBadge, statusBadge.nextSibling);
+                      }
+                    }
+                  }
+                }
               }
             });
           })
-          .catch(() => {}); // Silently fail
+          .catch(() => {}); // Silent fail
       }
 
-      // Update badges every 3 seconds
-      setInterval(updateEngagedBadges, 3000);
+      // Run when conversations load
+      const originalLoadConversations = window.loadConversations;
+      if (originalLoadConversations) {
+        window.loadConversations = function() {
+          originalLoadConversations();
+          setTimeout(addEngagedBadgesNow, 1000);
+        };
+      }
 
-      // Also update when page loads
-      setTimeout(updateEngagedBadges, 1000);
+      // Also run on initial page load
+      setTimeout(addEngagedBadgesNow, 2000);
+
+      // And periodically
+      setInterval(addEngagedBadgesNow, 5000);
     </script>
     </body>
 </html>
