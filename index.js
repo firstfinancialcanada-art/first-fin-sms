@@ -1812,10 +1812,13 @@ app.get('/api/export/appointments', async (req, res) => {
   try {
     const result = await client.query(`
       SELECT c.*, 
-             CASE WHEN COUNT(m.id) > 0 THEN true ELSE false END as engaged
+             COALESCE(e.engaged, false) as engaged
       FROM conversations c
-      LEFT JOIN messages m ON m.conversation_id = c.id AND m.role = 'user'
-      GROUP BY c.id
+      LEFT JOIN (
+        SELECT DISTINCT conversation_id, true as engaged
+        FROM messages
+        WHERE role = 'user'
+      ) e ON e.conversation_id = c.id
       ORDER BY c.updated_at DESC
     `);
     const rows = [['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created'].join(',')];
