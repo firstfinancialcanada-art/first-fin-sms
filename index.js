@@ -173,6 +173,40 @@ async function hasActiveConversation(phone) {
 
 // Delete conversation and its messages
 async function deleteConversation(phone) {
+  // API: Delete individual appointment
+async function deleteAppointment(appointmentId) {
+  if (!confirm('Delete this appointment?')) return;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('DELETE FROM appointments WHERE id = $1', [appointmentId]);
+    showNotification('✅ Appointment deleted');
+    loadStats();
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    showNotification('❌ Error deleting appointment', 'error');
+  } finally {
+    client.release();
+  }
+}
+
+// API: Delete individual callback
+async function deleteCallback(callbackId) {
+  if (!confirm('Delete this callback?')) return;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('DELETE FROM callbacks WHERE id = $1', [callbackId]);
+    showNotification('✅ Callback deleted');
+    loadStats();
+  } catch (error) {
+    console.error('Error deleting callback:', error);
+    showNotification('❌ Error deleting callback', 'error');
+  } finally {
+    client.release();
+  }
+}
+
   const client = await pool.connect();
   try {
     const conversation = await client.query(
@@ -183,10 +217,13 @@ async function deleteConversation(phone) {
     if (conversation.rows.length > 0) {
       const conversationId = conversation.rows[0].id;
       
+      // Delete from all related tables
       await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
+      await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
+      await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
       await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
       
-      console.log('🗑️ Conversation deleted:', phone);
+      console.log('🗑️ Conversation deleted (with appointments & callbacks):', phone);
       return true;
     }
     
@@ -405,6 +442,22 @@ app.get('/dashboard', async (req, res) => {
       flex: 1;
     }
     .btn-delete {
+    .btn-delete-small {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-left: 10px;
+}
+.btn-delete-small:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+
       background: #ef4444;
       color: white;
       border: none;
@@ -421,6 +474,7 @@ app.get('/dashboard', async (req, res) => {
       margin-left: 15px;
     }
     .btn-delete:hover {
+    
       background: #dc2626;
       transform: scale(1.1);
     }
@@ -438,6 +492,10 @@ app.get('/dashboard', async (req, res) => {
     .badge-active { background: #4ade80; color: white; }
     .badge-converted { background: #1e3a5f; color: white; }
     .badge-stopped { background: #ef4444; color: white; }
+    .badge-engaged {
+      background: #f97316;
+      color: white;
+    }
     
     .messages-container {
       display: none;
@@ -542,77 +600,42 @@ app.get('/dashboard', async (req, res) => {
       color: #991b1b;
     }
     
-    .appointment-card, .callback-card {
+    .appointment-card {
       padding: 15px;
+      background: #f0fdf4;
+      border-left: 4px solid #4ade80;
       border-radius: 8px;
       margin-bottom: 15px;
       cursor: pointer;
       transition: all 0.3s;
-      position: relative;
-    }
-    .appointment-card {
-      background: #f0fdf4;
-      border-left: 4px solid #4ade80;
     }
     .appointment-card:hover {
       background: #dcfce7;
       transform: translateX(5px);
     }
     .callback-card {
+      padding: 15px;
       background: #fef3c7;
       border-left: 4px solid #fbbf24;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.3s;
     }
     .callback-card:hover {
       background: #fde68a;
       transform: translateX(5px);
     }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .card-title { 
-      font-weight: bold; 
-      color: #333; 
-      font-size: 1.1rem;
-      flex: 1;
-    }
-    .card-preview { 
-      font-size: 0.85rem; 
-      color: #666; 
-      margin-top: 8px; 
-    }
-    .expand-icon {
-      font-size: 1.5rem;
-      color: #c41e3a;
-      transition: transform 0.3s;
-      user-select: none;
-    }
-    .expand-icon.expanded {
-      transform: rotate(180deg);
-    }
-    .card-details {
-      display: none;
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 2px solid rgba(0,0,0,0.1);
-    }
-    .card-details.visible {
-      display: block;
-    }
-    .detail-row {
-      display: flex;
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-    }
-    .detail-label {
-      font-weight: 600;
-      color: #333;
-      min-width: 140px;
-    }
-    .detail-value {
-      color: #666;
-    }
+    .card-title { font-weight: bold; color: #333; font-size: 1.1rem; flex: 1; }
+    .card-preview { font-size: 0.85rem; color: #666; margin-top: 8px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; }
+    .expand-icon { font-size: 1.5rem; color: #c41e3a; transition: transform 0.3s; user-select: none; }
+    .expand-icon.expanded { transform: rotate(180deg); }
+    .card-details { display: none; margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1); }
+    .card-details.visible { display: block; }
+    .detail-row { display: flex; margin-bottom: 8px; font-size: 0.9rem; }
+    .detail-label { font-weight: 600; color: #333; min-width: 140px; }
+    .detail-value { color: #666; }
     .card-info { font-size: 0.9rem; color: #666; margin-top: 4px; }
     
     .loading { text-align: center; color: #666; padding: 40px; }
@@ -657,6 +680,7 @@ app.get('/dashboard', async (req, res) => {
           <a href="/api/export/callbacks" download style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(245,158,11,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">📞 Callbacks</a>
           <a href="/api/export/conversations" download style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(59,130,246,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">💬 Conversations</a>
           <a href="/api/export/analytics" download style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(139,92,246,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">📈 Analytics</a>
+      <a href="/api/export/engaged" download style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 18px; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; box-shadow: 0 4px 6px rgba(249, 115, 22, 0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">Engaged</a>
         </div>
       </div>
 
@@ -688,7 +712,7 @@ app.get('/dashboard', async (req, res) => {
     
     <div class="section">
       <h2>📊 Analytics & Insights</h2>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;" id="analyticsCards">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
         <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 25px; border-radius: 12px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">Conversion Rate</div>
           <div style="font-size: 2.5rem; font-weight: bold;" id="conversionRate">-</div>
@@ -713,16 +737,16 @@ app.get('/dashboard', async (req, res) => {
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
         <div style="background: #f0f4f8; padding: 20px; border-radius: 12px; border-left: 4px solid #1e3a5f;">
           <h3 style="margin: 0 0 15px 0; color: #1e3a5f; font-size: 1rem;">Top Vehicle Types</h3>
-          <div id="topVehicles" style="font-size: 0.9rem; color: #666;">Loading...</div>
+          <div id="topVehicles" style="font-size: 0.9rem; color: #666;"><div style="padding: 8px 0;">Loading...</div></div>
         </div>
         <div style="background: #f0f4f8; padding: 20px; border-radius: 12px; border-left: 4px solid #10b981;">
           <h3 style="margin: 0 0 15px 0; color: #10b981; font-size: 1rem;">Budget Distribution</h3>
-          <div id="budgetDist" style="font-size: 0.9rem; color: #666;">Loading...</div>
+          <div id="budgetDist" style="font-size: 0.9rem; color: #666;"><div style="padding: 8px 0;">Loading...</div></div>
         </div>
       </div>
     </div>
 
-    <div class="section">
+        <div class="section">
       <h2>📱 Launch SMS - Send SMS Campaign</h2>
       <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
         <div class="form-group">
@@ -779,6 +803,44 @@ app.get('/dashboard', async (req, res) => {
   </div>
   
   <script>
+    // Notification system
+    function showNotification(message, type = 'success') {
+      const notif = document.createElement('div');
+      notif.style.cssText = 'position:fixed;top:20px;right:20px;padding:15px 25px;border-radius:8px;color:white;font-weight:600;z-index:10000;transform:translateX(400px);transition:all 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.2);' + (type === 'success' ? 'background:#10b981;' : 'background:#ef4444;');
+      notif.textContent = message;
+      document.body.appendChild(notif);
+      setTimeout(() => notif.style.transform = 'translateX(0)', 100);
+      setTimeout(() => { notif.style.transform = 'translateX(400px)'; setTimeout(() => document.body.removeChild(notif), 300); }, 3000);
+    }
+
+    // Delete appointment function
+    async function deleteAppointment(appointmentId) {
+      if (!confirm('Delete this appointment?')) return;
+      try {
+        const response = await fetch('/api/appointment/' + appointmentId, { method: 'DELETE' });
+        const data = await response.json();
+        showNotification(data.message, data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => loadDashboard(), 500);
+      } catch (error) {
+        console.error('Error:', error);
+        showNotification('Error deleting appointment', 'error');
+      }
+    }
+
+    // Delete callback function
+    async function deleteCallback(callbackId) {
+      if (!confirm('Delete this callback?')) return;
+      try {
+        const response = await fetch('/api/callback/' + callbackId, { method: 'DELETE' });
+        const data = await response.json();
+        showNotification(data.message, data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => loadDashboard(), 500);
+      } catch (error) {
+        console.error('Error:', error);
+        showNotification('Error deleting callback', 'error');
+      }
+    }
+
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
       let value = e.target.value.replace(/\\D/g, '');
       
@@ -944,26 +1006,28 @@ app.get('/dashboard', async (req, res) => {
     function toggleAppointment(id) {
       const details = document.getElementById('apt-details-' + id);
       const icon = document.getElementById('apt-icon-' + id);
-
-      if (details.classList.contains('visible')) {
-        details.classList.remove('visible');
-        icon.classList.remove('expanded');
-      } else {
-        details.classList.add('visible');
-        icon.classList.add('expanded');
+      if (details && icon) {
+        if (details.classList.contains('visible')) {
+          details.classList.remove('visible');
+          icon.classList.remove('expanded');
+        } else {
+          details.classList.add('visible');
+          icon.classList.add('expanded');
+        }
       }
     }
 
     function toggleCallback(id) {
       const details = document.getElementById('cb-details-' + id);
       const icon = document.getElementById('cb-icon-' + id);
-
-      if (details.classList.contains('visible')) {
-        details.classList.remove('visible');
-        icon.classList.remove('expanded');
-      } else {
-        details.classList.add('visible');
-        icon.classList.add('expanded');
+      if (details && icon) {
+        if (details.classList.contains('visible')) {
+          details.classList.remove('visible');
+          icon.classList.remove('expanded');
+        } else {
+          details.classList.add('visible');
+          icon.classList.add('expanded');
+        }
       }
     }
 
@@ -971,26 +1035,30 @@ app.get('/dashboard', async (req, res) => {
       try {
         const statsData = await fetch('/api/dashboard').then(r => r.json());
 
-        // Load analytics
-        const analyticsData = await fetch('/api/analytics').then(r => r.json());
-        if (!analyticsData.error) {
-          document.getElementById('conversionRate').textContent = analyticsData.conversionRate + '%';
-          document.getElementById('conversionDetail').textContent = analyticsData.totalConverted + ' of ' + analyticsData.totalConversations + ' conversations';
-          document.getElementById('responseRate').textContent = analyticsData.responseRate + '%';
-          document.getElementById('responseDetail').textContent = analyticsData.totalResponded + ' customers responded';
-          document.getElementById('avgMessages').textContent = analyticsData.avgMessages;
-          document.getElementById('weekConversations').textContent = analyticsData.weekConversations;
-          document.getElementById('weekDetail').textContent = analyticsData.weekConverted + ' converted this week';
+        // Load Analytics
+        try {
+          const analyticsData = await fetch('/api/analytics').then(r => r.json());
+          if (analyticsData && !analyticsData.error) {
+            document.getElementById('conversionRate').textContent = analyticsData.conversionRate + '%';
+            document.getElementById('conversionDetail').textContent = analyticsData.totalConverted + ' of ' + analyticsData.totalConversations + ' conversations';
+            document.getElementById('responseRate').textContent = analyticsData.responseRate + '%';
+            document.getElementById('responseDetail').textContent = analyticsData.totalResponded + ' customers responded';
+            document.getElementById('avgMessages').textContent = analyticsData.avgMessages;
+            document.getElementById('weekConversations').textContent = analyticsData.weekConversations;
+            document.getElementById('weekDetail').textContent = analyticsData.weekConverted + ' converted this week';
 
-          const topVehiclesHTML = analyticsData.topVehicles.length > 0 
-            ? analyticsData.topVehicles.map((v, i) => '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd;"><span>' + (i + 1) + '. ' + v.vehicle_type + '</span><span style="font-weight: bold; color: #1e3a5f;">' + v.count + '</span></div>').join('')
-            : '<div style="padding: 8px 0; color: #999;">No data yet</div>';
-          document.getElementById('topVehicles').innerHTML = topVehiclesHTML;
+            const topVeh = analyticsData.topVehicles.length > 0 
+              ? analyticsData.topVehicles.map((v, i) => '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd;"><span>' + (i+1) + '. ' + v.vehicle_type + '</span><span style="font-weight: bold; color: #1e3a5f;">' + v.count + '</span></div>').join('')
+              : '<div style="padding: 8px 0; color: #999;">No data yet</div>';
+            document.getElementById('topVehicles').innerHTML = topVeh;
 
-          const budgetHTML = analyticsData.budgetDist.length > 0 
-            ? analyticsData.budgetDist.map(b => '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd;"><span>' + b.budget + '</span><span style="font-weight: bold; color: #10b981;">' + b.count + '</span></div>').join('')
-            : '<div style="padding: 8px 0; color: #999;">No data yet</div>';
-          document.getElementById('budgetDist').innerHTML = budgetHTML;
+            const budg = analyticsData.budgetDist.length > 0 
+              ? analyticsData.budgetDist.map(b => '<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd;"><span>' + b.budget + '</span><span style="font-weight: bold; color: #10b981;">' + b.count + '</span></div>').join('')
+              : '<div style="padding: 8px 0; color: #999;">No data yet</div>';
+            document.getElementById('budgetDist').innerHTML = budg;
+          }
+        } catch (e) {
+          console.error('Analytics load error:', e);
         }
 
         document.getElementById('totalCustomers').textContent = statsData.stats.totalCustomers;
@@ -1013,6 +1081,7 @@ app.get('/dashboard', async (req, res) => {
                     <span class="phone">\${conv.customer_phone}</span>
                     <span class="name">\${conv.customer_name || 'Unknown'}</span>
                     <span class="badge badge-\${conv.status}">\${conv.status}</span>
+                  \${conversation.engaged ? '<span class="badge badge-engaged">Engaged</span>' : ''}
                   </div>
                   <div class="info">
                     \${conv.vehicle_type || 'No vehicle selected'} • 
@@ -1035,11 +1104,22 @@ app.get('/dashboard', async (req, res) => {
         } else {
           appointmentsList.innerHTML = statsData.recentAppointments.map(apt => \`
             <div class="appointment-card">
-              <div class="card-title">🚗 \${apt.customer_name} - \${apt.vehicle_type}</div>
-              <div class="card-info">📞 \${apt.customer_phone}</div>
-              <div class="card-info">💰 Budget: \${apt.budget}\${apt.budget_amount ? ' ($' + apt.budget_amount.toLocaleString() + ')' : ''}</div>
-              <div class="card-info">📅 Date: \${apt.datetime}</div>
-              <div class="card-info">✅ Booked: \${new Date(apt.created_at).toLocaleString()}</div>
+              <div class="card-header">
+                <div style="flex: 1;" onclick="toggleAppointment(\${apt.id})">
+                  <div class="card-title">🚗 \${apt.customer_name} - \${apt.vehicle_type}</div>
+                  <div class="card-preview">📞 \${apt.customer_phone} • 📅 \${apt.datetime}</div>
+                </div>
+                <button class="btn-delete-small" onclick="event.stopPropagation(); deleteAppointment(\${apt.id})">🗑️ Delete</button>
+<span class="expand-icon" id="apt-icon-\${apt.id}" onclick="toggleAppointment(\${apt.id})">▼</span>
+              </div>
+              <div class="card-details" id="apt-details-\${apt.id}">
+                <div class="detail-row"><span class="detail-label">Customer Name:</span><span class="detail-value">\${apt.customer_name}</span></div>
+                <div class="detail-row"><span class="detail-label">Phone Number:</span><span class="detail-value">\${apt.customer_phone}</span></div>
+                <div class="detail-row"><span class="detail-label">Vehicle Type:</span><span class="detail-value">\${apt.vehicle_type}</span></div>
+                <div class="detail-row"><span class="detail-label">Budget:</span><span class="detail-value">\${apt.budget}\${apt.budget_amount ? ' ($' + apt.budget_amount.toLocaleString() + ')' : ''}</span></div>
+                <div class="detail-row"><span class="detail-label">Appointment Date/Time:</span><span class="detail-value">\${apt.datetime}</span></div>
+                <div class="detail-row"><span class="detail-label">Booked On:</span><span class="detail-value">\${new Date(apt.created_at).toLocaleString()}</span></div>
+              </div>
             </div>
           \`).join('');
         }
@@ -1050,11 +1130,22 @@ app.get('/dashboard', async (req, res) => {
         } else {
           callbacksList.innerHTML = statsData.recentCallbacks.map(cb => \`
             <div class="callback-card">
-              <div class="card-title">📞 \${cb.customer_name} - \${cb.vehicle_type}</div>
-              <div class="card-info">📞 \${cb.customer_phone}</div>
-              <div class="card-info">💰 Budget: \${cb.budget}\${cb.budget_amount ? ' ($' + cb.budget_amount.toLocaleString() + ')' : ''}</div>
-              <div class="card-info">⏰ Preferred Time: \${cb.datetime}</div>
-              <div class="card-info">✅ Requested: \${new Date(cb.created_at).toLocaleString()}</div>
+              <div class="card-header">
+               <div style="flex: 1;" onclick="toggleCallback(\${cb.id})">
+                  <div class="card-title">📞 \${cb.customer_name} - \${cb.vehicle_type}</div>
+                  <div class="card-preview">📞 \${cb.customer_phone} • ⏰ \${cb.datetime}</div>
+                </div>
+                <button class="btn-delete-small" onclick="event.stopPropagation(); deleteCallback(\${cb.id})">🗑️ Delete</button>
+<span class="expand-icon" id="cb-icon-\${cb.id}" onclick="toggleCallback(\${cb.id})">▼</span>
+              </div>
+              <div class="card-details" id="cb-details-\${cb.id}">
+                <div class="detail-row"><span class="detail-label">Customer Name:</span><span class="detail-value">\${cb.customer_name}</span></div>
+                <div class="detail-row"><span class="detail-label">Phone Number:</span><span class="detail-value">\${cb.customer_phone}</span></div>
+                <div class="detail-row"><span class="detail-label">Vehicle Type:</span><span class="detail-value">\${cb.vehicle_type}</span></div>
+                <div class="detail-row"><span class="detail-label">Budget:</span><span class="detail-value">\${cb.budget}\${cb.budget_amount ? ' ($' + cb.budget_amount.toLocaleString() + ')' : ''}</span></div>
+                <div class="detail-row"><span class="detail-label">Preferred Call Time:</span><span class="detail-value">\${cb.datetime}</span></div>
+                <div class="detail-row"><span class="detail-label">Requested On:</span><span class="detail-value">\${new Date(cb.created_at).toLocaleString()}</span></div>
+              </div>
             </div>
           \`).join('');
         }
@@ -1239,6 +1330,37 @@ app.delete('/api/conversation/:phone', async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
+// API Delete individual appointment
+app.delete('/api/appointment/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('DELETE FROM appointments WHERE id = $1', [id]);
+    console.log('✅ Appointment deleted:', id);
+    res.json({ success: true, message: 'Appointment deleted' });
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// API Delete individual callback
+app.delete('/api/callback/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('DELETE FROM callbacks WHERE id = $1', [id]);
+    console.log('✅ Callback deleted:', id);
+    res.json({ success: true, message: 'Callback deleted' });
+  } catch (error) {
+    console.error('Error deleting callback:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
 
 // API: Manual reply (NEW)
 app.post('/api/manual-reply', async (req, res) => {
@@ -1294,8 +1416,14 @@ app.post('/api/start-sms', async (req, res) => {
     const messageBody = message || "Hi! 👋 I'm Jerry from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)";
     
     await getOrCreateCustomer(phone);
-    await getOrCreateConversation(phone);
-    await logAnalytics('sms_sent', phone, { source: 'manual_campaign', message: messageBody });
+const conversation = await getOrCreateConversation(phone);
+
+// Save the outgoing message to database so it appears in Recent Messages
+await saveMessage(conversation.id, phone, 'assistant', messageBody);
+
+await logAnalytics('sms_sent', phone, { messageBody });
+
+
     
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -1324,33 +1452,58 @@ app.post('/api/sms-webhook', async (req, res) => {
     console.log('📩 Received from:', phone);
     console.log('💬 Message:', message);
     
-    await getOrCreateCustomer(phone);
-    const conversation = await getOrCreateConversation(phone);
-    await saveMessage(conversation.id, phone, 'user', message);
-    try {
-      const emailSubject = '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone));
-      const emailBody = '<div style="font-family: Arial; max-width: 600px;"><div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 25px; border-radius: 0 0 10px 10px;"><table><tr><td style="padding: 12px; font-weight: bold;">Phone:</td><td style="padding: 12px;">' + formatPhone(phone) + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Name:</td><td style="padding: 12px;">' + (conversation.customer_name||'Not provided') + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Message:</td><td style="padding: 12px; font-weight: 600;">' + message + '</td></tr></table></div></div>';
-      await sendEmailNotification(emailSubject, emailBody);
-    } catch (err) { console.error('Email error:', err); }
-    await touchConversation(conversation.id);
-    await logAnalytics('message_received', phone, { message });
+    // Respond to Twilio IMMEDIATELY (prevents retries/duplicates)
+    res.type('text/xml').send('<Response></Response>');
     
-    const aiResponse = await getJerryResponse(phone, message, conversation);
+    // Now do all the work in background (won't block Twilio)
+    (async () => {
+      try {
+        await getOrCreateCustomer(phone);
+        const conversation = await getOrCreateConversation(phone);
+        await saveMessage(conversation.id, phone, 'user', message);
+        
+        
+        await touchConversation(conversation.id);
+        await logAnalytics('message_received', phone, { message });
+        
+        const aiResponse = await getJerryResponse(phone, message, conversation);
+        await saveMessage(conversation.id, phone, 'assistant', aiResponse);
+        
+        // Send SMS
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const authToken = process.env.TWILIO_AUTH_TOKEN;
+        const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+        const client = twilio(accountSid, authToken);
+        
+        await client.messages.create({
+          body: aiResponse,
+          from: fromNumber,
+          to: phone
+        });
+        
+               console.log('✅ Jerry replied:', aiResponse);
+        
+        // Send email notification (non-blocking, won't slow down SMS)
+        sendEmailNotification(
+          '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone)),
+          '<div style="font-family: Arial; max-width: 600px;"><div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 25px; border-radius: 0 0 10px 10px;"><table><tr><td style="padding: 12px; font-weight: bold;">Phone:</td><td style="padding: 12px;">' + formatPhone(phone) + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Name:</td><td style="padding: 12px;">' + (conversation.customer_name||'Not provided') + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Message:</td><td style="padding: 12px; font-weight: 600;">' + message + '</td></tr></table></div></div>'
+        ).catch(err => {
+          console.error('Email error:', err);
+        });
+        
+      } catch (bgError) {
+        console.error('❌ Background processing error:', bgError);
+      }
+    })();
     
-    await saveMessage(conversation.id, phone, 'assistant', aiResponse);
-    
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message(aiResponse);
-    
-    console.log('✅ Jerry replied:', aiResponse);
-    res.type('text/xml').send(twiml.toString());
   } catch (error) {
-    console.error('❌ Webhook error:', error);
-    const twiml = new twilio.twiml.MessagingResponse();
-    twiml.message("I'm having trouble right now. Please call us at (403) 555-0100!");
-    res.type('text/xml').send(twiml.toString());
+    console.error('❌ Webhook error:', error);        
+        
+
+    res.type('text/xml').send('<Response></Response>');
   }
 });
+
 
 // Jerry AI Logic
 async function getJerryResponse(phone, message, conversation) {
@@ -1397,7 +1550,31 @@ async function getJerryResponse(phone, message, conversation) {
       });
       return `Perfect! Sedans are reliable. What's your budget range? (e.g., $15k, $25k, $40k, $60k+)`;
     }
+        
+    if (lowerMsg.includes('sports') || lowerMsg.includes('coupe') || lowerMsg.includes('convertible')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Sports Car',
+        stage: 'budget'
+      });
+      return `Exciting! Sports cars are fun. What's your budget range? (e.g., $25k, $40k, $60k+)`;
+    }
     
+    if (lowerMsg.includes('minivan') || lowerMsg.includes('van')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Minivan',
+        stage: 'budget'
+      });
+      return `Great for families! What's your budget range? (e.g., $20k, $30k, $50k+)`;
+    }
+    
+    if (lowerMsg.includes('electric') || lowerMsg.includes('ev') || lowerMsg.includes('hybrid')) {
+      await updateConversation(conversation.id, { 
+        vehicle_type: 'Electric/Hybrid',
+        stage: 'budget'
+      });
+      return `Excellent choice! Eco-friendly options. What's your budget range? (e.g., $30k, $50k, $70k+)`;
+    }
+
     if (lowerMsg.includes('car') || lowerMsg.includes('vehicle') || 
         lowerMsg.includes('yes') || lowerMsg.includes('interested') ||
         lowerMsg.includes('want') || lowerMsg.includes('looking')) {
@@ -1430,7 +1607,12 @@ async function getJerryResponse(phone, message, conversation) {
         }
       }
     }
-    
+       
+    // Validate budget amount is realistic
+    if (budgetAmount > 0 && budgetAmount < 5000) {
+      return "Just to clarify - is that $" + budgetAmount + " your total budget or down payment? Most vehicles start around $15k. Reply with your full budget (e.g., $20k, $30k).";
+    }
+ 
     if (budgetAmount > 0) {
       let budgetRange = '';
       if (budgetAmount < 30000) {
@@ -1522,8 +1704,46 @@ async function getJerryResponse(phone, message, conversation) {
   }
   
   if (conversation.stage === 'datetime' && !conversation.datetime) {
-    await updateConversation(conversation.id, { 
-      datetime: message,
+    // NEW CODE - Handle vague datetime responses
+    let finalDateTime = message;
+    const lowerMsg = message.toLowerCase().trim();
+    
+    // Handle "today" variations
+    if (lowerMsg.includes('today')) {
+      if (lowerMsg.includes('morning')) finalDateTime = 'Today morning';
+      else if (lowerMsg.includes('afternoon')) finalDateTime = 'Today afternoon';
+      else if (lowerMsg.includes('evening')) finalDateTime = 'Today evening';
+      else finalDateTime = 'Today afternoon';
+    }
+    // Handle "tomorrow" variations
+    else if (lowerMsg.includes('tomorrow')) {
+      if (lowerMsg.includes('morning')) finalDateTime = 'Tomorrow morning';
+      else if (lowerMsg.includes('afternoon')) finalDateTime = 'Tomorrow afternoon';
+      else if (lowerMsg.includes('evening')) finalDateTime = 'Tomorrow evening';
+      else finalDateTime = 'Tomorrow afternoon';
+    }
+    // Handle "this weekend"
+    else if (lowerMsg.includes('this weekend') || lowerMsg === 'weekend') {
+      finalDateTime = 'This weekend';
+    }
+    // Handle "next week"
+    else if (lowerMsg.includes('next week')) {
+      finalDateTime = 'Next week';
+    }
+    // Handle "this morning/afternoon/evening"
+    else if (lowerMsg.includes('this morning')) {
+      finalDateTime = 'Today morning';
+    }
+    else if (lowerMsg.includes('this afternoon')) {
+      finalDateTime = 'Today afternoon';
+    }
+    else if (lowerMsg.includes('this evening') || lowerMsg.includes('tonight')) {
+      finalDateTime = 'Today evening';
+    }
+    // END NEW CODE
+    
+       await updateConversation(conversation.id, { 
+      datetime: finalDateTime,
       stage: 'confirmed',
       status: 'converted'
     });
@@ -1554,8 +1774,23 @@ async function getJerryResponse(phone, message, conversation) {
     }
   }
   
-  if (conversation.stage === 'confirmed') {
-    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. If you need anything or want to reschedule, just let me know! We're located in Calgary, AB and deliver across Canada.`;
+ if (conversation.stage === 'confirmed') {
+    // Check for specific keywords after booking
+    if (lowerMsg.includes('reschedule') || lowerMsg.includes('change') || lowerMsg.includes('different time')) {
+      return `No problem ${conversation.customer_name}! What time works better for you? (e.g., Friday afternoon, Next Tuesday, This weekend)`;
+    }
+    
+    if (lowerMsg.includes('cancel')) {
+      await updateConversation(conversation.id, { status: 'cancelled' });
+      return `I've cancelled your appointment. No worries! If you change your mind, just text me back and we'll get you set up. 👍`;
+    }
+    
+    if (lowerMsg.includes('inventory') || lowerMsg.includes('photos') || lowerMsg.includes('pictures') || lowerMsg.includes('see vehicles')) {
+      return `Great question! I'll have one of our managers text you photos of ${conversation.vehicle_type}s in your ${conversation.budget} range. They'll reach out shortly! 📸`;
+    }
+    
+    // Default response for confirmed stage
+    return `Thanks ${conversation.customer_name}! We're all set for ${conversation.datetime}. 📅\n\nNeed to:\n• RESCHEDULE - Change your appointment time\n• INVENTORY - See photos of available vehicles\n• Just reply if you have questions!\n\nWe're in Calgary and deliver across Canada! 🚗`;
   }
   
   return "Thanks for your message! To help you better, let me know:\n• What type of vehicle? (SUV, Sedan, Truck)\n• Your budget? (e.g., $20k)\n• Test drive or callback?";
@@ -1575,7 +1810,14 @@ app.get('/test-email', async (req, res) => {
 app.get('/api/export/appointments', async (req, res) => {
   const client = await pool.connect();
   try {
-    const result = await client.query('SELECT * FROM appointments ORDER BY created_at DESC');
+    const result = await client.query(`
+      SELECT c.*, 
+             CASE WHEN COUNT(m.id) > 0 THEN true ELSE false END as engaged
+      FROM conversations c
+      LEFT JOIN messages m ON m.conversation_id = c.id AND m.role = 'user'
+      GROUP BY c.id
+      ORDER BY c.updated_at DESC
+    `);
     const rows = [['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created'].join(',')];
     result.rows.forEach(r => rows.push([r.id, '"' + r.customer_phone + '"', '"' + (r.customer_name||'') + '"', '"' + (r.vehicle_type||'') + '"', '"' + (r.budget||'') + '"', r.budget_amount||'', '"' + (r.datetime||'') + '"', '"' + r.created_at + '"'].join(',')));
     res.setHeader('Content-Type', 'text/csv');
@@ -1652,7 +1894,7 @@ app.get('/api/export/analytics', async (req, res) => {
   }
 });
 
-// API: Analytics data
+// API: Analytics Dashboard Data
 app.get('/api/analytics', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -1662,21 +1904,21 @@ app.get('/api/analytics', async (req, res) => {
     const converted = await client.query("SELECT COUNT(*) as count FROM conversations WHERE status = 'converted'");
     const totalConverted = parseInt(converted.rows[0].count);
 
-    const responded = await client.query('SELECT COUNT(DISTINCT conversation_id) as count FROM messages WHERE role = \'user\'');
+    const responded = await client.query("SELECT COUNT(DISTINCT conversation_id) as count FROM messages WHERE role = 'user'");
     const totalResponded = parseInt(responded.rows[0].count);
 
-    const avgMsgs = await client.query('SELECT AVG(msg_count)::numeric(10,1) as avg FROM (SELECT conversation_id, COUNT(*) as msg_count FROM messages GROUP BY conversation_id) as counts');
-    const avgMessages = avgMsgs.rows[0].avg ? parseFloat(avgMsgs.rows[0].avg) : 0;
+    const avgMsgs = await client.query("SELECT COALESCE(AVG(msg_count), 0)::numeric(10,1) as avg FROM (SELECT conversation_id, COUNT(*) as msg_count FROM messages GROUP BY conversation_id) as counts");
+    const avgMessages = parseFloat(avgMsgs.rows[0].avg || 0);
 
-    const weekConvs = await client.query("SELECT COUNT(*) as count FROM conversations WHERE started_at >= NOW() - INTERVAL \'7 days\'");
+    const weekConvs = await client.query("SELECT COUNT(*) as count FROM conversations WHERE started_at >= NOW() - INTERVAL '7 days'");
     const weekConversations = parseInt(weekConvs.rows[0].count);
 
-    const weekConverted = await client.query("SELECT COUNT(*) as count FROM conversations WHERE status = \'converted\' AND started_at >= NOW() - INTERVAL \'7 days\'");
+    const weekConverted = await client.query("SELECT COUNT(*) as count FROM conversations WHERE status = 'converted' AND started_at >= NOW() - INTERVAL '7 days'");
     const weekConvertedCount = parseInt(weekConverted.rows[0].count);
 
-    const topVehicles = await client.query("SELECT vehicle_type, COUNT(*) as count FROM conversations WHERE vehicle_type IS NOT NULL AND vehicle_type != \'\'  GROUP BY vehicle_type ORDER BY count DESC LIMIT 5");
+    const topVehicles = await client.query("SELECT vehicle_type, COUNT(*) as count FROM conversations WHERE vehicle_type IS NOT NULL AND vehicle_type != '' GROUP BY vehicle_type ORDER BY count DESC LIMIT 5");
 
-    const budgets = await client.query("SELECT budget, COUNT(*) as count FROM conversations WHERE budget IS NOT NULL AND budget != \'\'  GROUP BY budget ORDER BY count DESC");
+    const budgets = await client.query("SELECT budget, COUNT(*) as count FROM conversations WHERE budget IS NOT NULL AND budget != '' GROUP BY budget ORDER BY count DESC");
 
     res.json({
       conversionRate: totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0',
@@ -1691,8 +1933,46 @@ app.get('/api/analytics', async (req, res) => {
       budgetDist: budgets.rows
     });
   } catch (error) {
-    console.error('Analytics error:', error);
+    console.error('❌ Analytics error:', error);
     res.json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+app.get('/api/export/engaged', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT c.* 
+      FROM conversations c
+      JOIN messages m ON m.conversation_id = c.id 
+      WHERE m.role = 'user'
+      ORDER BY c.started_at DESC
+    `);
+    const rows = [['ID', 'Phone', 'Status', 'Name', 'Vehicle', 'Budget', 'Started', 'Updated'].join(',')];
+    result.rows.forEach(r => {
+      rows.push([
+        r.id,
+        '"' + (r.customer_phone || '') + '"',
+        '"' + (r.status || '') + '"',
+        '"' + (r.customer_name || '') + '"',
+        '"' + (r.vehicle_type || '') + '"',
+        '"' + (r.budget || '') + '"',
+        '"' + (r.started_at || '') + '"',
+        '"' + (r.updated_at || '') + '"'
+      ].join(','));
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="engaged_' + new Date().toISOString().split('T')[0] + '.csv"');
+    res.send(rows.join('\n'));
+    console.log('📊 Exported', result.rows.length, 'engaged conversations');
+  } catch (e) {
+    console.error('❌ Export error:', e);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="engaged_error.csv"');
+    res.send('Error,Message\n"Export Failed","' + e.message + '"');
   } finally {
     client.release();
   }
