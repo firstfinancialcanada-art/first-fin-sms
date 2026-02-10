@@ -443,19 +443,32 @@ app.get('/dashboard', async (req, res) => {
     }
     .btn-delete {
     .btn-delete-small {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s;
-  margin-left: 10px;
+  background: #ef4444 !important;
+  color: white !important;
+  border: none !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-weight: normal !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  flex-shrink: 0 !important;
+  margin-left: 12px !important;
+  padding: 0 !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
 }
 .btn-delete-small:hover {
-  background: #dc2626;
-  transform: scale(1.05);
+  background: #dc2626 !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.5) !important;
+}
+.btn-delete-small:active {
+  transform: scale(0.95) !important;
 }
 
       background: #ef4444;
