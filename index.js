@@ -1653,9 +1653,7 @@ async function getJerryResponse(phone, message, conversation) {
         intent: 'test_drive',
         stage: 'name'
       });
-      return conversation.customer_name 
-        ? `Awesome! Just to confirm, is your name still ${conversation.customer_name}? (or please reconfirm your name)` 
-        : "Awesome! What's your name?";
+      return "Awesome! Please reconfirm your name.";
     }
     
     if (lowerMsg.includes('2') || lowerMsg.includes('call') || lowerMsg.includes('phone') || 
@@ -1664,9 +1662,7 @@ async function getJerryResponse(phone, message, conversation) {
         intent: 'callback',
         stage: 'name'
       });
-      return conversation.customer_name 
-        ? `Great! Just to confirm, is your name still ${conversation.customer_name}? (or please reconfirm your name)` 
-        : "Great! What's your name?";
+      return "Great! Please reconfirm your name.";
     }
     
     return "Would you like to:\n1️⃣ Book a test drive\n2️⃣ Schedule a call back\nJust reply 1 or 2!";
