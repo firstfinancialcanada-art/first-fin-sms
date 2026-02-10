@@ -1,4 +1,4 @@
-xxxxxxxxxxconst express = require('express');
+const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const twilio = require('twilio');
@@ -389,6 +389,15 @@ async function processBulkMessages() {
 
     for (const message of pendingMessages) {
       try {
+
+      // 🚨 BLOCK SPAMMER +12899688778
+      if (message.recipient_phone.includes('2899688778') || 
+          message.recipient_phone.includes('12899688778')) {
+        await updateBulkMessageStatus(message.id, 'blocked', 'Blacklisted number');
+        console.log('🚫 BLOCKED SPAMMER:', message.recipient_phone);
+        continue;
+      }
+
         const personalizedMessage = message.message_template.replace(/{name}/g, message.recipient_name);
         const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
@@ -425,6 +434,86 @@ function startBulkProcessor() {
   bulkSmsProcessor = setInterval(processBulkMessages, 5000);
 }
 startBulkProcessor();
+
+
+// 🚨 EMERGENCY STOP +12899688778 - BLOCKS ALL VARIANTS
+app.get('/api/stop-12899688778', async (req, res) => {
+  const BLOCKED_NUMBERS = ['+12899688778', '12899688778', '2899688778'];
+  const client = await pool.connect();
+  try {
+    let totalBulkDeleted = 0;
+    let totalConvStopped = 0;
+    let totalApptDeleted = 0;
+    let totalCallDeleted = 0;
+
+    // Delete ALL bulk messages with ANY format of this number
+    for (const num of BLOCKED_NUMBERS) {
+      const bulkResult = await client.query(
+        'DELETE FROM bulk_messages WHERE recipient_phone LIKE $1',
+        ['%' + num + '%']
+      );
+      totalBulkDeleted += bulkResult.rowCount;
+
+      // Stop conversations
+      const convResult = await client.query(
+        "UPDATE conversations SET status = 'stopped' WHERE customer_phone LIKE $1",
+        ['%' + num + '%']
+      );
+      totalConvStopped += convResult.rowCount;
+
+      // Delete appointments
+      const apptResult = await client.query(
+        'DELETE FROM appointments WHERE customer_phone LIKE $1',
+        ['%' + num + '%']
+      );
+      totalApptDeleted += apptResult.rowCount;
+
+      // Delete callbacks
+      const callResult = await client.query(
+        'DELETE FROM callbacks WHERE customer_phone LIKE $1',
+        ['%' + num + '%']
+      );
+      totalCallDeleted += callResult.rowCount;
+    }
+
+    console.log(`🚨 STOPPED +12899688778 - Bulk: ${totalBulkDeleted}, Conv: ${totalConvStopped}, Appt: ${totalApptDeleted}, Call: ${totalCallDeleted}`);
+
+    res.json({
+      success: true,
+      blocked: '+12899688778',
+      bulkDeleted: totalBulkDeleted,
+      conversationsStopped: totalConvStopped,
+      appointmentsDeleted: totalApptDeleted,
+      callbacksDeleted: totalCallDeleted,
+      message: '🚨 +12899688778 PERMANENTLY STOPPED & BLOCKED'
+    });
+  } catch (error) {
+    console.error('Stop error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 🧹 WIPE ALL BULK MESSAGES (use once to clear old CSV data)
+app.get('/api/wipe-bulk', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('DELETE FROM bulk_messages');
+    console.log(`🧹 WIPED ${result.rowCount} bulk messages`);
+    res.json({ 
+      success: true, 
+      wiped: result.rowCount,
+      message: 'Bulk table cleared! Ready for fresh upload.'
+    });
+  } catch (error) {
+    console.error('Wipe error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 
 // ===== ROUTES =====
 
@@ -2356,83 +2445,3 @@ app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`✅ Jerry AI Backend - Database Edition - Port ${PORT}`);
 });
-// ============================================================================
-// MESSAGE RETRY SYSTEM + BULK WIPE
-// ============================================================================
-
-const failedMessages = new Map();
-
-async function sendSMSWithRetry(phone, message, maxRetries = 3) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-  const client = twilio(accountSid, authToken);
-
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await client.messages.create({
-        body: message,
-        from: fromNumber,
-        to: phone
-      });
-
-      failedMessages.delete(phone);
-      console.log(`✅ SMS sent to ${phone} (attempt ${attempt}/${maxRetries})`);
-      return { success: true };
-
-    } catch (error) {
-      lastError = error;
-      console.error(`❌ Attempt ${attempt}/${maxRetries} failed for ${phone}:`, error.message);
-
-      if (attempt < maxRetries) {
-        const waitTime = Math.pow(2, attempt) * 1000;
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
-    }
-  }
-
-  failedMessages.set(phone, {
-    message,
-    attempts: maxRetries,
-    lastAttempt: new Date(),
-    error: lastError.message
-  });
-
-  console.error(`💀 All ${maxRetries} attempts failed for ${phone}. Added to retry queue.`);
-  return { success: false, error: lastError.message };
-}
-
-async function retryFailedMessages() {
-  if (failedMessages.size === 0) return;
-
-  console.log(`🔄 Retrying ${failedMessages.size} failed messages...`);
-
-  for (const [phone, data] of failedMessages.entries()) {
-    const hoursSinceLastAttempt = (Date.now() - data.lastAttempt) / (1000 * 60 * 60);
-
-    if (hoursSinceLastAttempt < 1) continue;
-
-    console.log(`🔄 Retrying message to ${phone}`);
-    await sendSMSWithRetry(phone, data.message, 2);
-  }
-}
-
-setInterval(retryFailedMessages, 30 * 60 * 1000);
-
-// 🧹 TEMP WIPE BULK MESSAGES (DELETE AFTER ONE USE)
-app.get('/api/wipe-bulk', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const result = await client.query('DELETE FROM bulkmessages');
-    console.log(`🧹 WIPED ${result.rowCount} bulk messages!`);
-    res.json({ success: true, wiped: result.rowCount });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  } finally {
-    client.release();
-  }
-});
-
-
