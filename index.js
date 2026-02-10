@@ -1221,67 +1221,7 @@ app.get('/dashboard', async (req, res) => {
     loadDashboard();
     setInterval(loadDashboard, 10000);
   </script>
-
-    <script>
-      // Dynamically create and insert engaged badges
-      function addEngagedBadgesNow() {
-        fetch('/api/engaged-ids')
-          .then(r => r.json())
-          .then(data => {
-            const engagedIds = data.engagedIds || [];
-
-            // Find all conversation items
-            document.querySelectorAll('.conversation-item').forEach(item => {
-              // Get conversation ID from onclick attribute
-              const onclick = item.getAttribute('onclick');
-              if (onclick) {
-                const match = onclick.match(/viewConversation\((\d+)/);
-                if (match) {
-                  const convId = parseInt(match[1]);
-
-                  // If this conversation is engaged
-                  if (engagedIds.includes(convId)) {
-                    // Find where to insert badge (after status badge)
-                    const statusBadge = item.querySelector('.badge-active, .badge-stopped, .badge-converted');
-
-                    if (statusBadge) {
-                      // Check if engaged badge already exists
-                      const existingEngaged = item.querySelector('.badge-engaged');
-                      if (!existingEngaged) {
-                        // Create new engaged badge
-                        const engagedBadge = document.createElement('span');
-                        engagedBadge.className = 'badge badge-engaged';
-                        engagedBadge.textContent = 'Engaged';
-                        engagedBadge.style.marginLeft = '10px';
-
-                        // Insert after status badge
-                        statusBadge.parentNode.insertBefore(engagedBadge, statusBadge.nextSibling);
-                      }
-                    }
-                  }
-                }
-              }
-            });
-          })
-          .catch(() => {}); // Silent fail
-      }
-
-      // Run when conversations load
-      const originalLoadConversations = window.loadConversations;
-      if (originalLoadConversations) {
-        window.loadConversations = function() {
-          originalLoadConversations();
-          setTimeout(addEngagedBadgesNow, 1000);
-        };
-      }
-
-      // Also run on initial page load
-      setTimeout(addEngagedBadgesNow, 2000);
-
-      // And periodically
-      setInterval(addEngagedBadgesNow, 5000);
-    </script>
-    </body>
+</body>
 </html>
   `);
 });
@@ -1869,7 +1809,17 @@ app.get('/test-email', async (req, res) => {
 app.get('/api/export/appointments', async (req, res) => {
   const client = await pool.connect();
   try {
-    const result = await client.query('SELECT * FROM appointments ORDER BY created_at DESC');
+    const result = await client.query(`
+      SELECT 
+        c.*,
+        EXISTS (
+          SELECT 1 FROM messages m 
+          WHERE m.conversation_id = c.id 
+          AND m.role = 'user'
+        ) as engaged
+      FROM conversations c
+      ORDER BY c.updated_at DESC
+    `);
     const rows = [['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created'].join(',')];
     result.rows.forEach(r => rows.push([r.id, '"' + r.customer_phone + '"', '"' + (r.customer_name||'') + '"', '"' + (r.vehicle_type||'') + '"', '"' + (r.budget||'') + '"', r.budget_amount||'', '"' + (r.datetime||'') + '"', '"' + r.created_at + '"'].join(',')));
     res.setHeader('Content-Type', 'text/csv');
@@ -1987,23 +1937,6 @@ app.get('/api/analytics', async (req, res) => {
   } catch (error) {
     console.error('❌ Analytics error:', error);
     res.json({ error: error.message });
-  } finally {
-    client.release();
-  }
-});
-
-
-app.get('/api/engaged-ids', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(`
-      SELECT DISTINCT conversation_id 
-      FROM messages 
-      WHERE role = 'user'
-    `);
-    res.json({ engagedIds: result.rows.map(r => r.conversation_id) });
-  } catch (error) {
-    res.json({ engagedIds: [] });
   } finally {
     client.release();
   }
