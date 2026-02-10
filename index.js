@@ -1220,49 +1220,36 @@ app.get('/dashboard', async (req, res) => {
     
     loadDashboard();
     setInterval(loadDashboard, 10000);
-  
+  </script>
 
-      // Simple: Add engaged badges after conversations load
-      function addEngagedBadges() {
+    <script>
+      // Isolated badge updater - runs independently
+      let engagedConvIds = [];
+
+      function updateEngagedBadges() {
         fetch('/api/engaged-ids')
           .then(r => r.json())
           .then(data => {
-            const engagedIds = data.engagedIds || [];
-            const convItems = document.querySelectorAll('.conversation-item');
-            convItems.forEach(item => {
-              const onClick = item.getAttribute('onclick');
-              if (onClick) {
-                const match = onClick.match(/viewConversation\((\d+)/);
-                if (match) {
-                  const convId = parseInt(match[1]);
-                  if (engagedIds.includes(convId)) {
-                    const badges = item.querySelector('.conversation-info');
-                    if (badges && !item.querySelector('.badge-engaged')) {
-                      const engagedBadge = document.createElement('span');
-                      engagedBadge.className = 'badge badge-engaged';
-                      engagedBadge.textContent = 'Engaged';
-                      engagedBadge.style.marginLeft = '5px';
-                      badges.appendChild(engagedBadge);
-                    }
-                  }
-                }
+            engagedConvIds = data.engagedIds || [];
+            document.querySelectorAll('.badge-engaged').forEach(badge => {
+              const convId = parseInt(badge.getAttribute('data-conv-id'));
+              if (engagedConvIds.includes(convId)) {
+                badge.style.display = 'inline-block';
+              } else {
+                badge.style.display = 'none';
               }
             });
           })
-          .catch(e => console.log('Could not load engaged badges'));
+          .catch(() => {}); // Silently fail
       }
 
-      // Run after conversations load (when stats change)
-      const originalLoadStats = loadStats;
-      loadStats = function() {
-        originalLoadStats();
-        setTimeout(addEngagedBadges, 500);
-      };
+      // Update badges every 3 seconds
+      setInterval(updateEngagedBadges, 3000);
 
-      // Also run on page load
-      setTimeout(addEngagedBadges, 1000);
-</script>
-</body>
+      // Also update when page loads
+      setTimeout(updateEngagedBadges, 1000);
+    </script>
+    </body>
 </html>
   `);
 });
@@ -1984,7 +1971,6 @@ app.get('/api/engaged-ids', async (req, res) => {
     `);
     res.json({ engagedIds: result.rows.map(r => r.conversation_id) });
   } catch (error) {
-    console.error('Engaged IDs error:', error);
     res.json({ engagedIds: [] });
   } finally {
     client.release();
@@ -2019,7 +2005,6 @@ app.get('/api/export/engaged', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="engaged_' + new Date().toISOString().split('T')[0] + '.csv"');
     res.send(rows.join('\n'));
   } catch (e) {
-    console.error('Export error:', e);
     res.status(500).send('Export failed');
   } finally {
     client.release();
