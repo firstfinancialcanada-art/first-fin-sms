@@ -492,10 +492,6 @@ app.get('/dashboard', async (req, res) => {
     .badge-active { background: #4ade80; color: white; }
     .badge-converted { background: #1e3a5f; color: white; }
     .badge-stopped { background: #ef4444; color: white; }
-    .badge-engaged {
-      background: #f97316;
-      color: white;
-    }
     
     .messages-container {
       display: none;
@@ -1081,7 +1077,6 @@ app.get('/dashboard', async (req, res) => {
                     <span class="phone">\${conv.customer_phone}</span>
                     <span class="name">\${conv.customer_name || 'Unknown'}</span>
                     <span class="badge badge-\${conv.status}">\${conv.status}</span>
-                  \${conversation.engaged ? '<span class="badge badge-engaged">Engaged</span>' : ''}
                   </div>
                   <div class="info">
                     \${conv.vehicle_type || 'No vehicle selected'} • 
@@ -1810,17 +1805,7 @@ app.get('/test-email', async (req, res) => {
 app.get('/api/export/appointments', async (req, res) => {
   const client = await pool.connect();
   try {
-    const result = await client.query(`
-      SELECT c.*, 
-             COALESCE(e.engaged, false) as engaged
-      FROM conversations c
-      LEFT JOIN (
-        SELECT DISTINCT conversation_id, true as engaged
-        FROM messages
-        WHERE role = 'user'
-      ) e ON e.conversation_id = c.id
-      ORDER BY c.updated_at DESC
-    `);
+    const result = await client.query('SELECT * FROM appointments ORDER BY created_at DESC');
     const rows = [['ID', 'Phone', 'Name', 'Vehicle', 'Budget', 'Amount', 'DateTime', 'Created'].join(',')];
     result.rows.forEach(r => rows.push([r.id, '"' + r.customer_phone + '"', '"' + (r.customer_name||'') + '"', '"' + (r.vehicle_type||'') + '"', '"' + (r.budget||'') + '"', r.budget_amount||'', '"' + (r.datetime||'') + '"', '"' + r.created_at + '"'].join(',')));
     res.setHeader('Content-Type', 'text/csv');
