@@ -492,6 +492,10 @@ app.get('/dashboard', async (req, res) => {
     .badge-active { background: #4ade80; color: white; }
     .badge-converted { background: #1e3a5f; color: white; }
     .badge-stopped { background: #ef4444; color: white; }
+    .badge-engaged {
+      background: #f97316;
+      color: white;
+    }
     
     .messages-container {
       display: none;
@@ -1923,6 +1927,26 @@ app.get('/api/analytics', async (req, res) => {
   } catch (error) {
     console.error('❌ Analytics error:', error);
     res.json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+// Helper: Get engaged conversation IDs
+app.get('/api/engaged-ids', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT conversation_id 
+      FROM messages 
+      WHERE role = 'user'
+    `);
+    const ids = result.rows.map(r => r.conversation_id);
+    res.json({ engagedIds: ids });
+  } catch (error) {
+    console.error('❌ Engaged IDs error:', error);
+    res.json({ engagedIds: [] });
   } finally {
     client.release();
   }
