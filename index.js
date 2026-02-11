@@ -14,6 +14,9 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
+const BULK_BATCH_SIZE = parseInt(process.env.BULK_BATCH_SIZE) || 5;
+const BULK_INTERVAL_MS = parseInt(process.env.BULK_INTERVAL_MS) || 5000;
+
 // ===== DATABASE CONNECTION =====
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -71,6 +74,14 @@ function formatPhone(phone) {
     return '+1 (' + cleaned.slice(1,4) + ') ' + cleaned.slice(4,7) + '-' + cleaned.slice(7);
   }
   return phone;
+}
+
+function errorResponse(message) {
+  return { success: false, error: message };
+}
+
+function successResponse(data = {}) {
+  return { success: true, ...data };
 }
 
 // ===== DATABASE HELPER FUNCTIONS =====
@@ -315,7 +326,15 @@ async function createBulkMessagesTable() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_bulk_messages_processing 
+      ON bulk_messages(status, scheduled_at) 
+      WHERE status = 'pending'
+    `);
+    
     console.log('✅ bulk_messages table ready');
+    console.log('✅ bulk_messages performance index ready');
   } catch (error) {
     console.error('❌ bulk_messages table error:', error);
   } finally {
@@ -328,10 +347,15 @@ createBulkMessagesTable();
 async function saveBulkCampaign(campaignName, messageTemplate, contacts) {
   const client = await pool.connect();
   try {
+    const startTime = new Date(Date.now() + 60000);
+    const scheduledTimes = contacts.map((_, i) => 
+      new Date(startTime.getTime() + (i * 15000))
+    );
+
     const results = [];
     for (let i = 0; i < contacts.length; i++) {
       const contact = contacts[i];
-      const scheduledAt = new Date(Date.now() + (i * 15000));
+      const scheduledAt = scheduledTimes[i];
       const result = await client.query(
         'INSERT INTO bulk_messages (campaign_name, message_template, recipient_name, recipient_phone, scheduled_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
         [campaignName, messageTemplate, contact.name, contact.phone, scheduledAt]
@@ -344,7 +368,7 @@ async function saveBulkCampaign(campaignName, messageTemplate, contacts) {
   }
 }
 
-async function getPendingBulkMessages(limit = 5) {
+async function getPendingBulkMessages(limit = BULK_BATCH_SIZE) {
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -384,7 +408,7 @@ async function getBulkCampaignStats(campaignName) {
 
 async function processBulkMessages() {
   try {
-    const pendingMessages = await getPendingBulkMessages(5);
+    const pendingMessages = await getPendingBulkMessages(BULK_BATCH_SIZE);
     if (pendingMessages.length === 0) return;
 
     for (const message of pendingMessages) {
@@ -430,8 +454,9 @@ let bulkSmsProcessor = null;
 function startBulkProcessor() {
   if (bulkSmsProcessor) return;
   console.log('🚀 Bulk SMS processor started');
+  console.log(`⚙️  Batch size: ${BULK_BATCH_SIZE}, Interval: ${BULK_INTERVAL_MS}ms`);
   processBulkMessages();
-  bulkSmsProcessor = setInterval(processBulkMessages, 5000);
+  bulkSmsProcessor = setInterval(processBulkMessages, BULK_INTERVAL_MS);
 }
 startBulkProcessor();
 
@@ -2382,6 +2407,8 @@ app.post('/api/bulk-sms/parse-csv', async (req, res) => {
     const lines = csvData.split(/\r?\n/);
     const contacts = [];
     const errors = [];
+    const seenPhones = new Set();
+    const BLACKLIST = ['2899688778', '12899688778'];
     let startRow = 0;
     if (lines[0] && lines[0].toLowerCase().includes('name')) startRow = 1;
 
@@ -2407,6 +2434,17 @@ app.post('/api/bulk-sms/parse-csv', async (req, res) => {
         continue;
       }
 
+      if (BLACKLIST.some(blocked => phone.includes(blocked))) {
+        errors.push({ row: i + 1, name, phone: rawPhone, error: 'Blacklisted number' });
+        continue;
+      }
+
+      if (seenPhones.has(phone)) {
+        errors.push({ row: i + 1, name, phone: rawPhone, error: 'Duplicate phone number' });
+        continue;
+      }
+      seenPhones.add(phone);
+
       contacts.push({ name, phone: '+' + phone, row: i + 1 });
     }
 
@@ -2426,6 +2464,15 @@ app.post('/api/bulk-sms/create-campaign', async (req, res) => {
       return res.status(400).json({ error: 'Message must include {name}' });
     }
 
+    if (messageTemplate.length > 1600) {
+      return res.status(400).json({ error: 'Message too long (max 1600 characters)' });
+    }
+
+    const placeholderCount = (messageTemplate.match(/{name}/g) || []).length;
+    if (placeholderCount > 3) {
+      console.warn(`⚠️ Campaign "${campaignName}" has ${placeholderCount} {name} placeholders - verify intentional`);
+    }
+
     const messageIds = await saveBulkCampaign(campaignName, messageTemplate, contacts);
     res.json({ success: true, campaignName, messageCount: messageIds.length, estimatedTime: Math.ceil(contacts.length * 15 / 60) });
   } catch (error) {
@@ -2435,7 +2482,8 @@ app.post('/api/bulk-sms/create-campaign', async (req, res) => {
 
 app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
   try {
-    const stats = await getBulkCampaignStats(req.params.campaignName);
+    const campaignName = decodeURIComponent(req.params.campaignName);
+    const stats = await getBulkCampaignStats(campaignName);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ error: error.message });
