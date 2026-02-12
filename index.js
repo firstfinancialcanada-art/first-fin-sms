@@ -547,7 +547,7 @@ app.get('/api/stop-12899688778', async (req, res) => {
 });
 
 // 🧹 WIPE ALL BULK MESSAGES (use once to clear old CSV data)
-app.get('/api/wipe-bulk', async (req, res) => {
+app.get('/api/wipe-bulk', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query('DELETE FROM bulk_messages');
@@ -588,7 +588,7 @@ app.get('/', (req, res) => {
 });
 
 // Interactive HTML Dashboard
-app.get('/dashboard', async (req, res) => {
+app.get('/dashboard', requireAuth, async (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html>
@@ -1788,7 +1788,7 @@ app.get('/dashboard', async (req, res) => {
 });
 
 // API: Dashboard stats
-app.get('/api/dashboard', async (req, res) => {
+app.get('/api/dashboard', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
     const customers = await client.query('SELECT COUNT(*) as count FROM customers');
@@ -1923,7 +1923,7 @@ app.delete('/api/callback/:id', async (req, res) => {
 });
 
 // API: Manual reply (NEW)
-app.post('/api/manual-reply', async (req, res) => {
+app.post('/api/manual-reply', requireAuth, async (req, res) => {
   try {
     const { phone, message } = req.body;
     
@@ -2530,7 +2530,7 @@ app.get('/api/export/engaged', async (req, res) => {
 
 // ===== BULK SMS ENDPOINTS =====
 
-app.post('/api/bulk-sms/parse-csv', async (req, res) => {
+app.post('/api/bulk-sms/parse-csv', requireAuth, async (req, res) => {
   try {
     // ✅ FIXED: Handle both { csvData: "..." } and direct string formats
     const csvData = req.body.csvData || req.body;
@@ -2588,7 +2588,7 @@ app.post('/api/bulk-sms/parse-csv', async (req, res) => {
   }
 });
 
-app.post('/api/bulk-sms/create-campaign', async (req, res) => {
+app.post('/api/bulk-sms/create-campaign', requireAuth, async (req, res) => {
   try {
     const { campaignName, messageTemplate, contacts } = req.body;
     if (!campaignName || !messageTemplate || !contacts || contacts.length === 0) {
@@ -2626,7 +2626,7 @@ app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
 
 
 // 🚨 EMERGENCY STOP ALL BULK SMS
-app.get('/api/emergency-stop-bulk', async (req, res) => {
+app.get('/api/emergency-stop-bulk', requireAuth, async (req, res) => {
   try {
     const client = await pool.connect();
     try {
@@ -2655,7 +2655,7 @@ app.get('/api/emergency-stop-bulk', async (req, res) => {
 });
 
 // GET BULK STATUS
-app.get('/api/bulk-status', async (req, res) => {
+app.get('/api/bulk-status', requireAuth, async (req, res) => {
   try {
     const client = await pool.connect();
     try {
