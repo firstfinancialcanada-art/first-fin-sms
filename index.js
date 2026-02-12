@@ -2490,7 +2490,6 @@ app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 app.listen(PORT, HOST, () => {
   console.log(`✅ Jerry AI Backend - Database Edition - Port ${PORT}`);
 });
