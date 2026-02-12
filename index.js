@@ -13,6 +13,29 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
+// 🔒 SIMPLE AUTHENTICATION MIDDLEWARE
+const DASHBOARD_USERNAME = process.env.DASHBOARD_USER || 'admin';
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASS || 'changeme123';
+
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Jerry AI Dashboard"');
+    return res.status(401).send('Authentication required');
+  }
+  
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+  const [username, password] = credentials.split(':');
+  
+  if (username === DASHBOARD_USERNAME && password === DASHBOARD_PASSWORD) {
+    next();
+  } else {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Jerry AI Dashboard"');
+    return res.status(401).send('Invalid credentials');
+  }
+}
 
 // 🆕 FIX #6: Configurable bulk SMS processing parameters
 const BULK_BATCH_SIZE = parseInt(process.env.BULK_BATCH_SIZE) || 5;
