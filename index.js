@@ -1700,24 +1700,16 @@ app.get('/api/conversations', async (req, res) => {
       FROM conversations c
       LEFT JOIN customers cu ON c.customer_phone = cu.phone
       ORDER BY c.customer_phone, c.updated_at DESC
-      LIMIT 50
+LIMIT 50
     `);
-    res.json(result.rows);
+    res.json(result.rows);      
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    res.status(500).json({ error: 'Failed to fetch conversations' });  
   } finally {
-    client.release();
+    client.release();     
   }
-});
-
-    res.json(result.rows);
-  } catch (error) {
-    res.json({ error: error.message });
-  } finally {
-    client.release();
-  }
-});
+});                    
 
 // API: Get conversation history
 app.get('/api/conversation/:phone', async (req, res) => {
