@@ -13,29 +13,6 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
-// 🔒 SIMPLE AUTHENTICATION MIDDLEWARE
-const DASHBOARD_USERNAME = process.env.DASHBOARD_USER || 'admin';
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASS || 'changeme123';
-
-function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Jerry AI Dashboard"');
-    return res.status(401).send('Authentication required');
-  }
-  
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-  const [username, password] = credentials.split(':');
-  
-  if (username === DASHBOARD_USERNAME && password === DASHBOARD_PASSWORD) {
-    next();
-  } else {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Jerry AI Dashboard"');
-    return res.status(401).send('Invalid credentials');
-  }
-}
 
 // 🆕 FIX #6: Configurable bulk SMS processing parameters
 const BULK_BATCH_SIZE = parseInt(process.env.BULK_BATCH_SIZE) || 5;
@@ -547,7 +524,7 @@ app.get('/api/stop-12899688778', async (req, res) => {
 });
 
 // 🧹 WIPE ALL BULK MESSAGES (use once to clear old CSV data)
-app.get('/api/wipe-bulk', requireAuth, async (req, res) => {
+app.get('/api/wipe-bulk', async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query('DELETE FROM bulk_messages');
@@ -588,7 +565,7 @@ app.get('/', (req, res) => {
 });
 
 // Interactive HTML Dashboard
-app.get('/dashboard', requireAuth, async (req, res) => {
+app.get('/dashboard', async (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html>
@@ -1583,34 +1560,83 @@ app.get('/dashboard', requireAuth, async (req, res) => {
       let currentCampaign = '';
       let progressTimer = null;
 
-      async function parseCsv() {
-        const fileInput = document.getElementById('csvFile');
-        const file = fileInput.files[0];
-        if (!file) { alert('Select a CSV file'); return; }
+        async function parseCsv() {
+    const fileInput = document.getElementById('csvFile');
+    const file = fileInput.files[0];
+    if (!file) {
+      alert('Select a CSV file');
+      return;
+    }
 
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-          const csvData = e.target.result;
-          try {
-            const response = await fetch('/api/bulk-sms/parse-csv', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ csvData: csvData })
-            });
-            const result = await response.json();
-            if (result.success) {
-              parsedContacts = result.contacts;
-              showContacts(result.contacts, result.errors);
-              document.getElementById('campaignForm').style.display = 'block';
-            } else {
-              alert('Error: ' + result.error);
-            }
-          } catch (error) {
-            alert('Parse error: ' + error.message);
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const csvData = e.target.result;
+
+      try {
+        const lines = csvData.split('
+');
+        const contacts = [];
+        const errors = [];
+        const seenPhones = new Set();
+        const BLACKLIST = ['2899688778', '12899688778'];
+
+        let startRow = 0;
+        if (lines[0] && lines[0].toLowerCase().includes('name')) {
+          startRow = 1;
+        }
+
+        for (let i = startRow; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const parts = line.split(',');
+          if (parts.length < 2) {
+            errors.push({ row: i + 1, error: 'Missing name or phone' });
+            continue;
           }
-        };
-        reader.readAsText(file);
+
+          const name = parts[0].trim().replace(/"/g, '');
+          const rawPhone = parts[1].trim().replace(/"/g, '');
+          const digitsOnly = rawPhone.replace(/[^0-9]/g, '');
+
+          let phone = digitsOnly;
+          if (digitsOnly.length === 10) {
+            phone = '1' + digitsOnly;
+          }
+
+          if (phone.length !== 11 || !phone.startsWith('1')) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
+            continue;
+          }
+
+          if (BLACKLIST.some(blocked => phone.includes(blocked))) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Blacklisted number' });
+            continue;
+          }
+
+          if (seenPhones.has(phone)) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Duplicate phone number' });
+            continue;
+          }
+
+          seenPhones.add(phone);
+          contacts.push({ name, phone, row: i + 1 });
+        }
+
+        // Show results
+        if (contacts.length > 0) {
+          showContacts(contacts, errors);
+          document.getElementById('campaignForm').style.display = 'block';
+        } else {
+          alert('No valid contacts found in CSV');
+        }
+
+      } catch (error) {
+        alert('Parse error: ' + error.message);
       }
+    };
+    reader.readAsText(file);
+  }
 
       function showContacts(contacts, errors) {
         document.getElementById('contactCount').textContent = contacts.length;
@@ -1733,7 +1759,33 @@ app.get('/dashboard', requireAuth, async (req, res) => {
       }
     }
 
-    // WIPE ALL BULK MESSAGES
+    
+// EMERGENCY STOP - ALL BULK MESSAGES
+app.get('/api/stop-bulk', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `UPDATE bulkmessages SET status = 'cancelled', errormessage = 'Emergency stop by user' 
+       WHERE status = 'pending'`
+    );
+
+    const cancelled = result.rowCount;
+    console.log(`🚨 EMERGENCY STOP: ${cancelled} messages cancelled`);
+
+    res.json({
+      success: true,
+      cancelled: cancelled,
+      message: `Emergency stop: ${cancelled} pending messages cancelled`
+    });
+  } catch (error) {
+    console.error('Emergency stop error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// WIPE ALL BULK MESSAGES
     async function wipeBulkMessages() {
       if (!confirm('⚠️ WIPE ALL BULK MESSAGES\n\nThis will DELETE ALL messages from the queue.\n\nAre you sure?')) {
         return;
@@ -1788,7 +1840,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 });
 
 // API: Dashboard stats
-app.get('/api/dashboard', requireAuth, async (req, res) => {
+app.get('/api/dashboard', async (req, res) => {
   const client = await pool.connect();
   try {
     const customers = await client.query('SELECT COUNT(*) as count FROM customers');
@@ -1923,7 +1975,7 @@ app.delete('/api/callback/:id', async (req, res) => {
 });
 
 // API: Manual reply (NEW)
-app.post('/api/manual-reply', requireAuth, async (req, res) => {
+app.post('/api/manual-reply', async (req, res) => {
   try {
     const { phone, message } = req.body;
     
@@ -2530,7 +2582,7 @@ app.get('/api/export/engaged', async (req, res) => {
 
 // ===== BULK SMS ENDPOINTS =====
 
-app.post('/api/bulk-sms/parse-csv', requireAuth, async (req, res) => {
+app.post('/api/bulk-sms/parse-csv', async (req, res) => {
   try {
     // ✅ FIXED: Handle both { csvData: "..." } and direct string formats
     const csvData = req.body.csvData || req.body;
@@ -2588,7 +2640,7 @@ app.post('/api/bulk-sms/parse-csv', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/bulk-sms/create-campaign', requireAuth, async (req, res) => {
+app.post('/api/bulk-sms/create-campaign', async (req, res) => {
   try {
     const { campaignName, messageTemplate, contacts } = req.body;
     if (!campaignName || !messageTemplate || !contacts || contacts.length === 0) {
@@ -2626,7 +2678,7 @@ app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
 
 
 // 🚨 EMERGENCY STOP ALL BULK SMS
-app.get('/api/emergency-stop-bulk', requireAuth, async (req, res) => {
+app.get('/api/emergency-stop-bulk', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
@@ -2655,7 +2707,7 @@ app.get('/api/emergency-stop-bulk', requireAuth, async (req, res) => {
 });
 
 // GET BULK STATUS
-app.get('/api/bulk-status', requireAuth, async (req, res) => {
+app.get('/api/bulk-status', async (req, res) => {
   try {
     const client = await pool.connect();
     try {
