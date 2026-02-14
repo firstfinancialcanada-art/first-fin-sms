@@ -597,7 +597,7 @@ app.get('/api/stop-bulk', async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `UPDATE bulk_messages SET status = 'cancelled', errormessage = 'Emergency stop by user' 
+      `UPDATE bulk_messages SET status = 'cancelled', error_message = 'Emergency stop by user' 
        WHERE status = 'pending'`
     );
 
@@ -2715,7 +2715,7 @@ app.get('/api/emergency-stop-bulk', async (req, res) => {
       }
 
       const result = await client.query(
-        `UPDATE bulk_messages SET status = 'cancelled', errormessage = 'Emergency stop by user' WHERE status = 'pending'`
+        `UPDATE bulk_messages SET status = 'cancelled', error_message = 'Emergency stop by user' WHERE status = 'pending'`
       );
 
       res.json({
