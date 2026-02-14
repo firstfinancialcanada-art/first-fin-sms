@@ -193,7 +193,6 @@ async function hasActiveConversation(phone) {
 }
 
 // Delete conversation and its messages
-async function deleteConversation(phone) {
   // API: Delete individual appointment
 async function deleteAppointment(appointmentId) {
   if (!confirm('Delete this appointment?')) return;
@@ -215,6 +214,8 @@ async function deleteAppointment(appointmentId) {
 async function deleteCallback(callbackId) {
   if (!confirm('Delete this callback?')) return;
   
+
+async function deleteConversation(phone) {
   const client = await pool.connect();
   try {
     await client.query('DELETE FROM callbacks WHERE id = $1', [callbackId]);
@@ -570,7 +571,7 @@ app.get('/api/stop-bulk', async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      `UPDATE bulkmessages SET status = 'cancelled', errormessage = 'Emergency stop by user' 
+      `UPDATE bulk_messages SET status = 'cancelled', errormessage = 'Emergency stop by user' 
        WHERE status = 'pending'`
     );
 
@@ -1010,7 +1011,7 @@ app.get('/dashboard', async (req, res) => {
           <h3 style="margin: 0 0 15px 0;">Campaign Details</h3>
           <div style="margin-bottom: 15px;">
             <label style="display: block; font-weight: 600; margin-bottom: 5px;">Campaign Name</label>
-            <input type="text" id="campaignName" placeholder="Spring Sale 2026" style="width: 100%; padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px;">
+            <input type="text" id="campaign_name" placeholder="Spring Sale 2026" style="width: 100%; padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px;">
           </div>
           <div style="margin-bottom: 15px;">
             <label style="display: block; font-weight: 600; margin-bottom: 5px;">Message (use {name})</label>
@@ -1201,7 +1202,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\\D/g, '');
+      let value = e.target.value.replace(/\D/g, '');
       
       if (value.length > 0 && !value.startsWith('1')) {
         value = '1' + value;
@@ -1227,7 +1228,7 @@ app.get('/dashboard', async (req, res) => {
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\\D/g, '');
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
       const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
@@ -1695,7 +1696,7 @@ app.get('/dashboard', async (req, res) => {
       }
 
       async function launchCampaign() {
-        const campaignName = document.getElementById('campaignName').value.trim();
+        const campaignName = document.getElementById('campaign_name').value.trim();
         const messageTemplate = document.getElementById('messageTemplate').value.trim();
         if (!campaignName) { alert('Enter campaign name'); return; }
         if (!messageTemplate) { alert('Enter message'); return; }
@@ -2688,7 +2689,7 @@ app.get('/api/emergency-stop-bulk', async (req, res) => {
       }
 
       const result = await client.query(
-        `UPDATE bulkmessages SET status = 'cancelled', errormessage = 'Emergency stop by user' WHERE status = 'pending'`
+        `UPDATE bulk_messages SET status = 'cancelled', errormessage = 'Emergency stop by user' WHERE status = 'pending'`
       );
 
       res.json({
@@ -2714,8 +2715,8 @@ app.get('/api/bulk-status', async (req, res) => {
         SELECT 
           status,
           COUNT(*) as count,
-          COUNT(DISTINCT campaignname) as campaigns
-        FROM bulkmessages
+          COUNT(DISTINCT campaign_name) as campaigns
+        FROM bulk_messages
         GROUP BY status
       `);
 
