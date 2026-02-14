@@ -1582,10 +1582,14 @@ app.get('/dashboard', async (req, res) => {
   </script>
 
     <script>
+console.log('✅ Second script tag loaded');
+
       let parsedContacts = [];
       let currentCampaign = '';
       let progressTimer = null;
 
+      
+      console.log('🔍 About to define parseCsv');
       async function parseCsv() {
     const fileInput = document.getElementById('csvFile');
     const file = fileInput.files[0];
