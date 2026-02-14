@@ -1727,7 +1727,7 @@ app.get('/dashboard', async (req, res) => {
 
     // EMERGENCY STOP BULK SMS
     async function emergencyStopBulk() {
-      if (!confirm('🚨 EMERGENCY STOP\n\nThis will stop the bulk processor and cancel all pending messages.\n\nAre you sure?')) {
+      if (!confirm('🚨 EMERGENCY STOP\\n\\nThis will stop the bulk processor and cancel all pending messages.\\n\\nAre you sure?')) {
         return;
       }
 
@@ -1736,7 +1736,7 @@ app.get('/dashboard', async (req, res) => {
         const data = await response.json();
 
         if (data.success) {
-          alert('🚨 EMERGENCY STOP ACTIVATED\n\n' + data.cancelled + ' messages cancelled.\n\nNo more SMS will be sent.');
+          alert('🚨 EMERGENCY STOP ACTIVATED\\n\\n' + data.cancelled + ' messages cancelled.\\n\\nNo more SMS will be sent.');
           checkBulkStatus();
         } else {
           alert('Error: ' + (data.error || 'Unknown error'));
@@ -1786,7 +1786,7 @@ app.get('/dashboard', async (req, res) => {
 
     // WIPE ALL BULK MESSAGES
     async function wipeBulkMessages() {
-      if (!confirm('⚠️ WIPE ALL BULK MESSAGES\n\nThis will DELETE ALL messages from the queue.\n\nAre you sure?')) {
+      if (!confirm('⚠️ WIPE ALL BULK MESSAGES\\n\\nThis will DELETE ALL messages from the queue.\\n\\nAre you sure?')) {
         return;
       }
 
