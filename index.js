@@ -437,13 +437,6 @@ async function getBulkCampaignStats(campaignName) {
 }
 
 async function processBulkMessages() {
-  
-  // Check if processor is paused
-  if (bulkSmsProcessorPaused) {
-    console.log('⏸️  Bulk SMS processor paused - skipping batch');
-    return;
-  }
-
   try {
     const pendingMessages = await getPendingBulkMessages(BULK_BATCH_SIZE);
     if (pendingMessages.length === 0) return;
@@ -487,8 +480,7 @@ async function processBulkMessages() {
   }
 }
 
-let bulkSmsProcessor = null
-let bulkSmsProcessorPaused = false;
+let bulkSmsProcessor = null;
 function startBulkProcessor() {
   if (bulkSmsProcessor) return;
   console.log('🚀 Bulk SMS processor started');
@@ -569,29 +561,6 @@ app.get('/api/wipe-bulk', async (req, res) => {
       wiped: result.rowCount,
       message: 'Bulk table cleared! Ready for fresh upload.'
     });
-
-// PAUSE BULK SMS PROCESSOR
-app.get('/api/bulk-sms/pause', async (req, res) => {
-  try {
-    bulkSmsProcessorPaused = true;
-    console.log('⏸️  Bulk SMS processor PAUSED');
-    res.json({ success: true, paused: true, message: '⏸️  Paused.' });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// RESUME BULK SMS PROCESSOR
-app.get('/api/bulk-sms/resume', async (req, res) => {
-  try {
-    bulkSmsProcessorPaused = false;
-    console.log('▶️  Bulk SMS processor RESUMED');
-    res.json({ success: true, paused: false, message: '▶️  Resumed.' });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
   } catch (error) {
     console.error('Wipe error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1037,16 +1006,6 @@ app.get('/dashboard', async (req, res) => {
 
       <button onclick="wipeBulkMessages()" style="background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(253,126,20,0.3); transition: all 0.3s;">
         🗑️ Wipe All<br><span style="font-size: 0.8rem; opacity: 0.9;">Clear queue</span>
-      </button>
-      <button 
-        onclick="pauseBulkSMS()" 
-        style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(255,193,7,0.3); transition: all 0.3s;">
-        ⏸️ PAUSE<br><span style="font-size: 0.8rem; opacity: 0.9;">Pause sending</span>
-      </button>
-      <button 
-        onclick="resumeBulkSMS()" 
-        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3); transition: all 0.3s;">
-        ▶️ RESUME<br><span style="font-size: 0.8rem; opacity: 0.9;">Resume sending</span>
       </button>
     </div>
 
@@ -1824,7 +1783,7 @@ app.get('/dashboard', async (req, res) => {
         const content = document.getElementById('bulkStatusContent');
 
         let html = '<div style="font-size: 1.1rem; margin-bottom: 15px;"><strong>Processor:</strong> ';
-        html += data.processorRunning ? (data.paused ? '<span style="color: #ffc107;">⏸️ PAUSED</span>' : '<span style="color: #10b981;">🟢 RUNNING</span>') : '<span style="color: #dc3545;">🔴 STOPPED</span>';
+        html += data.processorRunning ? '<span style="color: #10b981;">🟢 RUNNING</span>' : '<span style="color: #dc3545;">🔴 STOPPED</span>';
         html += '</div><div style="border-top: 2px solid #ffc107; padding-top: 15px;"><strong>Queue:</strong><br><br>';
 
         if (!data.stats || data.stats.length === 0) {
@@ -1872,41 +1831,6 @@ app.get('/dashboard', async (req, res) => {
         alert('Error: ' + error.message);
       }
     }
-
-      // PAUSE BULK SMS PROCESSOR
-      async function pauseBulkSMS() {
-        try {
-          const response = await fetch('/api/bulk-sms/pause');
-          const data = await response.json();
-          if (data.success) {
-            alert('⏸️  PAUSED\n\nBulk SMS paused. Queue preserved.');
-            checkBulkStatus();
-          } else {
-            alert('Error: ' + (data.error || 'Failed to pause'));
-          }
-        } catch (error) {
-          console.error('Pause error:', error);
-          alert('Error: ' + error.message);
-        }
-      }
-
-      // RESUME BULK SMS PROCESSOR
-      async function resumeBulkSMS() {
-        try {
-          const response = await fetch('/api/bulk-sms/resume');
-          const data = await response.json();
-          if (data.success) {
-            alert('▶️  RESUMED\n\nBulk SMS resumed.');
-            checkBulkStatus();
-          } else {
-            alert('Error: ' + (data.error || 'Failed to resume'));
-          }
-        } catch (error) {
-          console.error('Resume error:', error);
-          alert('Error: ' + error.message);
-        }
-      }
-
 
     function trackProgress(campaignName) {
         updateProgress(campaignName);
@@ -2824,7 +2748,6 @@ app.get('/api/bulk-status', async (req, res) => {
 
       res.json({
         processorRunning: bulkSmsProcessor !== null,
-        paused: bulkSmsProcessorPaused,
         stats: result.rows
       });
     } finally {
