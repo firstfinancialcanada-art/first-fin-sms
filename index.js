@@ -437,7 +437,6 @@ async function getBulkCampaignStats(campaignName) {
 }
 
 async function processBulkMessages() {
-  // 🆕 FIX #10: Check if processor is paused
   if (bulkSmsProcessorPaused) {
     console.log('⏸️ Bulk SMS processor paused - skipping batch');
     return;
@@ -487,7 +486,7 @@ async function processBulkMessages() {
 }
 
 let bulkSmsProcessor = null;
-let bulkSmsProcessorPaused = false; // 🆕 FIX #10: Pause/Resume control
+let bulkSmsProcessorPaused = false;
 function startBulkProcessor() {
   if (bulkSmsProcessor) return;
   console.log('🚀 Bulk SMS processor started');
@@ -1003,11 +1002,26 @@ app.get('/dashboard', async (req, res) => {
     <p style="color: #856404; margin-bottom: 20px; font-size: 0.95rem;">Monitor and control bulk campaigns</p>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-      <button onclick="emergencyStopBulk()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(220,53,69,0.3); transition: all 0.3s;">🚨 EMERGENCY STOP<br><span style="font-size: 0.8rem; opacity: 0.9;">Stop all bulk sending NOW</span></button>
-            <button onclick="pauseBulkSMS()" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(255,193,7,0.3); transition: all 0.3s;">⏸️ PAUSE<br><span style="font-size: 0.8rem; opacity: 0.9;">Pause sending</span></button>
-            <button onclick="resumeBulkSMS()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3); transition: all 0.3s;">▶️ RESUME<br><span style="font-size: 0.8rem; opacity: 0.9;">Resume sending</span></button>
-            <button onclick="checkBulkStatus()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(23,162,184,0.3); transition: all 0.3s;">📊 Check Status<br><span style="font-size: 0.8rem; opacity: 0.9;">View queue</span></button>
-            <button onclick="wipeBulkMessages()" style="background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(253,126,20,0.3); transition: all 0.3s;">🧹 Wipe All<br><span style="font-size: 0.8rem; opacity: 0.9;">Clear queue</span></button</div>
+            <button onclick="emergencyStopBulk()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(220,53,69,0.3); transition: all 0.3s;">
+              🚨 EMERGENCY STOP<br><span style="font-size: 0.8rem; opacity: 0.9;">Stop all bulk sending NOW</span>
+            </button>
+            <button onclick="pauseBulkSMS()" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(255,193,7,0.3); transition: all 0.3s;">
+              ⏸️ PAUSE<br><span style="font-size: 0.8rem; opacity: 0.9;">Pause sending</span>
+            </button>
+            <button onclick="resumeBulkSMS()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3); transition: all 0.3s;">
+              ▶️ RESUME<br><span style="font-size: 0.8rem; opacity: 0.9;">Resume sending</span>
+            </button>
+            <button onclick="checkBulkStatus()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(23,162,184,0.3); transition: all 0.3s;">
+              📊 Check Status<br><span style="font-size: 0.8rem; opacity: 0.9;">View queue</span>
+            </button>
+            <button onclick="wipeBulkMessages()" style="background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(253,126,20,0.3); transition: all 0.3s;">
+              🧹 Wipe All<br><span style="font-size: 0.8rem; opacity: 0.9;">Clear queue</span>
+            </button>
+          </div>
+
+    <div id="bulkStatusDisplay" style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px; display: none; border: 2px solid #ffc107;">
+      <h3 style="margin: 0 0 10px 0; color: #856404;">Current Status:</h3>
+      <div id="bulkStatusContent" style="font-family: monospace; font-size: 0.9rem; line-height: 1.8;"></div>
     </div>
   </div>
 
@@ -1770,7 +1784,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     // CHECK BULK STATUS
-    // 🆕 FIX #10: PAUSE BULK SMS
+    // PAUSE FUNCTION
   async function pauseBulkSMS() {
     if (!confirm('⏸️ Pause bulk SMS sending?\n\nMessages will stay in queue and can be resumed later.')) return;
 
@@ -1782,14 +1796,14 @@ app.get('/dashboard', async (req, res) => {
         alert('⏸️ ' + data.message);
         checkBulkStatus();
       } else {
-        alert('❌ Error: ' + (data.error || 'Unknown error'));
+        alert('Error: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      alert('❌ Error: ' + error.message);
+      alert('Error: ' + error.message);
     }
   }
 
-  // 🆕 FIX #10: RESUME BULK SMS
+  // RESUME FUNCTION
   async function resumeBulkSMS() {
     if (!confirm('▶️ Resume bulk SMS sending?\n\nThe processor will immediately start sending queued messages.')) return;
 
@@ -1801,10 +1815,10 @@ app.get('/dashboard', async (req, res) => {
         alert('▶️ ' + data.message);
         checkBulkStatus();
       } else {
-        alert('❌ Error: ' + (data.error || 'Unknown error'));
+        alert('Error: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      alert('❌ Error: ' + error.message);
+      alert('Error: ' + error.message);
     }
   }
 
@@ -2744,55 +2758,30 @@ app.get('/api/bulk-sms/campaign/:campaignName', async (req, res) => {
 
 
 
-// 🆕 FIX #10: PAUSE BULK SMS PROCESSOR
+// PAUSE ENDPOINT
 app.get('/api/bulk-sms/pause', async (req, res) => {
   try {
     if (bulkSmsProcessorPaused) {
-      return res.json({
-        success: true,
-        message: '⏸️ Bulk SMS processor is already paused',
-        paused: true
-      });
+      return res.json({ success: true, message: '⏸️ Already paused', paused: true });
     }
-
     bulkSmsProcessorPaused = true;
-    console.log('⏸️ BULK SMS PROCESSOR PAUSED');
-
-    res.json({
-      success: true,
-      message: '⏸️ Bulk SMS processor paused successfully',
-      paused: true,
-      note: 'Processor will stop processing new messages. Use /api/bulk-sms/resume to continue.'
-    });
+    console.log('⏸️ BULK SMS PAUSED');
+    res.json({ success: true, message: '⏸️ Paused successfully', paused: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 🆕 FIX #10: RESUME BULK SMS PROCESSOR
+// RESUME ENDPOINT
 app.get('/api/bulk-sms/resume', async (req, res) => {
   try {
     if (!bulkSmsProcessorPaused) {
-      return res.json({
-        success: true,
-        message: '▶️ Bulk SMS processor is already running',
-        paused: false
-      });
+      return res.json({ success: true, message: '▶️ Already running', paused: false });
     }
-
     bulkSmsProcessorPaused = false;
-    console.log('▶️ BULK SMS PROCESSOR RESUMED');
-
-    // Immediately process a batch to resume quickly
-    processBulkMessages().catch(err => {
-      console.error('Error processing bulk messages after resume:', err);
-    });
-
-    res.json({
-      success: true,
-      message: '▶️ Bulk SMS processor resumed successfully',
-      paused: false
-    });
+    console.log('▶️ BULK SMS RESUMED');
+    processBulkMessages().catch(err => console.error('Resume error:', err));
+    res.json({ success: true, message: '▶️ Resumed successfully', paused: false });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
