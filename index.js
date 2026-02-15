@@ -2556,7 +2556,7 @@ app.get('/api/export/analytics', async (req, res) => {
   const client = await pool.connect();
   try {
     const result = await client.query('SELECT * FROM analytics ORDER BY timestamp DESC');
-    const rows = [['ID', 'Event', 'Phone', 'Data', 'Timestamp'].join(',')];
+    const rows = ['ID,Event,Phone,Data,Timestamp'];
     result.rows.forEach(r => rows.push([r.id, '"' + r.event_type + '"', '"' + (r.customer_phone||'') + '"', '"' + JSON.stringify(r.data).replace(/"/g, '""') + '"', '"' + r.timestamp + '"'].join(',')));
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="analytics_' + new Date().toISOString().split('T')[0] + '.csv"');
