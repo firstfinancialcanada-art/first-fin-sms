@@ -575,13 +575,8 @@ app.get('/api/bulk-sms/pause', async (req, res) => {
   try {
     bulkSmsProcessorPaused = true;
     console.log('⏸️  Bulk SMS processor PAUSED');
-    res.json({ 
-      success: true, 
-      paused: true,
-      message: '⏸️  Bulk SMS processor paused. Queue is preserved.' 
-    });
+    res.json({ success: true, paused: true, message: '⏸️  Paused.' });
   } catch (error) {
-    console.error('Pause error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -591,13 +586,8 @@ app.get('/api/bulk-sms/resume', async (req, res) => {
   try {
     bulkSmsProcessorPaused = false;
     console.log('▶️  Bulk SMS processor RESUMED');
-    res.json({ 
-      success: true, 
-      paused: false,
-      message: '▶️  Bulk SMS processor resumed. Sending will continue.' 
-    });
+    res.json({ success: true, paused: false, message: '▶️  Resumed.' });
   } catch (error) {
-    console.error('Resume error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1888,16 +1878,15 @@ app.get('/dashboard', async (req, res) => {
         try {
           const response = await fetch('/api/bulk-sms/pause');
           const data = await response.json();
-
           if (data.success) {
-            alert('⏸️  PAUSED\n\nBulk SMS sending has been paused.\nQueue is preserved and will resume when you click RESUME.');
+            alert('⏸️  PAUSED\n\nBulk SMS paused. Queue preserved.');
             checkBulkStatus();
           } else {
             alert('Error: ' + (data.error || 'Failed to pause'));
           }
         } catch (error) {
           console.error('Pause error:', error);
-          alert('Error pausing bulk SMS: ' + error.message);
+          alert('Error: ' + error.message);
         }
       }
 
@@ -1906,16 +1895,15 @@ app.get('/dashboard', async (req, res) => {
         try {
           const response = await fetch('/api/bulk-sms/resume');
           const data = await response.json();
-
           if (data.success) {
-            alert('▶️  RESUMED\n\nBulk SMS sending has been resumed.\nMessages will continue sending.');
+            alert('▶️  RESUMED\n\nBulk SMS resumed.');
             checkBulkStatus();
           } else {
             alert('Error: ' + (data.error || 'Failed to resume'));
           }
         } catch (error) {
           console.error('Resume error:', error);
-          alert('Error resuming bulk SMS: ' + error.message);
+          alert('Error: ' + error.message);
         }
       }
 
