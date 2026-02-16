@@ -193,7 +193,6 @@ async function hasActiveConversation(phone) {
 }
 
 // Delete conversation and its messages
-async function deleteConversation(phone) {
   // API: Delete individual appointment
 async function deleteAppointment(appointmentId) {
   if (!confirm('Delete this appointment?')) return;
@@ -212,9 +211,9 @@ async function deleteAppointment(appointmentId) {
 }
 
 // API: Delete individual callback
+// API: Delete individual callback
 async function deleteCallback(callbackId) {
   if (!confirm('Delete this callback?')) return;
-  
   const client = await pool.connect();
   try {
     await client.query('DELETE FROM callbacks WHERE id = $1', [callbackId]);
@@ -228,10 +227,32 @@ async function deleteCallback(callbackId) {
   }
 }
 
+// Delete conversation and its messages (backend function)
+async function deleteConversation(phone) {
   const client = await pool.connect();
   try {
     const conversation = await client.query(
       'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
+      [phone]
+    );
+
+    if (conversation.rows.length > 0) {
+      const conversationId = conversation.rows[0].id;
+
+      // Delete from all related tables
+      await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
+      await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
+      await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
+      await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
+
+      console.log('✅ Conversation deleted with appointments/callbacks:', phone);
+      return true;
+    }
+    return false;
+  } finally {
+    client.release();
+  }
+}'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
       [phone]
     );
     
@@ -254,8 +275,34 @@ async function deleteCallback(callbackId) {
   }
 }
 
-// Save message to database
+// 🆕 FIX #9: Check for duplicate messages (prevents duplicate messages after conversion)
+async function messageExists(conversationId, role, content) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT id FROM messages 
+       WHERE conversation_id = $1 
+       AND role = $2 
+       AND content = $3 
+       AND created_at > NOW() - INTERVAL '30 seconds'
+       LIMIT 1`,
+      [conversationId, role, content]
+    );
+    return result.rows.length > 0;
+  } finally {
+    client.release();
+  }
+}
+
+// Save message to database (with duplicate prevention)
 async function saveMessage(conversationId, phone, role, content) {
+  // 🆕 FIX #9: Check for duplicate before saving
+  const isDuplicate = await messageExists(conversationId, role, content);
+  if (isDuplicate) {
+    console.log('⚠️ Duplicate message prevented:', content.substring(0, 50) + '...');
+    return;
+  }
+
   const client = await pool.connect();
   try {
     await client.query(
@@ -410,6 +457,12 @@ async function getBulkCampaignStats(campaignName) {
 }
 
 async function processBulkMessages() {
+  
+  if (bulkSmsProcessorPaused) {
+    console.log('⏸️  Paused');
+    return;
+  }
+
   try {
     const pendingMessages = await getPendingBulkMessages(BULK_BATCH_SIZE);
     if (pendingMessages.length === 0) return;
@@ -454,6 +507,7 @@ async function processBulkMessages() {
 }
 
 let bulkSmsProcessor = null;
+let bulkSmsProcessorPaused = false
 function startBulkProcessor() {
   if (bulkSmsProcessor) return;
   console.log('🚀 Bulk SMS processor started');
@@ -542,6 +596,25 @@ app.get('/api/wipe-bulk', async (req, res) => {
   }
 });
 
+app.get('/api/bulk-sms/pause', async (req, res) => {
+  try {
+    bulkSmsProcessorPaused = true;
+    res.json({ success: true, paused: true });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.get('/api/bulk-sms/resume', async (req, res) => {
+  try {
+    bulkSmsProcessorPaused = false;
+    res.json({ success: true, paused: false });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
+
+
 
 // ===== ROUTES =====
 
@@ -562,6 +635,32 @@ app.get('/', (req, res) => {
     },
     timestamp: new Date()
   });
+});
+
+
+// EMERGENCY STOP - ALL BULK MESSAGES
+app.get('/api/stop-bulk', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `UPDATE bulk_messages SET status = 'cancelled', error_message = 'Emergency stop by user' 
+       WHERE status = 'pending'`
+    );
+
+    const cancelled = result.rowCount;
+    console.log(`🚨 EMERGENCY STOP: ${cancelled} messages cancelled`);
+
+    res.json({
+      success: true,
+      cancelled: cancelled,
+      message: `Emergency stop: ${cancelled} pending messages cancelled`
+    });
+  } catch (error) {
+    console.error('Emergency stop error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
 });
 
 // Interactive HTML Dashboard
@@ -954,6 +1053,8 @@ app.get('/dashboard', async (req, res) => {
       <button onclick="wipeBulkMessages()" style="background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(253,126,20,0.3); transition: all 0.3s;">
         🗑️ Wipe All<br><span style="font-size: 0.8rem; opacity: 0.9;">Clear queue</span>
       </button>
+      <button onclick="pauseBulkSMS()" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(255,193,7,0.3); transition: all 0.3s;">⏸️ PAUSE<br><span style="font-size: 0.8rem; opacity: 0.9;">Pause sending</span></button>
+      <button onclick="resumeBulkSMS()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3); transition: all 0.3s;">▶️ RESUME<br><span style="font-size: 0.8rem; opacity: 0.9;">Resume sending</span></button>
     </div>
 
     <div id="bulkStatusDisplay" style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px; display: none; border: 2px solid #ffc107;">
@@ -984,7 +1085,7 @@ app.get('/dashboard', async (req, res) => {
           <h3 style="margin: 0 0 15px 0;">Campaign Details</h3>
           <div style="margin-bottom: 15px;">
             <label style="display: block; font-weight: 600; margin-bottom: 5px;">Campaign Name</label>
-            <input type="text" id="campaignName" placeholder="Spring Sale 2026" style="width: 100%; padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px;">
+            <input type="text" id="campaign_name" placeholder="Spring Sale 2026" style="width: 100%; padding: 12px; border: 2px solid #cbd5e0; border-radius: 8px;">
           </div>
           <div style="margin-bottom: 15px;">
             <label style="display: block; font-weight: 600; margin-bottom: 5px;">Message (use {name})</label>
@@ -1174,34 +1275,12 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\\D/g, '');
-      
-      if (value.length > 0 && !value.startsWith('1')) {
-        value = '1' + value;
-      }
-      
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
-      }
-      
-      e.target.value = formatted;
-    });
+    // Removed phone auto-formatting
     
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\\D/g, '');
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
       const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
@@ -1561,33 +1640,81 @@ app.get('/dashboard', async (req, res) => {
       let progressTimer = null;
 
       async function parseCsv() {
-        const fileInput = document.getElementById('csvFile');
-        const file = fileInput.files[0];
-        if (!file) { alert('Select a CSV file'); return; }
+    const fileInput = document.getElementById('csvFile');
+    const file = fileInput.files[0];
+    if (!file) {
+      alert('Select a CSV file');
+      return;
+    }
 
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-          const csvData = e.target.result;
-          try {
-            const response = await fetch('/api/bulk-sms/parse-csv', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ csvData: csvData })
-            });
-            const result = await response.json();
-            if (result.success) {
-              parsedContacts = result.contacts;
-              showContacts(result.contacts, result.errors);
-              document.getElementById('campaignForm').style.display = 'block';
-            } else {
-              alert('Error: ' + result.error);
-            }
-          } catch (error) {
-            alert('Parse error: ' + error.message);
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const csvData = e.target.result;
+
+      try {
+        const lines = csvData.split('\\n');
+        const contacts = [];
+        const errors = [];
+        const seenPhones = new Set();
+        const BLACKLIST = ['2899688778', '12899688778'];
+
+        let startRow = 0;
+        if (lines[0] && lines[0].toLowerCase().includes('name')) {
+          startRow = 1;
+        }
+
+        for (let i = startRow; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const parts = line.split(',');
+          if (parts.length < 2) {
+            errors.push({ row: i + 1, error: 'Missing name or phone' });
+            continue;
           }
-        };
-        reader.readAsText(file);
+
+          const name = parts[0].trim().replace(/"/g, '');
+          const rawPhone = parts[1].trim().replace(/"/g, '');
+          const digitsOnly = rawPhone.replace(/[^0-9]/g, '');
+
+          let phone = digitsOnly;
+          if (digitsOnly.length === 10) {
+            phone = '1' + digitsOnly;
+          }
+
+          if (phone.length !== 11 || !phone.startsWith('1')) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
+            continue;
+          }
+
+          if (BLACKLIST.some(blocked => phone.includes(blocked))) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Blacklisted number' });
+            continue;
+          }
+
+          if (seenPhones.has(phone)) {
+            errors.push({ row: i + 1, name, phone: rawPhone, error: 'Duplicate phone number' });
+            continue;
+          }
+
+          seenPhones.add(phone);
+          contacts.push({ name, phone, row: i + 1 });
+        }
+
+        if (contacts.length > 0) {
+          parsedContacts = contacts;
+          showContacts(contacts, errors);
+          document.getElementById('campaignForm').style.display = 'block';
+        } else {
+          alert('No valid contacts found in CSV');
+        }
+
+      } catch (error) {
+        alert('Parse error: ' + error.message);
       }
+    };
+    reader.readAsText(file);
+  }
 
       function showContacts(contacts, errors) {
         document.getElementById('contactCount').textContent = contacts.length;
@@ -1621,7 +1748,7 @@ app.get('/dashboard', async (req, res) => {
       }
 
       async function launchCampaign() {
-        const campaignName = document.getElementById('campaignName').value.trim();
+        const campaignName = document.getElementById('campaign_name').value.trim();
         const messageTemplate = document.getElementById('messageTemplate').value.trim();
         if (!campaignName) { alert('Enter campaign name'); return; }
         if (!messageTemplate) { alert('Enter message'); return; }
@@ -1653,7 +1780,7 @@ app.get('/dashboard', async (req, res) => {
 
     // EMERGENCY STOP BULK SMS
     async function emergencyStopBulk() {
-      if (!confirm('🚨 EMERGENCY STOP\n\nThis will stop the bulk processor and cancel all pending messages.\n\nAre you sure?')) {
+      if (!confirm('🚨 EMERGENCY STOP\\n\\nThis will stop the bulk processor and cancel all pending messages.\\n\\nAre you sure?')) {
         return;
       }
 
@@ -1662,7 +1789,7 @@ app.get('/dashboard', async (req, res) => {
         const data = await response.json();
 
         if (data.success) {
-          alert('🚨 EMERGENCY STOP ACTIVATED\n\n' + data.cancelled + ' messages cancelled.\n\nNo more SMS will be sent.');
+          alert('🚨 EMERGENCY STOP ACTIVATED\\n\\n' + data.cancelled + ' messages cancelled.\\n\\nNo more SMS will be sent.');
           checkBulkStatus();
         } else {
           alert('Error: ' + (data.error || 'Unknown error'));
@@ -1682,7 +1809,7 @@ app.get('/dashboard', async (req, res) => {
         const content = document.getElementById('bulkStatusContent');
 
         let html = '<div style="font-size: 1.1rem; margin-bottom: 15px;"><strong>Processor:</strong> ';
-        html += data.processorRunning ? '<span style="color: #10b981;">🟢 RUNNING</span>' : '<span style="color: #dc3545;">🔴 STOPPED</span>';
+        html += data.processorRunning ? (data.paused ? '<span style="color: #ffc107;">⏸️ PAUSED</span>' : '<span style="color: #10b981;">🟢 RUNNING</span>') : '<span style="color: #dc3545;">🔴 STOPPED</span>';
         html += '</div><div style="border-top: 2px solid #ffc107; padding-top: 15px;"><strong>Queue:</strong><br><br>';
 
         if (!data.stats || data.stats.length === 0) {
@@ -1712,7 +1839,7 @@ app.get('/dashboard', async (req, res) => {
 
     // WIPE ALL BULK MESSAGES
     async function wipeBulkMessages() {
-      if (!confirm('⚠️ WIPE ALL BULK MESSAGES\n\nThis will DELETE ALL messages from the queue.\n\nAre you sure?')) {
+      if (!confirm('⚠️ WIPE ALL BULK MESSAGES\\n\\nThis will DELETE ALL messages from the queue.\\n\\nAre you sure?')) {
         return;
       }
 
@@ -1730,6 +1857,25 @@ app.get('/dashboard', async (req, res) => {
         alert('Error: ' + error.message);
       }
     }
+
+      async function pauseBulkSMS() {
+        try {
+          const r = await fetch('/api/bulk-sms/pause');
+          const d = await r.json();
+          if (d.success) { alert('⏸️  PAUSED\\n\\nQueue preserved.'); checkBulkStatus(); }
+          else { alert('Error: ' + (d.error || 'Failed')); }
+        } catch (e) { alert('Error: ' + e.message); }
+      }
+
+      async function resumeBulkSMS() {
+        try {
+          const r = await fetch('/api/bulk-sms/resume');
+          const d = await r.json();
+          if (d.success) { alert('▶️  RESUMED\\n\\nSending continues.'); checkBulkStatus(); }
+          else { alert('Error: ' + (d.error || 'Failed')); }
+        } catch (e) { alert('Error: ' + e.message); }
+      }
+
 
     function trackProgress(campaignName) {
         updateProgress(campaignName);
@@ -2614,7 +2760,7 @@ app.get('/api/emergency-stop-bulk', async (req, res) => {
       }
 
       const result = await client.query(
-        `UPDATE bulkmessages SET status = 'cancelled', errormessage = 'Emergency stop by user' WHERE status = 'pending'`
+        `UPDATE bulk_messages SET status = 'cancelled', error_message = 'Emergency stop by user' WHERE status = 'pending'`
       );
 
       res.json({
@@ -2640,13 +2786,14 @@ app.get('/api/bulk-status', async (req, res) => {
         SELECT 
           status,
           COUNT(*) as count,
-          COUNT(DISTINCT campaignname) as campaigns
-        FROM bulkmessages
+          COUNT(DISTINCT campaign_name) as campaigns
+        FROM bulk_messages
         GROUP BY status
       `);
 
       res.json({
         processorRunning: bulkSmsProcessor !== null,
+        paused: bulkSmsProcessorPaused,
         stats: result.rows
       });
     } finally {
