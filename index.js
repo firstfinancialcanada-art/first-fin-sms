@@ -211,7 +211,6 @@ async function deleteAppointment(appointmentId) {
 }
 
 // API: Delete individual callback
-// API: Delete individual callback
 async function deleteCallback(callbackId) {
   if (!confirm('Delete this callback?')) return;
   const client = await pool.connect();
@@ -227,7 +226,7 @@ async function deleteCallback(callbackId) {
   }
 }
 
-// Delete conversation and its messages (backend function)
+// Delete conversation and its messages
 async function deleteConversation(phone) {
   const client = await pool.connect();
   try {
@@ -252,30 +251,10 @@ async function deleteConversation(phone) {
   } finally {
     client.release();
   }
-}'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
-      [phone]
-    );
-    
-    if (conversation.rows.length > 0) {
-      const conversationId = conversation.rows[0].id;
-      
-      // Delete from all related tables
-      await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
-      await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
-      await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
-      await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
-      
-      console.log('🗑️ Conversation deleted (with appointments & callbacks):', phone);
-      return true;
-    }
-    
-    return false;
-  } finally {
-    client.release();
-  }
 }
 
 // 🆕 FIX #9: Check for duplicate messages (prevents duplicate messages after conversion)
+
 async function messageExists(conversationId, role, content) {
   const client = await pool.connect();
   try {
@@ -1275,7 +1254,29 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    // Removed phone auto-formatting
+    document.getElementById('phoneNumber').addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\D/g, '');
+      
+      if (value.length > 0 && !value.startsWith('1')) {
+        value = '1' + value;
+      }
+      
+      let formatted = '';
+      if (value.length > 0) {
+        formatted = '+' + value.substring(0, 1);
+        if (value.length > 1) {
+          formatted += ' (' + value.substring(1, 4);
+        }
+        if (value.length > 4) {
+          formatted += ') ' + value.substring(4, 7);
+        }
+        if (value.length > 7) {
+          formatted += '-' + value.substring(7, 11);
+        }
+      }
+      
+      e.target.value = formatted;
+    });
     
     async function sendSMS(event) {
       event.preventDefault();
