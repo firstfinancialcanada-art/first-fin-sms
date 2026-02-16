@@ -1255,49 +1255,39 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-document.addEventListener('DOMContentLoaded', function() {
-  const phoneNumberInput = document.getElementById('phoneNumber');
+document.getElementById('phoneNumber').addEventListener('input', function(e) {
+  // Step 1: Remove ALL non-digits (this removes the previous formatting)
+  let digitsOnly = e.target.value.replace(/\D/g, '');
   
-  if (phoneNumberInput) {
-    phoneNumberInput.addEventListener('input', function(e) {
-      // Remove ALL formatting first (including +, spaces, parentheses, dashes)
-      let digitsOnly = e.target.value.replace(/\D/g, '');
-      
-      // If empty, just set to empty and return
-      if (digitsOnly.length === 0) {
-        e.target.value = '';
-        return;
-      }
-      
-      // Remove leading 1 if present (we'll add it back)
-      if (digitsOnly.startsWith('1') && digitsOnly.length > 10) {
-        digitsOnly = digitsOnly.substring(1);
-      }
-      
-      // Ensure we have a 1 prefix for North American numbers
-      if (!digitsOnly.startsWith('1')) {
-        digitsOnly = '1' + digitsOnly;
-      }
-      
-      // Now format: +1 (XXX) XXX-XXXX
-      let formatted = '';
-      if (digitsOnly.length >= 1) {
-        formatted = '+' + digitsOnly.substring(0, 1); // +1
-      }
-      if (digitsOnly.length > 1) {
-        formatted += ' (' + digitsOnly.substring(1, 4); // (XXX)
-      }
-      if (digitsOnly.length > 4) {
-        formatted += ') ' + digitsOnly.substring(4, 7); // ) XXX
-      }
-      if (digitsOnly.length > 7) {
-        formatted += '-' + digitsOnly.substring(7, 11); // -XXXX
-      }
-      
-      // Set the formatted value
-      e.target.value = formatted;
-    });
+  // Step 2: If empty, clear and stop
+  if (digitsOnly.length === 0) {
+    e.target.value = '';
+    return;
   }
+  
+  // Step 3: Trim to max 11 digits if user pastes a long number
+  if (digitsOnly.length > 11) {
+    digitsOnly = digitsOnly.substring(digitsOnly.length - 10);
+  }
+  
+  // Step 4: Ensure it starts with 1
+  if (!digitsOnly.startsWith('1')) {
+    digitsOnly = '1' + digitsOnly;
+  }
+  
+  // Step 5: Format as +1 (XXX) XXX-XXXX
+  let formatted = '+' + digitsOnly.charAt(0);
+  if (digitsOnly.length > 1) {
+    formatted += ' (' + digitsOnly.substring(1, 4);
+  }
+  if (digitsOnly.length > 4) {
+    formatted += ') ' + digitsOnly.substring(4, 7);
+  }
+  if (digitsOnly.length > 7) {
+    formatted += '-' + digitsOnly.substring(7, 11);
+  }
+  
+  e.target.value = formatted;
 });
     
     async function sendSMS(event) {
@@ -2052,21 +2042,61 @@ app.delete('/api/appointment/:id', async (req, res) => {
   }
 });
 
-// API Delete individual callback
-app.delete('/api/callback/:id', async (req, res) => {
+// API: Delete individual appointment
+async function deleteAppointment(appointmentId) {
+  if (!confirm('Delete this appointment?')) return;
+  try {
+    const response = await fetch('/api/appointment/' + appointmentId, { method: 'DELETE' });
+    const data = await response.json();
+    showNotification(data.message, data.success ? 'success' : 'error');
+    if (data.success) setTimeout(() => loadDashboard(), 500);
+  } catch (error) {
+    console.error('Error:', error);
+    showNotification('Error deleting appointment', 'error');
+  }
+}
+
+// API: Delete individual callback
+async function deleteCallback(callbackId) {
+  if (!confirm('Delete this callback?')) return;
+  try {
+    const response = await fetch('/api/callback/' + callbackId, { method: 'DELETE' });
+    const data = await response.json();
+    showNotification(data.message, data.success ? 'success' : 'error');
+    if (data.success) setTimeout(() => loadDashboard(), 500);
+  } catch (error) {
+    console.error('Error:', error);
+    showNotification('Error deleting callback', 'error');
+  }
+}
+
+// Delete conversation and its messages
+async function deleteConversation(phone) {
   const client = await pool.connect();
   try {
-    const { id } = req.params;
-    await client.query('DELETE FROM callbacks WHERE id = $1', [id]);
-    console.log('✅ Callback deleted:', id);
-    res.json({ success: true, message: 'Callback deleted' });
-  } catch (error) {
-    console.error('Error deleting callback:', error);
-    res.json({ success: false, error: error.message });
+    const conversation = await client.query(
+      'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
+      [phone]
+    );
+    
+    if (conversation.rows.length > 0) {
+      const conversationId = conversation.rows[0].id;
+      
+      // Delete from all related tables
+      await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
+      await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
+      await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
+      await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
+      
+      console.log('🗑️ Conversation deleted (with appointments & callbacks):', phone);
+      return true;
+    }
+    
+    return false;
   } finally {
     client.release();
   }
-});
+}
 
 // API: Manual reply (NEW)
 app.post('/api/manual-reply', async (req, res) => {
