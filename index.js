@@ -2586,7 +2586,7 @@ app.get('/api/export/analytics', async (req, res) => {
     const budgetRanges = await client.query("SELECT budget, COUNT(*) as count FROM conversations WHERE budget IS NOT NULL AND budget != '' GROUP BY budget ORDER BY count DESC");
 
     // 5. DAILY CONVERSATION TREND (Last 30 days)
-    const dailyTrend = await client.query(\`
+    const dailyTrend = await client.query(`
       SELECT DATE(started_at) as date, 
              COUNT(*) as conversations,
              COUNT(CASE WHEN status = 'converted' THEN 1 END) as converted
@@ -2594,10 +2594,10 @@ app.get('/api/export/analytics', async (req, res) => {
       WHERE started_at >= NOW() - INTERVAL '30 days'
       GROUP BY DATE(started_at)
       ORDER BY date DESC
-    \`);
+    `);
 
     // 6. CUSTOMER ENGAGEMENT LEVELS
-    const engagement = await client.query(\`
+    const engagement = await client.query(`
       SELECT 
         CASE 
           WHEN msg_count >= 5 THEN 'High Engagement (5+ messages)'
@@ -2614,7 +2614,7 @@ app.get('/api/export/analytics', async (req, res) => {
       ) as engagement_counts
       GROUP BY engagement_level
       ORDER BY count DESC
-    \`);
+    `);
 
     // BUILD CSV REPORT
     const rows = [];
@@ -2622,14 +2622,14 @@ app.get('/api/export/analytics', async (req, res) => {
     // SECTION 1: SUMMARY METRICS
     rows.push('SUMMARY METRICS');
     rows.push('Metric,Value');
-    rows.push(\`Total Conversations,\${totalConversations}\`);
-    rows.push(\`Total Converted (Appointments + Callbacks),\${totalConverted}\`);
-    rows.push(\`Conversion Rate,\${totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0'}%\`);
-    rows.push(\`Customers Who Responded,\${totalResponded}\`);
-    rows.push(\`Response Rate,\${totalConversations > 0 ? ((totalResponded / totalConversations) * 100).toFixed(1) : '0.0'}%\`);
-    rows.push(\`Total Appointments,\${appointmentCount}\`);
-    rows.push(\`Total Callbacks,\${callbackCount}\`);
-    rows.push(\`Average Messages Per Conversation,\${avgMessages.toFixed(1)}\`);
+    rows.push(`Total Conversations,${totalConversations}`);
+    rows.push(`Total Converted (Appointments + Callbacks),${totalConverted}`);
+    rows.push(`Conversion Rate,${totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0'}%`);
+    rows.push(`Customers Who Responded,${totalResponded}`);
+    rows.push(`Response Rate,${totalConversations > 0 ? ((totalResponded / totalConversations) * 100).toFixed(1) : '0.0'}%`);
+    rows.push(`Total Appointments,${appointmentCount}`);
+    rows.push(`Total Callbacks,${callbackCount}`);
+    rows.push(`Average Messages Per Conversation,${avgMessages.toFixed(1)}`);
     rows.push('');
 
     // SECTION 2: CONVERSATION STATUS BREAKDOWN
@@ -2637,7 +2637,7 @@ app.get('/api/export/analytics', async (req, res) => {
     rows.push('Status,Count,Percentage');
     statusBreakdown.rows.forEach(r => {
       const pct = totalConversations > 0 ? ((r.count / totalConversations) * 100).toFixed(1) : '0.0';
-      rows.push(\`"\${r.status}",\${r.count},\${pct}%\`);
+      rows.push(`"${r.status}",${r.count},${pct}%`);
     });
     rows.push('');
 
@@ -2645,7 +2645,7 @@ app.get('/api/export/analytics', async (req, res) => {
     rows.push('TOP VEHICLE TYPES REQUESTED');
     rows.push('Vehicle Type,Count');
     topVehicles.rows.forEach(r => {
-      rows.push(\`"\${r.vehicle_type}",\${r.count}\`);
+      rows.push(`"${r.vehicle_type}",${r.count}`);
     });
     rows.push('');
 
@@ -2653,7 +2653,7 @@ app.get('/api/export/analytics', async (req, res) => {
     rows.push('BUDGET DISTRIBUTION');
     rows.push('Budget Range,Count');
     budgetRanges.rows.forEach(r => {
-      rows.push(\`"\${r.budget}",\${r.count}\`);
+      rows.push(`"${r.budget}",${r.count}`);
     });
     rows.push('');
 
@@ -2661,7 +2661,7 @@ app.get('/api/export/analytics', async (req, res) => {
     rows.push('CUSTOMER ENGAGEMENT LEVELS');
     rows.push('Engagement Level,Count');
     engagement.rows.forEach(r => {
-      rows.push(\`"\${r.engagement_level}",\${r.count}\`);
+      rows.push(`"${r.engagement_level}",${r.count}`);
     });
     rows.push('');
 
@@ -2670,7 +2670,7 @@ app.get('/api/export/analytics', async (req, res) => {
     rows.push('Date,Total Conversations,Converted,Conversion Rate');
     dailyTrend.rows.forEach(r => {
       const convRate = r.conversations > 0 ? ((r.converted / r.conversations) * 100).toFixed(1) : '0.0';
-      rows.push(\`\${r.date},\${r.conversations},\${r.converted},\${convRate}%\`);
+      rows.push(`${r.date},${r.conversations},${r.converted},${convRate}%`);
     });
 
     // SEND CSV
