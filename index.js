@@ -1160,19 +1160,62 @@ app.get('/dashboard', async (req, res) => {
       </div>
     </div>
 
-        <div class="section">
-      <h2>📱 Launch SMS - Send SMS Campaign</h2>
-      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
-        <div class="form-group">
-          <label for="phoneNumber">Phone Number</label>
-          <input 
-            type="tel" 
-            id="phoneNumber" 
-            name="phoneNumber" 
-            placeholder="+1 (403) 555-0100"
-            required
-          >
-        </div>
+<div class="section">
+  <h2>📱 Launch SMS - Send SMS Campaign</h2>
+  <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
+    <div class="form-group">
+      <label for="phoneNumber">Phone Number</label>
+      <input 
+        type="tel" 
+        id="phoneNumber" 
+        name="phoneNumber" 
+        placeholder="+1 (403) 555-0100"
+        required
+      >
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const phoneInput = document.getElementById('phoneNumber');
+  
+  if (phoneInput) {
+    phoneInput.addEventListener('input', function(e) {
+      // Remove ALL non-digits
+      let digits = e.target.value.replace(/\D/g, '');
+      
+      // If empty, stay empty
+      if (digits.length === 0) {
+        e.target.value = '';
+        return;
+      }
+      
+      // If we somehow got too many digits (>11), truncate to last 10
+      if (digits.length > 11) {
+        digits = digits.substring(digits.length - 10);
+      }
+      
+      // Ensure it starts with 1
+      if (!digits.startsWith('1')) {
+        digits = '1' + digits;
+      }
+      
+      // Format: +1 (XXX) XXX-XXXX
+      let formatted = '+' + digits.charAt(0);
+      if (digits.length > 1) {
+        formatted += ' (' + digits.substring(1, 4);
+      }
+      if (digits.length > 4) {
+        formatted += ') ' + digits.substring(4, 7);
+      }
+      if (digits.length > 7) {
+        formatted += '-' + digits.substring(7, 11);
+      }
+      
+      e.target.value = formatted;
+    });
+  }
+});
+</script>
         <div class="form-group">
           <label for="message">Message</label>
           <textarea 
