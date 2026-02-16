@@ -1255,26 +1255,29 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
-      
-      if (value.length > 0 && !value.startsWith('1')) {
-        value = '1' + value;
-      }
-      
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
-      }
+document.getElementById('phoneNumber').addEventListener('input', function(e) {
+  let value = e.target.value.replace(/\D/g, '');
+  
+  if (value.length > 0 && !value.startsWith('1')) {
+    value = '1' + value;
+  }
+  
+  let formatted = '';
+  if (value.length > 0) {
+    formatted = '+' + value.substring(0, 1);
+    if (value.length > 1) {
+      formatted += ' (' + value.substring(1, 4);
+    }
+    if (value.length > 4) {
+      formatted += ') ' + value.substring(4, 7);
+    }
+    if (value.length > 7) {
+      formatted += '-' + value.substring(7, 11);
+    }
+  }
+  
+  e.target.value = formatted;
+});
       
       e.target.value = formatted;
     });
