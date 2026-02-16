@@ -1255,29 +1255,40 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
+document.addEventListener('DOMContentLoaded', function() {
+  const phoneNumberInput = document.getElementById('phoneNumber');
+  
+  if (phoneNumberInput) {
+    phoneNumberInput.addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
       
-      if (value.length > 0 && !value.startsWith('1')) {
+      // Only format if we have digits
+      if (value.length === 0) {
+        e.target.value = '';
+        return;
+      }
+      
+      // Ensure it starts with 1 for North American numbers
+      if (!value.startsWith('1') && value.length <= 10) {
         value = '1' + value;
       }
       
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
+      // Format: +1 (XXX) XXX-XXXX
+      let formatted = '+' + value.substring(0, 1);
+      if (value.length > 1) {
+        formatted += ' (' + value.substring(1, 4);
+      }
+      if (value.length > 4) {
+        formatted += ') ' + value.substring(4, 7);
+      }
+      if (value.length > 7) {
+        formatted += '-' + value.substring(7, 11);
       }
       
       e.target.value = formatted;
     });
+  }
+});
     
     async function sendSMS(event) {
       event.preventDefault();
