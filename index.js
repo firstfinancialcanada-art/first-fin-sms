@@ -35,6 +35,15 @@ pool.on('error', (err) => {
 });
 
 // Test database connection on startup
+
+// Verify Twilio credentials on startup
+if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+  console.error('⚠️ WARNING: TWILIO CREDENTIALS MISSING!');
+  console.error('Bulk SMS will not work. Check your .env file.');
+} else {
+  console.log('✅ Twilio configured: ' + process.env.TWILIO_PHONE_NUMBER);
+}
+
 pool.connect()
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('❌ Database connection error:', err));
@@ -2555,131 +2564,13 @@ app.get('/api/export/conversations', async (req, res) => {
 app.get('/api/export/analytics', async (req, res) => {
   const client = await pool.connect();
   try {
-    // ===== COMPREHENSIVE ANALYTICS REPORT =====
-
-    // 1. SUMMARY METRICS
-    const totalConvs = await client.query('SELECT COUNT(*) as count FROM conversations');
-    const totalConversations = parseInt(totalConvs.rows[0].count);
-
-    const converted = await client.query("SELECT COUNT(*) as count FROM conversations WHERE status = 'converted'");
-    const totalConverted = parseInt(converted.rows[0].count);
-
-    const responded = await client.query("SELECT COUNT(DISTINCT conversation_id) as count FROM messages WHERE role = 'user'");
-    const totalResponded = parseInt(responded.rows[0].count);
-
-    const totalAppts = await client.query('SELECT COUNT(*) as count FROM appointments');
-    const appointmentCount = parseInt(totalAppts.rows[0].count);
-
-    const totalCalls = await client.query('SELECT COUNT(*) as count FROM callbacks');
-    const callbackCount = parseInt(totalCalls.rows[0].count);
-
-    const avgMsgs = await client.query("SELECT COALESCE(AVG(msg_count), 0)::numeric(10,1) as avg FROM (SELECT conversation_id, COUNT(*) as msg_count FROM messages GROUP BY conversation_id) as counts");
-    const avgMessages = parseFloat(avgMsgs.rows[0].avg || 0);
-
-    // 2. CONVERSATION BREAKDOWN BY STATUS
-    const statusBreakdown = await client.query("SELECT status, COUNT(*) as count FROM conversations GROUP BY status ORDER BY count DESC");
-
-    // 3. TOP VEHICLE TYPES
-    const topVehicles = await client.query("SELECT vehicle_type, COUNT(*) as count FROM conversations WHERE vehicle_type IS NOT NULL AND vehicle_type != '' GROUP BY vehicle_type ORDER BY count DESC LIMIT 10");
-
-    // 4. BUDGET RANGES
-    const budgetRanges = await client.query("SELECT budget, COUNT(*) as count FROM conversations WHERE budget IS NOT NULL AND budget != '' GROUP BY budget ORDER BY count DESC");
-
-    // 5. DAILY CONVERSATION TREND (Last 30 days)
-    const dailyTrend = await client.query(`
-      SELECT DATE(started_at) as date, 
-             COUNT(*) as conversations,
-             COUNT(CASE WHEN status = 'converted' THEN 1 END) as converted
-      FROM conversations 
-      WHERE started_at >= NOW() - INTERVAL '30 days'
-      GROUP BY DATE(started_at)
-      ORDER BY date DESC
-    `);
-
-    // 6. CUSTOMER ENGAGEMENT LEVELS
-    const engagement = await client.query(`
-      SELECT 
-        CASE 
-          WHEN msg_count >= 5 THEN 'High Engagement (5+ messages)'
-          WHEN msg_count >= 2 THEN 'Medium Engagement (2-4 messages)'
-          WHEN msg_count = 1 THEN 'Low Engagement (1 message)'
-          ELSE 'No Response'
-        END as engagement_level,
-        COUNT(*) as count
-      FROM (
-        SELECT c.id, COUNT(m.id) as msg_count
-        FROM conversations c
-        LEFT JOIN messages m ON m.conversation_id = c.id AND m.role = 'user'
-        GROUP BY c.id
-      ) as engagement_counts
-      GROUP BY engagement_level
-      ORDER BY count DESC
-    `);
-
-    // BUILD CSV REPORT
-    const rows = [];
-
-    // SECTION 1: SUMMARY METRICS
-    rows.push('SUMMARY METRICS');
-    rows.push('Metric,Value');
-    rows.push(`Total Conversations,${totalConversations}`);
-    rows.push(`Total Converted (Appointments + Callbacks),${totalConverted}`);
-    rows.push(`Conversion Rate,${totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0'}%`);
-    rows.push(`Customers Who Responded,${totalResponded}`);
-    rows.push(`Response Rate,${totalConversations > 0 ? ((totalResponded / totalConversations) * 100).toFixed(1) : '0.0'}%`);
-    rows.push(`Total Appointments,${appointmentCount}`);
-    rows.push(`Total Callbacks,${callbackCount}`);
-    rows.push(`Average Messages Per Conversation,${avgMessages.toFixed(1)}`);
-    rows.push('');
-
-    // SECTION 2: CONVERSATION STATUS BREAKDOWN
-    rows.push('CONVERSATION STATUS BREAKDOWN');
-    rows.push('Status,Count,Percentage');
-    statusBreakdown.rows.forEach(r => {
-      const pct = totalConversations > 0 ? ((r.count / totalConversations) * 100).toFixed(1) : '0.0';
-      rows.push(`"${r.status}",${r.count},${pct}%`);
-    });
-    rows.push('');
-
-    // SECTION 3: TOP VEHICLE TYPES
-    rows.push('TOP VEHICLE TYPES REQUESTED');
-    rows.push('Vehicle Type,Count');
-    topVehicles.rows.forEach(r => {
-      rows.push(`"${r.vehicle_type}",${r.count}`);
-    });
-    rows.push('');
-
-    // SECTION 4: BUDGET RANGES
-    rows.push('BUDGET DISTRIBUTION');
-    rows.push('Budget Range,Count');
-    budgetRanges.rows.forEach(r => {
-      rows.push(`"${r.budget}",${r.count}`);
-    });
-    rows.push('');
-
-    // SECTION 5: CUSTOMER ENGAGEMENT
-    rows.push('CUSTOMER ENGAGEMENT LEVELS');
-    rows.push('Engagement Level,Count');
-    engagement.rows.forEach(r => {
-      rows.push(`"${r.engagement_level}",${r.count}`);
-    });
-    rows.push('');
-
-    // SECTION 6: DAILY TREND (Last 30 days)
-    rows.push('DAILY CONVERSATION TREND (Last 30 Days)');
-    rows.push('Date,Total Conversations,Converted,Conversion Rate');
-    dailyTrend.rows.forEach(r => {
-      const convRate = r.conversations > 0 ? ((r.converted / r.conversations) * 100).toFixed(1) : '0.0';
-      rows.push(`${r.date},${r.conversations},${r.converted},${convRate}%`);
-    });
-
-    // SEND CSV
+    const result = await client.query('SELECT * FROM analytics ORDER BY timestamp DESC');
+    const rows = [['ID', 'Event', 'Phone', 'Data', 'Timestamp'].join(',')];
+    result.rows.forEach(r => rows.push([r.id, '"' + r.event_type + '"', '"' + (r.customer_phone||'') + '"', '"' + JSON.stringify(r.data).replace(/"/g, '""') + '"', '"' + r.timestamp + '"'].join(',')));
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="analytics_report_' + new Date().toISOString().split('T')[0] + '.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="analytics_' + new Date().toISOString().split('T')[0] + '.csv"');
     res.send(rows.join('\n'));
-
-    console.log('📊 Exported comprehensive analytics report');
-
+    console.log('📊 Exported', result.rows.length, 'analytics events');
   } catch (e) {
     console.error('❌ Export error:', e);
     res.setHeader('Content-Type', 'text/csv');
