@@ -1260,31 +1260,41 @@ document.addEventListener('DOMContentLoaded', function() {
   
   if (phoneNumberInput) {
     phoneNumberInput.addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, ''); // Remove all non-digits
+      // Remove ALL formatting first (including +, spaces, parentheses, dashes)
+      let digitsOnly = e.target.value.replace(/\D/g, '');
       
-      // Only format if we have digits
-      if (value.length === 0) {
+      // If empty, just set to empty and return
+      if (digitsOnly.length === 0) {
         e.target.value = '';
         return;
       }
       
-      // Ensure it starts with 1 for North American numbers
-      if (!value.startsWith('1') && value.length <= 10) {
-        value = '1' + value;
+      // Remove leading 1 if present (we'll add it back)
+      if (digitsOnly.startsWith('1') && digitsOnly.length > 10) {
+        digitsOnly = digitsOnly.substring(1);
       }
       
-      // Format: +1 (XXX) XXX-XXXX
-      let formatted = '+' + value.substring(0, 1);
-      if (value.length > 1) {
-        formatted += ' (' + value.substring(1, 4);
-      }
-      if (value.length > 4) {
-        formatted += ') ' + value.substring(4, 7);
-      }
-      if (value.length > 7) {
-        formatted += '-' + value.substring(7, 11);
+      // Ensure we have a 1 prefix for North American numbers
+      if (!digitsOnly.startsWith('1')) {
+        digitsOnly = '1' + digitsOnly;
       }
       
+      // Now format: +1 (XXX) XXX-XXXX
+      let formatted = '';
+      if (digitsOnly.length >= 1) {
+        formatted = '+' + digitsOnly.substring(0, 1); // +1
+      }
+      if (digitsOnly.length > 1) {
+        formatted += ' (' + digitsOnly.substring(1, 4); // (XXX)
+      }
+      if (digitsOnly.length > 4) {
+        formatted += ') ' + digitsOnly.substring(4, 7); // ) XXX
+      }
+      if (digitsOnly.length > 7) {
+        formatted += '-' + digitsOnly.substring(7, 11); // -XXXX
+      }
+      
+      // Set the formatted value
       e.target.value = formatted;
     });
   }
