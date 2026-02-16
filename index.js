@@ -437,12 +437,6 @@ async function getBulkCampaignStats(campaignName) {
 }
 
 async function processBulkMessages() {
-  
-  if (bulkSmsProcessorPaused) {
-    console.log('⏸️  Paused');
-    return;
-  }
-
   try {
     const pendingMessages = await getPendingBulkMessages(BULK_BATCH_SIZE);
     if (pendingMessages.length === 0) return;
@@ -487,7 +481,6 @@ async function processBulkMessages() {
 }
 
 let bulkSmsProcessor = null;
-let bulkSmsProcessorPaused = false
 function startBulkProcessor() {
   if (bulkSmsProcessor) return;
   console.log('🚀 Bulk SMS processor started');
@@ -575,25 +568,6 @@ app.get('/api/wipe-bulk', async (req, res) => {
     client.release();
   }
 });
-
-app.get('/api/bulk-sms/pause', async (req, res) => {
-  try {
-    bulkSmsProcessorPaused = true;
-    res.json({ success: true, paused: true });
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
-});
-
-app.get('/api/bulk-sms/resume', async (req, res) => {
-  try {
-    bulkSmsProcessorPaused = false;
-    res.json({ success: true, paused: false });
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
-});
-
 
 
 // ===== ROUTES =====
@@ -1033,8 +1007,6 @@ app.get('/dashboard', async (req, res) => {
       <button onclick="wipeBulkMessages()" style="background: linear-gradient(135deg, #fd7e14 0%, #e8590c 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(253,126,20,0.3); transition: all 0.3s;">
         🗑️ Wipe All<br><span style="font-size: 0.8rem; opacity: 0.9;">Clear queue</span>
       </button>
-      <button onclick="pauseBulkSMS()" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(255,193,7,0.3); transition: all 0.3s;">⏸️ PAUSE<br><span style="font-size: 0.8rem; opacity: 0.9;">Pause sending</span></button>
-      <button onclick="resumeBulkSMS()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 20px; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3); transition: all 0.3s;">▶️ RESUME<br><span style="font-size: 0.8rem; opacity: 0.9;">Resume sending</span></button>
     </div>
 
     <div id="bulkStatusDisplay" style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px; display: none; border: 2px solid #ffc107;">
@@ -1811,7 +1783,7 @@ app.get('/dashboard', async (req, res) => {
         const content = document.getElementById('bulkStatusContent');
 
         let html = '<div style="font-size: 1.1rem; margin-bottom: 15px;"><strong>Processor:</strong> ';
-        html += data.processorRunning ? (data.paused ? '<span style="color: #ffc107;">⏸️ PAUSED</span>' : '<span style="color: #10b981;">🟢 RUNNING</span>') : '<span style="color: #dc3545;">🔴 STOPPED</span>';
+        html += data.processorRunning ? '<span style="color: #10b981;">🟢 RUNNING</span>' : '<span style="color: #dc3545;">🔴 STOPPED</span>';
         html += '</div><div style="border-top: 2px solid #ffc107; padding-top: 15px;"><strong>Queue:</strong><br><br>';
 
         if (!data.stats || data.stats.length === 0) {
@@ -1859,25 +1831,6 @@ app.get('/dashboard', async (req, res) => {
         alert('Error: ' + error.message);
       }
     }
-
-      async function pauseBulkSMS() {
-        try {
-          const r = await fetch('/api/bulk-sms/pause');
-          const d = await r.json();
-          if (d.success) { alert('⏸️  PAUSED\\n\\nQueue preserved.'); checkBulkStatus(); }
-          else { alert('Error: ' + (d.error || 'Failed')); }
-        } catch (e) { alert('Error: ' + e.message); }
-      }
-
-      async function resumeBulkSMS() {
-        try {
-          const r = await fetch('/api/bulk-sms/resume');
-          const d = await r.json();
-          if (d.success) { alert('▶️  RESUMED\\n\\nSending continues.'); checkBulkStatus(); }
-          else { alert('Error: ' + (d.error || 'Failed')); }
-        } catch (e) { alert('Error: ' + e.message); }
-      }
-
 
     function trackProgress(campaignName) {
         updateProgress(campaignName);
@@ -2795,7 +2748,6 @@ app.get('/api/bulk-status', async (req, res) => {
 
       res.json({
         processorRunning: bulkSmsProcessor !== null,
-        paused: bulkSmsProcessorPaused,
         stats: result.rows
       });
     } finally {
