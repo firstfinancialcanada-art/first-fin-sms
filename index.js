@@ -599,6 +599,37 @@ app.get('/api/bulk-sms/resume', async (req, res) => {
 // ===== ROUTES =====
 
 // Health check
+
+app.delete('/api/conversation/:phone', async (req, res) => {
+  const phone = req.params.phone;
+  try {
+    const client = await pool.connect();
+    try {
+      const conversation = await client.query(
+        'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
+        [phone]
+      );
+      if (conversation.rows.length > 0) {
+        const conversationId = conversation.rows[0].id;
+        await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
+        await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
+        await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
+        await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
+        console.log('🗑️ Deleted conversation:', phone);
+        res.json(successResponse({ deleted: true }));
+      } else {
+        res.json({ success: false, error: 'Conversation not found' });
+      }
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json(errorResponse(error.message));
+  }
+});
+
+
 app.get('/', (req, res) => {
   res.json({
     status: '✅ Jerry AI Backend LIVE - Database Edition',
@@ -1162,7 +1193,7 @@ app.get('/dashboard', async (req, res) => {
 
         <div class="section">
       <h2>📱 Launch SMS - Send SMS Campaign</h2>
-      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)\">
+      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
         <div class="form-group">
           <label for="phoneNumber">Phone Number</label>
           <input 
@@ -1256,7 +1287,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\\D/g, '');
+      let value = e.target.value.replace(/\D/g, '');
       
       if (value.length > 0 && !value.startsWith('1')) {
         value = '1' + value;
@@ -1504,7 +1535,7 @@ app.get('/dashboard', async (req, res) => {
                   </div>
                   <div class="info">Started: \${new Date(conv.started_at).toLocaleString()}</div>
                 </div>
-                <button class="btn-delete" onclick=\"deleteConversation('\${conv.customer_phone}', event)\" title="Delete conversation">×</button>
+                <button class="btn-delete" onclick="deleteConversation('\${conv.customer_phone}', event)" title="Delete conversation">×</button>
               </div>
               <div class="messages-container" id="messages-\${conv.customer_phone.replace(/[^0-9]/g, '')}"></div>
             </div>
