@@ -69,37 +69,12 @@ async function sendEmailNotification(subject, htmlContent) {
   }
 }
 
-function normalizePhone(input) {
-  const digits = String(input || '').replace(/\D/g, '');
-  let ten = digits;
-  if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
-  if (ten.length > 10) ten = ten.slice(0, 10);
-  return ten.length === 10 ? `+1${ten}` : '';
-}
-
-function formatPhoneDisplay(value) {
-  const digits = String(value || '').replace(/\D/g, '');
-  const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
-  const a = ten.slice(0, 3);
-  const b = ten.slice(3, 6);
-  const c = ten.slice(6, 10);
-  if (!ten.length) return '';
-  if (ten.length < 4) return `+1 (${a}`;
-  if (ten.length < 7) return `+1 (${a}) ${b}`;
-  return `+1 (${a}) ${b}-${c}`;
-}
-
-// FIXED: Safe for both raw digits and already-formatted numbers
-function formatPhone(value) {
-  if (!value) return '';
-  const digits = String(value).replace(/\D/g, '');
-  if (digits.length === 10) {
-    return `+1 (${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+function formatPhone(phone) {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return '+1 (' + cleaned.slice(1,4) + ') ' + cleaned.slice(4,7) + '-' + cleaned.slice(7);
   }
-  if (digits.length === 11 && digits.startsWith('1')) {
-    return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
-  }
-  return value;
+  return phone;
 }
 
 // 🆕 FIX #7: Standardized API response helpers
@@ -1242,24 +1217,6 @@ app.get('/dashboard', async (req, res) => {
   </div>
   
   <script>
-        // ── Phone helpers (mirrors backend) ──
-        function normalizePhone(input) {
-          const digits = String(input || '').replace(/\D/g, '');
-          let ten = digits;
-          if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
-          if (ten.length > 10) ten = ten.slice(0, 10);
-          return ten.length === 10 ? '+1' + ten : '';
-        }
-        function formatPhoneDisplay(value) {
-          const digits = String(value || '').replace(/\D/g, '');
-          const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
-          const a = ten.slice(0, 3), b = ten.slice(3, 6), c = ten.slice(6, 10);
-          if (!ten.length) return '';
-          if (ten.length < 4) return '+1 (' + a;
-          if (ten.length < 7) return '+1 (' + a + ') ' + b;
-          return '+1 (' + a + ') ' + b + '-' + c;
-        }
-
     // Notification system
     function showNotification(message, type = 'success') {
       const notif = document.createElement('div');
@@ -1299,63 +1256,39 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      const canonical = normalizePhone(e.target.value);
-      e.target.dataset.canonical = canonical;
-      e.target.value = formatPhoneDisplay(canonical);
+      const raw = e.target.value.replace(/\D/g, '');
+      const ten = raw.length === 11 && raw.startsWith('1') ? raw.slice(1) : raw.slice(0,10);
+      const formatted = ten.length ? `+1 (${ten.slice(0,3)}) ${ten.slice(3,6)}-${ten.slice(6)}` : '';
+      e.target.value = formatted;
+      e.target.dataset.canonical = ten.length === 10 ? '+1' + ten : '';
     });
     
-async function sendSMS(event) {
-  event.preventDefault();
+    async function sendSMS(event) {
+      event.preventDefault();
+      
+      const phoneInput = document.getElementById('phoneNumber');
+      const fullPhone = phoneInput.dataset.canonical || phoneInput.value.replace(/\D/g, '').padStart(11, '1');
 
-  const phoneInput = document.getElementById('phoneNumber');
-  const customMessage = document.getElementById('message').value;
-  const sendBtn = document.getElementById('sendBtn');
-  const resultDiv = document.getElementById('messageResult');
-
-  sendBtn.disabled = true;
-  sendBtn.textContent = '⏳ Sending...';
-  resultDiv.style.display = 'none';
-
-  try {
-    const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
-
-    if (!/^\+1\d{10}$/.test(fullPhone)) {
-      resultDiv.className = 'message-result error';
-      resultDiv.textContent = '❌ Error: Invalid phone number';
-      resultDiv.style.display = 'block';
-      return;
-    }
-
-    const response = await fetch('/api/start-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: fullPhone,
-        message: customMessage
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      resultDiv.className = 'message-result success';
-      resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
-      resultDiv.style.display = 'block';
-      phoneInput.value = '';
-      phoneInput.dataset.canonical = '';
-      setTimeout(loadDashboard, 2000);
-    } else {
-      throw new Error(data.error || 'Failed to send SMS');
-    }
-  } catch (error) {
-    resultDiv.className = 'message-result error';
-    resultDiv.textContent = '❌ Error: ' + error.message;
-    resultDiv.style.display = 'block';
-  } finally {
-    sendBtn.disabled = false;
-    sendBtn.textContent = '🚀 Send Message';
-  }
-}
+      if (!/^\+1\d{10}$/.test(fullPhone)) {
+        throw new Error('Invalid phone number');
+      }
+      const customMessage = document.getElementById('message').value;
+      const sendBtn = document.getElementById('sendBtn');
+      const resultDiv = document.getElementById('messageResult');
+      
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ Sending...';
+      resultDiv.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/start-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            phone: fullPhone,
+            message: customMessage
+          })
+        });
         
         const data = await response.json();
         
@@ -1364,7 +1297,7 @@ async function sendSMS(event) {
           resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
           resultDiv.style.display = 'block';
           document.getElementById('phoneNumber').value = '';
-          document.getElementById('phoneNumber').dataset.canonical = '';
+      document.getElementById('phoneNumber').dataset.canonical = '';
           
           setTimeout(loadDashboard, 2000);
         } else {
