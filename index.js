@@ -74,7 +74,7 @@ function normalizePhone(input) {
   let ten = digits;
   if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
   if (ten.length > 10) ten = ten.slice(0, 10);
-  return ten.length ? `+1${ten}` : '';
+  return ten.length === 10 ? `+1${ten}` : '';
 }
 
 function formatPhoneDisplay(value) {
@@ -83,15 +83,23 @@ function formatPhoneDisplay(value) {
   const a = ten.slice(0, 3);
   const b = ten.slice(3, 6);
   const c = ten.slice(6, 10);
-  if (!ten.length) return '+1 ';
+  if (!ten.length) return '';
   if (ten.length < 4) return `+1 (${a}`;
   if (ten.length < 7) return `+1 (${a}) ${b}`;
   return `+1 (${a}) ${b}-${c}`;
 }
 
-// Keep existing backend calls working (formatPhone(...) is used in email templates)
+// FIXED: Safe for both raw digits and already-formatted numbers
 function formatPhone(value) {
-  return formatPhoneDisplay(normalizePhone(value));
+  if (!value) return '';
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+1 (${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+  }
+  return value;
 }
 
 // 🆕 FIX #7: Standardized API response helpers
@@ -1240,13 +1248,13 @@ app.get('/dashboard', async (req, res) => {
           let ten = digits;
           if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
           if (ten.length > 10) ten = ten.slice(0, 10);
-          return ten.length ? '+1' + ten : '';
+          return ten.length === 10 ? '+1' + ten : '';
         }
         function formatPhoneDisplay(value) {
           const digits = String(value || '').replace(/\D/g, '');
           const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
           const a = ten.slice(0, 3), b = ten.slice(3, 6), c = ten.slice(6, 10);
-          if (!ten.length) return '+1 ';
+          if (!ten.length) return '';
           if (ten.length < 4) return '+1 (' + a;
           if (ten.length < 7) return '+1 (' + a + ') ' + b;
           return '+1 (' + a + ') ' + b + '-' + c;
@@ -1291,7 +1299,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      const canonical = normalizePhone(e.target.value); // +1XXXXXXXXXX
+      const canonical = normalizePhone(e.target.value);
       e.target.dataset.canonical = canonical;
       e.target.value = formatPhoneDisplay(canonical);
     });
