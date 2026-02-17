@@ -1162,7 +1162,7 @@ app.get('/dashboard', async (req, res) => {
 
         <div class="section">
       <h2>📱 Launch SMS - Send SMS Campaign</h2>
-      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
+      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)\">
         <div class="form-group">
           <label for="phoneNumber">Phone Number</label>
           <input 
@@ -1256,7 +1256,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
+      let value = e.target.value.replace(/\\D/g, '');
       
       if (value.length > 0 && !value.startsWith('1')) {
         value = '1' + value;
@@ -1504,7 +1504,7 @@ app.get('/dashboard', async (req, res) => {
                   </div>
                   <div class="info">Started: \${new Date(conv.started_at).toLocaleString()}</div>
                 </div>
-                <button class="btn-delete" onclick="deleteConversation('\${conv.customer_phone}', event)" title="Delete conversation">×</button>
+                <button class="btn-delete" onclick=\"deleteConversation('\${conv.customer_phone}', event)\" title="Delete conversation">×</button>
               </div>
               <div class="messages-container" id="messages-\${conv.customer_phone.replace(/[^0-9]/g, '')}"></div>
             </div>
