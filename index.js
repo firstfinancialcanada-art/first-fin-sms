@@ -1263,7 +1263,7 @@ async function sendSMS(event) {
   try {
     const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
 
-    if (!/^\+1\d{10}$/.test(fullPhone)) {
+    if (!/^\\+1\\d{10}$/.test(fullPhone)) {
       throw new Error('Enter a valid 10-digit US/Canada phone number');
     }
 
