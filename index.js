@@ -1256,22 +1256,34 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      const raw = e.target.value.replace(/\D/g, '');
-      const ten = raw.length === 11 && raw.startsWith('1') ? raw.slice(1) : raw.slice(0,10);
-      const formatted = ten.length ? `+1 (${ten.slice(0,3)}) ${ten.slice(3,6)}-${ten.slice(6)}` : '';
+      let value = e.target.value.replace(/\D/g, '');
+      
+      if (value.length > 0 && !value.startsWith('1')) {
+        value = '1' + value;
+      }
+      
+      let formatted = '';
+      if (value.length > 0) {
+        formatted = '+' + value.substring(0, 1);
+        if (value.length > 1) {
+          formatted += ' (' + value.substring(1, 4);
+        }
+        if (value.length > 4) {
+          formatted += ') ' + value.substring(4, 7);
+        }
+        if (value.length > 7) {
+          formatted += '-' + value.substring(7, 11);
+        }
+      }
+      
       e.target.value = formatted;
-      e.target.dataset.canonical = ten.length === 10 ? '+1' + ten : '';
     });
     
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneInput = document.getElementById('phoneNumber');
-      const fullPhone = phoneInput.dataset.canonical || phoneInput.value.replace(/\D/g, '').padStart(11, '1');
-
-      if (!/^\+1\d{10}$/.test(fullPhone)) {
-        throw new Error('Invalid phone number');
-      }
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
+      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
       const resultDiv = document.getElementById('messageResult');
@@ -1297,7 +1309,6 @@ app.get('/dashboard', async (req, res) => {
           resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
           resultDiv.style.display = 'block';
           document.getElementById('phoneNumber').value = '';
-      document.getElementById('phoneNumber').dataset.canonical = '';
           
           setTimeout(loadDashboard, 2000);
         } else {
