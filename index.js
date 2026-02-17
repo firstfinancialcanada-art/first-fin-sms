@@ -1304,32 +1304,58 @@ app.get('/dashboard', async (req, res) => {
       e.target.value = formatPhoneDisplay(canonical);
     });
     
-    async function sendSMS(event) {
-      event.preventDefault();
-      
-      const phoneInput = document.getElementById('phoneNumber');
-      const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
+async function sendSMS(event) {
+  event.preventDefault();
 
-      if (!/^\+1\d{10}$/.test(fullPhone)) {
-        throw new Error('Invalid phone number');
-      }
-      const customMessage = document.getElementById('message').value;
-      const sendBtn = document.getElementById('sendBtn');
-      const resultDiv = document.getElementById('messageResult');
-      
-      sendBtn.disabled = true;
-      sendBtn.textContent = '⏳ Sending...';
-      resultDiv.style.display = 'none';
-      
-      try {
-        const response = await fetch('/api/start-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            phone: fullPhone,
-            message: customMessage
-          })
-        });
+  const phoneInput = document.getElementById('phoneNumber');
+  const customMessage = document.getElementById('message').value;
+  const sendBtn = document.getElementById('sendBtn');
+  const resultDiv = document.getElementById('messageResult');
+
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+  resultDiv.style.display = 'none';
+
+  try {
+    const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
+
+    if (!/^\+1\d{10}$/.test(fullPhone)) {
+      resultDiv.className = 'message-result error';
+      resultDiv.textContent = '❌ Error: Invalid phone number';
+      resultDiv.style.display = 'block';
+      return;
+    }
+
+    const response = await fetch('/api/start-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: fullPhone,
+        message: customMessage
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      resultDiv.className = 'message-result success';
+      resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
+      resultDiv.style.display = 'block';
+      phoneInput.value = '';
+      phoneInput.dataset.canonical = '';
+      setTimeout(loadDashboard, 2000);
+    } else {
+      throw new Error(data.error || 'Failed to send SMS');
+    }
+  } catch (error) {
+    resultDiv.className = 'message-result error';
+    resultDiv.textContent = '❌ Error: ' + error.message;
+    resultDiv.style.display = 'block';
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '🚀 Send Message';
+  }
+}
         
         const data = await response.json();
         
