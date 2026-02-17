@@ -1220,74 +1220,84 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
-      
-      if (value.length > 0 && !value.startsWith('1')) {
-        value = '1' + value;
-      }
-      
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
-      }
-      
-      e.target.value = formatted;
-    });
-    
-    async function sendSMS(event) {
-      event.preventDefault();
-      
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
-      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
-      const customMessage = document.getElementById('message').value;
-      const sendBtn = document.getElementById('sendBtn');
-      const resultDiv = document.getElementById('messageResult');
-      
-      sendBtn.disabled = true;
-      sendBtn.textContent = '⏳ Sending...';
-      resultDiv.style.display = 'none';
-      
-      try {
-        const response = await fetch('/api/start-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            phone: fullPhone,
-            message: customMessage
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          resultDiv.className = 'message-result success';
-          resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
-          resultDiv.style.display = 'block';
-          document.getElementById('phoneNumber').value = '';
-          
-          setTimeout(loadDashboard, 2000);
-        } else {
-          throw new Error(data.error || 'Failed to send SMS');
-        }
-      } catch (error) {
-        resultDiv.className = 'message-result error';
-        resultDiv.textContent = '❌ Error: ' + error.message;
-        resultDiv.style.display = 'block';
-      } finally {
-        sendBtn.disabled = false;
-        sendBtn.textContent = '🚀 Send Message';
-      }
+function normalizePhone(input) {
+  const digits = String(input || '').replace(/\D/g, '');
+  let ten = digits;
+  if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
+  if (ten.length > 10) ten = ten.slice(0, 10);
+  return ten.length === 10 ? `+1${ten}` : '';
+}
+
+function formatPhoneDisplay(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
+
+  const a = ten.slice(0, 3);
+  const b = ten.slice(3, 6);
+  const c = ten.slice(6, 10);
+
+  if (!ten.length) return '';
+  if (ten.length < 4) return `+1 (${a}`;
+  if (ten.length < 7) return `+1 (${a}) ${b}`;
+  return `+1 (${a}) ${b}-${c}`;
+}
+
+document.getElementById('phoneNumber').addEventListener('input', function(e) {
+  const canonical = normalizePhone(e.target.value);
+  e.target.dataset.canonical = canonical;
+  e.target.value = formatPhoneDisplay(canonical || e.target.value);
+});
+
+async function sendSMS(event) {
+  event.preventDefault();
+
+  const phoneInput = document.getElementById('phoneNumber');
+  const customMessage = document.getElementById('message').value;
+  const sendBtn = document.getElementById('sendBtn');
+  const resultDiv = document.getElementById('messageResult');
+
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+  resultDiv.style.display = 'none';
+
+  try {
+    const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
+
+    if (!/^\+1\d{10}$/.test(fullPhone)) {
+      throw new Error('Enter a valid 10-digit US/Canada phone number');
     }
+
+    const response = await fetch('/api/start-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: fullPhone,
+        message: customMessage
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      resultDiv.className = 'message-result success';
+      resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
+      resultDiv.style.display = 'block';
+      phoneInput.value = '';
+      phoneInput.dataset.canonical = '';
+      setTimeout(loadDashboard, 2000);
+    } else {
+      throw new Error(data.error || 'Failed to send SMS');
+    }
+  } catch (error) {
+    resultDiv.className = 'message-result error';
+    resultDiv.textContent = '❌ Error: ' + error.message;
+    resultDiv.style.display = 'block';
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '🚀 Send Message';
+  }
+}
+
     
     async function sendManualReply(phone, inputId, btnId, statusId) {
       const input = document.getElementById(inputId);
