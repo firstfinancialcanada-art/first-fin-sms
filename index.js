@@ -1243,9 +1243,10 @@ function formatPhoneDisplay(value) {
 }
 
 document.getElementById('phoneNumber').addEventListener('input', function(e) {
-  const canonical = normalizePhone(e.target.value);
+  const raw = e.target.value;
+  const canonical = normalizePhone(raw);
   e.target.dataset.canonical = canonical;
-  e.target.value = formatPhoneDisplay(canonical || e.target.value);
+  e.target.value = formatPhoneDisplay(raw);
 });
 
 async function sendSMS(event) {
