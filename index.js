@@ -1220,18 +1220,22 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
+function toTenDigits(input) {
+  let d = String(input || '').replace(/\D/g, '');
+
+  if (d.length > 10 && d.startsWith('1')) d = d.slice(1);
+  d = d.slice(0, 10);
+
+  return d;
+}
+
 function normalizePhone(input) {
-  const digits = String(input || '').replace(/\D/g, '');
-  let ten = digits;
-  if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
-  if (ten.length > 10) ten = ten.slice(0, 10);
+  const ten = toTenDigits(input);
   return ten.length === 10 ? '+1' + ten : '';
 }
 
-function formatPhoneDisplay(value) {
-  const digits = String(value || '').replace(/\D/g, '');
-  const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
-
+function formatPhoneDisplay(input) {
+  const ten = toTenDigits(input);
   const a = ten.slice(0, 3);
   const b = ten.slice(3, 6);
   const c = ten.slice(6, 10);
@@ -1244,9 +1248,8 @@ function formatPhoneDisplay(value) {
 
 document.getElementById('phoneNumber').addEventListener('input', function(e) {
   const raw = e.target.value;
-  const canonical = normalizePhone(raw);
-  e.target.dataset.canonical = canonical;
   e.target.value = formatPhoneDisplay(raw);
+  e.target.dataset.canonical = normalizePhone(raw);
 });
 
 async function sendSMS(event) {
