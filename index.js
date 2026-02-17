@@ -69,12 +69,29 @@ async function sendEmailNotification(subject, htmlContent) {
   }
 }
 
-function formatPhone(phone) {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 11 && cleaned.startsWith('1')) {
-    return '+1 (' + cleaned.slice(1,4) + ') ' + cleaned.slice(4,7) + '-' + cleaned.slice(7);
-  }
-  return phone;
+function normalizePhone(input) {
+  const digits = String(input || '').replace(/\D/g, '');
+  let ten = digits;
+  if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
+  if (ten.length > 10) ten = ten.slice(0, 10);
+  return ten.length ? `+1${ten}` : '';
+}
+
+function formatPhoneDisplay(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
+  const a = ten.slice(0, 3);
+  const b = ten.slice(3, 6);
+  const c = ten.slice(6, 10);
+  if (!ten.length) return '+1 ';
+  if (ten.length < 4) return `+1 (${a}`;
+  if (ten.length < 7) return `+1 (${a}) ${b}`;
+  return `+1 (${a}) ${b}-${c}`;
+}
+
+// Keep existing backend calls working (formatPhone(...) is used in email templates)
+function formatPhone(value) {
+  return formatPhoneDisplay(normalizePhone(value));
 }
 
 // 🆕 FIX #7: Standardized API response helpers
@@ -1217,6 +1234,24 @@ app.get('/dashboard', async (req, res) => {
   </div>
   
   <script>
+        // ── Phone helpers (mirrors backend) ──
+        function normalizePhone(input) {
+          const digits = String(input || '').replace(/\D/g, '');
+          let ten = digits;
+          if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
+          if (ten.length > 10) ten = ten.slice(0, 10);
+          return ten.length ? '+1' + ten : '';
+        }
+        function formatPhoneDisplay(value) {
+          const digits = String(value || '').replace(/\D/g, '');
+          const ten = digits.startsWith('1') ? digits.slice(1, 11) : digits.slice(0, 10);
+          const a = ten.slice(0, 3), b = ten.slice(3, 6), c = ten.slice(6, 10);
+          if (!ten.length) return '+1 ';
+          if (ten.length < 4) return '+1 (' + a;
+          if (ten.length < 7) return '+1 (' + a + ') ' + b;
+          return '+1 (' + a + ') ' + b + '-' + c;
+        }
+
     // Notification system
     function showNotification(message, type = 'success') {
       const notif = document.createElement('div');
@@ -1256,34 +1291,20 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
-      
-      if (value.length > 0 && !value.startsWith('1')) {
-        value = '1' + value;
-      }
-      
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
-      }
-      
-      e.target.value = formatted;
+      const canonical = normalizePhone(e.target.value); // +1XXXXXXXXXX
+      e.target.dataset.canonical = canonical;
+      e.target.value = formatPhoneDisplay(canonical);
     });
     
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
-      const fullPhone = phoneNumber.padStart(11, '1'); // Raw 11 digits for server
+      const phoneInput = document.getElementById('phoneNumber');
+      const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
+
+      if (!/^\+1\d{10}$/.test(fullPhone)) {
+        throw new Error('Invalid phone number');
+      }
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
       const resultDiv = document.getElementById('messageResult');
@@ -1309,6 +1330,7 @@ app.get('/dashboard', async (req, res) => {
           resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
           resultDiv.style.display = 'block';
           document.getElementById('phoneNumber').value = '';
+          document.getElementById('phoneNumber').dataset.canonical = '';
           
           setTimeout(loadDashboard, 2000);
         } else {
