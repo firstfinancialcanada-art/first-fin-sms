@@ -599,37 +599,6 @@ app.get('/api/bulk-sms/resume', async (req, res) => {
 // ===== ROUTES =====
 
 // Health check
-
-app.delete('/api/conversation/:phone', async (req, res) => {
-  const phone = req.params.phone;
-  try {
-    const client = await pool.connect();
-    try {
-      const conversation = await client.query(
-        'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
-        [phone]
-      );
-      if (conversation.rows.length > 0) {
-        const conversationId = conversation.rows[0].id;
-        await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
-        await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
-        await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
-        await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
-        console.log('🗑️ Deleted conversation:', phone);
-        res.json(successResponse({ deleted: true }));
-      } else {
-        res.json({ success: false, error: 'Conversation not found' });
-      }
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('Delete error:', error);
-    res.status(500).json(errorResponse(error.message));
-  }
-});
-
-
 app.get('/', (req, res) => {
   res.json({
     status: '✅ Jerry AI Backend LIVE - Database Edition',
@@ -1314,7 +1283,7 @@ app.get('/dashboard', async (req, res) => {
       event.preventDefault();
       
       const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
-      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
+      const fullPhone = phoneNumber.padStart(11, '1'); // Raw 11 digits for server
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
       const resultDiv = document.getElementById('messageResult');
