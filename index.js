@@ -1162,7 +1162,7 @@ app.get('/dashboard', async (req, res) => {
 
         <div class="section">
       <h2>📱 Launch SMS - Send SMS Campaign</h2>
-      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)\">
+      <form class="launch-form" id="launchForm" onsubmit="sendSMS(event)">
         <div class="form-group">
           <label for="phoneNumber">Phone Number</label>
           <input 
@@ -1256,7 +1256,7 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\\D/g, '');
+      let value = e.target.value.replace(/\D/g, '');
       
       if (value.length > 0 && !value.startsWith('1')) {
         value = '1' + value;
@@ -1282,7 +1282,7 @@ app.get('/dashboard', async (req, res) => {
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');  // Raw digits only for server
       const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
@@ -1445,7 +1445,25 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-    async function loadDashboard() {
+    
+async function deleteConversation(phone, event) {
+  event.stopPropagation();
+  if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) return;
+  try {
+    const response = await fetch(`/api/conversation/${encodeURIComponent(phone)}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (data.success) {
+      loadDashboard();
+    } else {
+      alert('Error deleting conversation: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Error deleting conversation: ' + error.message);
+  }
+}
+
+
+async function loadDashboard() {
       try {
         const statsData = await fetch('/api/dashboard').then(r => r.json());
 
@@ -1504,7 +1522,7 @@ app.get('/dashboard', async (req, res) => {
                   </div>
                   <div class="info">Started: \${new Date(conv.started_at).toLocaleString()}</div>
                 </div>
-                <button class="btn-delete" onclick=\"deleteConversation('\${conv.customer_phone}', event)\" title="Delete conversation">×</button>
+                <button class="btn-delete" onclick="deleteConversation('\${conv.customer_phone}', event)" title="Delete conversation">×</button>
               </div>
               <div class="messages-container" id="messages-\${conv.customer_phone.replace(/[^0-9]/g, '')}"></div>
             </div>
