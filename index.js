@@ -1225,7 +1225,7 @@ function normalizePhone(input) {
   let ten = digits;
   if (digits.length === 11 && digits.startsWith('1')) ten = digits.slice(1);
   if (ten.length > 10) ten = ten.slice(0, 10);
-  return ten.length === 10 ? `+1${ten}` : '';
+  return ten.length === 10 ? '+1' + ten : '';
 }
 
 function formatPhoneDisplay(value) {
@@ -1237,9 +1237,9 @@ function formatPhoneDisplay(value) {
   const c = ten.slice(6, 10);
 
   if (!ten.length) return '';
-  if (ten.length < 4) return `+1 (${a}`;
-  if (ten.length < 7) return `+1 (${a}) ${b}`;
-  return `+1 (${a}) ${b}-${c}`;
+  if (ten.length < 4) return '+1 (' + a;
+  if (ten.length < 7) return '+1 (' + a + ') ' + b;
+  return '+1 (' + a + ') ' + b + '-' + c;
 }
 
 document.getElementById('phoneNumber').addEventListener('input', function(e) {
