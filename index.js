@@ -193,62 +193,27 @@ async function hasActiveConversation(phone) {
 }
 
 // Delete conversation and its messages
-  // API: Delete individual appointment
-async function deleteAppointment(appointmentId) {
-  if (!confirm('Delete this appointment?')) return;
-  
-  const client = await pool.connect();
-  try {
-    await client.query('DELETE FROM appointments WHERE id = $1', [appointmentId]);
-    showNotification('✅ Appointment deleted');
-    loadStats();
-  } catch (error) {
-    console.error('Error deleting appointment:', error);
-    showNotification('❌ Error deleting appointment', 'error');
-  } finally {
-    client.release();
-  }
-}
-
-// API: Delete individual callback
-async function deleteCallback(callbackId) {
-  if (!confirm('Delete this callback?')) return;
-  
-
 async function deleteConversation(phone) {
-  const client = await pool.connect();
-  try {
-    await client.query('DELETE FROM callbacks WHERE id = $1', [callbackId]);
-    showNotification('✅ Callback deleted');
-    loadStats();
-  } catch (error) {
-    console.error('Error deleting callback:', error);
-    showNotification('❌ Error deleting callback', 'error');
-  } finally {
-    client.release();
-  }
-}
-
   const client = await pool.connect();
   try {
     const conversation = await client.query(
       'SELECT id FROM conversations WHERE customer_phone = $1 ORDER BY started_at DESC LIMIT 1',
       [phone]
     );
-    
+
     if (conversation.rows.length > 0) {
       const conversationId = conversation.rows[0].id;
-      
+
       // Delete from all related tables
       await client.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId]);
       await client.query('DELETE FROM appointments WHERE customer_phone = $1', [phone]);
       await client.query('DELETE FROM callbacks WHERE customer_phone = $1', [phone]);
       await client.query('DELETE FROM conversations WHERE id = $1', [conversationId]);
-      
+
       console.log('🗑️ Conversation deleted (with appointments & callbacks):', phone);
       return true;
     }
-    
+
     return false;
   } finally {
     client.release();
