@@ -1223,26 +1223,29 @@ app.get('/dashboard', async (req, res) => {
 function normalizePhone(input) {
   const digits = String(input || '').replace(/\D/g, '');
   let d = digits;
-
-  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
   if (d.length > 10 && d.startsWith('1')) d = d.slice(1);
   d = d.slice(0, 10);
-
   return d.length === 10 ? '+1' + d : '';
 }
 
 function prettyPhone(e164) {
   const d = String(e164 || '').replace(/\D/g, '');
   const ten = d.startsWith('1') ? d.slice(1, 11) : d.slice(0, 10);
-  if (ten.length !== 10) return e164 || '';
+  if (ten.length !== 10) return '';
   return '+1 (' + ten.slice(0,3) + ') ' + ten.slice(3,6) + '-' + ten.slice(6);
 }
 
-const phoneEl = document.getElementById('phoneNumber');
-phoneEl.addEventListener('blur', function () {
-  const normalized = normalizePhone(phoneEl.value);
-  if (normalized) phoneEl.value = prettyPhone(normalized);
-});
+// 🔥 kill any previously attached listeners by replacing the node
+(function resetPhoneInput() {
+  const oldEl = document.getElementById('phoneNumber');
+  const newEl = oldEl.cloneNode(true); // keeps attributes/id/value, removes listeners
+  oldEl.parentNode.replaceChild(newEl, oldEl);
+
+  newEl.addEventListener('blur', function () {
+    const n = normalizePhone(newEl.value);
+    if (n) newEl.value = prettyPhone(n);
+  });
+})();
 
 async function sendSMS(event) {
   event.preventDefault();
