@@ -1251,22 +1251,17 @@ const phoneEl = document.getElementById('phoneNumber');
 
 // Live visual formatting while typing
 phoneEl.addEventListener('input', function (e) {
-  const digits = e.target.value.replace(/\D/g, '');
-
-  // keep max 11 digits, allow leading 1
-  let working = digits.slice(0, 11);
-
-  // if user starts with 10-digit local, treat as +1
-  if (working.length > 0 && !working.startsWith('1')) {
-    working = '1' + working;
-  }
-
-  const national = working.startsWith('1') ? working.slice(1, 11) : working.slice(0, 10);
+  // Strip all non-digits, then strip the leading country code 1 so we
+  // always work with exactly the 10 national digits. This prevents the
+  // +1 prefix from being re-consumed on each keystroke.
+  let digits = e.target.value.replace(/\D/g, '');
+  if (digits.startsWith('1')) digits = digits.slice(1);
+  digits = digits.slice(0, 10);
 
   let out = '+1';
-  if (national.length > 0) out += ' (' + national.slice(0, 3);
-  if (national.length >= 4) out += ') ' + national.slice(3, 6);
-  if (national.length >= 7) out += '-' + national.slice(6, 10);
+  if (digits.length > 0) out += ' (' + digits.slice(0, 3);
+  if (digits.length >= 4) out += ') ' + digits.slice(3, 6);
+  if (digits.length >= 7) out += '-' + digits.slice(6, 10);
 
   e.target.value = out;
 });
