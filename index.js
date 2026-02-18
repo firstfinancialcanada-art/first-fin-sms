@@ -1222,16 +1222,19 @@ app.get('/dashboard', async (req, res) => {
 
 function normalizePhone(input) {
   const digits = String(input || '').replace(/\D/g, '');
-  let d = digits;
 
-  if (d.length === 11 && d.startsWith('1')) {
-    d = d.slice(1);
-  } else if (d.length === 10 && d.startsWith('1')) {
-    d = d.slice(1);
+  // US/Canada only: accept 10 digits or 11 digits starting with 1, ignore extra formatting.
+  let ten = '';
+  if (digits.length === 10) {
+    ten = digits;
+  } else if (digits.length === 11 && digits.startsWith('1')) {
+    ten = digits.slice(1);
+  } else if (digits.length > 11) {
+    // If someone pastes extra characters (e.g., extensions), take the last 10 digits.
+    ten = digits.slice(-10);
   }
-  d = d.slice(0, 10);
 
-  return d.length === 10 ? '+1' + d : '';
+  return /^\d{10}$/.test(ten) ? '+1' + ten : '';
 }
 
 function prettyPhone(e164) {
@@ -1645,12 +1648,10 @@ async function sendSMS(event) {
 
           let phone = digitsOnly;
           if (digitsOnly.length === 10) {
-            phone = '+1' + digitsOnly;
-          } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
-            phone = '+' + digitsOnly;
+            phone = '1' + digitsOnly;
           }
 
-          if (phone.length !== 12 || !phone.startsWith('+1')) {
+          if (phone.length !== 11 || !phone.startsWith('1')) {
             errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
             continue;
           }
@@ -1666,7 +1667,7 @@ async function sendSMS(event) {
           }
 
           seenPhones.add(phone);
-          contacts.push({ name, phone, row: i + 1 });
+          contacts.push({ name, phone: '+' + phone, row: i + 1 });
         }
 
         if (contacts.length > 0) {
@@ -2770,12 +2771,11 @@ app.post('/api/bulk-sms/parse-csv', async (req, res) => {
       const digitsOnly = rawPhone.replace(/[^0-9]/g, '');
 
       let phone = digitsOnly;
-      if (digitsOnly.length === 10) phone = '+1' + digitsOnly;
-      } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
-        phone = '+' + digitsOnly;
+      if (digitsOnly.length === 10) {
+        phone = '1' + digitsOnly;
       }
 
-      if (phone.length !== 12 || !phone.startsWith('+1')) {
+      if (phone.length !== 11 || !phone.startsWith('1')) {
         errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
         continue;
       }
