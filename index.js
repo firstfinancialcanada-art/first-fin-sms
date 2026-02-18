@@ -1240,12 +1240,6 @@ function prettyPhone(e164) {
 
 const phoneEl = document.getElementById('phoneNumber');
 
-// optional: only pretty format when leaving field
-phoneEl.addEventListener('blur', function () {
-  const n = normalizePhone(phoneEl.value);
-  if (n) phoneEl.value = prettyPhone(n);
-});
-
 async function sendSMS(event) {
   event.preventDefault();
 
