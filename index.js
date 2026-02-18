@@ -77,13 +77,6 @@ function formatPhone(phone) {
   return phone;
 }
 
-function toE164NorthAmerica(input) {
-  const digits = String(input || '').replace(/\D/g, '');
-  if (digits.length === 10) return '+1' + digits;
-  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
-  return '';
-}
-
 // 🆕 FIX #7: Standardized API response helpers
 function errorResponse(message) {
   return { success: false, error: message };
@@ -1227,88 +1220,75 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-function normalizePhone(input) {
-  const digits = String(input || '').replace(/\D/g, '');
-
-  // 10-digit local -> +1XXXXXXXXXX
-  if (digits.length === 10) return '+1' + digits;
-
-  // 11-digit with leading 1 -> +1XXXXXXXXXX
-  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
-
-  return '';
-}
-
-function formatPrettyFromAny(input) {
-  const e164 = normalizePhone(input);
-  if (!e164) return '';
-
-  const ten = e164.slice(2); // remove +1
-  return '+1 (' + ten.slice(0, 3) + ') ' + ten.slice(3, 6) + '-' + ten.slice(6);
-}
-
-const phoneEl = document.getElementById('phoneNumber');
-
-// Live visual formatting while typing
-phoneEl.addEventListener('input', function (e) {
-  // Strip all non-digits, then strip the leading country code 1 so we
-  // always work with exactly the 10 national digits. This prevents the
-  // +1 prefix from being re-consumed on each keystroke.
-  let digits = e.target.value.replace(/\D/g, '');
-  if (digits.startsWith('1')) digits = digits.slice(1);
-  digits = digits.slice(0, 10);
-
-  let out = '+1';
-  if (digits.length > 0) out += ' (' + digits.slice(0, 3);
-  if (digits.length >= 4) out += ') ' + digits.slice(3, 6);
-  if (digits.length >= 7) out += '-' + digits.slice(6, 10);
-
-  e.target.value = out;
-});
-
-async function sendSMS(event) {
-  event.preventDefault();
-
-  const phoneInput = document.getElementById('phoneNumber');
-  const customMessage = document.getElementById('message').value;
-  const sendBtn = document.getElementById('sendBtn');
-  const resultDiv = document.getElementById('messageResult');
-
-  sendBtn.disabled = true;
-  sendBtn.textContent = '⏳ Sending...';
-  resultDiv.style.display = 'none';
-
-  try {
-    const fullPhone = normalizePhone(phoneInput.value); // +15873066133
-
-    if (!/^[+]1\d{10}$/.test(fullPhone)) {
-      throw new Error('Enter a valid 10-digit US/Canada phone number');
+    document.getElementById('phoneNumber').addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\D/g, '');
+      
+      if (value.length > 0 && !value.startsWith('1')) {
+        value = '1' + value;
+      }
+      
+      let formatted = '';
+      if (value.length > 0) {
+        formatted = '+' + value.substring(0, 1);
+        if (value.length > 1) {
+          formatted += ' (' + value.substring(1, 4);
+        }
+        if (value.length > 4) {
+          formatted += ') ' + value.substring(4, 7);
+        }
+        if (value.length > 7) {
+          formatted += '-' + value.substring(7, 11);
+        }
+      }
+      
+      e.target.value = formatted;
+    });
+    
+    async function sendSMS(event) {
+      event.preventDefault();
+      
+      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
+      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
+      const customMessage = document.getElementById('message').value;
+      const sendBtn = document.getElementById('sendBtn');
+      const resultDiv = document.getElementById('messageResult');
+      
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ Sending...';
+      resultDiv.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/start-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            phone: fullPhone,
+            message: customMessage
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          resultDiv.className = 'message-result success';
+          resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
+          resultDiv.style.display = 'block';
+          document.getElementById('phoneNumber').value = '';
+          
+          setTimeout(loadDashboard, 2000);
+        } else {
+          throw new Error(data.error || 'Failed to send SMS');
+        }
+      } catch (error) {
+        resultDiv.className = 'message-result error';
+        resultDiv.textContent = '❌ Error: ' + error.message;
+        resultDiv.style.display = 'block';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '🚀 Send Message';
+      }
     }
 
-    const response = await fetch('/api/start-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: fullPhone, message: customMessage })
-    });
-
-    const data = await response.json();
-    if (!data.success) throw new Error(data.error || 'Failed to send SMS');
-
-    resultDiv.className = 'message-result success';
-    resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
-    resultDiv.style.display = 'block';
-
-    phoneInput.value = '';
-    setTimeout(loadDashboard, 2000);
-  } catch (error) {
-    resultDiv.className = 'message-result error';
-    resultDiv.textContent = '❌ Error: ' + error.message;
-    resultDiv.style.display = 'block';
-  } finally {
-    sendBtn.disabled = false;
-    sendBtn.textContent = '🚀 Send Message';
-  }
-}
     
     async function sendManualReply(phone, inputId, btnId, statusId) {
       const input = document.getElementById(inputId);
@@ -2070,17 +2050,12 @@ app.post('/api/manual-reply', async (req, res) => {
 app.post('/api/start-sms', async (req, res) => {
   try {
     const { phone, message } = req.body;
-
+    
     if (!phone) {
       return res.json({ success: false, error: 'Phone number required' });
     }
-
-    const normalizedPhone = toE164NorthAmerica(phone);
-    if (!normalizedPhone) {
-      return res.json({ success: false, error: 'Invalid phone number format' });
-    }
     
-    const hasActive = await hasActiveConversation(normalizedPhone);
+    const hasActive = await hasActiveConversation(phone);
     
     if (hasActive) {
       return res.json({ 
@@ -2091,13 +2066,13 @@ app.post('/api/start-sms', async (req, res) => {
     
     const messageBody = message || "Hi! 👋 I'm Jerry from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)";
     
-    await getOrCreateCustomer(normalizedPhone);
-const conversation = await getOrCreateConversation(normalizedPhone);
+    await getOrCreateCustomer(phone);
+const conversation = await getOrCreateConversation(phone);
 
 // Save the outgoing message to database so it appears in Recent Messages
-await saveMessage(conversation.id, normalizedPhone, 'assistant', messageBody);
+await saveMessage(conversation.id, phone, 'assistant', messageBody);
 
-await logAnalytics('sms_sent', normalizedPhone, { messageBody });
+await logAnalytics('sms_sent', phone, { messageBody });
 
 
     
@@ -2109,10 +2084,10 @@ await logAnalytics('sms_sent', normalizedPhone, { messageBody });
     await client.messages.create({
       body: messageBody,
       from: fromNumber,
-      to: normalizedPhone
+      to: phone
     });
     
-    console.log('✅ SMS sent to:', normalizedPhone);
+    console.log('✅ SMS sent to:', phone);
     res.json({ success: true, message: 'SMS sent!' });
   } catch (error) {
     console.error('❌ Error sending SMS:', error);
