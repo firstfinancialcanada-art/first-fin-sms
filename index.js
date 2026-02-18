@@ -1220,36 +1220,30 @@ app.get('/dashboard', async (req, res) => {
       }
     }
 
-function toTenDigits(input) {
-  let d = String(input || '').replace(/\D/g, '');
+function normalizePhone(input) {
+  const digits = String(input || '').replace(/\D/g, '');
+  let d = digits;
 
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
   if (d.length > 10 && d.startsWith('1')) d = d.slice(1);
   d = d.slice(0, 10);
 
-  return d;
+  return d.length === 10 ? '+1' + d : '';
 }
 
-function normalizePhone(input) {
-  const ten = toTenDigits(input);
-  return ten.length === 10 ? '+1' + ten : '';
+function prettyPhone(e164) {
+  const d = String(e164 || '').replace(/\D/g, '');
+  const ten = d.startsWith('1') ? d.slice(1, 11) : d.slice(0, 10);
+  if (ten.length !== 10) return e164 || '';
+  return '+1 (' + ten.slice(0,3) + ') ' + ten.slice(3,6) + '-' + ten.slice(6);
 }
 
-function formatPhoneDisplay(input) {
-  const ten = toTenDigits(input);
-  const a = ten.slice(0, 3);
-  const b = ten.slice(3, 6);
-  const c = ten.slice(6, 10);
+const phoneEl = document.getElementById('phoneNumber');
 
-  if (!ten.length) return '';
-  if (ten.length < 4) return '+1 (' + a;
-  if (ten.length < 7) return '+1 (' + a + ') ' + b;
-  return '+1 (' + a + ') ' + b + '-' + c;
-}
-
-document.getElementById('phoneNumber').addEventListener('input', function(e) {
-  const raw = e.target.value;
-  e.target.value = formatPhoneDisplay(raw);
-  e.target.dataset.canonical = normalizePhone(raw);
+// optional: only pretty format when leaving field
+phoneEl.addEventListener('blur', function () {
+  const n = normalizePhone(phoneEl.value);
+  if (n) phoneEl.value = prettyPhone(n);
 });
 
 async function sendSMS(event) {
@@ -1265,7 +1259,7 @@ async function sendSMS(event) {
   resultDiv.style.display = 'none';
 
   try {
-    const fullPhone = phoneInput.dataset.canonical || normalizePhone(phoneInput.value);
+    const fullPhone = normalizePhone(phoneInput.value);
 
     if (!/^\\+1\\d{10}$/.test(fullPhone)) {
       throw new Error('Enter a valid 10-digit US/Canada phone number');
@@ -1274,24 +1268,18 @@ async function sendSMS(event) {
     const response = await fetch('/api/start-sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: fullPhone,
-        message: customMessage
-      })
+      body: JSON.stringify({ phone: fullPhone, message: customMessage })
     });
 
     const data = await response.json();
 
-    if (data.success) {
-      resultDiv.className = 'message-result success';
-      resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
-      resultDiv.style.display = 'block';
-      phoneInput.value = '';
-      phoneInput.dataset.canonical = '';
-      setTimeout(loadDashboard, 2000);
-    } else {
-      throw new Error(data.error || 'Failed to send SMS');
-    }
+    if (!data.success) throw new Error(data.error || 'Failed to send SMS');
+
+    resultDiv.className = 'message-result success';
+    resultDiv.textContent = '✅ SMS sent successfully to ' + fullPhone;
+    resultDiv.style.display = 'block';
+    phoneInput.value = '';
+    setTimeout(loadDashboard, 2000);
   } catch (error) {
     resultDiv.className = 'message-result error';
     resultDiv.textContent = '❌ Error: ' + error.message;
