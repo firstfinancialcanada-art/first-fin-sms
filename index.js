@@ -1239,6 +1239,10 @@ function prettyPhone(e164) {
 }
 
 const phoneEl = document.getElementById('phoneNumber');
+phoneEl.addEventListener('blur', function () {
+  const normalized = normalizePhone(phoneEl.value);
+  if (normalized) phoneEl.value = prettyPhone(normalized);
+});
 
 async function sendSMS(event) {
   event.preventDefault();
