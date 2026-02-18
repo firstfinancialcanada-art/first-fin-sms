@@ -1221,31 +1221,30 @@ app.get('/dashboard', async (req, res) => {
     }
 
 function normalizePhone(input) {
-  const digits = String(input || '').replace(/\D/g, '');
+  const digits = String(input).replace(/\D/g, '');
   let d = digits;
-  if (d.length > 10 && d.startsWith('1')) d = d.slice(1);
-  d = d.slice(0, 10);
-  return d.length === 10 ? '+1' + d : '';
+
+  if (d.length === 11 && d.startsWith('1')) {
+    d = d.slice(1);
+  } else if (d.length === 10 && !d.startsWith('1')) {
+    // already 10 digits
+  } else if (d.length === 10 && d.startsWith('1')) {
+    d = d.slice(1);
+  } else {
+    d = d.slice(0, 10);
+  }
+
+  return d.length === 10 ? '1' + d : d;
 }
 
 function prettyPhone(e164) {
-  const d = String(e164 || '').replace(/\D/g, '');
+  const d = String(e164).replace(/\D/g, '');
   const ten = d.startsWith('1') ? d.slice(1, 11) : d.slice(0, 10);
-  if (ten.length !== 10) return '';
-  return '+1 (' + ten.slice(0,3) + ') ' + ten.slice(3,6) + '-' + ten.slice(6);
+  if (ten.length !== 10) return e164;
+  return '1 ' + ten.slice(0, 3) + ' ' + ten.slice(3, 6) + '-' + ten.slice(6);
 }
 
-// 🔥 kill any previously attached listeners by replacing the node
-(function resetPhoneInput() {
-  const oldEl = document.getElementById('phoneNumber');
-  const newEl = oldEl.cloneNode(true); // keeps attributes/id/value, removes listeners
-  oldEl.parentNode.replaceChild(newEl, oldEl);
-
-  newEl.addEventListener('blur', function () {
-    const n = normalizePhone(newEl.value);
-    if (n) newEl.value = prettyPhone(n);
-  });
-})();
+const phoneEl = document.getElementById('phoneNumber');
 
 async function sendSMS(event) {
   event.preventDefault();
@@ -1262,7 +1261,7 @@ async function sendSMS(event) {
   try {
     const fullPhone = normalizePhone(phoneInput.value);
 
-    if (!/^\\+1\\d{10}$/.test(fullPhone)) {
+    if (!fullPhone || fullPhone.length < 10) {
       throw new Error('Enter a valid 10-digit US/Canada phone number');
     }
 
