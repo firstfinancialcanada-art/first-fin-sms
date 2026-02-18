@@ -1284,14 +1284,14 @@ async function sendSMS(event) {
   resultDiv.style.display = 'none';
 
 try {
-  const fullPhone = normalizePhone(phoneInput.value); // +15873066133
+const fullPhone = normalizePhone(phoneInput.value); // +15873066133
 
-  if (!/^\+1\d{10}$/.test(fullPhone)) {
-    throw new Error('Enter a valid 10-digit US/Canada phone number');
-  }
+if (!/^\\+1\\d{10}$/.test(fullPhone)) {
+throw new Error('Enter a valid 10-digit US/Canada phone number');
+}
 
-  // Force pretty display before clearing (optional)
-  phoneInput.value = formatPrettyFromAny(fullPhone);
+// Force pretty display before clearing (optional)
+phoneInput.value = formatPrettyFromAny(fullPhone);
 }
 
     const response = await fetch('/api/start-sms', {
