@@ -1221,27 +1221,24 @@ app.get('/dashboard', async (req, res) => {
     }
 
 function normalizePhone(input) {
-  const digits = String(input).replace(/\D/g, '');
+  const digits = String(input || '').replace(/\D/g, '');
   let d = digits;
 
   if (d.length === 11 && d.startsWith('1')) {
     d = d.slice(1);
-  } else if (d.length === 10 && !d.startsWith('1')) {
-    // already 10 digits
   } else if (d.length === 10 && d.startsWith('1')) {
     d = d.slice(1);
-  } else {
-    d = d.slice(0, 10);
   }
+  d = d.slice(0, 10);
 
-  return d.length === 10 ? '1' + d : d;
+  return d.length === 10 ? '+1' + d : '';
 }
 
 function prettyPhone(e164) {
-  const d = String(e164).replace(/\D/g, '');
+  const d = String(e164 || '').replace(/\D/g, '');
   const ten = d.startsWith('1') ? d.slice(1, 11) : d.slice(0, 10);
-  if (ten.length !== 10) return e164;
-  return '1 ' + ten.slice(0, 3) + ' ' + ten.slice(3, 6) + '-' + ten.slice(6);
+  if (ten.length !== 10) return e164 || '';
+  return '+1 (' + ten.slice(0,3) + ') ' + ten.slice(3,6) + '-' + ten.slice(6);
 }
 
 const phoneEl = document.getElementById('phoneNumber');
@@ -1261,7 +1258,7 @@ async function sendSMS(event) {
   try {
     const fullPhone = normalizePhone(phoneInput.value);
 
-    if (!fullPhone || fullPhone.length < 10) {
+    if (!/^\+1\d{10}$/.test(fullPhone)) {
       throw new Error('Enter a valid 10-digit US/Canada phone number');
     }
 
@@ -1648,10 +1645,12 @@ async function sendSMS(event) {
 
           let phone = digitsOnly;
           if (digitsOnly.length === 10) {
-            phone = '1' + digitsOnly;
+            phone = '+1' + digitsOnly;
+          } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+            phone = '+' + digitsOnly;
           }
 
-          if (phone.length !== 11 || !phone.startsWith('1')) {
+          if (phone.length !== 12 || !phone.startsWith('+1')) {
             errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
             continue;
           }
@@ -2771,9 +2770,12 @@ app.post('/api/bulk-sms/parse-csv', async (req, res) => {
       const digitsOnly = rawPhone.replace(/[^0-9]/g, '');
 
       let phone = digitsOnly;
-      if (digitsOnly.length === 10) phone = '1' + digitsOnly;
+      if (digitsOnly.length === 10) phone = '+1' + digitsOnly;
+      } else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+        phone = '+' + digitsOnly;
+      }
 
-      if (phone.length !== 11 || !phone.startsWith('1')) {
+      if (phone.length !== 12 || !phone.startsWith('+1')) {
         errors.push({ row: i + 1, name, phone: rawPhone, error: 'Invalid phone' });
         continue;
       }
