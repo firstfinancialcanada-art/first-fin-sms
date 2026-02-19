@@ -1283,16 +1283,15 @@ async function sendSMS(event) {
   sendBtn.textContent = '⏳ Sending...';
   resultDiv.style.display = 'none';
 
-try {
-const fullPhone = normalizePhone(phoneInput.value); // +15873066133
+  try {
+    const fullPhone = normalizePhone(phoneInput.value);
 
-if (!/^\\+1\\d{10}$/.test(fullPhone)) {
-throw new Error('Enter a valid 10-digit US/Canada phone number');
-}
+    if (!fullPhone) {
+      throw new Error('Enter a valid 10-digit US/Canada phone number');
+    }
 
-// Force pretty display before clearing (optional)
-phoneInput.value = formatPrettyFromAny(fullPhone);
-}
+    // Show pretty format in the input field
+    phoneInput.value = formatPretty(fullPhone);
 
     const response = await fetch('/api/start-sms', {
       method: 'POST',
