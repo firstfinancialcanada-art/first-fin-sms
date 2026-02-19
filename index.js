@@ -1252,25 +1252,15 @@ function formatPretty(input) {
 const phoneEl = document.getElementById('phoneNumber');
 
 // Live visual formatting while typing
-phoneEl.addEventListener('input', function (e) {
-  const digits = e.target.value.replace(/\D/g, '');
+phoneEl.addEventListener('input', function(e) {
+  // Strip ALL non-digits, then take last 10 digits only (ignore any leading 1)
+  const all = e.target.value.replace(/\D/g, '');
+  const national = all.startsWith('1') ? all.slice(1, 11) : all.slice(0, 10);
 
-  // keep max 11 digits, allow leading 1
-  let working = digits.slice(0, 11);
-
-  // if user starts with 10-digit local, treat as +1
-  if (working.length > 0 && !working.startsWith('1')) {
-    working = '1' + working;
-  }
-
-  const national = working.startsWith('1') ? working.slice(1, 11) : working.slice(0, 10);
-
-  let out = '+1';
-  if (national.length > 0) out += ' (' + national.slice(0, 3);
-  if (national.length >= 4) out += ') ' + national.slice(3, 6);
-  if (national.length >= 7) out += '-' + national.slice(6, 10);
-
-  e.target.value = out;
+  if (national.length === 0)     { e.target.value = ''; return; }
+  if (national.length <= 3)      { e.target.value = '+1 (' + national; return; }
+  if (national.length <= 6)      { e.target.value = '+1 (' + national.slice(0,3) + ') ' + national.slice(3); return; }
+                                   e.target.value = '+1 (' + national.slice(0,3) + ') ' + national.slice(3,6) + '-' + national.slice(6,10);
 });
 
 async function sendSMS(event) {
