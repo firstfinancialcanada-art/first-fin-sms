@@ -69,20 +69,28 @@ async function sendEmailNotification(subject, htmlContent) {
   }
 }
 
-function formatPhone(phone) {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 11 && cleaned.startsWith('1')) {
-    return '+1 (' + cleaned.slice(1,4) + ') ' + cleaned.slice(4,7) + '-' + cleaned.slice(7);
-  }
-  return phone;
-}
-
-function toE164NorthAmerica(input) {
+// ── Phone Utilities ──────────────────────────────────────────────────────
+// Accepts: 5873066133 / 587-306-6133 / 587-3066133 / 15873066133 / +15873066133
+function normalizePhone(input) {
   const digits = String(input || '').replace(/\D/g, '');
   if (digits.length === 10) return '+1' + digits;
   if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
-  return '';
+  return null;
 }
+// Pretty → +1 (587) 306-6133  (Launch SMS field & message view header)
+function formatPretty(input) {
+  const e164 = normalizePhone(input);
+  if (!e164) return String(input || '');
+  const ten = e164.slice(2);
+  return '+1 (' + ten.slice(0,3) + ') ' + ten.slice(3,6) + '-' + ten.slice(6);
+}
+// E.164 compact → +15873066133  (Recent Conversations list)
+function formatE164Display(input) {
+  return normalizePhone(input) || String(input || '');
+}
+// Legacy aliases kept for any server-side route references
+function formatPhone(phone) { return formatPretty(phone); }
+function toE164NorthAmerica(input) { return normalizePhone(input) || ''; }
 
 // 🆕 FIX #7: Standardized API response helpers
 function errorResponse(message) {
@@ -1229,21 +1237,15 @@ app.get('/dashboard', async (req, res) => {
 
 function normalizePhone(input) {
   const digits = String(input || '').replace(/\D/g, '');
-
-  // 10-digit local -> +1XXXXXXXXXX
   if (digits.length === 10) return '+1' + digits;
-
-  // 11-digit with leading 1 -> +1XXXXXXXXXX
   if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
-
-  return '';
+  return null; // null lets callers do: if (!fullPhone) throw error
 }
-
-function formatPrettyFromAny(input) {
+// Pretty → +1 (587) 306-6133  (Launch SMS field & message view header)
+function formatPretty(input) {
   const e164 = normalizePhone(input);
-  if (!e164) return '';
-
-  const ten = e164.slice(2); // remove +1
+  if (!e164) return String(input || '');
+  const ten = e164.slice(2);
   return '+1 (' + ten.slice(0, 3) + ') ' + ten.slice(3, 6) + '-' + ten.slice(6);
 }
 
