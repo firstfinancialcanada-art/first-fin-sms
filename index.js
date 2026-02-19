@@ -1236,8 +1236,10 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      // Only keep raw digits, max 10 (no +1 prefix to avoid re-parsing loops)
-      const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+      // Strip non-digits, remove leading 1 (country code) if present, cap at 10
+      let digits = e.target.value.replace(/[^0-9]/g, '');
+      if (digits.startsWith('1')) digits = digits.slice(1);
+      digits = digits.slice(0, 10);
       let out = '';
       if (digits.length > 0) out = '(' + digits.slice(0, 3);
       if (digits.length >= 4) out += ') ' + digits.slice(3, 6);
