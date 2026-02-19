@@ -1236,34 +1236,21 @@ app.get('/dashboard', async (req, res) => {
     }
 
     document.getElementById('phoneNumber').addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\D/g, '');
-      
-      if (value.length > 0 && !value.startsWith('1')) {
-        value = '1' + value;
-      }
-      
-      let formatted = '';
-      if (value.length > 0) {
-        formatted = '+' + value.substring(0, 1);
-        if (value.length > 1) {
-          formatted += ' (' + value.substring(1, 4);
-        }
-        if (value.length > 4) {
-          formatted += ') ' + value.substring(4, 7);
-        }
-        if (value.length > 7) {
-          formatted += '-' + value.substring(7, 11);
-        }
-      }
-      
-      e.target.value = formatted;
+      // Only keep raw digits, max 10 (no +1 prefix to avoid re-parsing loops)
+      const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+      let out = '';
+      if (digits.length > 0) out = '(' + digits.slice(0, 3);
+      if (digits.length >= 4) out += ') ' + digits.slice(3, 6);
+      if (digits.length >= 7) out += '-' + digits.slice(6, 10);
+      e.target.value = out;
     });
     
     async function sendSMS(event) {
       event.preventDefault();
       
-      const phoneNumber = document.getElementById('phoneNumber').value.replace(/\D/g, '');
-      const fullPhone = phoneNumber.startsWith('1') ? '+' + phoneNumber : '+1' + phoneNumber;
+      // Strip all non-digits from display value, prepend +1
+      const digits = document.getElementById('phoneNumber').value.replace(/[^0-9]/g, '');
+      const fullPhone = '+1' + digits;
       const customMessage = document.getElementById('message').value;
       const sendBtn = document.getElementById('sendBtn');
       const resultDiv = document.getElementById('messageResult');
