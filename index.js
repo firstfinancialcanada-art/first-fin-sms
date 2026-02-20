@@ -665,7 +665,7 @@ app.get('/api/stop-bulk', async (req, res) => {
 app.get('/dashboard', (req, res) => {
   // Redirect old dashboard URL to new unified platform
   res.redirect('/');
-})
+});
 
 // API: Dashboard stats
 app.get('/api/dashboard', async (req, res) => {
@@ -2201,6 +2201,531 @@ app.get('/api/desk-ping', (req, res) => {
 // END PHASE 2 ROUTES
 // ═══════════════════════════════════════════════════════════════════
 
+
+// ═══════════════════════════════════════════════════════════════════
+// SARAH VOICE SYSTEM — Full Inbound + Improved Outbound
+// ═══════════════════════════════════════════════════════════════════
+// Twilio webhook config:
+//   Voice → Incoming → POST https://firstfin.up.railway.app/api/voice/inbound
+// New .env vars needed:
+//   DEALER_NAME=First Financial          (spoken in greeting)
+//   BUSINESS_HOURS_START=9               (24hr, e.g. 9 = 9am)
+//   BUSINESS_HOURS_END=18                (24hr, e.g. 18 = 6pm)
+//   BUSINESS_TIMEZONE=America/Edmonton
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Voice table for storing voicemails ───────────────────────────
+async function createVoiceTable() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS voicemails (
+        id              SERIAL PRIMARY KEY,
+        caller_phone    VARCHAR(30),
+        call_sid        VARCHAR(60),
+        recording_url   VARCHAR(500),
+        recording_sid   VARCHAR(60),
+        transcript      TEXT,
+        duration        INTEGER,
+        call_type       VARCHAR(20) DEFAULT 'inbound',
+        notified        BOOLEAN DEFAULT FALSE,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_voicemails_phone 
+      ON voicemails(caller_phone);
+    `);
+    console.log('✅ voicemails table ready');
+  } catch(e) {
+    console.error('❌ voicemails table error:', e.message);
+  } finally {
+    client.release();
+  }
+}
+createVoiceTable();
+
+// ── Business hours helper ─────────────────────────────────────────
+function isBusinessHours() {
+  const tz    = process.env.BUSINESS_TIMEZONE || 'America/Edmonton';
+  const start = parseInt(process.env.BUSINESS_HOURS_START) || 9;
+  const end   = parseInt(process.env.BUSINESS_HOURS_END)   || 18;
+
+  const now  = new Date();
+  const hour = parseInt(now.toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }));
+  const day  = now.toLocaleString('en-US', { timeZone: tz, weekday: 'long' });
+  const isWeekday = !['Saturday','Sunday'].includes(day);
+
+  return isWeekday && hour >= start && hour < end;
+}
+
+// ── TwiML helper — escapes for safe XML ──────────────────────────
+function twimlSafe(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 1. INBOUND CALL HANDLER ───────────────────────────────────────
+// Set this as your Twilio number's Voice webhook: POST /api/voice/inbound
+app.post('/api/voice/inbound', (req, res) => {
+  const dealer  = twimlSafe(process.env.DEALER_NAME || 'First Financial');
+  const baseUrl = process.env.BASE_URL || '';
+  const hours   = isBusinessHours();
+
+  res.type('text/xml');
+
+  if (hours) {
+    // ── Business hours: greet + offer options ──────────────────
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather numDigits="1" action="${baseUrl}/api/voice/inbound-gather" timeout="8" method="POST">
+    <Say voice="Polly.Joanna" language="en-CA">
+      Thank you for calling ${dealer}. 
+      To speak with us now, press 1.
+      To leave a voicemail, press 2.
+      To have us text you back, press 3.
+    </Say>
+  </Gather>
+  <Say voice="Polly.Joanna" language="en-CA">
+    We didn't catch that. Please leave us a message after the tone and we will get right back to you.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+    trim="trim-silence"
+  />
+</Response>`);
+
+  } else {
+    // ── After hours: custom message + voicemail offer ──────────
+    const start = process.env.BUSINESS_HOURS_START || '9';
+    const end   = parseInt(process.env.BUSINESS_HOURS_END || 18);
+    const endFmt = end > 12 ? (end-12)+'pm' : end+'am';
+    const startFmt = parseInt(start) > 12 ? (parseInt(start)-12)+'pm' : start+'am';
+
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather numDigits="1" action="${baseUrl}/api/voice/inbound-gather" timeout="8" method="POST">
+    <Say voice="Polly.Joanna" language="en-CA">
+      Thank you for calling ${dealer}. 
+      Our team is currently unavailable. Our hours are ${startFmt} to ${endFmt}, Monday through Friday.
+      Press 1 to leave a voicemail and we will call you back first thing.
+      Or simply hang up and reply to this number by text — we respond quickly.
+    </Say>
+  </Gather>
+  <Say voice="Polly.Joanna" language="en-CA">
+    Please leave us a message after the tone.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+    trim="trim-silence"
+  />
+</Response>`);
+  }
+});
+
+// ── 2. GATHER HANDLER — processes keypress from inbound ──────────
+app.post('/api/voice/inbound-gather', async (req, res) => {
+  const digit   = req.body.Digits;
+  const caller  = req.body.From || req.body.Caller || '';
+  const callSid = req.body.CallSid || '';
+  const dealer  = twimlSafe(process.env.DEALER_NAME || 'First Financial');
+  const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE || '';
+  const baseUrl = process.env.BASE_URL || '';
+
+  res.type('text/xml');
+  console.log(`📞 Inbound keypress: ${digit} from ${caller}`);
+
+  if (digit === '1' && forward) {
+    // Press 1 — forward with whisper so you know it's a lead
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">Please hold for just a moment while we connect you.</Say>
+  <Dial 
+    action="${baseUrl}/api/voice/call-complete"
+    timeout="20"
+    callerId="${process.env.TWILIO_PHONE_NUMBER || caller}"
+  >
+    <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
+  </Dial>
+  <Say voice="Polly.Joanna" language="en-CA">
+    We're sorry, no one is available right now. Please leave a message after the tone.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+    trim="trim-silence"
+  />
+</Response>`);
+
+  } else if (digit === '2') {
+    // Press 2 — go straight to voicemail
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    Please leave your name, number, and what vehicle you're looking for after the tone. 
+    We'll get back to you as soon as possible.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+    trim="trim-silence"
+  />
+</Response>`);
+
+  } else if (digit === '3') {
+    // Press 3 — fire an SMS to the caller, confirm by voice
+    try {
+      if (caller && caller.startsWith('+')) {
+        const msg = `Hi! You just called ${process.env.DEALER_NAME || 'First Financial'}. We'll get right back to you! If you can share what vehicle you're looking for, we'll have info ready when we connect. 🚗`;
+        await twilioClient.messages.create({
+          body: msg,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: caller
+        });
+        // Log in Sarah's conversation system
+        const conv = await getOrCreateConversation(caller);
+        await saveMessage(conv.id, caller, 'assistant', msg);
+        await logAnalytics('inbound_call_sms_requested', caller, { callSid });
+        console.log('📱 Text-back sent to:', caller);
+      }
+    } catch(e) {
+      console.error('❌ Text-back failed:', e.message);
+    }
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    Perfect. We just sent you a text message. We'll follow up with you shortly. Have a great day!
+  </Say>
+  <Hangup/>
+</Response>`);
+
+  } else {
+    // No valid keypress — send to voicemail
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    Please leave us a message after the tone.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+    trim="trim-silence"
+  />
+</Response>`);
+  }
+});
+
+// ── 3. WHISPER — plays to YOU before connecting, not the customer ─
+app.post('/api/voice/whisper', (req, res) => {
+  res.type('text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna">
+    Incoming lead call from First Financial. Press any key to connect.
+  </Say>
+  <Gather numDigits="1" timeout="5"/>
+</Response>`);
+});
+
+// ── 4. VOICEMAIL RECORDING COMPLETE ──────────────────────────────
+app.post('/api/voice/voicemail-done', async (req, res) => {
+  const caller       = req.body.From    || req.body.Caller || '';
+  const callSid      = req.body.CallSid || '';
+  const recordingUrl = req.body.RecordingUrl || '';
+  const recordingSid = req.body.RecordingSid || '';
+  const duration     = parseInt(req.body.RecordingDuration) || 0;
+
+  console.log(`📬 Voicemail received from ${caller}, ${duration}s, SID: ${recordingSid}`);
+
+  // Save to voicemails table
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO voicemails (caller_phone, call_sid, recording_url, recording_sid, duration)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [caller, callSid, recordingUrl + '.mp3', recordingSid, duration]
+      );
+    } finally { client.release(); }
+  } catch(e) { console.error('❌ Voicemail save error:', e.message); }
+
+  // Text YOU immediately — with recording link
+  try {
+    const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
+    if (forward) {
+      const callerFmt = caller.replace('+1','');
+      const notify = `📬 New voicemail from ${callerFmt} (${duration}s)\n🔗 Listen: ${recordingUrl}.mp3\n\nReply to them via the platform.`;
+      await twilioClient.messages.create({
+        body: notify,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: forward
+      });
+    }
+  } catch(e) { console.error('❌ Voicemail notification error:', e.message); }
+
+  await logAnalytics('voicemail_received', caller, { callSid, duration });
+
+  res.type('text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    Your message has been received. We'll get back to you shortly. Thank you for calling!
+  </Say>
+  <Hangup/>
+</Response>`);
+});
+
+// ── 5. TRANSCRIPTION CALLBACK — Twilio sends this when done ──────
+app.post('/api/voice/transcription', async (req, res) => {
+  const recordingSid  = req.body.RecordingSid  || '';
+  const transcript    = req.body.TranscriptionText || '';
+  const caller        = req.body.From || '';
+
+  console.log(`📝 Transcription ready for ${recordingSid}: "${transcript.substring(0,80)}..."`);
+
+  if (transcript && recordingSid) {
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `UPDATE voicemails SET transcript = $1 WHERE recording_sid = $2`,
+          [transcript, recordingSid]
+        );
+      } finally { client.release(); }
+
+      // Text YOU the transcript
+      const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
+      if (forward && transcript.length > 5) {
+        const callerFmt = (caller||'').replace('+1','');
+        await twilioClient.messages.create({
+          body: `📝 Voicemail transcript from ${callerFmt}:\n\n"${transcript.substring(0,280)}"`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: forward
+        });
+      }
+    } catch(e) { console.error('❌ Transcript save error:', e.message); }
+  }
+
+  res.sendStatus(200);
+});
+
+// ── 6. CALL COMPLETE — fires when forwarded call ends ─────────────
+app.post('/api/voice/call-complete', async (req, res) => {
+  const caller       = req.body.From    || '';
+  const dialStatus   = req.body.DialCallStatus || '';
+  const callDuration = req.body.DialCallDuration || 0;
+  const baseUrl      = process.env.BASE_URL || '';
+
+  console.log(`📞 Call complete: ${dialStatus}, ${callDuration}s from ${caller}`);
+  await logAnalytics('inbound_call_complete', caller, { dialStatus, callDuration });
+
+  // If they didn't answer, offer voicemail again  
+  if (dialStatus === 'no-answer' || dialStatus === 'busy' || dialStatus === 'failed') {
+    res.type('text/xml');
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    We're sorry, no one is available. Please leave a message after the tone.
+  </Say>
+  <Record 
+    action="${baseUrl}/api/voice/voicemail-done"
+    transcribe="true"
+    transcribeCallback="${baseUrl}/api/voice/transcription"
+    maxLength="120"
+    playBeep="true"
+  />
+</Response>`);
+  }
+
+  res.type('text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Hangup/></Response>`);
+});
+
+// ── 7. GET /api/voicemails — view voicemails in platform ─────────
+app.get('/api/voicemails', async (req, res) => {
+  const token = req.query.token || req.headers['x-admin-token'];
+  if (token !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM voicemails ORDER BY created_at DESC LIMIT 100'
+    );
+    res.json({ success: true, voicemails: result.rows });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  } finally { client.release(); }
+});
+
+// ── 8. IMPROVED OUTBOUND VOICEMAIL DROP ──────────────────────────
+// Replaces /api/voice/drop with better pacing + whisper on connect
+app.post('/api/voice/drop-v2', async (req, res) => {
+  const token = req.body.token || req.headers['x-admin-token'];
+  if (token !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+
+  try {
+    const { phone, customerName, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ success: false, error: 'phone and message required' });
+
+    const normalized = normalizePhone(phone);
+    if (!normalized) return res.status(400).json({ success: false, error: 'Invalid phone' });
+
+    const name     = twimlSafe(customerName || 'there');
+    const safeMsg  = twimlSafe(message.replace(/{name}/gi, name));
+    const baseUrl  = process.env.BASE_URL || '';
+    const forward  = process.env.FORWARD_PHONE || process.env.OWNER_PHONE || '';
+
+    const call = await twilioClient.calls.create({
+      to:   normalized,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      // Natural pacing: brief pause before speaking feels less robotic
+      twiml: `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna" language="en-CA">${safeMsg}</Say>
+  <Pause length="1"/>
+  <Gather numDigits="1" action="${baseUrl}/api/voice/drop-keypress" timeout="8" method="POST">
+    <Say voice="Polly.Joanna" language="en-CA">
+      To speak with us right now, press 1. 
+      To opt out of future calls, press 9.
+      Or simply reply to this number by text anytime.
+    </Say>
+  </Gather>
+  <Say voice="Polly.Joanna" language="en-CA">Thanks for listening. Have a great day!</Say>
+  <Hangup/>
+</Response>`
+    });
+
+    await logAnalytics('voice_drop_v2', normalized, { callSid: call.sid, customerName });
+    console.log('📞 Voice drop v2:', call.sid, '->', normalized);
+    res.json({ success: true, callSid: call.sid, to: normalized });
+  } catch(e) {
+    console.error('❌ /api/voice/drop-v2 error:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── 9. DROP KEYPRESS — handles press-1 and press-9 from drops ────
+app.post('/api/voice/drop-keypress', async (req, res) => {
+  const digit   = req.body.Digits;
+  const callee  = req.body.To || '';
+  const callSid = req.body.CallSid || '';
+  const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE || '';
+  const baseUrl = process.env.BASE_URL || '';
+
+  res.type('text/xml');
+
+  if (digit === '1' && forward) {
+    await logAnalytics('voice_drop_press1', callee, { callSid });
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">Great! Connecting you now. One moment please.</Say>
+  <Dial 
+    action="${baseUrl}/api/voice/call-complete"
+    timeout="20"
+    callerId="${process.env.TWILIO_PHONE_NUMBER}"
+  >
+    <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
+  </Dial>
+</Response>`);
+
+  } else if (digit === '9') {
+    // Opt-out — log it, send confirmation, mark in DB
+    await logAnalytics('voice_drop_optout', callee, { callSid });
+    try {
+      const normalized = normalizePhone(callee);
+      if (normalized) {
+        // Save opt-out note in their conversation
+        const conv = await getOrCreateConversation(normalized);
+        await saveMessage(conv.id, normalized, 'assistant', '[Customer opted out of voice calls via press-9]');
+      }
+    } catch(e) { console.error('Opt-out log error:', e.message); }
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">
+    You have been removed from our call list. We apologize for any inconvenience. Goodbye.
+  </Say>
+  <Hangup/>
+</Response>`);
+
+  } else {
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Hangup/></Response>`);
+  }
+});
+
+// ── 10. IMPROVED BULK VOICE CAMPAIGN ─────────────────────────────
+app.post('/api/voice/campaign-v2', async (req, res) => {
+  const token = req.body.token || req.headers['x-admin-token'];
+  if (token !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+
+  try {
+    const { contacts, message, delaySeconds } = req.body;
+    if (!contacts?.length || !message) return res.status(400).json({ success: false, error: 'contacts[] and message required' });
+
+    const delay = parseInt(delaySeconds) || 12;
+    let scheduled = 0, skipped = 0;
+
+    for (let i = 0; i < contacts.length; i++) {
+      const normalized = normalizePhone(contacts[i].phone);
+      if (!normalized) { skipped++; continue; }
+
+      setTimeout(async () => {
+        try {
+          const name    = twimlSafe(contacts[i].name || 'there');
+          const safeMsg = twimlSafe(message.replace(/{name}/gi, name));
+          const baseUrl = process.env.BASE_URL || '';
+
+          await twilioClient.calls.create({
+            to:   normalized,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            twiml: `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna" language="en-CA">${safeMsg}</Say>
+  <Pause length="1"/>
+  <Gather numDigits="1" action="${baseUrl}/api/voice/drop-keypress" timeout="8" method="POST">
+    <Say voice="Polly.Joanna" language="en-CA">
+      To speak with us right now, press 1.
+      To opt out of future calls, press 9.
+    </Say>
+  </Gather>
+  <Hangup/>
+</Response>`
+          });
+          console.log(`📞 Campaign v2 drop ${i+1}/${contacts.length}:`, normalized);
+        } catch(err) {
+          console.error('❌ Campaign drop failed:', normalized, err.message);
+        }
+      }, i * delay * 1000);
+
+      scheduled++;
+    }
+
+    res.json({ success: true, scheduled, skipped, message: `${scheduled} voice drops queued (${delay}s apart)` });
+  } catch(e) {
+    console.error('❌ /api/voice/campaign-v2 error:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ── END VOICE SYSTEM ──────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
   console.log(`✅ FIRST-FIN PLATFORM v1.0 — Port ${PORT}`);
   console.log(`🌐 Open: http://localhost:${PORT}`);
