@@ -2733,13 +2733,17 @@ function renderConversations(convs){
     const vehicle = c.vehicle_type ? `🚗 ${c.vehicle_type}` : '';
     const budget  = c.budget       ? ` · 💰 ${c.budget}`    : '';
     const msgs    = c.message_count? ` · 💬 ${c.message_count} msgs` : '';
+    // Show voice activity indicator if last message was a call/voicemail
+    const lastMsg = c.last_message || '';
+    const hasVoice = lastMsg.startsWith('📞')||lastMsg.startsWith('📬')||lastMsg.startsWith('📵');
+    const voiceTag = hasVoice ? ` · ${lastMsg.split('|')[0].trim()}` : '';
     return `<div class="conv-item" id="convitem-${cleanPhone}">
       <div class="conv-header" onclick="toggleConversation('${c.customer_phone}','${cleanPhone}')">
         <div class="conv-avatar">👤</div>
         <div class="conv-info">
           <div class="conv-name">${c.customer_name||'Unknown'} ${statusBadge}</div>
           <div class="conv-phone">${c.customer_phone||''}</div>
-          <div class="conv-meta">${vehicle}${budget}${msgs} · Stage: ${c.stage||'—'}</div>
+          <div class="conv-meta">${vehicle}${budget}${msgs}${voiceTag} · Stage: ${c.stage||'—'}</div>
         </div>
         <div class="conv-right">
           <span class="conv-time">${c.updated_at?new Date(c.updated_at).toLocaleDateString():''}</span>
@@ -3170,6 +3174,71 @@ setInterval(()=>{
   }
 }, 30000);
 
+
+
+// ── Unified timeline message renderer ────────────────────────────
+function renderTimelineMessage(m) {
+  const content = m.content || '';
+  const time    = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+
+  // ── Voice events — special pills ─────────────────────────────
+  if (content.startsWith('📞') || content.startsWith('📬') || content.startsWith('📵')) {
+    let icon = '📞', label = '', color = 'var(--primary)', bg = 'rgba(30,90,246,.08)', border = 'rgba(30,90,246,.2)';
+
+    if (content.includes('VOICEMAIL')) {
+      icon = '📬'; color = 'var(--amber)'; bg = 'rgba(245,158,11,.08)'; border = 'rgba(245,158,11,.2)';
+      // Extract transcript if present
+      const txMatch = content.match(/transcript:\s*"(.+)"$/s);
+      const durMatch = content.match(/duration:(\d+s)/);
+      label = (durMatch ? durMatch[1] + ' voicemail' : 'Voicemail');
+      const tx = txMatch ? txMatch[1] : null;
+      return `<div style="display:flex;justify-content:center;margin:8px 0;">
+        <div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:8px 14px;max-width:90%;text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:${color};">${icon} ${label}</div>
+          ${tx ? `<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic;">"${escapeHtml(tx.substring(0,120))}${tx.length>120?'...':''}"</div>` : ''}
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;">${time}</div>
+        </div>
+      </div>`;
+    }
+
+    if (content.includes('VOICE_DROP')) {
+      icon = '📵'; color = '#8b5cf6'; bg = 'rgba(139,92,246,.08)'; border = 'rgba(139,92,246,.2)';
+      label = content.includes('CALLBACK') ? 'Called back — connected' : 'Voicemail drop sent';
+    } else if (content.includes('CALL_INBOUND')) {
+      const statusMatch = content.match(/status:(\w+)/);
+      const status = statusMatch ? statusMatch[1] : 'inbound';
+      const durMatch = content.match(/duration:(\d+s)/);
+      const statusLabels = {
+        connecting: 'Called in — forwarded to you',
+        voicemail_requested: 'Called in — went to voicemail',
+        text_back_requested: 'Called in — requested text back',
+        completed: 'Call completed' + (durMatch ? ' ' + durMatch[1] : ''),
+        'no-answer': 'Called — no answer',
+        busy: 'Called — line busy',
+        failed: 'Call failed'
+      };
+      label = statusLabels[status] || 'Inbound call';
+    } else if (content.includes('CALL_COMPLETE')) {
+      const statusMatch = content.match(/status:(.+)$/);
+      label = 'Call ended — ' + (statusMatch ? statusMatch[1] : '');
+    }
+
+    return `<div style="display:flex;justify-content:center;margin:8px 0;">
+      <div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:7px 16px;text-align:center;">
+        <div style="font-size:11px;font-weight:700;color:${color};">${icon} ${label}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${time}</div>
+      </div>
+    </div>`;
+  }
+
+  // ── Regular SMS message ───────────────────────────────────────
+  const isUser = m.role === 'user';
+  return `<div class="msg-bubble ${m.role}">
+    <div class="msg-role">${isUser ? '👤 Customer' : '🤖 Sarah AI'}</div>
+    <div style="color:var(--text);line-height:1.5;white-space:pre-wrap;">${escapeHtml(content)}</div>
+    <div class="msg-time">${time}</div>
+  </div>`;
+}
 
 // ── Voicemails ────────────────────────────────────────────────────
 async function loadVoicemails(){
