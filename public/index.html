@@ -1240,6 +1240,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="mgr-tab" onclick="showSarahTab('bulk',this)">📋 Bulk SMS</button>
     <button class="mgr-tab" onclick="showSarahTab('voice',this)">🔊 Voice</button>
     <button class="mgr-tab" onclick="showSarahTab('sarahanalytics',this)">📊 Analytics</button>
+    <button class="mgr-tab" onclick="showSarahTab('voicemails',this);loadVoicemails()">📬 Voicemails</button>
   </div>
 
   <!-- ── Conversations Tab ── -->
@@ -1369,6 +1370,11 @@ select option{background:#0d1526;color:var(--text);}
 
   <!-- ── Voice Tab ── -->
   <div id="stab-voice" class="mgr-content">
+    <div style="background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#06b6d4;">
+      <strong>📋 One-time Twilio setup for inbound calls:</strong><br>
+      Twilio console → Phone Numbers → your number → Voice → A call comes in → Webhook<br>
+      Set to: <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px;font-size:11px;">POST https://firstfin.up.railway.app/api/voice/inbound</code>
+    </div>
     <div class="two-col" style="align-items:start;">
       <div class="card">
         <div class="card-title">📵 Single Voicemail Drop</div>
@@ -1439,6 +1445,16 @@ select option{background:#0d1526;color:var(--text);}
         <div class="card-title green">💰 Budget Distribution</div>
         <div id="sa-budgetDist" style="font-size:12px;color:var(--muted);">Loading...</div>
       </div>
+    </div>
+
+  <!-- ── Voicemails Tab ── -->
+  <div id="stab-voicemails" class="mgr-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:12px;color:var(--muted);">Inbound voicemails with auto-transcription. Requires Twilio inbound webhook configured.</div>
+      <button class="btn btn-primary btn-sm" onclick="loadVoicemails()">🔄 Refresh</button>
+    </div>
+    <div id="voicemailsList" style="max-height:600px;overflow-y:auto;">
+      <div style="text-align:center;padding:40px;color:var(--muted);">Click Refresh to load voicemails.</div>
     </div>
   </div>
 
@@ -3074,20 +3090,20 @@ async function wipeBulkMessages(){
 
 // ── Voice (uses Sarah's new voice API routes) ─────────────────────
 async function sendVoiceDrop(){
-  const phone   = phoneInputToE164(document.getElementById('vd_phone')?.value||'');
-  const name    = document.getElementById('vd_name')?.value||'there';
-  const message = (document.getElementById('vd_message')?.value||'').replace(/{name}/gi,name);
-  const res     = document.getElementById('voiceDropResult');
+  const phone        = phoneInputToE164(document.getElementById('vd_phone')?.value||'');
+  const customerName = document.getElementById('vd_name')?.value||'there';
+  const message      = document.getElementById('vd_message')?.value||'';
+  const res          = document.getElementById('voiceDropResult');
   if(!phone){ toast('⚠️ Invalid phone'); return; }
   const token=getAdminToken(); if(!token) return;
   try {
-    const d = await fetch('/api/voice/drop',{
+    const d = await fetch('/api/voice/drop-v2',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone,message,token})
+      body:JSON.stringify({phone,customerName,message,token})
     }).then(r=>r.json());
     if(d.success){
       res.style.cssText='display:block;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:10px;font-size:12px;color:var(--green);';
-      res.textContent='✅ Voicemail drop initiated! Call SID: '+d.callSid;
+      res.textContent='✅ Drop sent! Natural pacing active. Call SID: '+d.callSid;
     } else throw new Error(d.error||'Failed');
   } catch(e){
     res.style.cssText='display:block;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:10px;font-size:12px;color:var(--red);';
@@ -3153,6 +3169,47 @@ setInterval(()=>{
     loadSarahDashboard();
   }
 }, 30000);
+
+
+// ── Voicemails ────────────────────────────────────────────────────
+async function loadVoicemails(){
+  const el = document.getElementById('voicemailsList');
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Loading...</div>';
+  try {
+    const token = getAdminToken(); if(!token){ el.innerHTML='<div style="padding:20px;color:var(--muted);">Token required.</div>'; return; }
+    const data  = await fetch('/api/voicemails?token='+encodeURIComponent(token)).then(r=>r.json());
+    if(!data.success) throw new Error(data.error);
+    if(!data.voicemails.length){
+      el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No voicemails yet. Once your Twilio number is configured for inbound calls, voicemails will appear here.</div>';
+      return;
+    }
+    el.innerHTML = data.voicemails.map(v => {
+      const caller  = (v.caller_phone||'').replace('+1','');
+      const date    = v.created_at ? new Date(v.created_at).toLocaleString() : '—';
+      const dur     = v.duration   ? v.duration+'s' : '—';
+      const hasRec  = v.recording_url && v.recording_url.length > 10;
+      const hasTx   = v.transcript  && v.transcript.length > 3;
+      return `<div class="appt-card" style="border-left:3px solid var(--primary);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700;font-size:13px;">📬 ${caller} <span style="color:var(--muted);font-weight:400;font-size:11px;">${date} · ${dur}</span></div>
+            ${hasTx
+              ? `<div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.5;background:var(--surface2);padding:10px;border-radius:6px;border-left:3px solid var(--amber);">"${escapeHtml(v.transcript)}"</div>`
+              : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">⏳ Transcript pending...</div>'
+            }
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+            ${hasRec ? `<a href="${v.recording_url}" target="_blank" class="btn btn-primary btn-sm">▶ Listen</a>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="loadConvToDeskCRM('+1${caller}','','')">→ Desk</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e){
+    el.innerHTML = '<div style="padding:20px;color:var(--red);">❌ '+e.message+'</div>';
+  }
+}
 
 // ── INIT ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
