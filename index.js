@@ -666,7 +666,6 @@ app.get('/dashboard', (req, res) => {
   // Redirect old dashboard URL to new unified platform
   res.redirect('/');
 })
-});
 
 // API: Dashboard stats
 app.get('/api/dashboard', async (req, res) => {
