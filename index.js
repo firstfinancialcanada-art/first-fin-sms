@@ -2202,6 +2202,51 @@ app.get('/api/desk-ping', (req, res) => {
 // ═══════════════════════════════════════════════════════════════════
 
 
+
+// ── Get recent SMS history for a customer (for call preview) ─────
+async function getCustomerSMSHistory(phone, limit = 4) {
+  const client = await pool.connect();
+  try {
+    // Find their most recent conversation with actual SMS messages
+    const result = await client.query(`
+      SELECT m.role, m.content, m.created_at, c.customer_name
+      FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE c.customer_phone = $1
+        AND m.content NOT LIKE '📞%'
+        AND m.content NOT LIKE '📬%'
+        AND m.content NOT LIKE '📵%'
+      ORDER BY m.created_at DESC
+      LIMIT $2
+    `, [phone, limit]);
+    return result.rows.reverse(); // chronological order
+  } catch(e) {
+    console.error('❌ getCustomerSMSHistory error:', e.message);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+// ── Save a voice event into the unified conversation timeline ─────
+async function saveVoiceEvent(phone, eventContent, role = 'user') {
+  try {
+    const normalized = normalizePhone(phone) || phone;
+    const conv = await getOrCreateConversation(normalized);
+    // Skip duplicate check for voice events — use direct insert
+    const client = await pool.connect();
+    try {
+      await client.query(
+        'INSERT INTO messages (conversation_id, customer_phone, role, content) VALUES ($1, $2, $3, $4)',
+        [conv.id, normalized, role, eventContent]
+      );
+    } finally { client.release(); }
+    console.log('📋 Voice event logged to timeline:', eventContent.substring(0, 60));
+  } catch(e) {
+    console.error('❌ saveVoiceEvent error:', e.message);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SARAH VOICE SYSTEM — Full Inbound + Improved Outbound
 // ═══════════════════════════════════════════════════════════════════
@@ -2343,7 +2388,31 @@ app.post('/api/voice/inbound-gather', async (req, res) => {
   console.log(`📞 Inbound keypress: ${digit} from ${caller}`);
 
   if (digit === '1' && forward) {
-    // Press 1 — forward with whisper so you know it's a lead
+    // Log to unified timeline
+    await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:connecting | pressed:1`);
+
+    // SMS context preview — only if they have prior SMS history
+    try {
+      const history = await getCustomerSMSHistory(caller, 4);
+      if (history.length > 0) {
+        const callerFmt = caller.replace('+1','');
+        const name = history[0].customer_name || callerFmt;
+        const preview = history
+          .map(m => (m.role === 'user' ? '👤' : '🤖') + ' "' + m.content.substring(0, 80) + (m.content.length > 80 ? '...' : '') + '"')
+          .join('\n');
+        const lastDate = new Date(history[history.length-1].created_at).toLocaleDateString();
+        await twilioClient.messages.create({
+          body: `📞 Incoming call — ${name} (${callerFmt})\nLast contact: ${lastDate}\n\n${preview}`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: forward
+        });
+        console.log('📱 Call context preview sent for:', caller);
+      }
+    } catch(e) {
+      console.error('❌ Call preview SMS error:', e.message);
+    }
+
+    // Forward with whisper so you know it's a lead
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna" language="en-CA">Please hold for just a moment while we connect you.</Say>
@@ -2368,7 +2437,8 @@ app.post('/api/voice/inbound-gather', async (req, res) => {
 </Response>`);
 
   } else if (digit === '2') {
-    // Press 2 — go straight to voicemail
+    // Log voicemail choice
+    await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:voicemail_requested | pressed:2`);
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna" language="en-CA">
@@ -2399,6 +2469,7 @@ app.post('/api/voice/inbound-gather', async (req, res) => {
         const conv = await getOrCreateConversation(caller);
         await saveMessage(conv.id, caller, 'assistant', msg);
         await logAnalytics('inbound_call_sms_requested', caller, { callSid });
+        await saveVoiceEvent(caller, '📞 CALL_INBOUND | status:text_back_requested | pressed:3', 'user');
         console.log('📱 Text-back sent to:', caller);
       }
     } catch(e) {
@@ -2480,6 +2551,7 @@ app.post('/api/voice/voicemail-done', async (req, res) => {
   } catch(e) { console.error('❌ Voicemail notification error:', e.message); }
 
   await logAnalytics('voicemail_received', caller, { callSid, duration });
+  await saveVoiceEvent(caller, `📬 VOICEMAIL | duration:${duration}s | recording:${recordingUrl}.mp3`);
 
   res.type('text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -2509,6 +2581,24 @@ app.post('/api/voice/transcription', async (req, res) => {
         );
       } finally { client.release(); }
 
+      // Update timeline with transcript
+      if (caller) {
+        const normalized = normalizePhone(caller) || caller;
+        const convCheck = await pool.connect();
+        try {
+          await convCheck.query(`
+            UPDATE messages SET content = $1
+            WHERE customer_phone = $2
+              AND content LIKE '📬 VOICEMAIL%'
+              AND created_at > NOW() - INTERVAL '10 minutes'
+          `, [
+            `📬 VOICEMAIL | transcript: "${transcript.substring(0, 200)}"`,
+            normalized
+          ]);
+        } catch(e){ console.error('Timeline transcript update error:', e.message); }
+        finally { convCheck.release(); }
+      }
+
       // Text YOU the transcript
       const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
       if (forward && transcript.length > 5) {
@@ -2534,6 +2624,8 @@ app.post('/api/voice/call-complete', async (req, res) => {
 
   console.log(`📞 Call complete: ${dialStatus}, ${callDuration}s from ${caller}`);
   await logAnalytics('inbound_call_complete', caller, { dialStatus, callDuration });
+  const statusLabel = dialStatus === 'completed' ? `connected (${callDuration}s)` : dialStatus;
+  await saveVoiceEvent(caller, `📞 CALL_COMPLETE | status:${statusLabel}`);
 
   // If they didn't answer, offer voicemail again  
   if (dialStatus === 'no-answer' || dialStatus === 'busy' || dialStatus === 'failed') {
@@ -2613,6 +2705,7 @@ app.post('/api/voice/drop-v2', async (req, res) => {
     });
 
     await logAnalytics('voice_drop_v2', normalized, { callSid: call.sid, customerName });
+    await saveVoiceEvent(normalized, `📵 VOICE_DROP | sid:${call.sid} | name:${customerName||''}`, 'assistant');
     console.log('📞 Voice drop v2:', call.sid, '->', normalized);
     res.json({ success: true, callSid: call.sid, to: normalized });
   } catch(e) {
@@ -2633,6 +2726,7 @@ app.post('/api/voice/drop-keypress', async (req, res) => {
 
   if (digit === '1' && forward) {
     await logAnalytics('voice_drop_press1', callee, { callSid });
+    await saveVoiceEvent(callee, `📞 VOICE_DROP_CALLBACK | status:connecting | pressed:1`);
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna" language="en-CA">Great! Connecting you now. One moment please.</Say>
