@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const twilio = require('twilio');
-const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -49,29 +48,24 @@ pool.connect()
 
 
 // ===== EMAIL & HELPERS =====
-const emailTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD }
-});
-
-async function sendEmailNotification(subject, htmlContent) {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-    console.log('⚠️  Email not configured');
+// ── SMS Notification System (replaces Brevo/email) ──────────────
+// All owner notifications go to FORWARD_PHONE via Twilio SMS
+async function notifyOwner(message) {
+  const to = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
+  if (!to) {
+    console.log('⚠️  FORWARD_PHONE not set — notification skipped');
     return false;
   }
   try {
-    const info = await emailTransporter.sendMail({
-      from: '"Sarah AI - First Financial" <' + process.env.EMAIL_USER + '>',
-      to: process.env.EMAIL_TO || 'firstfinancialcanada@gmail.com',
-      subject: subject,
-      html: htmlContent
+    await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to
     });
-    console.log('📧 Email sent:', info.messageId);
+    console.log('📱 Owner notified:', message.substring(0, 60) + '...');
     return true;
-  } catch (error) {
-    console.error('❌ Email error:', error.message);
+  } catch(e) {
+    console.error('❌ Owner notification failed:', e.message);
     return false;
   }
 }
@@ -624,7 +618,7 @@ app.get('/', (req, res) => {
       conversations: '/api/conversations',
       conversation: '/api/conversation/:phone',
       deleteConversation: 'DELETE /api/conversation/:phone',
-      manualReply: 'POST /api/manual-reply', testEmail: '/test-email', exportAppointments: '/api/export/appointments', exportCallbacks: '/api/export/callbacks', exportConversations: '/api/export/conversations', exportAnalytics: '/api/export/analytics'
+      manualReply: 'POST /api/manual-reply', testNotify: '/test-notify', exportAppointments: '/api/export/appointments', exportCallbacks: '/api/export/callbacks', exportConversations: '/api/export/conversations', exportAnalytics: '/api/export/analytics'
     },
     timestamp: new Date()
   });
@@ -934,13 +928,13 @@ app.post('/api/sms-webhook', async (req, res) => {
         
                console.log('✅ Sarah replied:', aiResponse);
         
-        // Send email notification (non-blocking, won't slow down SMS)
-        sendEmailNotification(
-          '🚨 New Message from ' + (conversation.customer_name || formatPhone(phone)),
-          '<div style="font-family: Arial; max-width: 600px;"><div style="background: linear-gradient(135deg, #1e3a5f 0%, #2c4e6f 100%); padding: 20px; border-radius: 10px 10px 0 0;"><h1 style="color: white; margin: 0;">🚨 New Customer Message</h1></div><div style="background: #f7fafc; padding: 25px; border-radius: 0 0 10px 10px;"><table><tr><td style="padding: 12px; font-weight: bold;">Phone:</td><td style="padding: 12px;">' + formatPhone(phone) + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Name:</td><td style="padding: 12px;">' + (conversation.customer_name||'Not provided') + '</td></tr><tr><td style="padding: 12px; font-weight: bold;">Message:</td><td style="padding: 12px; font-weight: 600;">' + message + '</td></tr></table></div></div>'
-        ).catch(err => {
-          console.error('Email error:', err);
-        });
+        // Notify owner by SMS (non-blocking)
+        const custName = conversation.customer_name || 'Unknown';
+        const custPhone = formatPretty(phone);
+        const preview = message.length > 100 ? message.substring(0, 100) + '...' : message;
+        notifyOwner(
+          `💬 New lead from ${custName}\n📞 ${custPhone}\n\n"${preview}"\n\nReply via: firstfin.up.railway.app`
+        ).catch(err => console.error('Notify error:', err));
         
       } catch (bgError) {
         console.error('❌ Background processing error:', bgError);
@@ -1295,14 +1289,18 @@ async function getJerryResponse(phone, message, conversation) {
     if (conversation.intent === 'test_drive') {
       await saveAppointment(appointmentData);
       try {
-        await sendEmailNotification('📅 Test Drive: ' + conversation.customer_name, '<div style="font-family: Arial;"><h1 style="color: #10b981;">📅 New Appointment!</h1><p><strong>Customer:</strong> ' + conversation.customer_name + '</p><p><strong>Phone:</strong> ' + formatPhone(phone) + '</p><p><strong>Date/Time:</strong> ' + message + '</p></div>');
+        await notifyOwner(
+          `📅 APPOINTMENT BOOKED!\n👤 ${conversation.customer_name}\n📞 ${formatPretty(phone)}\n🚗 ${conversation.vehicle_type || 'Vehicle TBD'}\n💰 ${conversation.budget || 'Budget TBD'}\n🗓️ ${message}`
+        );
       } catch (e) { }
       await logAnalytics('appointment_booked', phone, appointmentData);
       return `✅ Perfect ${conversation.customer_name}! I've booked your test drive for ${message}.\n\n📍 We're in Calgary, Alberta and we deliver all across Canada!\n📧 Confirmation sent!\n\nLooking forward to seeing you! Reply STOP to opt out.`;
     } else {
       await saveCallback(appointmentData);
       try {
-        await sendEmailNotification('📞 Callback: ' + conversation.customer_name, '<div style="font-family: Arial;"><h1 style="color: #f59e0b;">📞 Callback Requested!</h1><p><strong>Customer:</strong> ' + conversation.customer_name + '</p><p><strong>Phone:</strong> ' + formatPhone(phone) + '</p><p><strong>Time:</strong> ' + message + '</p></div>');
+        await notifyOwner(
+          `📞 CALLBACK REQUESTED!\n👤 ${conversation.customer_name}\n📞 ${formatPretty(phone)}\n🚗 ${conversation.vehicle_type || 'Vehicle TBD'}\n⏰ Call them: ${message}`
+        );
       } catch (e) { }
       await logAnalytics('callback_requested', phone, appointmentData);
       return `✅ Got it ${conversation.customer_name}! One of our managers will call you ${message} with all the details.\n\nWe're excited to help you find your perfect ${conversation.vehicle_type}!\n\nTalk soon! Reply STOP to opt out.`;
@@ -1334,13 +1332,8 @@ async function getJerryResponse(phone, message, conversation) {
       await saveCallback(followUpData);
       await logAnalytics('inventory_requested', phone, followUpData);
       try {
-        await sendEmailNotification(
-          '📸 Inventory Photos Requested: ' + conversation.customer_name,
-          '<div style="font-family: Arial;"><h1 style="color: #6366f1;">📸 Customer Wants Photos!</h1>' +
-          '<p><strong>Customer:</strong> ' + conversation.customer_name + '</p>' +
-          '<p><strong>Phone:</strong> ' + formatPhone(phone) + '</p>' +
-          '<p><strong>Looking for:</strong> ' + (conversation.vehicle_type || 'Not specified') + ' / ' + (conversation.budget || 'Budget TBD') + '</p>' +
-          '<p><strong>Action:</strong> Send inventory photos ASAP</p></div>'
+        await notifyOwner(
+          `📸 PHOTOS REQUESTED — send ASAP!\n👤 ${conversation.customer_name}\n📞 ${formatPretty(phone)}\n🚗 ${conversation.vehicle_type || 'Not specified'} / ${conversation.budget || 'Budget TBD'}`
         );
       } catch(e) {}
       return `Great question ${conversation.customer_name}! I've let our team know — a manager will text you photos of ${conversation.vehicle_type || 'vehicles'} in your ${conversation.budget || 'budget'} range shortly! 📸`;
@@ -1373,10 +1366,10 @@ async function getJerryResponse(phone, message, conversation) {
 
 
 // ===== TEST & EXPORT ENDPOINTS =====
-app.get('/test-email', async (req, res) => {
+app.get('/test-notify', async (req, res) => {
   try {
-    const result = await sendEmailNotification('🧪 Test Email', '<h1>Email Working!</h1><p>Test: ' + new Date().toLocaleString() + '</p>');
-    res.json({ success: result, message: result ? '✅ Email sent!' : '❌ Not configured' });
+    const result = await notifyOwner('🧪 Test notification from FIRST-FIN Platform — ' + new Date().toLocaleString());
+    res.json({ success: result, message: result ? '✅ SMS sent to your phone!' : '❌ FORWARD_PHONE not set' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
