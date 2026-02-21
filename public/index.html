@@ -486,6 +486,106 @@ select option{background:#0d1526;color:var(--text);}
   .scenario-strip{grid-template-columns:1fr;}
   .pres-payment-ladder{flex-direction:column;align-items:center;}
 }
+
+/* ══════════════════════════════════════════════
+   MOBILE HAMBURGER MENU
+══════════════════════════════════════════════ */
+.hamburger{
+  display:none;
+  flex-direction:column;
+  justify-content:center;
+  gap:5px;
+  width:40px;height:40px;
+  padding:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  cursor:pointer;
+  flex-shrink:0;
+  z-index:1001;
+}
+.hamburger span{
+  display:block;width:100%;height:2px;
+  background:var(--text);border-radius:2px;
+  transition:all .25s ease;
+}
+.hamburger.open span:nth-child(1){ transform:translateY(7px) rotate(45deg); }
+.hamburger.open span:nth-child(2){ opacity:0; transform:scaleX(0); }
+.hamburger.open span:nth-child(3){ transform:translateY(-7px) rotate(-45deg); }
+
+/* Slide-down mobile menu */
+.mobile-menu{
+  display:none;
+  position:fixed;
+  top:60px;left:0;right:0;
+  background:var(--surface);
+  border-bottom:1px solid var(--border2);
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  z-index:1000;
+  padding:12px;
+  flex-direction:column;
+  gap:4px;
+  max-height:calc(100vh - 60px);
+  overflow-y:auto;
+}
+.mobile-menu.open{ display:flex; }
+.mobile-menu-section{
+  font-size:10px;font-weight:700;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;
+  padding:8px 10px 4px;
+}
+.mobile-nav-btn{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 14px;border-radius:8px;
+  font-size:14px;font-weight:600;color:var(--text);
+  background:transparent;border:none;cursor:pointer;
+  transition:background .15s;text-align:left;width:100%;
+}
+.mobile-nav-btn:hover,.mobile-nav-btn.active{
+  background:rgba(30,90,246,.12);color:var(--primary);
+}
+.mobile-action-btn{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 14px;border-radius:8px;
+  font-size:13px;font-weight:600;
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);cursor:pointer;transition:background .15s;
+  text-align:left;width:100%;
+}
+.mobile-action-btn:hover{ background:var(--border); }
+.mobile-menu-divider{
+  height:1px;background:var(--border);margin:6px 0;
+}
+/* Overlay backdrop */
+.mobile-menu-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.5);z-index:999;
+}
+.mobile-menu-overlay.open{ display:block; }
+
+@media(max-width:768px){
+  .hamburger{ display:flex; }
+  .main-nav{ display:none !important; }
+  .header-actions{ display:none !important; }
+  .platform-header{
+    padding:0 14px;
+    height:60px;
+    display:flex;align-items:center;
+    justify-content:space-between;
+  }
+  /* Make sections full width with less padding */
+  .section{ padding:12px; }
+  /* Lender table — horizontal scroll container */
+  .lender-results-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  /* Deal desk header row */
+  .deal-output-header{ font-size:11px; }
+  /* Tighten cards on mobile */
+  .card{ padding:14px; }
+  .card-title{ font-size:13px; }
+  /* Bigger tap targets on inputs */
+  input,select,textarea{ font-size:16px !important; } /* prevents iOS zoom */
+}
+
 @media print{
   .platform-header,.header-actions{display:none!important;}
   #section-lenders,#section-compare,#section-analytics,#section-inventory{display:none!important;}
@@ -510,6 +610,9 @@ select option{background:#0d1526;color:var(--text);}
     <button class="nav-btn compare-btn" onclick="showSection('compare',this)">⚡ Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)">📊 Analytics</button>
   </nav>
+  <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
   <div class="header-actions">
     <button class="hbtn" onclick="openPresentation()" style="background:linear-gradient(135deg,rgba(30,90,246,.2),rgba(245,158,11,.15));border-color:rgba(30,90,246,.4);color:white;font-weight:700;">🎯 Present</button>
     <button class="hbtn" onclick="saveDeal()">💾 Save</button>
@@ -519,6 +622,26 @@ select option{background:#0d1526;color:var(--text);}
     <button class="hbtn" onclick="openModal('settingsModal')">⚙️ Settings</button>
   </div>
 </header>
+
+<!-- ═══ MOBILE MENU ═══ -->
+<div class="mobile-menu-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-section">Navigate</div>
+  <button class="mobile-nav-btn" onclick="mobileNav('deal')">🗂️ Deal Desk</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('inventory')">📦 Inventory</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('lenders')">🏦 Lenders</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('sarah')">💬 Sarah AI</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('compare')">⚡ Compare All</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('analytics')">📊 Analytics</button>
+  <div class="mobile-menu-divider"></div>
+  <div class="mobile-menu-section">Actions</div>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()">🎯 Customer Presentation</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();saveDeal()">💾 Save Deal</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('emailModal')">📧 Email Worksheet</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('lenderRateModal');buildLenderRateEditor()">✏️ Edit Rates</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();toggleDarkMode()">☀️ Toggle Light/Dark</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('settingsModal')">⚙️ Settings</button>
+</div>
 
 <!-- ═══ DEAL DESK ═══ -->
 <section id="section-deal" class="section active">
@@ -3279,6 +3402,46 @@ async function loadVoicemails(){
     el.innerHTML = '<div style="padding:20px;color:var(--red);">❌ '+e.message+'</div>';
   }
 }
+
+
+// ── Mobile hamburger menu ─────────────────────────────────────────
+function toggleMobileMenu(){
+  const menu    = document.getElementById('mobileMenu');
+  const overlay = document.getElementById('mobileOverlay');
+  const btn     = document.getElementById('hamburgerBtn');
+  const isOpen  = menu.classList.contains('open');
+  if(isOpen){ closeMobileMenu(); }
+  else {
+    menu.classList.add('open');
+    overlay.classList.add('open');
+    btn.classList.add('open');
+    document.body.style.overflow = 'hidden'; // prevent scroll behind
+  }
+}
+
+function closeMobileMenu(){
+  document.getElementById('mobileMenu')?.classList.remove('open');
+  document.getElementById('mobileOverlay')?.classList.remove('open');
+  document.getElementById('hamburgerBtn')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function mobileNav(section){
+  closeMobileMenu();
+  showSection(section);
+  // Scroll to top so you see the section from the start
+  window.scrollTo({top:0, behavior:'smooth'});
+  // Update active state in mobile menu
+  document.querySelectorAll('.mobile-nav-btn').forEach(b=>{
+    b.classList.remove('active');
+    if(b.getAttribute('onclick')?.includes("'"+section+"'")) b.classList.add('active');
+  });
+}
+
+// Close menu on ESC key
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') closeMobileMenu();
+});
 
 // ── INIT ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
