@@ -593,6 +593,12 @@ select option{background:#0d1526;color:var(--text);}
   body{background:white;color:#000;}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if(typeof pdfjsLib !== 'undefined'){
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
 </head>
 <body>
 
@@ -1303,11 +1309,37 @@ select option{background:#0d1526;color:var(--text);}
 
 <!-- Lender Parser Modal -->
 <div class="modal-overlay" id="lenderParserModal" onclick="closeModalOutside(event,'lenderParserModal')">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:680px;">
     <button class="modal-close" onclick="closeModal('lenderParserModal')">×</button>
     <div class="modal-title">🏦 Lender Approval Parser</div>
-    <div class="fgroup"><label>Paste Lender Approval Text</label><textarea id="lenderText" rows="10" placeholder="Paste lender email or approval text here..." style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:monospace;font-size:12px;resize:vertical;"></textarea></div>
-    <button class="btn btn-primary" onclick="parseLender()">🔍 Parse Document</button>
+
+    <!-- PDF Drop Zone -->
+    <div id="pdfDropZone"
+      style="border:2px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;"
+      onclick="document.getElementById('pdfFileInput').click()"
+      ondrop="handleApprovalDrop(event)"
+      ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(30,90,246,.06)'"
+      ondragleave="this.style.borderColor='var(--border2)';this.style.background=''">
+      <div style="font-size:26px;margin-bottom:6px;">📄</div>
+      <div style="font-weight:700;font-size:13px;color:var(--text);">Drop DealerTrack PDF here</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">or click to browse · also accepts pasted text below</div>
+      <div id="pdfFileName" style="font-size:11px;color:var(--primary);margin-top:6px;font-weight:600;"></div>
+    </div>
+    <input type="file" id="pdfFileInput" accept=".pdf" style="display:none;" onchange="handleApprovalFile(event)">
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;">OR PASTE TEXT</div>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <div class="fgroup">
+      <textarea id="lenderText" rows="6"
+        placeholder="Paste lender approval text here..."
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical;"></textarea>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="parseLender()">🔍 Parse Document</button>
     <div id="lenderParseResults" style="margin-top:16px;"></div>
   </div>
 </div>
@@ -2495,45 +2527,188 @@ function copyText(id){
   navigator.clipboard.writeText(txt).then(()=>toast('📋 Copied!'));
 }
 
-// ── LENDER PARSER ─────────────────────────────────────
+// ── LENDER APPROVAL PARSER — DealerTrack Edition ──────────────────
+
+// PDF file handlers
+function handleApprovalDrop(e){
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border2)';
+  e.currentTarget.style.background  = '';
+  const file = e.dataTransfer.files[0];
+  if(file && file.type === 'application/pdf') loadApprovalPDF(file);
+  else toast('⚠️ Please drop a PDF file');
+}
+function handleApprovalFile(e){
+  const file = e.target.files[0];
+  if(file) loadApprovalPDF(file);
+}
+
+async function loadApprovalPDF(file){
+  const nameEl = document.getElementById('pdfFileName');
+  const textEl = document.getElementById('lenderText');
+  if(nameEl) nameEl.textContent = '⏳ Reading ' + file.name + '...';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    for(let i = 1; i <= pdf.numPages; i++){
+      const page    = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      fullText += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    textEl.value = fullText;
+    if(nameEl) nameEl.textContent = '✅ ' + file.name + ' loaded — click Parse';
+    toast('✅ PDF loaded — click Parse Document');
+  } catch(e){
+    if(nameEl) nameEl.textContent = '❌ Could not read PDF';
+    toast('❌ PDF read error: ' + e.message);
+    console.error('PDF parse error:', e);
+  }
+}
+
 function parseLender(){
-  const txt = document.getElementById('lenderText').value;
+  const txt    = document.getElementById('lenderText').value;
   const resDiv = document.getElementById('lenderParseResults');
-  if(!txt.trim()){resDiv.innerHTML='<div class="warning-box">Please paste lender approval text first.</div>';return;}
-  const patterns = {
-    approvedAmount:/(?:approved.*amount|advance|financing|amount approved).*?\$?([\d,]+(?:\.\d{2})?)/i,
-    rate:/(?:rate|apr|interest rate).*?(\d+\.?\d*)\s*%/i,
-    term:/(?:term).*?(\d+)\s*(?:month|mo)/i,
-    ltv:/(?:ltv|loan.*to.*value).*?(\d+)\s*%/i,
-    beacon:/(?:beacon|credit\s*score|fico|equifax).*?(\d{3})/i,
-    pti:/(?:pti|payment.*to.*income).*?(\d+\.?\d*)\s*%/i,
-    lender:/(?:lender|bank|from):\s*([A-Za-z\s&]+)/i
+  if(!txt.trim()){
+    resDiv.innerHTML = '<div class="warning-box">Drop a PDF or paste approval text first.</div>';
+    return;
+  }
+
+  // ── DealerTrack-specific extraction ────────────────────────────
+  const p = {};
+
+  // Status — the most important field
+  const statusM = txt.match(/this deal.{0,10}status is\s+([A-Z ]+?)(?:\s{2,}|Deal #|$)/i);
+  if(statusM) p.status = statusM[1].trim();
+
+  // Customer name
+  const custM = txt.match(/Customer Name[:\s]+([A-Z][A-Z\s\-]+?)(?:Co-Applicant|Last Modified|\n|  )/i);
+  if(custM) p.customerName = custM[1].trim();
+
+  // Lender
+  const lenderM = txt.match(/Lender[:\s]+([A-Za-z][A-Za-z\s&,]+?)(?:Lender Reference|Status|\n|  )/i)
+                || txt.match(/Lender:\s*([A-Za-z][A-Za-z\s&,]+)/i);
+  if(lenderM) p.lender = lenderM[1].replace(/Contract Type.*$/i,'').trim();
+
+  // Lender reference
+  const refM = txt.match(/Lender Reference #[:\s]+(\d+)/i);
+  if(refM) p.lenderRef = refM[1];
+
+  // Amount financed
+  const amtM = txt.match(/Amount\s*Financed[:\s]*\$?([\d,]+\.?\d*)/i);
+  if(amtM) p.amountFinanced = amtM[1].replace(/,/g,'');
+
+  // Rate
+  const rateM = txt.match(/Annual Interest Rate[:\s]*(\d+\.?\d*)/i)
+              || txt.match(/rate as low as\s*(\d+\.?\d*)%/i)
+              || txt.match(/(?:rate|apr)[:\s]*(\d+\.?\d*)%/i);
+  if(rateM) p.rate = rateM[1];
+
+  // Term
+  const termM = txt.match(/Term of Borrowing[:\s]*(\d+)/i)
+              || txt.match(/(?:term)[:\s]*(\d+)\s*(?:month|mo)/i);
+  if(termM) p.term = termM[1];
+
+  // Payment
+  const pmtM = txt.match(/Installment Payment[:\s]*\$?([\d,]+\.?\d*)/i)
+             || txt.match(/Max(?:imum)?\s*[Pp]ayment[:\s]*\$?([\d,]+)/i);
+  if(pmtM) p.payment = pmtM[1].replace(/,/g,'');
+
+  // Payment frequency
+  const freqM = txt.match(/Payment Frequency[:\s]*(Bi-Weekly|Monthly|Weekly|Bi-weekly)/i);
+  if(freqM) p.payFreq = freqM[1];
+
+  // Down payment
+  const downM = txt.match(/Down Payment[:\s]*\$?([\d,]+\.?\d*)/i);
+  if(downM) p.downPayment = downM[1].replace(/,/g,'');
+
+  // LTV
+  const ltvM = txt.match(/(\d+)%\s*max\s*LTV/i) || txt.match(/LTV[:\s]*(\d+)%/i);
+  if(ltvM) p.ltv = ltvM[1];
+
+  // Tier
+  const tierM = txt.match(/Tier\s*(\d+)/i);
+  if(tierM) p.tier = tierM[1];
+
+  // VIN
+  const vinM = txt.match(/VIN#[:\s]*([A-HJ-NPR-Z0-9]{17})/i);
+  if(vinM) p.vin = vinM[1];
+
+  // Vehicle model
+  const modelM = txt.match(/Model[:\s]*(20\d{2}[^\n]+?)(?:VIN|Odometer|  |\n)/i);
+  if(modelM) p.vehicle = modelM[1].trim();
+
+  // Key conditions — grab the deal-specific conditions block
+  const condM = txt.match(/DEAL SPECIFIC CONDITIONS[^*]*(.*?)(?:\*{3,}\s*STANDARD|$)/is);
+  if(condM) {
+    const rawCond = condM[1].replace(/\d{4}-\d{2}-\d{2}.*?\n/g,'').trim();
+    p.conditions = rawCond.substring(0, 400).trim();
+  }
+
+  // ── Render results ────────────────────────────────────────────
+  const statusColor = {
+    'APPROVED':             { bg:'rgba(16,185,129,.12)', border:'rgba(16,185,129,.3)', text:'var(--green)',  icon:'✅' },
+    'CONDITIONAL APPROVAL': { bg:'rgba(245,158,11,.1)',  border:'rgba(245,158,11,.3)', text:'var(--amber)', icon:'⚠️' },
+    'DECLINED':             { bg:'rgba(239,68,68,.1)',   border:'rgba(239,68,68,.3)',  text:'var(--red)',   icon:'❌' }
   };
-  const parsed={};
-  Object.entries(patterns).forEach(([k,p])=>{const m=txt.match(p);if(m)parsed[k]=m[1].replace(/,/g,'').trim();});
-  if(!Object.keys(parsed).length){resDiv.innerHTML='<div class="warning-box">⚠️ No recognizable fields found. Try different formatting.</div>';return;}
-  let html=`<div style="background:rgba(30,90,246,.08);border:1px solid var(--border2);border-radius:10px;padding:18px;">
-    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:12px;">🔍 Parsed Approval Data</div>`;
-  if(parsed.lender) html+=`<div class="cline"><span class="cl-label">Lender</span><span class="cl-value">${parsed.lender}</span></div>`;
-  if(parsed.approvedAmount) html+=`<div class="cline"><span class="cl-label">Approved Amount</span><span class="cl-value" style="color:var(--green);">$${parseFloat(parsed.approvedAmount).toLocaleString()}</span></div>`;
-  if(parsed.rate) html+=`<div class="cline"><span class="cl-label">Rate</span><span class="cl-value">${parsed.rate}%</span></div>`;
-  if(parsed.term) html+=`<div class="cline"><span class="cl-label">Term</span><span class="cl-value">${parsed.term} months</span></div>`;
-  if(parsed.ltv)  html+=`<div class="cline"><span class="cl-label">LTV</span><span class="cl-value">${parsed.ltv}%</span></div>`;
-  if(parsed.beacon) html+=`<div class="cline"><span class="cl-label">Beacon Score</span><span class="cl-value">${parsed.beacon}</span></div>`;
-  if(parsed.pti)  html+=`<div class="cline"><span class="cl-label">PTI</span><span class="cl-value">${parsed.pti}%</span></div>`;
-  html+=`<button class="btn btn-primary" style="margin-top:12px;" onclick='applyParsed(${JSON.stringify(parsed)})'>✅ Apply to Deal Desk</button></div>`;
-  resDiv.innerHTML=html;
-  toast('✅ Parsed!');
+  const sc = statusColor[p.status] || { bg:'rgba(30,90,246,.08)', border:'var(--border2)', text:'var(--primary)', icon:'🔍' };
+
+  const row = (label, val, color='') =>
+    val ? `<div class="cline"><span class="cl-label">${label}</span><span class="cl-value" ${color?`style="color:${color}"`:''}>${val}</span></div>` : '';
+
+  let html = `<div style="background:${sc.bg};border:2px solid ${sc.border};border-radius:10px;padding:18px;">`;
+
+  // Status banner
+  html += `<div style="font-size:15px;font-weight:800;color:${sc.text};margin-bottom:14px;letter-spacing:.5px;">${sc.icon} ${p.status || 'PARSED'}</div>`;
+
+  // Core fields
+  if(p.lender)       html += row('Lender', p.lender);
+  if(p.customerName) html += row('Customer', p.customerName);
+  if(p.lenderRef)    html += row('Lender Ref #', p.lenderRef);
+  if(p.vehicle)      html += row('Vehicle', p.vehicle);
+  if(p.vin)          html += row('VIN', `<span style="font-family:monospace;">${p.vin}</span>`);
+
+  html += `<div style="border-top:1px solid ${sc.border};margin:10px 0;"></div>`;
+
+  if(p.amountFinanced) html += row('Amount Financed', `$${parseFloat(p.amountFinanced).toLocaleString('en-CA',{minimumFractionDigits:2})}`, 'var(--green)');
+  if(p.rate)           html += row('Interest Rate', `${p.rate}%`, 'var(--amber)');
+  if(p.term)           html += row('Term', `${p.term} months`);
+  if(p.payment)        html += row('Approved Payment', `$${parseFloat(p.payment).toLocaleString()} / ${p.payFreq||'month'}`, 'var(--primary)');
+  if(p.downPayment)    html += row('Down Payment', `$${parseFloat(p.downPayment).toLocaleString()}`);
+  if(p.ltv)            html += row('Max LTV', `${p.ltv}%`);
+  if(p.tier)           html += row('Tier', `Tier ${p.tier}`);
+
+  // Conditions block
+  if(p.conditions){
+    html += `<div style="margin-top:12px;background:rgba(0,0,0,.15);border-radius:6px;padding:10px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">Deal Conditions</div>
+      <div style="font-size:11px;color:var(--text);line-height:1.6;white-space:pre-wrap;">${escapeHtml(p.conditions)}</div>
+    </div>`;
+  }
+
+  if(p.status !== 'DECLINED'){
+    html += `<button class="btn btn-primary btn-full" style="margin-top:14px;" onclick='applyParsed(${JSON.stringify(p)})'>✅ Apply to Deal Desk</button>`;
+  }
+
+  html += `</div>`;
+  resDiv.innerHTML = html;
+  toast(p.status === 'APPROVED' ? '✅ Approved!' : p.status === 'DECLINED' ? '❌ Declined' : '⚠️ Conditional');
 }
 
 function applyParsed(p){
-  if(p.rate)   setVal('apr',p.rate);
-  if(p.beacon) setVal('creditScore',p.beacon);
+  if(p.rate)           setVal('apr', p.rate);
+  if(p.term)           setVal('term', p.term);
+  if(p.customerName)   setVal('custName', p.customerName);
+  if(p.downPayment)    setVal('downPayment', p.downPayment);
+  if(p.vin)            setVal('vin', p.vin);
+  if(p.vehicle)        setVal('vehicleDesc', p.vehicle);
   calculate();
   closeModal('lenderParserModal');
-  showSection('deal',document.querySelector('.nav-btn'));
-  document.querySelector('.nav-btn').classList.add('active');
-  toast('✅ Applied to Deal Desk!');
+  showSection('deal');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.id === 'nav-deal' || b.getAttribute('onclick')?.includes("'deal'"));
+  });
+  toast('✅ Approval applied to Deal Desk!');
 }
 
 // ── SETTINGS ──────────────────────────────────────────
