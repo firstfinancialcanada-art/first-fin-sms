@@ -594,6 +594,110 @@ select option{background:#0d1526;color:var(--text);}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<!-- ═══ DT SYNC ═══ -->
+<section id="section-dtsync" class="section">
+<style>
+.dt-stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;}
+.dt-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;}
+.dt-stat .val{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--primary);line-height:1;}
+.dt-stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;}
+.dt-progress-bg{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:10px 0 6px;}
+.dt-progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--green));border-radius:4px;transition:width .4s;}
+.dt-feed{height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+.dt-feed-row{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px;animation:dtFade .3s ease;}
+.dt-feed-row:last-child{border-bottom:none;}
+@keyframes dtFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.dt-feed-name{font-weight:600;}
+.dt-feed-detail{color:var(--muted);font-size:11px;}
+.dt-badge-src{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,.15);color:var(--green);font-weight:700;white-space:nowrap;}
+.dt-badge-co{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.dt-log{height:260px;overflow-y:auto;background:#040810;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Courier New',monospace;font-size:11px;}
+.dt-log-line{color:#7dd3fc;line-height:1.7;white-space:pre-wrap;}
+.dt-log-line.ok{color:#86efac;}
+.dt-log-line.err{color:#fca5a5;}
+.dt-setup{background:rgba(30,90,246,.07);border:1px solid rgba(30,90,246,.25);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;line-height:1.8;}
+.dt-setup strong{color:#93c5fd;}
+.dt-setup code{background:rgba(30,90,246,.15);padding:1px 7px;border-radius:4px;font-size:11px;color:#c4b5fd;}
+.dt-bridge-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;}
+.dt-dot{width:10px;height:10px;border-radius:50%;background:#374151;flex-shrink:0;}
+.dt-dot.green{background:#10b981;box-shadow:0 0 8px #10b981;}
+.dt-dot.red{background:#ef4444;box-shadow:0 0 8px #ef4444;}
+.dt-dot.yellow{background:#f59e0b;box-shadow:0 0 8px #f59e0b;}
+.dt-bridge-label{display:flex;align-items:center;gap:10px;font-size:13px;}
+.dt-ctrl-row{display:flex;gap:8px;flex-wrap:wrap;}
+.dt-btn{padding:8px 18px;border-radius:7px;border:none;cursor:pointer;font-weight:700;font-size:12px;font-family:'Outfit',sans-serif;transition:opacity .15s;}
+.dt-btn:disabled{opacity:.35;cursor:not-allowed;}
+.dt-btn.start{background:var(--green);color:#000;}
+.dt-btn.stop{background:var(--red);color:#fff;}
+.dt-btn.crm{background:var(--primary);color:#fff;}
+.dt-btn.export{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.dt-btn.clear{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+.dt-crm-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#000;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;z-index:9999;display:none;}
+</style>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;background:linear-gradient(90deg,#10b981,#1e5af6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">DT SYNC</div>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Dealertrack Auto-Scraper &middot; Pushes directly to CRM</div>
+  </div>
+</div>
+
+<div class="dt-setup" id="dt-setup-box">
+  <strong>One-time setup:</strong><br>
+  1. Install: <code>pip install playwright flask flask-cors &amp;&amp; python -m playwright install chromium</code><br>
+  2. Open Chrome: <code>chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\chrome-dt-session"</code><br>
+  3. Log into Dealertrack &rarr; go to <strong>Status</strong> page<br>
+  4. In a second terminal: <code>python dealertrack_scraper.py</code><br>
+  5. Click <strong>Start Scraper</strong> below
+</div>
+
+<div class="dt-bridge-row">
+  <div class="dt-bridge-label">
+    <div class="dt-dot" id="dt-dot"></div>
+    <span id="dt-bridge-label">Checking bridge on localhost:5001...</span>
+  </div>
+  <div class="dt-ctrl-row">
+    <button class="dt-btn start" id="dt-btn-start" onclick="dtStart()" disabled>&#9654; Start Scraper</button>
+    <button class="dt-btn stop"  id="dt-btn-stop"  onclick="dtStop()"  disabled>&#9209; Stop</button>
+    <button class="dt-btn crm"   id="dt-btn-crm"   onclick="dtPushCRM()" disabled>&#128101; Push to CRM</button>
+    <button class="dt-btn export" onclick="dtExportCSV()">&#8595; CSV</button>
+    <button class="dt-btn clear"  onclick="dtClear()">&#128465; Clear</button>
+  </div>
+</div>
+
+<div class="card" style="padding:16px 20px;margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+    <span id="dt-prog-label">Waiting to start...</span>
+    <span id="dt-prog-pct" style="font-weight:700;color:var(--primary);">0%</span>
+  </div>
+  <div class="dt-progress-bg"><div class="dt-progress-fill" id="dt-prog-fill" style="width:0%"></div></div>
+  <div style="font-size:11px;color:var(--muted);" id="dt-prog-msg">&mdash;</div>
+</div>
+
+<div class="dt-stat-row">
+  <div class="dt-stat"><div class="val" id="dt-s-total">0</div><div class="lbl">Contacts</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-deals">0</div><div class="lbl">Deals Done</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-remain">&mdash;</div><div class="lbl">Remaining</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-crm" style="color:var(--green);">0</div><div class="lbl">In CRM</div></div>
+</div>
+
+<div class="two-col" style="margin-bottom:16px;">
+  <div>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Captured Contacts</div>
+    <div class="dt-feed" id="dt-feed">
+      <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;" id="dt-feed-empty">No contacts yet</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Live Log</div>
+    <div class="dt-log" id="dt-log"><div class="dt-log-line">Waiting for bridge on localhost:5001...</div></div>
+  </div>
+</div>
+
+<div class="dt-crm-toast" id="dt-crm-toast"></div>
+</section>
+
 <script>
   if(typeof pdfjsLib !== 'undefined'){
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -615,6 +719,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah">💬 SARAH</button>
     <button class="nav-btn compare-btn" onclick="showSection('compare',this)">⚡ Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)">📊 Analytics</button>
+    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);">📥 DT Sync</button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -639,6 +744,7 @@ select option{background:#0d1526;color:var(--text);}
   <button class="mobile-nav-btn" onclick="mobileNav('sarah')">💬 Sarah AI</button>
   <button class="mobile-nav-btn" onclick="mobileNav('compare')">⚡ Compare All</button>
   <button class="mobile-nav-btn" onclick="mobileNav('analytics')">📊 Analytics</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('dtsync')">📥 DT Sync</button>
   <div class="mobile-menu-divider"></div>
   <div class="mobile-menu-section">Actions</div>
   <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()">🎯 Customer Presentation</button>
@@ -4097,6 +4203,182 @@ calculate = function(){
   calcCommission();
 };
 
+</script>
+
+<script>
+(function(){
+  var BRIDGE='http://localhost:5001';
+  var dtContacts=[];
+  var dtCRMCount=0;
+  var dtLogCount=0;
+  var dtPollTimer=null;
+  var dtOnline=false;
+
+  function dtLog(msg){
+    var box=document.getElementById('dt-log');
+    if(!box)return;
+    var d=document.createElement('div');
+    d.className='dt-log-line'+(msg.indexOf('Error')>-1||msg.indexOf('❌')>-1?' err':msg.indexOf('💾')>-1||msg.indexOf('✅')>-1?' ok':'');
+    d.textContent=msg;
+    box.appendChild(d);
+    box.scrollTop=box.scrollHeight;
+  }
+
+  function dtSetDot(color,label){
+    var dot=document.getElementById('dt-dot');
+    var lbl=document.getElementById('dt-bridge-label');
+    if(dot)dot.className='dt-dot '+color;
+    if(lbl)lbl.textContent=label;
+  }
+
+  async function dtPing(){
+    try{
+      var r=await fetch(BRIDGE+'/ping',{signal:AbortSignal.timeout(2000)});
+      var d=await r.json();
+      if(d.ok){
+        dtOnline=true;
+        dtSetDot('green','Bridge connected — ready');
+        document.getElementById('dt-btn-start').disabled=false;
+        var sb=document.getElementById('dt-setup-box');
+        if(sb)sb.style.display='none';
+      }
+    }catch(e){
+      dtOnline=false;
+      dtSetDot('red','Bridge offline — run dealertrack_scraper.py first');
+      document.getElementById('dt-btn-start').disabled=true;
+    }
+  }
+
+  async function dtPoll(){
+    if(!dtOnline){dtPing();return;}
+    try{
+      var sr=await fetch(BRIDGE+'/status',{signal:AbortSignal.timeout(2000)});
+      var s=await sr.json();
+      var pct=s.total_rows>0?Math.round((s.current_row/s.total_rows)*100):0;
+      document.getElementById('dt-prog-fill').style.width=pct+'%';
+      document.getElementById('dt-prog-pct').textContent=pct+'%';
+      document.getElementById('dt-prog-label').textContent=s.total_rows>0?'Row '+s.current_row+' of '+s.total_rows:'Waiting...';
+      document.getElementById('dt-prog-msg').textContent=s.status_msg||'';
+      document.getElementById('dt-s-total').textContent=s.total_saved||0;
+      document.getElementById('dt-s-deals').textContent=s.current_row||0;
+      document.getElementById('dt-s-remain').textContent=s.total_rows>0?(s.total_rows-s.current_row):'—';
+      document.getElementById('dt-btn-start').disabled=s.running;
+      document.getElementById('dt-btn-stop').disabled=!s.running;
+      if(s.running){dtSetDot('yellow','Running — Deal #'+(s.current_deal||'...'));}
+      else if(s.total_saved>0){dtSetDot('green','Done — '+s.total_saved+' contacts captured');}
+      if(s.log&&s.log.length>dtLogCount){s.log.slice(dtLogCount).forEach(function(l){dtLog(l);});dtLogCount=s.log.length;}
+      var cr=await fetch(BRIDGE+'/contacts',{signal:AbortSignal.timeout(2000)});
+      var contacts=await cr.json();
+      if(contacts.length>dtContacts.length){
+        var newOnes=contacts.slice(dtContacts.length);
+        dtContacts=contacts;
+        newOnes.forEach(function(c){
+          var empty=document.getElementById('dt-feed-empty');
+          if(empty)empty.remove();
+          var feed=document.getElementById('dt-feed');
+          var row=document.createElement('div');
+          row.className='dt-feed-row';
+          var name=((c.first_name||'')+' '+(c.last_name||'')).trim()||'Unknown';
+          var phone=c.mobile_phone||c.phone||'—';
+          var email=c.email||'—';
+          var isCo=c.applicant_type==='CO-APPLICANT';
+          row.innerHTML='<div><div class="dt-feed-name">'+name+'</div><div class="dt-feed-detail">'+phone+'</div><div class="dt-feed-detail">'+email+'</div></div>'
+            +'<span class="dt-badge-src'+(isCo?' dt-badge-co':'')+'">'+(isCo?'CO':'PRIMARY')+'</span>';
+          feed.prepend(row);
+        });
+        document.getElementById('dt-btn-crm').disabled=(dtContacts.length===0);
+      }
+    }catch(e){
+      dtOnline=false;
+      dtSetDot('red','Bridge connection lost');
+    }
+  }
+
+  window.dtStart=async function(){
+    try{
+      dtLogCount=0;
+      document.getElementById('dt-log').innerHTML='';
+      var r=await fetch(BRIDGE+'/start',{method:'POST'});
+      var d=await r.json();
+      if(!d.ok)alert(d.msg);
+    }catch(e){alert('Could not reach bridge. Make sure dealertrack_scraper.py is running.');}
+  };
+
+  window.dtStop=async function(){
+    try{await fetch(BRIDGE+'/stop',{method:'POST'});}catch(e){}
+  };
+
+  window.dtClear=async function(){
+    if(!confirm('Clear all captured contacts?'))return;
+    try{
+      await fetch(BRIDGE+'/clear',{method:'POST'});
+      dtContacts=[];dtLogCount=0;dtCRMCount=0;
+      document.getElementById('dt-feed').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;" id="dt-feed-empty">No contacts yet</div>';
+      document.getElementById('dt-log').innerHTML='';
+      document.getElementById('dt-s-crm').textContent='0';
+      document.getElementById('dt-s-total').textContent='0';
+      document.getElementById('dt-btn-crm').disabled=true;
+    }catch(e){}
+  };
+
+  window.dtExportCSV=function(){
+    if(!dtContacts.length){alert('No contacts to export yet.');return;}
+    var fields=['first_name','last_name','phone','mobile_phone','email','address_no','street_name','city','province','postal_code','deal_number','lender','status','source','captured_at'];
+    var rows=[fields.join(',')];
+    dtContacts.forEach(function(c){rows.push(fields.map(function(f){return '"'+((c[f]||'').toString().replace(/"/g,'""'))+'"';}).join(','));});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+    a.download='dt_contacts_'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click();
+  };
+
+  window.dtPushCRM=function(){
+    if(!dtContacts.length){alert('No contacts to push.');return;}
+    var pushed=0;
+    dtContacts.forEach(function(c){
+      var name=((c.first_name||'')+' '+(c.last_name||'')).trim();
+      if(!name)return;
+      var exists=crmData.some(function(e){return e.name===name&&e.vehicle&&e.vehicle.indexOf('DT Scrape')>-1&&e.vehicle.indexOf(c.deal_number)>-1;});
+      if(exists)return;
+      crmData.unshift({
+        id:Date.now()+Math.random(),
+        date:new Date().toLocaleDateString('en-CA'),
+        name:name,
+        phone:c.mobile_phone||c.phone||'',
+        email:c.email||'',
+        vehicle:'DT Scrape'+(c.lender?' | '+c.lender:'')+(c.deal_number?' | #'+c.deal_number:''),
+        stock:'',
+        beacon:'',
+        status:'Lead'
+      });
+      pushed++;
+    });
+    if(pushed>0){
+      localStorage.setItem('ffCRM',JSON.stringify(crmData));
+      renderCRM();
+      dtCRMCount+=pushed;
+      document.getElementById('dt-s-crm').textContent=dtCRMCount;
+      var t=document.getElementById('dt-crm-toast');
+      t.textContent=pushed+' contacts pushed to CRM!';
+      t.style.display='block';
+      setTimeout(function(){t.style.display='none';},3000);
+      if(typeof toast==='function')toast(pushed+' DT contacts added to CRM!');
+    }else{
+      if(typeof toast==='function')toast('All contacts already in CRM');
+    }
+  };
+
+  function dtInit(){
+    dtPing();
+    if(!dtPollTimer)dtPollTimer=setInterval(dtPoll,1500);
+  }
+
+  var _origShow=window.showSection;
+  window.showSection=function(id,btn){
+    _origShow(id,btn);
+    if(id==='dtsync')dtInit();
+  };
+})();
 </script>
 </body>
 </html>
