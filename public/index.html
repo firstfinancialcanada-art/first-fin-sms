@@ -770,13 +770,33 @@ select option{background:#0d1526;color:var(--text);}
             <input type="number" id="gstRate" value="5" step="0.1" oninput="calculate()">
           </div>
         </div>
-        <div class="fgroup">
-          <label>GST Amount</label>
-          <input type="text" id="gstAmount" readonly>
+        <div class="two-col">
+          <div class="fgroup">
+            <label>GST Amount</label>
+            <input type="text" id="gstAmount" readonly>
+          </div>
+          <div class="fgroup">
+            <label style="display:flex;align-items:center;gap:6px;">
+              Final Down Payment ($)
+              <span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);border-radius:3px;padding:1px 5px;letter-spacing:.5px;">CHOSEN</span>
+            </label>
+            <input type="number" id="finalDown" value="0" placeholder="0" oninput="calculate()"
+              style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04);">
+          </div>
         </div>
         <div class="otd-box">
           <div class="otd-label">Total Out-the-Door</div>
           <div class="otd-amount" id="totalOTD">$0.00</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <div style="flex:1;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--amber);text-transform:uppercase;">Down Payment</div>
+            <div style="font-size:18px;font-weight:800;color:var(--amber);margin-top:2px;" id="finalDownDisplay">$0</div>
+          </div>
+          <div style="flex:1;background:rgba(30,90,246,.07);border:1px solid rgba(30,90,246,.25);border-radius:8px;padding:10px 14px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--primary);text-transform:uppercase;">Amount to Finance</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px;" id="financeAmountDisplay">$0</div>
+          </div>
         </div>
         <button class="btn btn-bridge" style="width:100%;margin-top:12px;" onclick="bridgeToCompare()">⚡ CHECK ALL LENDERS FOR THIS DEAL</button>
       </div>
@@ -1996,15 +2016,26 @@ function calculate(){
   const gstAmt   = (price + doc - netTrade) * (gst/100);
   const otd      = price + doc - netTrade + gstAmt;
 
+  const finalDown = parseFloat(document.getElementById('finalDown').value)||0;
+
   document.getElementById('gstAmount').value = $f(gstAmt);
   document.getElementById('totalOTD').textContent = $f(otd);
+
+  // Update final down / finance amount summary boxes
+  const finAmt = Math.max(0, otd - finalDown);
+  const fdEl = document.getElementById('finalDownDisplay');
+  const faEl = document.getElementById('financeAmountDisplay');
+  if(fdEl) fdEl.textContent = '$' + finalDown.toLocaleString();
+  if(faEl) faEl.textContent = '$' + Math.round(finAmt).toLocaleString();
 
   const mr = apr/100/12;
   const downs = [0,2000,5000];
   const terms = [48,60,72,84];
   let html = '';
+  // Highlight the row matching finalDown if it matches one of the preset rows
   downs.forEach(down=>{
-    html += '<tr>';
+    const isChosen = finalDown > 0 && Math.abs(down - finalDown) < 1;
+    html += `<tr${isChosen?' style="background:rgba(245,158,11,.08);"':''}>`;
     html += `<td><strong style="color:var(--text);">$${down.toLocaleString()}</strong></td>`;
     terms.forEach(t=>{
       const fin = otd - down;
@@ -2013,6 +2044,17 @@ function calculate(){
     });
     html += '</tr>';
   });
+  // Final down row — shows chosen deal structure payment
+  if(finalDown > 0 && ![0,2000,5000].includes(finalDown)){
+    html += `<tr style="background:rgba(245,158,11,.1);outline:1px solid rgba(245,158,11,.3);">`;
+    html += `<td><strong style="color:var(--amber);">$${finalDown.toLocaleString()} ★</strong></td>`;
+    [48,60,72,84].forEach(t=>{
+      const fin = Math.max(0, otd - finalDown);
+      const pmt = PMT(mr,t,-fin);
+      html += `<td class="payment-val" style="color:var(--amber);font-weight:800;">${$f(pmt)}</td>`;
+    });
+    html += '</tr>';
+  }
   html += `<tr>
     <td><input type="number" id="customDown" placeholder="Custom $" style="width:100%;padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-weight:700;text-align:center;" oninput="calcCustom()"></td>
     <td class="payment-val" id="c48">—</td><td class="payment-val" id="c60">—</td>
@@ -2447,7 +2489,7 @@ function getDealData(){
   return {
     ts:new Date().toISOString(),
     vehicle:{stock:getVal('stockNum'),desc:getVal('vehicleDesc'),vin:getVal('vin'),km:getVal('odometer'),condition:getVal('condition'),type:getVal('vehicleType')},
-    financial:{price:getVal('sellingPrice'),doc:getVal('docFee'),tAllow:getVal('tradeAllow'),tPayoff:getVal('tradePayoff'),apr:getVal('apr'),gst:getVal('gstRate')},
+    financial:{price:getVal('sellingPrice'),finalDown:getVal('finalDown')||'0',doc:getVal('docFee'),tAllow:getVal('tradeAllow'),tPayoff:getVal('tradePayoff'),apr:getVal('apr'),gst:getVal('gstRate')},
     products:{vscPrice:getVal('vscPrice'),vscCost:getVal('vscCost'),gapPrice:getVal('gapPrice'),gapCost:getVal('gapCost'),twPrice:getVal('twPrice'),twCost:getVal('twCost'),waPrice:getVal('waPrice'),waCost:getVal('waCost')},
     customer:{name:getVal('custName'),phone:getVal('custPhone'),email:getVal('custEmail'),beacon:getVal('creditScore'),income:getVal('monthlyIncome')},
     costs:{acv:getVal('unitAcv'),recon:getVal('recon'),pack:getVal('lotPack')}
@@ -2699,7 +2741,7 @@ function applyParsed(p){
   if(p.rate)           setVal('apr', p.rate);
   if(p.term)           setVal('term', p.term);
   if(p.customerName)   setVal('custName', p.customerName);
-  if(p.downPayment)    setVal('downPayment', p.downPayment);
+  if(p.downPayment)    setVal('finalDown', p.downPayment);
   if(p.vin)            setVal('vin', p.vin);
   if(p.vehicle)        setVal('vehicleDesc', p.vehicle);
   calculate();
@@ -3746,21 +3788,19 @@ function openPresentation(){
   const terms = [60, 72, 84];
 
   // Show 72 month no-money-down as featured card, others around it
+  const finalDown = parseFloat(document.getElementById('finalDown')?.value)||0;
   let cardsHTML = '';
-  // Card for each term at $0 down, then one featured and smaller ones
-  const combos = [
-    {term:60, down:0}, {term:72, down:0}, {term:84, down:0}
-  ];
-  combos.forEach(({term, down}) => {
-    const fin = finance - down;
+  const featured_term = 72;
+  [60, 72, 84].forEach(term => {
+    const fin = Math.max(0, finance - finalDown);
     const pmt = PMT(mr, term, -fin);
-    const featured = term === 72 && down === 0;
+    const featured = term === featured_term;
     cardsHTML += `
     <div class="pres-pmt-card ${featured?'featured':''}">
       <div class="pres-term">${term} MONTHS</div>
       <div class="pres-amount">${$f(pmt)}</div>
       <div class="pres-monthly">/month</div>
-      ${down>0?`<div class="pres-down-note">$${down.toLocaleString()} down</div>`:'<div class="pres-obo">No money down</div>'}
+      ${finalDown>0?`<div class="pres-down-note">$${finalDown.toLocaleString()} down</div>`:'<div class="pres-obo">No money down</div>'}
     </div>`;
   });
 
