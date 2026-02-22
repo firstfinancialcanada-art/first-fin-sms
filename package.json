@@ -1,16 +1,20 @@
 {
   "name": "firstfin-platform",
-  "version": "1.0.0",
-  "description": "FIRST-FIN Dealer Platform \u2014 Unified Deal Desk + Sarah AI SMS",
+  "version": "1.1.0",
+  "description": "FIRST-FIN Dealer Platform — Unified Deal Desk + Sarah AI SMS + Cloud Sync",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "migrate": "node setup-database.js && node setup-database-v2.js",
+    "seed": "node seed-inventory.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
     "node-fetch": "^2.7.0",
     "nodemailer": "^6.9.7",
     "pg": "^8.11.3",

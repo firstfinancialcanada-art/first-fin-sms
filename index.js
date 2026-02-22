@@ -5,6 +5,9 @@ const twilio = require('twilio');
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Phase 1: Auth + Cloud Sync
+const deskRoutes = require('./routes/desk');
+
 const app = express();
 
 // Single Twilio client instance (not recreated per request)
@@ -2813,6 +2816,10 @@ app.post('/api/voice/campaign-v2', async (req, res) => {
 });
 
 // ── END VOICE SYSTEM ──────────────────────────────────────────────
+
+// ── PHASE 1: DESK AUTH + CLOUD SYNC ROUTES ──────────────────────
+deskRoutes(app, pool);
+
 app.listen(PORT, HOST, () => {
   console.log(`✅ FIRST-FIN PLATFORM v1.0 — Port ${PORT}`);
   console.log(`🌐 Open: http://localhost:${PORT}`);
