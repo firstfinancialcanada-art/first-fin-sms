@@ -130,10 +130,14 @@
       window.dealLog.length = 0;
       (data.dealLog || []).forEach(d => window.dealLog.push(d));
     }
-    if (typeof window.inventory !== 'undefined') {
-      window.inventory.length = 0;
-      (data.inventory || []).forEach(v => window.inventory.push(v));
-    }
+    window.ffInventory = data.inventory || [];
+    window.inventory = data.inventory || [];
+    _rawSet('ffInventory', JSON.stringify(data.inventory || []));
+    if (Array.isArray(window.inventory)) {
+     window.inventory.length = 0;
+     (data.inventory || []).forEach(v => window.inventory.push(v));
+}
+
     if (typeof window.scenarios !== 'undefined') {
       const sc = data.scenarios || [null, null, null];
       window.scenarios[0] = sc[0];
@@ -255,7 +259,7 @@
   function _triggerRenders() {
     try {
       // Re-render all sections with cloud data
-      if (typeof renderInventory === 'function' && window.inventory) renderInventory(window.inventory);
+      if (typeof renderInventory === 'function') renderInventory(window.ffInventory || window.inventory || []);
       if (typeof renderCRM === 'function') renderCRM();
       if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
       if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
