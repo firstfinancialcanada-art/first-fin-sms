@@ -268,12 +268,24 @@ if (typeof window.inventory !== 'undefined' && Array.isArray(window.inventory)) 
       if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
       if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
       if (typeof updateScenarioButtons === 'function') updateScenarioButtons();
+      // SAFE vehicle dropdown (no auto-fill interference)  
+if (document.getElementById('stockNum') && window.ffInventory?.length) {
+  const stockDropdown = document.getElementById('stockNum');
+  stockDropdown.innerHTML = '<option>— Select Stock # —</option>';
+  window.ffInventory.forEach((car, idx) => {
+    const display = `${car.year || '?'} ${car.make || '?'} ${car.model || '?'} ($${car.price || 'No price'})`;
+    stockDropdown.appendChild(new Option(display, idx));
+  });
+  console.log('✅ Vehicle dropdown auto-populated:', window.ffInventory.length, 'vehicles');
+}
+
+    
       // Update settings display if it exists
       if (typeof populateSettingsForm === 'function') populateSettingsForm();
     } catch (e) {
       console.warn('⚠️ Post-login render:', e.message);
     }
-  }
+  
 
   // ── INIT ───────────────────────────────────────────────
   async function _init() {
