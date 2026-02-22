@@ -130,13 +130,16 @@
       window.dealLog.length = 0;
       (data.dealLog || []).forEach(d => window.dealLog.push(d));
     }
-    window.ffInventory = data.inventory || [];
-    window.inventory = data.inventory || [];
-    _rawSet('ffInventory', JSON.stringify(data.inventory || []));
-    if (Array.isArray(window.inventory)) {
-     window.inventory.length = 0;
-     (data.inventory || []).forEach(v => window.inventory.push(v));
+const _inv = [...(data.inventory || [])];
+window.ffInventory = _inv;
+_rawSet('ffInventory', JSON.stringify(_inv));
+if (typeof window.inventory !== 'undefined' && Array.isArray(window.inventory)) {
+  window.inventory.length = 0;
+  _inv.forEach(v => window.inventory.push(v));
+} else {
+  window.inventory = [..._inv];
 }
+
 
     if (typeof window.scenarios !== 'undefined') {
       const sc = data.scenarios || [null, null, null];
