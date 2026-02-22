@@ -4,7 +4,7 @@
   "description": "FIRST-FIN Dealer Platform — Unified Deal Desk + Sarah AI SMS + Cloud Sync",
   "main": "index.js",
   "scripts": {
-    "start": "node setup-database-v2.js && node index.js"
+    "start": "node index.js"
     "dev": "nodemon index.js",
     "migrate": "node setup-database.js && node setup-database-v2.js",
     "seed": "node seed-inventory.js"
