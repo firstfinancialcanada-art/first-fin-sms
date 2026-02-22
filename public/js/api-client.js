@@ -268,7 +268,7 @@ if (typeof window.inventory !== 'undefined' && Array.isArray(window.inventory)) 
       if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
       if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
       if (typeof updateScenarioButtons === 'function') updateScenarioButtons();
-      // SAFE vehicle dropdown (no auto-fill interference)  
+   // SAFE vehicle dropdown + auto-price fill
 if (document.getElementById('stockNum') && window.ffInventory?.length) {
   const stockDropdown = document.getElementById('stockNum');
   stockDropdown.innerHTML = '<option>— Select Stock # —</option>';
@@ -276,8 +276,22 @@ if (document.getElementById('stockNum') && window.ffInventory?.length) {
     const display = `${car.year || '?'} ${car.make || '?'} ${car.model || '?'} ($${car.price || 'No price'})`;
     stockDropdown.appendChild(new Option(display, idx));
   });
-  console.log('✅ Vehicle dropdown auto-populated:', window.ffInventory.length, 'vehicles');
+  
+  // Auto-fill price on select
+  stockDropdown.addEventListener('change', function() {
+    const idx = parseInt(this.value);
+    const car = window.ffInventory?.[idx];
+    if (car && document.getElementById('sellingPrice')) {
+      document.getElementById('sellingPrice').value = car.price;
+      document.getElementById('sellingPrice').dispatchEvent(new Event('input', {bubbles: true}));
+      document.getElementById('sellingPrice').dispatchEvent(new Event('change', {bubbles: true}));
+      console.log('💰 Auto-filled price:', car.price);
+    }
+  });
+  console.log('✅ Vehicle dropdown + auto-price ready');
 }
+
+
 
     
       // Update settings display if it exists
