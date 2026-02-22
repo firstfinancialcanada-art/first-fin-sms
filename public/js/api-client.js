@@ -260,20 +260,41 @@ if (typeof window.inventory !== 'undefined' && Array.isArray(window.inventory)) 
 
   // ── POST-LOGIN RENDER ──────────────────────────────────
   function _triggerRenders() {
-    try {
-      // Re-render all sections with cloud data
-      if (typeof renderInventory === 'function') renderInventory(window.ffInventory || window.inventory || []);
-      if (typeof renderCRM === 'function') renderCRM();
-      if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
-      if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
-      if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
-      if (typeof updateScenarioButtons === 'function') updateScenarioButtons();
-      // Update settings display if it exists
-      if (typeof populateSettingsForm === 'function') populateSettingsForm();
-    } catch (e) {
-      console.warn('⚠️ Post-login render:', e.message);
+  try {
+    if (typeof renderInventory === 'function') renderInventory(window.ffInventory || window.inventory || []);
+    if (typeof renderCRM === 'function') renderCRM();
+    if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
+    if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
+    if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+    if (typeof updateScenarioButtons === 'function') updateScenarioButtons();
+    
+    // SAFE vehicle dropdown + auto-price fill
+    if (document.getElementById('stockNum') && window.ffInventory?.length) {
+      const stockDropdown = document.getElementById('stockNum');
+      stockDropdown.innerHTML = '<option>— Select Stock # —</option>';
+      window.ffInventory.forEach((car, idx) => {
+        const display = `${car.year || '?'} ${car.make || '?'} ${car.model || '?'} ($${car.price || 'No price'})`;
+        stockDropdown.appendChild(new Option(display, idx));
+      });
+      
+      stockDropdown.addEventListener('change', function() {
+        const idx = parseInt(this.value);
+        const car = window.ffInventory?.[idx];
+        if (car && document.getElementById('sellingPrice')) {
+          document.getElementById('sellingPrice').value = car.price;
+          document.getElementById('sellingPrice').dispatchEvent(new Event('input', {bubbles: true}));
+          document.getElementById('sellingPrice').dispatchEvent(new Event('change', {bubbles: true}));
+          console.log('💰 Auto-filled price:', car.price);
+        }
+      });
+      console.log('✅ Vehicle dropdown + auto-price ready');
     }
+    
+  } catch (e) {  // ← } ADDED HERE 👈
+    console.warn('⚠️ Post-login render:', e.message);
   }
+}
+
 
 
 
