@@ -1,18 +1,11 @@
 // ============================================================
 // public/js/api-client.js — FIRST-FIN Cloud Sync Client
 // ============================================================
-// This script:
-// 1. Shows login overlay until authenticated
-// 2. Loads all desk data from API on login
-// 3. Populates localStorage so existing UI code works unchanged
-// 4. Shims localStorage.setItem to auto-sync changes back to API
-// 5. Manages JWT tokens with auto-refresh
-// ============================================================
 
 (function () {
   'use strict';
 
-  const API_BASE = '';  // Same origin
+  const API_BASE = '';
   let _accessToken = sessionStorage.getItem('ff_access') || null;
   let _refreshToken = sessionStorage.getItem('ff_refresh') || null;
   let _user = null;
@@ -22,10 +15,7 @@
   async function apiFetch(path, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
     if (_accessToken) headers['Authorization'] = 'Bearer ' + _accessToken;
-
     let res = await fetch(API_BASE + path, { ...opts, headers });
-
-    // Auto-refresh on 401
     if (res.status === 401 && _refreshToken) {
       const refreshed = await _tryRefresh();
       if (refreshed) {
@@ -74,7 +64,6 @@
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Login failed');
-
     _accessToken = data.accessToken;
     _refreshToken = data.refreshToken;
     _user = data.user;
@@ -91,7 +80,6 @@
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Registration failed');
-
     _accessToken = data.accessToken;
     _refreshToken = data.refreshToken;
     _user = data.user;
@@ -106,25 +94,32 @@
     if (!res.ok) throw new Error('Failed to load data');
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Load failed');
-// Inside async function loadAllData() ...
-if (data.inventory) {
-  // 1. Create the new redundant variables you requested
-  window.ffInventory = data.inventory;
-  window.inventory = data.inventory;
-  
-  // 2. Sync to localStorage using the raw setter to bypass the sync shim
-  _rawSet('ffInventory', JSON.stringify(data.inventory));
-  
-  console.log(`📦 Loaded ${data.inventory.length} vehicles from desk_inventory.`);
-}
-    // Populate localStorage for existing UI code
-    _rawSet('ffSettings', JSON.stringify(data.settings || {}));
-    _rawSet('ffCRM', JSON.stringify(data.crm || []));
-    _rawSet('ffDealLog', JSON.stringify(data.dealLog || []));
-    _rawSet('ffLenderRates', JSON.stringify(data.lenderRates || {}));
-    _rawSet('ffScenarios', JSON.stringify(data.scenarios || [null, null, null]));
 
-    // Populate global JS variables that the UI reads directly
+    // ── INVENTORY — single clean block, no conflicts ─────
+    if (Array.isArray(data.inventory)) {
+      // Always set ffInventory as fresh reference
+      window.ffInventory = data.inventory;
+
+      // If UI pre-declared window.inventory as reactive array, mutate in-place
+      // Otherwise just assign it
+      if (Array.isArray(window.inventory)) {
+        window.inventory.length = 0;
+        data.inventory.forEach(v => window.inventory.push(v));
+      } else {
+        window.inventory = [...data.inventory];
+      }
+
+      _rawSet('ffInventory', JSON.stringify(data.inventory));
+      console.log(`📦 Loaded ${data.inventory.length} vehicles from desk_inventory.`);
+    }
+
+    // ── ALL OTHER DATA ───────────────────────────────────
+    _rawSet('ffSettings',    JSON.stringify(data.settings    || {}));
+    _rawSet('ffCRM',         JSON.stringify(data.crm         || []));
+    _rawSet('ffDealLog',     JSON.stringify(data.dealLog     || []));
+    _rawSet('ffLenderRates', JSON.stringify(data.lenderRates || {}));
+    _rawSet('ffScenarios',   JSON.stringify(data.scenarios   || [null, null, null]));
+
     if (typeof window.settings !== 'undefined') {
       const s = data.settings || {};
       Object.assign(window.settings, {
@@ -140,13 +135,6 @@ if (data.inventory) {
       window.dealLog.length = 0;
       (data.dealLog || []).forEach(d => window.dealLog.push(d));
     }
-if (typeof window.inventory !== 'undefined') {
-      // 1. Throw away the old, empty list
-      window.inventory.length = 0; 
-      
-      // 2. Put the real cars from the database into the list
-      (data.inventory || []).forEach(v => window.inventory.push(v));
-    }
     if (typeof window.scenarios !== 'undefined') {
       const sc = data.scenarios || [null, null, null];
       window.scenarios[0] = sc[0];
@@ -157,160 +145,151 @@ if (typeof window.inventory !== 'undefined') {
     return data;
   }
 
-  // ── SYNC FUNCTIONS (debounced API saves) ────────────────
+  // ── SYNC FUNCTIONS ───────────────────────────────────────
   function _debouncedSync(key, fn, delay) {
     if (_syncTimers[key]) clearTimeout(_syncTimers[key]);
     _syncTimers[key] = setTimeout(fn, delay || 1500);
   }
-
   function syncSettings(val) {
     _debouncedSync('settings', async () => {
-      try {
-        await apiFetch('/api/desk/settings', {
-          method: 'PUT', body: JSON.stringify({ settings: JSON.parse(val) })
-        });
-      } catch (e) { console.warn('⚠️ Settings sync failed:', e.message); }
+      try { await apiFetch('/api/desk/settings', { method: 'PUT', body: JSON.stringify({ settings: JSON.parse(val) }) }); }
+      catch (e) { console.warn('⚠️ Settings sync failed:', e.message); }
     });
   }
-
   function syncCRM(val) {
     _debouncedSync('crm', async () => {
-      try {
-        await apiFetch('/api/desk/crm/bulk', {
-          method: 'PUT', body: JSON.stringify({ crm: JSON.parse(val) })
-        });
-      } catch (e) { console.warn('⚠️ CRM sync failed:', e.message); }
+      try { await apiFetch('/api/desk/crm/bulk', { method: 'PUT', body: JSON.stringify({ crm: JSON.parse(val) }) }); }
+      catch (e) { console.warn('⚠️ CRM sync failed:', e.message); }
     });
   }
-
   function syncDealLog(val) {
     _debouncedSync('dealLog', async () => {
-      try {
-        await apiFetch('/api/desk/deal-log/bulk', {
-          method: 'PUT', body: JSON.stringify({ dealLog: JSON.parse(val) })
-        });
-      } catch (e) { console.warn('⚠️ DealLog sync failed:', e.message); }
+      try { await apiFetch('/api/desk/deal-log/bulk', { method: 'PUT', body: JSON.stringify({ dealLog: JSON.parse(val) }) }); }
+      catch (e) { console.warn('⚠️ DealLog sync failed:', e.message); }
     });
   }
-
   function syncLenderRates(val) {
     _debouncedSync('lenders', async () => {
-      try {
-        await apiFetch('/api/desk/lender-rates', {
-          method: 'PUT', body: JSON.stringify({ overrides: JSON.parse(val) })
-        });
-      } catch (e) { console.warn('⚠️ Lender sync failed:', e.message); }
+      try { await apiFetch('/api/desk/lender-rates', { method: 'PUT', body: JSON.stringify({ overrides: JSON.parse(val) }) }); }
+      catch (e) { console.warn('⚠️ Lender sync failed:', e.message); }
     });
   }
-
   function syncScenarios(val) {
     _debouncedSync('scenarios', async () => {
-      try {
-        await apiFetch('/api/desk/scenarios', {
-          method: 'PUT', body: JSON.stringify({ scenarios: JSON.parse(val) })
-        });
-      } catch (e) { console.warn('⚠️ Scenarios sync failed:', e.message); }
+      try { await apiFetch('/api/desk/scenarios', { method: 'PUT', body: JSON.stringify({ scenarios: JSON.parse(val) }) }); }
+      catch (e) { console.warn('⚠️ Scenarios sync failed:', e.message); }
     });
   }
 
-  // ── LOCALSTORAGE SHIM ──────────────────────────────────
-  // Intercepts writes to ff* keys and syncs them to the API
-  const _origSetItem = localStorage.setItem.bind(localStorage);
+  // ── LOCALSTORAGE SHIM ────────────────────────────────────
+  const _origSetItem    = localStorage.setItem.bind(localStorage);
   const _origRemoveItem = localStorage.removeItem.bind(localStorage);
-
-  // Safe setter that doesn't trigger our shim
   function _rawSet(k, v) { _origSetItem(k, v); }
 
   const SYNC_MAP = {
-    'ffSettings': syncSettings,
-    'ffCRM': syncCRM,
-    'ffDealLog': syncDealLog,
+    'ffSettings':    syncSettings,
+    'ffCRM':         syncCRM,
+    'ffDealLog':     syncDealLog,
     'ffLenderRates': syncLenderRates,
-    'ffScenarios': syncScenarios,
+    'ffScenarios':   syncScenarios,
   };
 
   localStorage.setItem = function (key, value) {
     _origSetItem(key, value);
-    if (SYNC_MAP[key] && _accessToken) {
-      SYNC_MAP[key](value);
-    }
+    if (SYNC_MAP[key] && _accessToken) SYNC_MAP[key](value);
   };
-
   localStorage.removeItem = function (key) {
     _origRemoveItem(key);
-    if (key === 'ffLenderRates' && _accessToken) {
+    if (key === 'ffLenderRates' && _accessToken)
       apiFetch('/api/desk/lender-rates', { method: 'DELETE' }).catch(() => {});
-    }
   };
 
-  // ── LOGIN UI ───────────────────────────────────────────
+  // ── LOGIN UI ─────────────────────────────────────────────
   function _showLogin() {
-    const overlay = document.getElementById('ff-login-overlay');
-    if (overlay) overlay.style.display = 'flex';
+    const el = document.getElementById('ff-login-overlay');
+    if (el) el.style.display = 'flex';
   }
-
   function _hideLogin() {
-    const overlay = document.getElementById('ff-login-overlay');
-    if (overlay) overlay.style.display = 'none';
+    const el = document.getElementById('ff-login-overlay');
+    if (el) el.style.display = 'none';
   }
-
   function _showLoginError(msg) {
     const el = document.getElementById('ff-login-error');
     if (el) { el.textContent = msg; el.style.display = 'block'; }
   }
-
   function _clearLoginError() {
     const el = document.getElementById('ff-login-error');
     if (el) el.style.display = 'none';
   }
 
-  // ── POST-LOGIN RENDER ──────────────────────────────────
-function _triggerRenders() {
-  try {
-    console.log('🔄 Syncing UI with PostgreSQL data...');
+  // ── POST-LOGIN RENDER ────────────────────────────────────
+  function _triggerRenders() {
+    try {
+      console.log('🔄 Syncing UI with PostgreSQL data...');
+      const inv = window.ffInventory || window.inventory || [];
 
-    // 1. Render the main Inventory Table (Your suggested fix)
-    if (typeof renderInventory === 'function') {
-      renderInventory(window.ffInventory || window.inventory || []);
-    }
+      // 1. Master inventory table
+      if (typeof renderInventory === 'function' && inv.length) {
+        renderInventory(inv);
+      }
 
-    // 2. Re-populate the Stock # Select Dropdowns (The missing link)
-    if (typeof initInventory === 'function') {
-      const stockDropdown = document.getElementById('stockNum');
+      // 2. Stock # dropdown — populate directly (no dependency on initInventory)
+      const stockDropdown   = document.getElementById('stockNum');
       const compareDropdown = document.getElementById('compareStock');
-      
-      // Clear existing options to prevent double-loading
-      if (stockDropdown) stockDropdown.innerHTML = '<option value="">— Select Stock # —</option>';
-      if (compareDropdown) compareDropdown.innerHTML = '<option value="">— Choose a vehicle —</option>';
-      
-      initInventory(); 
+
+      if (stockDropdown && inv.length) {
+        stockDropdown.innerHTML = '<option value="">— Select Stock # —</option>';
+        inv.forEach((car, i) => {
+          stockDropdown.add(new Option(
+            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price).toLocaleString()})`, i
+          ));
+        });
+        // Price auto-fill on selection
+        stockDropdown.onchange = e => {
+          const car    = inv[parseInt(e.target.value)];
+          const priceEl = document.getElementById('sellingPrice');
+          if (car && priceEl) {
+            priceEl.value = parseFloat(car.price);
+            priceEl.dispatchEvent(new Event('change'));
+            console.log('💰 AUTO-FILL:', car.stock, '$' + car.price);
+          }
+        };
+      }
+
+      if (compareDropdown && inv.length) {
+        compareDropdown.innerHTML = '<option value="">— Choose a vehicle —</option>';
+        inv.forEach((car, i) => {
+          compareDropdown.add(new Option(
+            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price).toLocaleString()})`, i
+          ));
+        });
+      }
+
+      // 3. Call initInventory if it exists (for any extra setup it does)
+      if (typeof initInventory === 'function') initInventory();
+
+      // 4. Other modules
+      if (typeof renderCRM             === 'function') renderCRM();
+      if (typeof refreshAllAnalytics   === 'function') refreshAllAnalytics();
+      if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+      if (typeof renderScenarios       === 'function') renderScenarios();
+
+      console.log(`✅ UI sync complete — ${inv.length} vehicles loaded.`);
+    } catch (e) {
+      console.warn('⚠️ UI Sync Error:', e.message);
     }
-
-    // 3. Update other modules
-    if (typeof renderCRM === 'function') renderCRM();
-    if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
-    if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
-    if (typeof renderScenarios === 'function') renderScenarios();
-
-    console.log('✅ UI update complete.');
-  } catch (e) {
-    console.warn('⚠️ UI Sync Error:', e.message);
   }
-}
 
-  // ── INIT ───────────────────────────────────────────────
+  // ── INIT ─────────────────────────────────────────────────
   async function _init() {
-    // If we have a token in session, try to resume
     if (_accessToken) {
       try {
-        const data = await loadAllData();
+        await loadAllData();
         _hideLogin();
-        // Brief delay to let DOM settle, then re-render
         setTimeout(_triggerRenders, 300);
         console.log('✅ Cloud data loaded (resumed session)');
         return;
       } catch {
-        // Token expired or invalid, show login
         _accessToken = null;
         sessionStorage.removeItem('ff_access');
       }
@@ -318,25 +297,21 @@ function _triggerRenders() {
     _showLogin();
   }
 
-  // ── EXPOSE TO WINDOW ──────────────────────────────────
+  // ── EXPOSE TO WINDOW ─────────────────────────────────────
   window.FF = {
     login, register, loadAllData, logout: _logout,
-    get user() { return _user; },
+    get user()      { return _user; },
     get isLoggedIn() { return !!_accessToken; },
     apiFetch,
 
-    // Called by login form
     async handleLogin(e) {
       e.preventDefault();
       _clearLoginError();
-      const email = document.getElementById('ff-login-email').value.trim();
+      const email    = document.getElementById('ff-login-email').value.trim();
       const password = document.getElementById('ff-login-password').value;
-      const btn = document.getElementById('ff-login-btn');
-
+      const btn      = document.getElementById('ff-login-btn');
       if (!email || !password) return _showLoginError('Enter email and password');
-      btn.disabled = true;
-      btn.textContent = 'Signing in...';
-
+      btn.disabled = true; btn.textContent = 'Signing in...';
       try {
         await login(email, password);
         await loadAllData();
@@ -346,24 +321,20 @@ function _triggerRenders() {
       } catch (err) {
         _showLoginError(err.message);
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Sign In';
+        btn.disabled = false; btn.textContent = 'Sign In';
       }
     },
 
     async handleRegister(e) {
       e.preventDefault();
       _clearLoginError();
-      const name = document.getElementById('ff-reg-name').value.trim();
-      const email = document.getElementById('ff-reg-email').value.trim();
+      const name     = document.getElementById('ff-reg-name').value.trim();
+      const email    = document.getElementById('ff-reg-email').value.trim();
       const password = document.getElementById('ff-reg-password').value;
-      const btn = document.getElementById('ff-reg-btn');
-
+      const btn      = document.getElementById('ff-reg-btn');
       if (!name || !email || !password) return _showLoginError('All fields required');
       if (password.length < 6) return _showLoginError('Password must be 6+ characters');
-      btn.disabled = true;
-      btn.textContent = 'Creating account...';
-
+      btn.disabled = true; btn.textContent = 'Creating account...';
       try {
         await register(email, password, name);
         await loadAllData();
@@ -373,22 +344,20 @@ function _triggerRenders() {
       } catch (err) {
         _showLoginError(err.message);
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
+        btn.disabled = false; btn.textContent = 'Create Account';
       }
     },
 
     toggleAuthMode() {
       const loginForm = document.getElementById('ff-login-form');
-      const regForm = document.getElementById('ff-reg-form');
-      const isLogin = loginForm.style.display !== 'none';
-      loginForm.style.display = isLogin ? 'none' : 'block';
-      regForm.style.display = isLogin ? 'block' : 'none';
+      const regForm   = document.getElementById('ff-reg-form');
+      const isLogin   = loginForm.style.display !== 'none';
+      loginForm.style.display = isLogin ? 'none'  : 'block';
+      regForm.style.display   = isLogin ? 'block' : 'none';
       _clearLoginError();
     }
   };
 
-  // Auto-init when DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _init);
   } else {
