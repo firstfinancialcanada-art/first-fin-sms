@@ -130,8 +130,11 @@
       window.dealLog.length = 0;
       (data.dealLog || []).forEach(d => window.dealLog.push(d));
     }
-    if (typeof window.inventory !== 'undefined') {
-      window.inventory.length = 0;
+if (typeof window.inventory !== 'undefined') {
+      // 1. Throw away the old, empty list
+      window.inventory.length = 0; 
+      
+      // 2. Put the real cars from the database into the list
       (data.inventory || []).forEach(v => window.inventory.push(v));
     }
     if (typeof window.scenarios !== 'undefined') {
