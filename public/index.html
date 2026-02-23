@@ -1953,6 +1953,11 @@ function showSection(id, btn){
 function initInventory(){
   const sel = document.getElementById('stockNum');
   const cmpSel = document.getElementById('compareStock');
+  
+  // Clear existing options so they don't duplicate when cloud data loads
+  sel.innerHTML = '<option value="">— Select Stock # —</option>';
+  cmpSel.innerHTML = '<option value="">— Choose a vehicle —</option>';
+
   inventory.forEach(v=>{
     const label = `${v.stock} — ${v.year} ${v.make} ${v.model} ($${v.price.toLocaleString()})`;
     sel.innerHTML += `<option value="${v.stock}">${label}</option>`;
