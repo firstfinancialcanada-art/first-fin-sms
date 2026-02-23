@@ -237,22 +237,31 @@
       const stockDropdown   = document.getElementById('stockNum');
       const compareDropdown = document.getElementById('compareStock');
 
-      if (stockDropdown && inv.length) {
+           if (stockDropdown && inv.length) {
         stockDropdown.innerHTML = '<option value="">— Select Stock # —</option>';
-        inv.forEach((car, i) => {
+        inv.forEach(car => {
           stockDropdown.add(new Option(
-            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price).toLocaleString()})`, i
+            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price||0).toLocaleString()})`,
+            car.stock  // ← stock# as value, not index
           ));
         });
-        // Price auto-fill on selection
+        // Full desk auto-fill on selection
         stockDropdown.onchange = e => {
-          const car    = inv[parseInt(e.target.value)];
-          const priceEl = document.getElementById('sellingPrice');
-          if (car && priceEl) {
-            priceEl.value = parseFloat(car.price);
-            priceEl.dispatchEvent(new Event('change'));
-            console.log('💰 AUTO-FILL:', car.stock, '$' + car.price);
-          }
+          const inv = window.ffInventory || window.inventory || [];
+          const car = inv.find(c => c.stock === e.target.value);
+          if (!car) return;
+          const set = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) { el.value = val; el.dispatchEvent(new Event('change')); }
+          };
+          set('sellingPrice',   parseFloat(car.price    || 0));
+          set('vehicleVIN',     car.vin                 || '');
+          set('vehicleYear',    car.year                || '');
+          set('vehicleMake',    car.make                || '');
+          set('vehicleModel',   car.model               || '');
+          set('vehicleMileage', car.mileage             || '');
+          set('vehicleStock',   car.stock               || '');
+          console.log('💰 AUTO-FILL:', car.stock, '| VIN:', car.vin, '| $' + car.price);
         };
       }
 
