@@ -3739,7 +3739,7 @@ document.addEventListener('keydown', e => {
 // ── INIT ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   applyLenderRateOverrides();
-  initInventory();
+  // initInventory(); ← api-client.js calls this after cloud data loads
   initLenderPanels();
   // Restore theme
   if(localStorage.getItem('ffTheme')==='light'){
@@ -3760,8 +3760,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   setVal('setTarget',settings.target);
   calculate();
   refreshAllAnalytics();
-  console.log('%c✅ FIRST-FIN DEALER PLATFORM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
-  console.log('%c🚗 Inventory: '+inventory.length+' vehicles | 🏦 Lenders: '+Object.keys(lenders).length,'color:#f59e0b;font-size:12px;');
+console.log('%c✅ FIRST-FIN DEALER PLATFORM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
+console.log('%c🚗 Inventory: pending cloud sync | 🏦 Lenders: '+Object.keys(lenders).length,'color:#f59e0b;font-size:12px;');
 });
 
 // ═══════════════════════════════════════════════════════════════
