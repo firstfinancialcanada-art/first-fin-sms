@@ -1951,6 +1951,9 @@ function showSection(id, btn){
 
 // ── INVENTORY INIT ────────────────────────────────────
 function initInventory(){
+  // Clear the dropdowns so they are fresh and clean
+document.getElementById('stockNum').innerHTML = '<option value="">— Select Stock # —</option>';
+document.getElementById('compareStock').innerHTML = '<option value="">— Choose a vehicle —</option>';
   const sel = document.getElementById('stockNum');
   const cmpSel = document.getElementById('compareStock');
   inventory.forEach(v=>{
