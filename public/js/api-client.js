@@ -106,7 +106,17 @@
     if (!res.ok) throw new Error('Failed to load data');
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Load failed');
-
+// Inside async function loadAllData() ...
+if (data.inventory) {
+  // 1. Create the new redundant variables you requested
+  window.ffInventory = data.inventory;
+  window.inventory = data.inventory;
+  
+  // 2. Sync to localStorage using the raw setter to bypass the sync shim
+  _rawSet('ffInventory', JSON.stringify(data.inventory));
+  
+  console.log(`📦 Loaded ${data.inventory.length} vehicles from desk_inventory.`);
+}
     // Populate localStorage for existing UI code
     _rawSet('ffSettings', JSON.stringify(data.settings || {}));
     _rawSet('ffCRM', JSON.stringify(data.crm || []));
@@ -256,23 +266,37 @@ if (typeof window.inventory !== 'undefined') {
 
   // ── POST-LOGIN RENDER ──────────────────────────────────
 function _triggerRenders() {
-    try {
-      // 🔔 ADD THIS LINE: It builds the "Select Stock #" dropdowns
-      if (typeof initInventory === 'function') initInventory(); 
+  try {
+    console.log('🔄 Syncing UI with PostgreSQL data...');
 
-      if (typeof renderInventory === 'function' && window.inventory) renderInventory(window.inventory);
-      // ... keep the rest of the lines ...
-      if (typeof renderCRM === 'function') renderCRM();
-      if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
-      if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
-      if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
-      if (typeof updateScenarioButtons === 'function') updateScenarioButtons();
-      // Update settings display if it exists
-      if (typeof populateSettingsForm === 'function') populateSettingsForm();
-    } catch (e) {
-      console.warn('⚠️ Post-login render:', e.message);
+    // 1. Render the main Inventory Table (Your suggested fix)
+    if (typeof renderInventory === 'function') {
+      renderInventory(window.ffInventory || window.inventory || []);
     }
+
+    // 2. Re-populate the Stock # Select Dropdowns (The missing link)
+    if (typeof initInventory === 'function') {
+      const stockDropdown = document.getElementById('stockNum');
+      const compareDropdown = document.getElementById('compareStock');
+      
+      // Clear existing options to prevent double-loading
+      if (stockDropdown) stockDropdown.innerHTML = '<option value="">— Select Stock # —</option>';
+      if (compareDropdown) compareDropdown.innerHTML = '<option value="">— Choose a vehicle —</option>';
+      
+      initInventory(); 
+    }
+
+    // 3. Update other modules
+    if (typeof renderCRM === 'function') renderCRM();
+    if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
+    if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+    if (typeof renderScenarios === 'function') renderScenarios();
+
+    console.log('✅ UI update complete.');
+  } catch (e) {
+    console.warn('⚠️ UI Sync Error:', e.message);
   }
+}
 
   // ── INIT ───────────────────────────────────────────────
   async function _init() {
