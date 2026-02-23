@@ -206,7 +206,7 @@ module.exports = function (app, pool) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status FROM desk_inventory ORDER BY stock'
+        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory ORDER BY stock'
       );
       res.json({ success: true, inventory: result.rows });
     } catch (e) {
@@ -529,7 +529,7 @@ module.exports = function (app, pool) {
     try {
       const [settingsR, inventoryR, crmR, dealLogR, lenderR, scenariosR] = await Promise.all([
         client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]),
-        client.query("SELECT stock, year, make, model, mileage, price, condition, carfax, type FROM desk_inventory WHERE status = 'available' ORDER BY stock"),
+        client.query("SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE status IN ('available', 'wholesale') ORDER BY stock"),
         client.query('SELECT * FROM desk_crm WHERE user_id = $1 ORDER BY updated_at DESC', [req.user.userId]),
         client.query('SELECT id, deal_data, created_at FROM desk_deal_log WHERE user_id = $1 ORDER BY created_at DESC', [req.user.userId]),
         client.query('SELECT overrides_json FROM desk_lender_rates WHERE user_id = $1', [req.user.userId]),
