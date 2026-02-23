@@ -706,6 +706,8 @@ select option{background:#0d1526;color:var(--text);}
 </head>
 <body>
 
+  
+
 <!-- ═══ LOGIN OVERLAY ═══ -->
 <div id="ff-login-overlay" style="display:flex;position:fixed;inset:0;z-index:99999;background:#070d1a;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;">
   <div style="width:380px;max-width:90vw;background:#0d1526;border:1px solid rgba(30,90,246,0.25);border-radius:16px;padding:40px 32px;text-align:center;">
@@ -1853,15 +1855,14 @@ select option{background:#0d1526;color:var(--text);}
 // FIRST-FIN DEALER PLATFORM v1.0
 // Unified: Dealer Desk + AutoLend + CRM + Analytics
 // ═══════════════════════════════════════════════════════
-
+window.inventory = []; 
+window.ffInventory = [];
 // ── SETTINGS ──────────────────────────────────────────
 let settings = JSON.parse(localStorage.getItem('ffSettings') || '{}');
 settings = {salesName:'Franco Fannin',dealerName:'Automaxx',docFee:998,gst:5,apr:8.99,target:30,...settings};
 let dealLog = JSON.parse(localStorage.getItem('ffDealLog') || '[]');
 let crmData  = JSON.parse(localStorage.getItem('ffCRM')     || '[]');
 
-// ── INVENTORY DATA (loaded from cloud) ────────────────
-let inventory = [];
 
 // ── LENDER DATA ─────────────────────────────────────────
 const lenders = {
@@ -1949,61 +1950,101 @@ function showSection(id, btn){
   if(id==='analytics') refreshAllAnalytics();
 }
 
-// ── INVENTORY INIT ────────────────────────────────────
+// ── INVENTORY INIT (Cloud & Database Version) ─────────
 function initInventory(){
-  // Clear the dropdowns so they are fresh and clean
-document.getElementById('stockNum').innerHTML = '<option value="">— Select Stock # —</option>';
-document.getElementById('compareStock').innerHTML = '<option value="">— Choose a vehicle —</option>';
   const sel = document.getElementById('stockNum');
   const cmpSel = document.getElementById('compareStock');
-  inventory.forEach(v=>{
-    const label = `${v.stock} — ${v.year} ${v.make} ${v.model} ($${v.price.toLocaleString()})`;
-    sel.innerHTML += `<option value="${v.stock}">${label}</option>`;
-    cmpSel.innerHTML += `<option value="${v.stock}">${label}</option>`;
+  
+  // Use the cloud-synced variable primarily, fallback to window.inventory
+  const data = window.ffInventory || window.inventory || [];
+
+  if (!sel || !cmpSel) return;
+  
+  // 1. Clear dropdowns to prevent "double entries"
+  sel.innerHTML = '<option value="">— Select Stock # —</option>';
+  cmpSel.innerHTML = '<option value="">— Choose a vehicle —</option>';
+
+  if (data.length === 0) {
+    console.log('ℹ️ Inventory is empty or still loading...');
+    return;
+  }
+
+  // 2. Populate dropdowns with DB data
+  data.forEach(v => {
+    const priceFormatted = Number(v.price || 0).toLocaleString();
+    const label = `${v.stock} — ${v.year} ${v.make} ${v.model} ($${priceFormatted})`;
+    
+    const opt1 = document.createElement('option');
+    opt1.value = v.stock;
+    opt1.textContent = label;
+    sel.appendChild(opt1);
+
+    const opt2 = document.createElement('option');
+    opt2.value = v.stock;
+    opt2.textContent = label;
+    cmpSel.appendChild(opt2);
   });
-  renderInventory(inventory);
+
+  // 3. Update the main inventory tab table
+  renderInventory(data);
 }
 
 function renderInventory(list){
-  document.getElementById('invCount').textContent = `${list.length} vehicles`;
+  const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
-  tbody.innerHTML = list.map(v=>`
+  if (countEl) countEl.textContent = `${list.length} vehicles`;
+  if (!tbody) return;
+
+  tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
       <td><strong style="color:var(--amber);">${v.stock}</strong></td>
       <td>${v.year}</td>
       <td>${v.make}</td>
       <td>${v.model}</td>
-      <td style="color:var(--muted);">${v.type||''}</td>
-      <td>${v.mileage.toLocaleString()} km</td>
-      <td><strong style="color:var(--green);">$${v.price.toLocaleString()}</strong></td>
-      <td><span class="badge badge-${v.condition.toLowerCase()}">${v.condition}</span></td>
+      <td style="color:var(--muted);">${v.type || ''}</td>
+      <td>${Number(v.mileage).toLocaleString()} km</td>
+      <td><strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong></td>
+      <td><span class="badge badge-${String(v.condition).toLowerCase()}">${v.condition}</span></td>
       <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')">Use in Deal</button></td>
     </tr>`).join('');
 }
 
 function filterInventory(){
   const q = document.getElementById('invSearch').value.toLowerCase();
-  const filtered = inventory.filter(v=>
-    v.stock.toLowerCase().includes(q)||v.make.toLowerCase().includes(q)||
-    v.model.toLowerCase().includes(q)||String(v.year).includes(q)||
-    String(v.price).includes(q)||v.condition.toLowerCase().includes(q)
+  const dataSource = window.ffInventory || window.inventory || []; //
+  
+  const filtered = dataSource.filter(v =>
+    v.stock.toLowerCase().includes(q) || 
+    v.make.toLowerCase().includes(q) ||
+    v.model.toLowerCase().includes(q) || 
+    String(v.year).includes(q) ||
+    String(v.price).includes(q) || 
+    v.condition.toLowerCase().includes(q)
   );
   renderInventory(filtered);
 }
 
 function sendToDeal(stock){
-  const v = inventory.find(x=>x.stock===stock);
+  const data = window.ffInventory || window.inventory || []; //
+  const v = data.find(x => x.stock === stock);
+  
   if(!v) return;
+
+  // Sync DB values to Deal Desk inputs
   document.getElementById('stockNum').value = stock;
   document.getElementById('vehicleDesc').value = `${v.year} ${v.make} ${v.model}`;
-  document.getElementById('vehicleType').value = v.type||'';
+  document.getElementById('vehicleType').value = v.type || '';
   document.getElementById('odometer').value = v.mileage;
   document.getElementById('condition').value = v.condition;
   document.getElementById('sellingPrice').value = v.price;
   document.getElementById('docFee').value = settings.docFee;
-  calculate();
+  
+  calculate(); // Trigger math update
   showSection('deal', document.querySelector('.nav-btn'));
-  document.querySelector('.nav-btn').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const dealBtn = document.querySelector('button[onclick*="\'deal\'"]');
+  if(dealBtn) dealBtn.classList.add('active');
+  
   toast(`✅ Loaded: ${v.year} ${v.make} ${v.model}`);
 }
 
@@ -2011,8 +2052,6 @@ function loadVehicleFromStock(){
   const stock = document.getElementById('stockNum').value;
   if(stock) sendToDeal(stock);
 }
-
-// ── DEAL DESK CALCULATIONS ────────────────────────────
 function calculate(){
   const price  = parseFloat(document.getElementById('sellingPrice').value)||0;
   const doc    = parseFloat(document.getElementById('docFee').value)||0;
@@ -2912,7 +2951,7 @@ function updateTarget(dealsThisMonth){
   document.getElementById('tNeedPerDay').textContent=neededPD;
 }
 
-// ── CSV IMPORT ─────────────────────────────────────────
+// ── CSV IMPORT (Updated for Cloud & Sync) ──────────────
 function importCSV(){
   const txt=document.getElementById('csvText').value.trim();
   if(!txt){toast('⚠️ Paste CSV content first');return;}
@@ -2921,21 +2960,43 @@ function importCSV(){
   const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
   const idx=k=>headers.indexOf(k);
   const imported=[];
+  
   for(let i=1;i<lines.length;i++){
     if(!lines[i].trim())continue;
     const cols=lines[i].split(',').map(c=>c.trim());
     imported.push({
-      stock:cols[idx('stock')]||'',year:parseInt(cols[idx('year')])||0,make:cols[idx('make')]||'',
-      model:cols[idx('model')]||'',mileage:parseInt(cols[idx('mileage')])||0,price:parseFloat(cols[idx('price')])||0,
-      condition:cols[idx('condition')]||'Average',carfax:parseFloat(cols[idx('carfax')])||0,type:cols[idx('type')]||''
+      stock:cols[idx('stock')]||'',
+      year:parseInt(cols[idx('year')])||0,
+      make:cols[idx('make')]||'',
+      model:cols[idx('model')]||'',
+      mileage:parseInt(cols[idx('mileage')])||0,
+      price:parseFloat(cols[idx('price')])||0,
+      condition:cols[idx('condition')]||'Average',
+      carfax:parseFloat(cols[idx('carfax')])||0,
+      type:cols[idx('type')]||''
     });
   }
+  
   if(!imported.length){toast('❌ No valid rows found');return;}
-  inventory.length=0;imported.forEach(v=>inventory.push(v));
-  renderInventory(inventory);
-  // Sync imported inventory to cloud
-  if(window.FF && FF.isLoggedIn) FF.apiFetch('/api/desk/inventory/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicles:imported})}).catch(()=>{});
-  closeModal('csvImportModal');toast(`✅ Imported ${imported.length} vehicles!`);
+
+  // 1. Update the new global variables
+  window.inventory = imported;
+  window.ffInventory = imported;
+
+  // 2. Immediately rebuild dropdowns and the inventory table
+  initInventory(); 
+
+  // 3. Sync imported inventory to the cloud (desk_inventory table)
+  if(window.FF && FF.isLoggedIn) {
+    FF.apiFetch('/api/desk/inventory/bulk',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({vehicles:imported})
+    }).catch(e => console.error("Cloud sync failed:", e));
+  }
+  
+  closeModal('csvImportModal');
+  toast(`✅ Imported ${imported.length} vehicles!`);
 }
 
 // ── EXPORT ────────────────────────────────────────────
@@ -2943,8 +3004,12 @@ function exportJSON(type){
   const data=type==='deals'?dealLog:crmData;
   const name=`firstfin-${type}-${new Date().toISOString().split('T')[0]}.json`;
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
-  URL.revokeObjectURL(a.href);toast('💾 Exported!');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('💾 Exported!');
 }
 
 // ── MODALS ────────────────────────────────────────────
