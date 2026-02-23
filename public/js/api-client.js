@@ -252,10 +252,10 @@
   }
 
   // ── POST-LOGIN RENDER ──────────────────────────────────
-    function _triggerRenders() {
+  function _triggerRenders() {
     try {
       // Re-render all sections with cloud data
-      if (typeof initInventory === 'function') initInventory(); // <-- Updates dropdowns AND the master table
+      if (typeof renderInventory === 'function' && window.inventory) renderInventory(window.inventory);
       if (typeof renderCRM === 'function') renderCRM();
       if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
       if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
