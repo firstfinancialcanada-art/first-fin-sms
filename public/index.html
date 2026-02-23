@@ -2934,7 +2934,7 @@ function importCSV(){
   }
   if(!imported.length){toast('❌ No valid rows found');return;}
   inventory.length=0;imported.forEach(v=>inventory.push(v));
-  renderInventory(inventory);
+  initInventory(); // Re-runs the dropdown population
   // Sync imported inventory to cloud
   if(window.FF && FF.isLoggedIn) FF.apiFetch('/api/desk/inventory/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicles:imported})}).catch(()=>{});
   closeModal('csvImportModal');toast(`✅ Imported ${imported.length} vehicles!`);
