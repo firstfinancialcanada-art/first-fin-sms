@@ -1861,10 +1861,8 @@ let dealLog = JSON.parse(localStorage.getItem('ffDealLog') || '[]');
 let crmData  = JSON.parse(localStorage.getItem('ffCRM')     || '[]');
 
 // ── INVENTORY DATA (loaded from cloud) ────────────────
-window.inventory = [ 
-  {"stock":"AM24036", ...},
-  ...
-];
+let inventory = [];
+
 // ── LENDER DATA ─────────────────────────────────────────
 const lenders = {
   autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,
@@ -1955,11 +1953,6 @@ function showSection(id, btn){
 function initInventory(){
   const sel = document.getElementById('stockNum');
   const cmpSel = document.getElementById('compareStock');
-  
-  // Clear existing options so they don't duplicate when cloud data loads
-  sel.innerHTML = '<option value="">— Select Stock # —</option>';
-  cmpSel.innerHTML = '<option value="">— Choose a vehicle —</option>';
-
   inventory.forEach(v=>{
     const label = `${v.stock} — ${v.year} ${v.make} ${v.model} ($${v.price.toLocaleString()})`;
     sel.innerHTML += `<option value="${v.stock}">${label}</option>`;
@@ -2936,7 +2929,7 @@ function importCSV(){
   }
   if(!imported.length){toast('❌ No valid rows found');return;}
   inventory.length=0;imported.forEach(v=>inventory.push(v));
-  initInventory(); // Re-runs the dropdown population
+  renderInventory(inventory);
   // Sync imported inventory to cloud
   if(window.FF && FF.isLoggedIn) FF.apiFetch('/api/desk/inventory/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({vehicles:imported})}).catch(()=>{});
   closeModal('csvImportModal');toast(`✅ Imported ${imported.length} vehicles!`);
