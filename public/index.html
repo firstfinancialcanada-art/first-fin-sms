@@ -1861,8 +1861,10 @@ let dealLog = JSON.parse(localStorage.getItem('ffDealLog') || '[]');
 let crmData  = JSON.parse(localStorage.getItem('ffCRM')     || '[]');
 
 // ── INVENTORY DATA (loaded from cloud) ────────────────
-let inventory = [];
-
+window.inventory = [ 
+  {"stock":"AM24036", ...},
+  ...
+];
 // ── LENDER DATA ─────────────────────────────────────────
 const lenders = {
   autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,
