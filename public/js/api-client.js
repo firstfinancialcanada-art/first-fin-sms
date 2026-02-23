@@ -252,10 +252,13 @@
   }
 
   // ── POST-LOGIN RENDER ──────────────────────────────────
-  function _triggerRenders() {
+function _triggerRenders() {
     try {
-      // Re-render all sections with cloud data
+      // 🔔 ADD THIS LINE: It builds the "Select Stock #" dropdowns
+      if (typeof initInventory === 'function') initInventory(); 
+
       if (typeof renderInventory === 'function' && window.inventory) renderInventory(window.inventory);
+      // ... keep the rest of the lines ...
       if (typeof renderCRM === 'function') renderCRM();
       if (typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
       if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
