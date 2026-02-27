@@ -633,6 +633,7 @@ select option{background:#0d1526;color:var(--text);}
 .dt-btn.crm{background:var(--primary);color:#fff;}
 .dt-btn.export{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
 .dt-btn.clear{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+.dt-btn.resume{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;}
 .dt-crm-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#000;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;z-index:9999;display:none;}
 </style>
 
@@ -659,10 +660,11 @@ select option{background:#0d1526;color:var(--text);}
   </div>
   <div class="dt-ctrl-row">
     <button class="dt-btn start" id="dt-btn-start" onclick="dtStart()" disabled>&#9654; Start Scraper</button>
+    <button class="dt-btn resume" id="dt-btn-resume" onclick="dtResume()" style="display:none" disabled>&#9654;&#9654; Resume</button>
     <button class="dt-btn stop"  id="dt-btn-stop"  onclick="dtStop()"  disabled>&#9209; Stop</button>
     <button class="dt-btn crm"   id="dt-btn-crm"   onclick="dtPushCRM()" disabled>&#128101; Push to CRM</button>
     <button class="dt-btn export" onclick="dtExportCSV()">&#8595; CSV</button>
-    <button class="dt-btn clear"  onclick="dtClear()">&#128465; Clear</button>
+    <button class="dt-btn clear"  onclick="dtReset()">&#128465; Reset</button>
   </div>
 </div>
 
@@ -2035,8 +2037,9 @@ function sendToDeal(stock){
   document.getElementById('vehicleDesc').value = `${v.year} ${v.make} ${v.model}`;
   document.getElementById('vehicleType').value = v.type || '';
   document.getElementById('odometer').value = v.mileage;
-  document.getElementById('condition').value = v.condition;
+  document.getElementById('condition').value = v.condition || 'Average';
   document.getElementById('sellingPrice').value = v.price;
+  document.getElementById('vin').value = v.vin || '';
   document.getElementById('docFee').value = settings.docFee;
   
   calculate(); // Trigger math update
@@ -4201,6 +4204,21 @@ calculate = function(){
     if(lbl)lbl.textContent=label;
   }
 
+  async function dtCheckProgress(){
+    try{
+      var r=await fetch(BRIDGE+'/progress',{signal:AbortSignal.timeout(2000)});
+      var d=await r.json();
+      var btn=document.getElementById('dt-btn-resume');
+      if(d.has_progress&&d.last_row>0){
+        btn.style.display='';
+        btn.textContent='\u25BA\u25BA Resume (row '+d.last_row+')';
+        btn.disabled=false;
+      }else{
+        btn.style.display='none';
+      }
+    }catch(e){}
+  }
+
   async function dtPing(){
     try{
       var r=await fetch(BRIDGE+'/ping',{signal:AbortSignal.timeout(2000)});
@@ -4211,6 +4229,7 @@ calculate = function(){
         document.getElementById('dt-btn-start').disabled=false;
         var sb=document.getElementById('dt-setup-box');
         if(sb)sb.style.display='none';
+        dtCheckProgress();
       }
     }catch(e){
       dtOnline=false;
@@ -4232,15 +4251,24 @@ calculate = function(){
       document.getElementById('dt-s-total').textContent=s.total_saved||0;
       document.getElementById('dt-s-deals').textContent=s.current_row||0;
       document.getElementById('dt-s-remain').textContent=s.total_rows>0?(s.total_rows-s.current_row):'—';
-      document.getElementById('dt-btn-start').disabled=s.running;
-      document.getElementById('dt-btn-stop').disabled=!s.running;
-      if(s.running){dtSetDot('yellow','Running — Deal #'+(s.current_deal||'...'));}
-      else if(s.total_saved>0){dtSetDot('green','Done — '+s.total_saved+' contacts captured');}
+      var isRunning=s.running;
+      document.getElementById('dt-btn-start').disabled=isRunning;
+      document.getElementById('dt-btn-stop').disabled=!isRunning;
+      document.getElementById('dt-btn-resume').disabled=isRunning;
+      if(isRunning){
+        dtSetDot('yellow','Running — Deal #'+(s.current_deal||'...'));
+        document.getElementById('dt-btn-resume').style.display='none';
+      }else if(s.total_saved>0){
+        dtSetDot('green','Done — '+s.total_saved+' contacts captured');
+        dtCheckProgress();
+      }
       if(s.log&&s.log.length>dtLogCount){s.log.slice(dtLogCount).forEach(function(l){dtLog(l);});dtLogCount=s.log.length;}
       var cr=await fetch(BRIDGE+'/contacts',{signal:AbortSignal.timeout(2000)});
       var contacts=await cr.json();
-      if(contacts.length>dtContacts.length){
-        var newOnes=contacts.slice(dtContacts.length);
+      if(contacts.length!==dtContacts.length){
+        var newOnes=contacts.filter(function(c){
+          return !dtContacts.some(function(e){return e.deal_number===c.deal_number&&e.first_name===c.first_name;});
+        });
         dtContacts=contacts;
         newOnes.forEach(function(c){
           var empty=document.getElementById('dt-feed-empty');
@@ -4252,7 +4280,13 @@ calculate = function(){
           var phone=c.mobile_phone||c.phone||'—';
           var email=c.email||'—';
           var isCo=c.applicant_type==='CO-APPLICANT';
-          row.innerHTML='<div><div class="dt-feed-name">'+name+'</div><div class="dt-feed-detail">'+phone+'</div><div class="dt-feed-detail">'+email+'</div></div>'
+          var isDup=c.duplicate_phone==='YES';
+          row.innerHTML='<div>'
+            +'<div class="dt-feed-name">'+name+(isDup?' <span style="color:#f59e0b;font-size:10px;">⚠ DUP</span>':'')+'</div>'
+            +'<div class="dt-feed-detail">'+phone+'</div>'
+            +'<div class="dt-feed-detail">'+email+'</div>'
+            +'<div class="dt-feed-detail" style="color:var(--muted);font-size:10px;">'+(c.created_by||'')+(c.deal_date?' · '+c.deal_date:'')+'</div>'
+            +'</div>'
             +'<span class="dt-badge-src'+(isCo?' dt-badge-co':'')+'">'+(isCo?'CO':'PRIMARY')+'</span>';
           feed.prepend(row);
         });
@@ -4268,38 +4302,71 @@ calculate = function(){
     try{
       dtLogCount=0;
       document.getElementById('dt-log').innerHTML='';
+      document.getElementById('dt-btn-resume').style.display='none';
       var r=await fetch(BRIDGE+'/start',{method:'POST'});
       var d=await r.json();
       if(!d.ok)alert(d.msg);
     }catch(e){alert('Could not reach bridge. Make sure dealertrack_scraper.py is running.');}
   };
 
-  window.dtStop=async function(){
-    try{await fetch(BRIDGE+'/stop',{method:'POST'});}catch(e){}
+  window.dtResume=async function(){
+    try{
+      dtLogCount=0;
+      document.getElementById('dt-log').innerHTML='';
+      var r=await fetch(BRIDGE+'/resume',{method:'POST'});
+      var d=await r.json();
+      if(!d.ok){alert(d.msg);return;}
+      if(typeof toast==='function')toast('▶▶ Resuming from saved position...');
+    }catch(e){alert('Could not reach bridge.');}
   };
 
-  window.dtClear=async function(){
-    if(!confirm('Clear all captured contacts?'))return;
+  window.dtStop=async function(){
     try{
-      await fetch(BRIDGE+'/clear',{method:'POST'});
+      await fetch(BRIDGE+'/stop',{method:'POST'});
+      if(typeof toast==='function')toast('⏹️ Stopping after current deal...');
+      setTimeout(dtCheckProgress,2500);
+    }catch(e){}
+  };
+
+  window.dtReset=async function(){
+    if(!confirm('Reset everything?\n\nThis will:\n• Stop the scraper\n• Clear all contacts from this view\n• Delete the resume/progress file\n\nYour CSV file on the laptop is kept safe.'))return;
+    try{
+      await fetch(BRIDGE+'/reset',{method:'POST'});
       dtContacts=[];dtLogCount=0;dtCRMCount=0;
       document.getElementById('dt-feed').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;" id="dt-feed-empty">No contacts yet</div>';
       document.getElementById('dt-log').innerHTML='';
       document.getElementById('dt-s-crm').textContent='0';
       document.getElementById('dt-s-total').textContent='0';
+      document.getElementById('dt-s-deals').textContent='0';
+      document.getElementById('dt-s-remain').textContent='—';
+      document.getElementById('dt-prog-fill').style.width='0%';
+      document.getElementById('dt-prog-pct').textContent='0%';
+      document.getElementById('dt-prog-label').textContent='Waiting...';
+      document.getElementById('dt-prog-msg').textContent='';
       document.getElementById('dt-btn-crm').disabled=true;
-    }catch(e){}
+      document.getElementById('dt-btn-resume').style.display='none';
+      dtSetDot('green','Bridge connected — ready');
+      if(typeof toast==='function')toast('🗑️ Reset — ready for fresh run');
+    }catch(e){alert('Could not reach bridge.');}
   };
 
+  // Keep dtClear as alias so nothing else in the app breaks
+  window.dtClear=window.dtReset;
+
   window.dtExportCSV=function(){
-    if(!dtContacts.length){alert('No contacts to export yet.');return;}
-    var fields=['first_name','last_name','phone','mobile_phone','email','address_no','street_name','city','province','postal_code','deal_number','lender','status','source','captured_at'];
+    if(!dtContacts.length){alert('No contacts to export yet.\n\nNote: the full CSV is saved automatically on your laptop.');return;}
+    var fields=['row_index','deal_number','application_number','first_name','middle_name','last_name',
+      'phone','mobile_phone','email','address_no','street_name','city','province','postal_code',
+      'lender','status','applicant_type','created_by','deal_date','duplicate_phone','source','captured_at'];
     var rows=[fields.join(',')];
-    dtContacts.forEach(function(c){rows.push(fields.map(function(f){return '"'+((c[f]||'').toString().replace(/"/g,'""'))+'"';}).join(','));});
+    dtContacts.forEach(function(c){
+      rows.push(fields.map(function(f){return '"'+((c[f]||'').toString().replace(/"/g,'""'))+'"';}).join(','));
+    });
     var a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
     a.download='dt_contacts_'+new Date().toISOString().slice(0,10)+'.csv';
     a.click();
+    if(typeof toast==='function')toast('📥 CSV downloaded ('+dtContacts.length+' contacts)');
   };
 
   window.dtPushCRM=function(){
@@ -4308,18 +4375,19 @@ calculate = function(){
     dtContacts.forEach(function(c){
       var name=((c.first_name||'')+' '+(c.last_name||'')).trim();
       if(!name)return;
-      var exists=crmData.some(function(e){return e.name===name&&e.vehicle&&e.vehicle.indexOf('DT Scrape')>-1&&e.vehicle.indexOf(c.deal_number)>-1;});
+      var exists=crmData.some(function(e){return e.name===name&&e.vehicle&&e.vehicle.indexOf(c.deal_number)>-1;});
       if(exists)return;
       crmData.unshift({
         id:Date.now()+Math.random(),
-        date:new Date().toLocaleDateString('en-CA'),
+        date:c.deal_date||new Date().toLocaleDateString('en-CA'),
         name:name,
         phone:c.mobile_phone||c.phone||'',
         email:c.email||'',
         vehicle:'DT Scrape'+(c.lender?' | '+c.lender:'')+(c.deal_number?' | #'+c.deal_number:''),
         stock:'',
         beacon:'',
-        status:'Lead'
+        status:'Lead',
+        created_by:c.created_by||''
       });
       pushed++;
     });
