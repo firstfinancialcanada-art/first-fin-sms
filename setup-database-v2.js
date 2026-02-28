@@ -58,6 +58,7 @@ async function setup() {
         condition VARCHAR(50) DEFAULT 'Average',
         carfax NUMERIC(10,2) DEFAULT 0,
         type VARCHAR(200),
+        vin VARCHAR(20),
         status VARCHAR(20) DEFAULT 'available',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
