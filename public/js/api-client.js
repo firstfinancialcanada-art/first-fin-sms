@@ -233,45 +233,48 @@
         renderInventory(inv);
       }
 
-      // 2. Stock # dropdown — populate directly (no dependency on initInventory)
+      // 2. Stock # dropdown — populate options (leave native onchange="loadVehicleFromStock()" intact)
       const stockDropdown   = document.getElementById('stockNum');
       const compareDropdown = document.getElementById('compareStock');
 
-           if (stockDropdown && inv.length) {
+      if (stockDropdown && inv.length) {
         stockDropdown.innerHTML = '<option value="">— Select Stock # —</option>';
         inv.forEach(car => {
           stockDropdown.add(new Option(
-            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price||0).toLocaleString()})`,
-            car.stock  // ← stock# as value, not index
+            `${car.stock} — ${car.year} ${car.make} ${car.model} ($${Number(car.price||0).toLocaleString()})`,
+            car.stock
           ));
         });
-        // Full desk auto-fill on selection
-        stockDropdown.onchange = e => {
-          const inv = window.ffInventory || window.inventory || [];
-          const car = inv.find(c => c.stock === e.target.value);
-          if (!car) return;
-          const set = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) { el.value = val; el.dispatchEvent(new Event('change')); }
-          };
-          set('sellingPrice',   parseFloat(car.price    || 0));
-          set('vehicleVIN',     car.vin                 || '');
-          set('vehicleYear',    car.year                || '');
-          set('vehicleMake',    car.make                || '');
-          set('vehicleModel',   car.model               || '');
-          set('vehicleMileage', car.mileage             || '');
-          set('vehicleStock',   car.stock               || '');
-          console.log('💰 AUTO-FILL:', car.stock, '| VIN:', car.vin, '| $' + car.price);
-        };
+        // DO NOT override stockDropdown.onchange — the HTML already has
+        // onchange="loadVehicleFromStock()" which calls sendToDeal(stock)
+        // and that function correctly sets all Deal Desk fields.
       }
 
       if (compareDropdown && inv.length) {
         compareDropdown.innerHTML = '<option value="">— Choose a vehicle —</option>';
-        inv.forEach((car, i) => {
+        inv.forEach(car => {
           compareDropdown.add(new Option(
-            `${car.stock}  ${car.year} ${car.make} ${car.model}  ($${parseFloat(car.price).toLocaleString()})`, i
+            `${car.stock} — ${car.year} ${car.make} ${car.model} ($${Number(car.price||0).toLocaleString()})`, car.stock
           ));
         });
+      }
+
+      // 3. Lender "Vehicle Approval Checker" dropdowns (chk-stock-${lid})
+      //    initLenderPanels() builds these at page load when inventory was empty.
+      //    Now repopulate every lender's checker dropdown with cloud data.
+      if (typeof lenders === 'object' && inv.length) {
+        Object.keys(lenders).forEach(lid => {
+          const sel = document.getElementById('chk-stock-' + lid);
+          if (!sel) return;
+          sel.innerHTML = '<option value="">— Select a vehicle —</option>';
+          inv.forEach(v => {
+            const price = Number(v.price || 0).toLocaleString();
+            sel.add(new Option(
+              `${v.stock} — ${v.year} ${v.make} ${v.model} ($${price})`, v.stock
+            ));
+          });
+        });
+        console.log(`🏦 Populated ${Object.keys(lenders).length} lender checker dropdowns`);
       }
 
       // 3. Call initInventory if it exists (for any extra setup it does)
