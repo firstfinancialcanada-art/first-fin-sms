@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>FIRST-FIN Platform — Integrated</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
 :root {
   --bg:       #070d1a;
@@ -52,7 +55,8 @@ body.light-mode #toast { box-shadow: 0 4px 20px rgba(0,0,0,.2); }
 body.light-mode .lender-header-box { background: linear-gradient(135deg,#f0f4fa,#e8eef7); }
 
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;transition:background .3s,color .3s;}
+html{overflow-x:hidden;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;transition:background .3s,color .3s;overflow-x:hidden;}
 
 /* ── NAV ── */
 .platform-header{background:linear-gradient(135deg,#050b18 0%,#0a1530 100%);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;gap:20px;height:60px;position:sticky;top:0;z-index:1000;}
@@ -60,13 +64,13 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
 .main-nav{display:flex;gap:4px;flex:1;margin-left:20px;}
-.nav-btn{padding:8px 16px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;}
-.nav-btn:hover{background:rgba(30,90,246,0.1);color:var(--text);border-color:var(--border);}
-.nav-btn.active{background:rgba(30,90,246,0.15);color:var(--primary);border-color:var(--border2);}
+.nav-btn{padding:7px 14px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;}
+.nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
+.nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
 .nav-btn.compare-btn:hover,.nav-btn.compare-btn.active{background:linear-gradient(135deg,rgba(245,158,11,0.25),rgba(30,90,246,0.25));}
 .header-actions{display:flex;gap:8px;margin-left:auto;}
-.hbtn{padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.hbtn{padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;letter-spacing:.5px;text-transform:uppercase;}
 .hbtn:hover{background:var(--primary);border-color:var(--primary);color:white;}
 .hbtn.theme-toggle{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.4);color:var(--amber);font-weight:700;letter-spacing:.5px;}
 .hbtn.theme-toggle:hover{background:var(--amber);color:#000;}
@@ -79,7 +83,12 @@ body.light-mode .hbtn.theme-toggle:hover{background:var(--primary);color:white;}
 
 /* ── CARDS ── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
-.card-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--primary);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+/* Lucide icon helpers */
+.ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:5px;stroke-width:2.2;}
+.ico-sm{width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;stroke-width:2;}
+.ico-lg{width:20px;height:20px;display:inline-block;vertical-align:-3px;margin-right:6px;stroke-width:2;}
+.card-title .ico,.wiz-section-title .ico-lg{opacity:.85;}
+.card-title{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2.5px;color:var(--primary);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .card-title.amber{color:var(--amber);}
 .card-title.green{color:var(--green);}
 
@@ -139,7 +148,7 @@ select option{background:#0d1526;color:var(--text);}
 
 /* ── MANAGER TABS ── */
 .mgr-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;}
-.mgr-tab{padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);transition:all .2s;font-family:'Outfit',sans-serif;text-transform:uppercase;letter-spacing:.5px;}
+.mgr-tab{padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;color:var(--muted);transition:all .2s;font-family:'Outfit',sans-serif;text-transform:uppercase;letter-spacing:.8px;}
 .mgr-tab:hover{border-color:var(--primary);color:var(--text);}
 .mgr-tab.active{background:rgba(30,90,246,0.15);border-color:var(--border2);color:var(--primary);}
 .mgr-content{display:none;}
@@ -165,7 +174,7 @@ select option{background:#0d1526;color:var(--text);}
 .badge-clean{background:rgba(16,185,129,.15);color:var(--green);}
 .badge-avg{background:rgba(245,158,11,.15);color:var(--amber);}
 .badge-rough{background:rgba(239,68,68,.15);color:var(--red);}
-.table-wrap{max-height:70vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+.table-wrap{max-height:70vh;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;}
 
 /* ── LENDER TABS ── */
 .lender-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:var(--surface2);padding:10px;border-radius:8px;border:1px solid var(--border);}
@@ -400,7 +409,7 @@ select option{background:#0d1526;color:var(--text);}
 .conv-item:hover{border-color:var(--border2);}
 .conv-header{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
 .conv-header:hover{background:rgba(30,90,246,.04);}
-.conv-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.conv-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:0;}
 .conv-info{flex:1;min-width:0;}
 .conv-name{font-weight:700;font-size:13px;color:var(--text);}
 .conv-phone{font-size:11px;color:var(--muted);margin-top:1px;}
@@ -471,6 +480,9 @@ select option{background:#0d1526;color:var(--text);}
   .insight-grid{grid-template-columns:1fr;}
 }
 
+/* ══════════════════════════════════════════════
+   RESPONSIVE — TABLET (≤ 900px)
+══════════════════════════════════════════════ */
 @media(max-width:900px){
   .deal-grid{grid-template-columns:1fr;}
   .stat-hero,.penetration-grid{grid-template-columns:1fr 1fr;}
@@ -479,12 +491,206 @@ select option{background:#0d1526;color:var(--text);}
   .scenario-strip{grid-template-columns:1fr 1fr;}
   .lre-grid{grid-template-columns:1fr;}
   .rc-rate-inputs{grid-template-columns:1fr 1fr;}
+  .wiz-container{max-width:100%;padding:0 12px !important;}
 }
-@media(max-width:600px){
-  .main-nav{display:none;}
-  .stat-hero,.penetration-grid,.two-col,.three-col,.four-col{grid-template-columns:1fr;}
-  .scenario-strip{grid-template-columns:1fr;}
-  .pres-payment-ladder{flex-direction:column;align-items:center;}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — MOBILE (≤ 768px)
+══════════════════════════════════════════════ */
+@media(max-width:768px){
+  /* Header */
+  .hamburger{ display:flex; }
+  .main-nav{ display:none !important; }
+  .header-actions{ display:none !important; }
+  .platform-header{
+    padding:0 12px;
+    height:56px;
+    display:flex;align-items:center;
+    justify-content:space-between;
+  }
+  .platform-logo{font-size:18px;}
+  .platform-version{display:none;}
+
+  /* Sections */
+  .section{padding:10px;min-height:calc(100vh - 56px);}
+  .card{padding:14px;margin-bottom:12px;border-radius:8px;}
+  .card-title{font-size:14px;letter-spacing:2px;margin-bottom:10px;padding-bottom:6px;}
+
+  /* Form grids — all stack */
+  .two-col,.three-col,.four-col{grid-template-columns:1fr !important;gap:6px;}
+  .fgroup{margin-bottom:8px;}
+  .fgroup label{font-size:10px;margin-bottom:3px;}
+  .fgroup input,.fgroup select,.fgroup textarea{
+    font-size:16px !important; /* prevent iOS zoom */
+    padding:11px 12px;
+    border-radius:8px;
+  }
+  /* Also cover login and other standalone inputs */
+  input[type="email"],input[type="password"],input[type="text"],input[type="number"],input[type="tel"],select,textarea{font-size:16px !important;}
+
+  /* Buttons — touch-friendly */
+  .btn{padding:11px 16px;font-size:12px;border-radius:8px;}
+  .btn-sm{padding:9px 12px;font-size:11px;}
+  .btn-bridge{padding:14px 20px;font-size:12px;}
+
+  /* Payment grid — horizontal scroll */
+  .payment-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px;}
+  .payment-table{min-width:480px;}
+  .payment-table th{padding:8px 6px;font-size:10px;}
+  .payment-table td{padding:9px 6px;}
+  .payment-val{font-size:13px;}
+
+  /* Rate comparison */
+  .rc-rate-inputs{grid-template-columns:1fr !important;}
+  .rate-compare-card{padding:10px;}
+  .rate-compare-table{font-size:11px;}
+
+  /* OTD box */
+  .otd-box{padding:14px;margin-top:8px;}
+  .otd-amount{font-size:26px;}
+
+  /* F&I products */
+  .product-box{padding:10px;margin-bottom:8px;}
+  .product-header{flex-wrap:wrap;gap:4px;}
+
+  /* Manager tabs — horizontal scroll */
+  .mgr-tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;gap:6px;margin:0 -14px 12px;padding-left:14px;padding-right:14px;}
+  .mgr-tab{flex-shrink:0;padding:8px 12px;font-size:10px;}
+
+  /* Scenarios */
+  .scenario-strip{grid-template-columns:1fr !important;gap:8px;margin:0 10px 10px;}
+  .scenario-card{padding:12px;}
+  .sc-actions{gap:4px;}
+  .sc-actions .btn{padding:6px 8px;font-size:10px;}
+
+  /* Inventory table — horizontal scroll */
+  .data-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px;}
+  .data-table{min-width:700px;}
+  .data-table th{padding:8px 6px;font-size:10px;}
+  .data-table td{padding:8px 6px;font-size:11px;}
+  .inv-search{margin-bottom:10px;}
+  .inv-search input{font-size:16px !important;padding:12px;}
+  .inv-count{font-size:11px;padding:5px 10px;}
+
+  /* Lender tabs — horizontal scroll */
+  .lender-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap !important;display:flex;gap:6px;padding-bottom:4px;}
+  .ltab{flex-shrink:0;padding:8px 10px;font-size:10px;}
+
+  /* Lender compare results */
+  .lender-results-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Compare section */
+  .compare-input-bar{grid-template-columns:1fr !important;}
+
+  /* Analytics */
+  .stat-hero{grid-template-columns:1fr !important;}
+  .penetration-grid{grid-template-columns:1fr !important;}
+
+  /* Deal output summary boxes */
+  .wiz-live-pill{min-width:auto;padding:6px 10px;}
+  .wiz-live-pill .wlp-value{font-size:15px;}
+
+  /* SARAH conversation list */
+  .conv-card{padding:10px;}
+  .conv-avatar{width:32px;height:32px;font-size:12px;}
+  .conv-header{padding:10px 12px;gap:8px;}
+  .conv-name{font-size:12px;}
+  .conv-phone{font-size:10px;}
+  .conv-meta{font-size:10px;}
+  .conv-right{gap:4px;}
+  .conv-thread{padding:0 12px 12px;}
+  #convSearch{font-size:16px !important;}
+
+  /* Modals */
+  .modal-content{margin:10px;padding:16px;border-radius:10px;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-size:18px;}
+
+  /* Wizard */
+  .wiz-container{padding:0 8px !important;}
+  .wiz-rail{padding:0 8px 14px;}
+  .wiz-rail::before{left:40px;right:40px;}
+  .wiz-dot{width:28px;height:28px;font-size:11px;}
+  .wiz-dot-label{font-size:8px;}
+  .wiz-section-title{font-size:18px;letter-spacing:2px;}
+  .wiz-section-title .ico-lg{width:16px;height:16px;}
+  .wiz-nav{flex-direction:column;gap:6px;}
+  .wiz-nav .btn{width:100%;padding:14px;font-size:13px;}
+  .wiz-live-banner{gap:8px;padding:10px 12px;}
+
+  /* Presentation overlay */
+  .pres-pmt-card{min-width:120px;padding:16px 14px;}
+  .pres-amount{font-size:30px;}
+  .pres-pmt-card.featured{transform:scale(1.02);}
+  .pres-payment-ladder{flex-direction:column;align-items:center;gap:10px;}
+
+  /* Lender vehicle checker */
+  .checker-grid{grid-template-columns:1fr !important;}
+  .checker-title{font-size:13px;}
+
+  /* F&I product grid */
+  .fi-grid,.fi-products{grid-template-columns:1fr !important;}
+
+  /* Rate comparison */
+  .rate-compare-grid{grid-template-columns:1fr !important;}
+
+  /* CRM table */
+  .crm-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Print worksheet */
+  .pw-grid{grid-template-columns:1fr !important;}
+
+  /* DT Sync */
+  .dt-stat-row{grid-template-columns:repeat(2,1fr) !important;gap:8px;}
+}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — SMALL MOBILE (≤ 480px)
+══════════════════════════════════════════════ */
+@media(max-width:480px){
+  .platform-header{padding:0 8px;height:50px;}
+  .platform-logo{font-size:16px;letter-spacing:1px;}
+  .section{padding:8px;}
+  .card{padding:12px;margin-bottom:10px;}
+
+  /* Wizard rail — compact */
+  .wiz-rail{padding:0 4px 12px;}
+  .wiz-rail::before{left:30px;right:30px;}
+  .wiz-dot{width:26px;height:26px;font-size:10px;}
+  .wiz-dot-label{font-size:7px;letter-spacing:.5px;}
+  .wiz-section-title{font-size:18px;letter-spacing:2px;}
+
+  /* Live banner — 2x2 grid */
+  .wiz-live-banner{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;}
+  .wiz-live-pill{padding:6px 8px;}
+  .wiz-live-pill .wlp-label{font-size:8px;}
+  .wiz-live-pill .wlp-value{font-size:14px;}
+
+  /* Nav buttons stacked full width */
+  .wiz-nav{gap:6px;}
+  .wiz-nav .btn{font-size:12px;padding:12px;}
+
+  /* Payment table tighter */
+  .payment-table{min-width:420px;}
+  .payment-val{font-size:12px;}
+
+  /* OTD */
+  .otd-amount{font-size:22px;}
+
+  /* Scenarios */
+  .sc-label-input{font-size:12px;}
+
+  /* Toast */
+  #toast{font-size:12px;padding:10px 16px;bottom:10px;left:10px;right:10px;max-width:none;}
+
+  /* Checklist items */
+  .chk-item label{font-size:12px;}
+  .chk-item{padding:6px 0;}
+
+  /* DT Sync */
+  .dt-stat-row{grid-template-columns:1fr !important;}
+
+  /* SARAH stats */
+  .sarah-stat-grid{grid-template-columns:1fr 1fr !important;}
 }
 
 /* ══════════════════════════════════════════════
@@ -563,33 +769,40 @@ select option{background:#0d1526;color:var(--text);}
 }
 .mobile-menu-overlay.open{ display:block; }
 
-@media(max-width:768px){
-  .hamburger{ display:flex; }
-  .main-nav{ display:none !important; }
-  .header-actions{ display:none !important; }
-  .platform-header{
-    padding:0 14px;
-    height:60px;
-    display:flex;align-items:center;
-    justify-content:space-between;
-  }
-  /* Make sections full width with less padding */
-  .section{ padding:12px; }
-  /* Lender table — horizontal scroll container */
-  .lender-results-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  /* Deal desk header row */
-  .deal-output-header{ font-size:11px; }
-  /* Tighten cards on mobile */
-  .card{ padding:14px; }
-  .card-title{ font-size:13px; }
-  /* Bigger tap targets on inputs */
-  input,select,textarea{ font-size:16px !important; } /* prevents iOS zoom */
-}
-
+/* ── DEAL WIZARD ─────────────────────────────────────── */
+.wiz-container{max-width:900px;margin:0 auto;}
+.wiz-rail{display:flex;align-items:center;justify-content:center;gap:0;padding:0 20px 20px;position:relative;}
+.wiz-rail::before{content:'';position:absolute;top:16px;left:60px;right:60px;height:2px;background:var(--border);z-index:0;}
+.wiz-dot-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1;flex:1;cursor:pointer;}
+.wiz-dot{width:32px;height:32px;border-radius:50%;border:2px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--muted);transition:all .3s;}
+.wiz-dot-wrap.active .wiz-dot{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 0 16px rgba(30,90,246,.4);}
+.wiz-dot-wrap.done .wiz-dot{background:var(--green);border-color:var(--green);color:#fff;}
+.wiz-dot-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;}
+.wiz-dot-wrap.active .wiz-dot-label{color:var(--primary);}
+.wiz-dot-wrap.done .wiz-dot-label{color:var(--green);}
+.wiz-step{display:none;animation:wizFade .3s ease;}
+.wiz-step.active{display:block;}
+@keyframes wizFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.wiz-nav{display:flex;gap:10px;justify-content:space-between;padding:20px 0 0;}
+.wiz-nav .btn{min-width:140px;}
+.wiz-section-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--border);}
+.wiz-section-title .wiz-accent{color:var(--primary);}
+.wiz-section-title .wiz-accent.amber{color:var(--amber);}
+.wiz-section-title .wiz-accent.green{color:var(--green);}
+.wiz-live-banner{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+.wiz-live-pill{background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.25);border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:120px;}
+.wiz-live-pill .wlp-label{font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.wiz-live-pill .wlp-value{font-size:17px;font-weight:800;color:var(--primary);margin-top:2px;}
+.wiz-live-pill.amber{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);}
+.wiz-live-pill.amber .wlp-value{color:var(--amber);}
+.wiz-live-pill.green{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.25);}
+.wiz-live-pill.green .wlp-value{color:var(--green);}
 @media print{
   .platform-header,.header-actions{display:none!important;}
   #section-lenders,#section-compare,#section-analytics,#section-inventory{display:none!important;}
   #section-deal{display:block!important;}
+  .wiz-rail,.wiz-nav{display:none!important;}
+  .wiz-step{display:block!important;}
   body{background:white;color:#000;}
 }
 </style>
@@ -737,25 +950,25 @@ select option{background:#0d1526;color:var(--text);}
     <div class="logo-sub">PLATFORM v1.0</div>
   </div>
   <nav class="main-nav">
-    <button class="nav-btn active" onclick="showSection('deal',this)">🗂️ Deal Desk</button>
-    <button class="nav-btn" onclick="showSection('inventory',this)">📦 Inventory</button>
-    <button class="nav-btn" onclick="showSection('lenders',this)">🏦 Lenders</button>
-    <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah">💬 SARAH</button>
-    <button class="nav-btn compare-btn" onclick="showSection('compare',this)">⚡ Compare All</button>
-    <button class="nav-btn" onclick="showSection('analytics',this)">📊 Analytics</button>
-    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);">📥 DT Sync</button>
+    <button class="nav-btn active" onclick="showSection('deal',this)"><i data-lucide="briefcase" class="ico"></i>Deal Desk</button>
+    <button class="nav-btn" onclick="showSection('inventory',this)"><i data-lucide="warehouse" class="ico"></i>Inventory</button>
+    <button class="nav-btn" onclick="showSection('lenders',this)"><i data-lucide="landmark" class="ico"></i>Lenders</button>
+    <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah"><i data-lucide="bot" class="ico"></i>SARAH</button>
+    <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
+    <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
+    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync</button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
   <div class="header-actions">
-    <button class="hbtn" onclick="openPresentation()" style="background:linear-gradient(135deg,rgba(30,90,246,.2),rgba(245,158,11,.15));border-color:rgba(30,90,246,.4);color:white;font-weight:700;">🎯 Present</button>
-    <button class="hbtn" onclick="saveDeal()">💾 Save</button>
-    <button class="hbtn amber" onclick="openModal('emailModal')">📧 Email</button>
-    <button class="hbtn theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()">☀️ Light</button>
-    <button class="hbtn" onclick="openModal('lenderRateModal');buildLenderRateEditor()">✏️ Rates</button>
-    <button class="hbtn" onclick="openModal('settingsModal')">⚙️ Settings</button>
-    <button class="hbtn" onclick="if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out">🚪</button>
+    <button class="hbtn" onclick="openPresentation()" style="background:linear-gradient(135deg,rgba(30,90,246,.2),rgba(245,158,11,.15));border-color:rgba(30,90,246,.4);color:white;font-weight:700;"><i data-lucide="presentation" class="ico-sm"></i>Present</button>
+    <button class="hbtn" onclick="saveDeal()"><i data-lucide="save" class="ico-sm"></i>Save</button>
+    <button class="hbtn amber" onclick="openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i>Email</button>
+    <button class="hbtn theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()"><i data-lucide="sun" class="ico-sm"></i>Light</button>
+    <button class="hbtn" onclick="openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i>Rates</button>
+    <button class="hbtn" onclick="openModal('settingsModal')"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
+    <button class="hbtn" onclick="if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
   </div>
 </header>
 
@@ -763,32 +976,42 @@ select option{background:#0d1526;color:var(--text);}
 <div class="mobile-menu-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
 <div class="mobile-menu" id="mobileMenu">
   <div class="mobile-menu-section">Navigate</div>
-  <button class="mobile-nav-btn" onclick="mobileNav('deal')">🗂️ Deal Desk</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('inventory')">📦 Inventory</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('lenders')">🏦 Lenders</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('sarah')">💬 Sarah AI</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('compare')">⚡ Compare All</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('analytics')">📊 Analytics</button>
-  <button class="mobile-nav-btn" onclick="mobileNav('dtsync')">📥 DT Sync</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('deal')"><i data-lucide="briefcase" class="ico-sm"></i> Deal Desk</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('inventory')"><i data-lucide="warehouse" class="ico-sm"></i> Inventory</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('lenders')"><i data-lucide="landmark" class="ico-sm"></i> Lenders</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('sarah')"><i data-lucide="bot" class="ico-sm"></i> Sarah AI</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('compare')"><i data-lucide="zap" class="ico-sm"></i> Compare All</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('analytics')"><i data-lucide="bar-chart-3" class="ico-sm"></i> Analytics</button>
+  <button class="mobile-nav-btn" onclick="mobileNav('dtsync')"><i data-lucide="refresh-cw" class="ico-sm"></i> DT Sync</button>
   <div class="mobile-menu-divider"></div>
   <div class="mobile-menu-section">Actions</div>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()">🎯 Customer Presentation</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();saveDeal()">💾 Save Deal</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('emailModal')">📧 Email Worksheet</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('lenderRateModal');buildLenderRateEditor()">✏️ Edit Rates</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();toggleDarkMode()">☀️ Toggle Light/Dark</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('settingsModal')">⚙️ Settings</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()"><i data-lucide="presentation" class="ico-sm"></i> Customer Presentation</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();saveDeal()"><i data-lucide="save" class="ico-sm"></i> Save Deal</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i> Email Worksheet</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i> Edit Rates</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();toggleDarkMode()"><i data-lucide="sun-moon" class="ico-sm"></i> Toggle Theme</button>
+  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('settingsModal')"><i data-lucide="settings" class="ico-sm"></i> Settings</button>
 </div>
 
 <!-- ═══ DEAL DESK ═══ -->
+<!-- ═══ DEAL DESK — WIZARD ═══ -->
 <section id="section-deal" class="section active">
-  <div class="deal-grid">
 
-    <!-- LEFT PANEL -->
-    <div>
-      <!-- Vehicle Info -->
+  <!-- Wizard Progress Rail -->
+  <div class="wiz-rail">
+    <div class="wiz-dot-wrap active" onclick="goWizStep(0)"><div class="wiz-dot">1</div><div class="wiz-dot-label">Vehicle</div></div>
+    <div class="wiz-dot-wrap" onclick="goWizStep(1)"><div class="wiz-dot">2</div><div class="wiz-dot-label">Customer</div></div>
+    <div class="wiz-dot-wrap" onclick="goWizStep(2)"><div class="wiz-dot">3</div><div class="wiz-dot-label">Structure</div></div>
+    <div class="wiz-dot-wrap" onclick="goWizStep(3)"><div class="wiz-dot">4</div><div class="wiz-dot-label">F&I &amp; Pay</div></div>
+    <div class="wiz-dot-wrap" onclick="goWizStep(4)"><div class="wiz-dot">5</div><div class="wiz-dot-label">Review</div></div>
+  </div>
+
+  <div class="wiz-container" style="padding:0 20px;">
+
+    <!-- ════════════════════ STEP 1: VEHICLE ════════════════════ -->
+    <div class="wiz-step active" id="wizStep0">
       <div class="card">
-        <div class="card-title">🚘 Vehicle Information</div>
+        <div class="wiz-section-title"><i data-lucide="car" class="ico-lg"></i><span class="wiz-accent">Vehicle</span> Selection</div>
         <div class="fgroup">
           <label>Vehicle Description</label>
           <input type="text" id="vehicleDesc" placeholder="2023 Ford F-150 SuperCrew..." oninput="autoMatchStock()">
@@ -824,95 +1047,64 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
       </div>
+      <div class="wiz-nav">
+        <div></div>
+        <button class="btn btn-primary" onclick="goWizStep(1)">Customer →</button>
+      </div>
+    </div>
 
-      <!-- Customer Info -->
+    <!-- ════════════════════ STEP 2: CUSTOMER ════════════════════ -->
+    <div class="wiz-step" id="wizStep1">
       <div class="card">
-        <div class="card-title amber">👤 Customer Information</div>
+        <div class="wiz-section-title"><i data-lucide="user" class="ico-lg" style="color:var(--amber)"></i><span class="wiz-accent amber">Customer</span> Information</div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Customer Name</label>
-            <input type="text" id="custName" placeholder="First Last">
-          </div>
-          <div class="fgroup">
-            <label>Phone</label>
-            <input type="text" id="custPhone" placeholder="(587) 000-0000">
-          </div>
+          <div class="fgroup"><label>Customer Name</label><input type="text" id="custName" placeholder="First Last"></div>
+          <div class="fgroup"><label>Phone</label><input type="text" id="custPhone" placeholder="(587) 000-0000"></div>
         </div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Email</label>
-            <input type="email" id="custEmail" placeholder="customer@email.com">
-          </div>
-          <div class="fgroup">
-            <label>Beacon Score</label>
-            <input type="number" id="creditScore" placeholder="650" oninput="assessRisk()">
-          </div>
+          <div class="fgroup"><label>Email</label><input type="email" id="custEmail" placeholder="customer@email.com"></div>
+          <div class="fgroup"><label>Beacon Score</label><input type="number" id="creditScore" placeholder="650" oninput="assessRisk()"></div>
         </div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Monthly Income</label>
-            <input type="number" id="monthlyIncome" placeholder="0" oninput="calculatePTI()">
-          </div>
-          <div class="fgroup">
-            <label>Existing Obligations/mo</label>
-            <input type="number" id="existingPayments" placeholder="0" oninput="calculatePTI()">
-          </div>
+          <div class="fgroup"><label>Monthly Income</label><input type="number" id="monthlyIncome" placeholder="0" oninput="calculatePTI()"></div>
+          <div class="fgroup"><label>Existing Obligations/mo</label><input type="number" id="existingPayments" placeholder="0" oninput="calculatePTI()"></div>
         </div>
         <div id="beaconLenderRow" class="beacon-lender-row" style="display:none;">
-          <div class="bln-title">🏦 Lender Match — Based on Beacon + Vehicle</div>
+          <div class="bln-title">Lender Match — Based on Beacon + Vehicle</div>
           <div class="bln-badges" id="beaconBadges"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="btn btn-success btn-sm" onclick="addToCRM()">➕ Add to CRM</button>
-          <button class="btn btn-primary btn-sm" onclick="runBeaconMatch()">🏦 Check Lenders</button>
+          <button class="btn btn-success btn-sm" onclick="addToCRM()"><i data-lucide="user-plus" class="ico-sm"></i>Add to CRM</button>
+          <button class="btn btn-primary btn-sm" onclick="runBeaconMatch()"><i data-lucide="landmark" class="ico-sm"></i>Check Lenders</button>
         </div>
       </div>
+      <div class="wiz-nav">
+        <button class="btn btn-ghost" onclick="goWizStep(0)">← Vehicle</button>
+        <button class="btn btn-primary" onclick="goWizStep(2)">Structure →</button>
+      </div>
+    </div>
 
-      <!-- Deal Structure -->
+    <!-- ════════════════════ STEP 3: DEAL STRUCTURE ════════════════════ -->
+    <div class="wiz-step" id="wizStep2">
       <div class="card">
-        <div class="card-title">💰 Deal Structure</div>
+        <div class="wiz-section-title"><i data-lucide="dollar-sign" class="ico-lg"></i><span class="wiz-accent">Deal</span> Structure</div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Selling Price ($)</label>
-            <input type="number" id="sellingPrice" value="35000" oninput="calculate()">
-          </div>
-          <div class="fgroup">
-            <label>Doc Fee ($)</label>
-            <input type="number" id="docFee" value="998" oninput="calculate()">
-          </div>
+          <div class="fgroup"><label>Selling Price ($)</label><input type="number" id="sellingPrice" value="35000" oninput="calculate()"></div>
+          <div class="fgroup"><label>Doc Fee ($)</label><input type="number" id="docFee" value="998" oninput="calculate()"></div>
         </div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Trade Allowance ($)</label>
-            <input type="number" id="tradeAllow" value="0" oninput="calculate()">
-          </div>
-          <div class="fgroup">
-            <label>Trade Payoff ($)</label>
-            <input type="number" id="tradePayoff" value="0" oninput="calculate()">
-          </div>
+          <div class="fgroup"><label>Trade Allowance ($)</label><input type="number" id="tradeAllow" value="0" oninput="calculate()"></div>
+          <div class="fgroup"><label>Trade Payoff ($)</label><input type="number" id="tradePayoff" value="0" oninput="calculate()"></div>
         </div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>APR (%)</label>
-            <input type="number" id="apr" value="8.99" step="0.01" oninput="calculate()">
-          </div>
-          <div class="fgroup">
-            <label>GST Rate (%)</label>
-            <input type="number" id="gstRate" value="5" step="0.1" oninput="calculate()">
-          </div>
+          <div class="fgroup"><label>APR (%)</label><input type="number" id="apr" value="8.99" step="0.01" oninput="calculate()"></div>
+          <div class="fgroup"><label>GST Rate (%)</label><input type="number" id="gstRate" value="5" step="0.1" oninput="calculate()"></div>
         </div>
         <div class="two-col">
+          <div class="fgroup"><label>GST Amount</label><input type="text" id="gstAmount" readonly></div>
           <div class="fgroup">
-            <label>GST Amount</label>
-            <input type="text" id="gstAmount" readonly>
-          </div>
-          <div class="fgroup">
-            <label style="display:flex;align-items:center;gap:6px;">
-              Final Down Payment ($)
-              <span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);border-radius:3px;padding:1px 5px;letter-spacing:.5px;">CHOSEN</span>
-            </label>
-            <input type="number" id="finalDown" value="0" placeholder="0" oninput="calculate()"
-              style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04);">
+            <label style="display:flex;align-items:center;gap:6px;">Final Down Payment ($)<span style="font-size:9px;font-weight:700;background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);border-radius:3px;padding:1px 5px;letter-spacing:.5px;">CHOSEN</span></label>
+            <input type="number" id="finalDown" value="0" placeholder="0" oninput="calculate()" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04);">
           </div>
         </div>
         <div class="otd-box">
@@ -929,19 +1121,15 @@ select option{background:#0d1526;color:var(--text);}
             <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px;" id="financeAmountDisplay">$0</div>
           </div>
         </div>
-        <button class="btn btn-bridge" style="width:100%;margin-top:12px;" onclick="bridgeToCompare()">⚡ CHECK ALL LENDERS FOR THIS DEAL</button>
+        <button class="btn btn-bridge" style="width:100%;margin-top:12px;" onclick="bridgeToCompare()"><i data-lucide="zap" class="ico-sm"></i>CHECK ALL LENDERS FOR THIS DEAL</button>
       </div>
 
       <!-- Trade Analysis -->
-      <div class="card">
-        <div class="card-title amber">🔄 Trade Analysis</div>
+      <div class="card" style="margin-top:16px;">
+        <div class="wiz-section-title"><i data-lucide="repeat" class="ico-lg" style="color:var(--amber)"></i><span class="wiz-accent amber">Trade</span> Analysis</div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>ACV / Market Value ($)</label>
-            <input type="number" id="acv" value="0" oninput="calculateTrade()">
-          </div>
-          <div class="fgroup">
-            <label>Condition Adjustment</label>
+          <div class="fgroup"><label>ACV / Market Value ($)</label><input type="number" id="acv" value="0" oninput="calculateTrade()"></div>
+          <div class="fgroup"><label>Condition Adjustment</label>
             <select id="conditionAdj" onchange="calculateTrade()">
               <option value="0">Good — $0</option>
               <option value="300">Fair — ($300)</option>
@@ -950,14 +1138,8 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
         <div class="two-col">
-          <div class="fgroup">
-            <label>Safety Inspection ($)</label>
-            <input type="number" id="safetyInspect" value="150" oninput="calculateTrade()">
-          </div>
-          <div class="fgroup">
-            <label>Reconditioning ($)</label>
-            <input type="number" id="reconditionCost" value="500" oninput="calculateTrade()">
-          </div>
+          <div class="fgroup"><label>Safety Inspection ($)</label><input type="number" id="safetyInspect" value="150" oninput="calculateTrade()"></div>
+          <div class="fgroup"><label>Reconditioning ($)</label><input type="number" id="reconditionCost" value="500" oninput="calculateTrade()"></div>
         </div>
         <div class="fgroup"><label>Total Recon Cost</label><input type="text" id="totalRecon" readonly></div>
         <div class="fgroup"><label>Adjusted ACV</label><input type="text" id="adjustedACV" readonly></div>
@@ -969,31 +1151,34 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
       </div>
+      <div class="wiz-nav">
+        <button class="btn btn-ghost" onclick="goWizStep(1)">← Customer</button>
+        <button class="btn btn-primary" onclick="goWizStep(3)">F&I & Payments →</button>
+      </div>
     </div>
 
-    <!-- RIGHT PANEL -->
-    <div>
+    <!-- ════════════════════ STEP 4: F&I + PAYMENTS ════════════════════ -->
+    <div class="wiz-step" id="wizStep3">
+
+      <!-- Live Deal Banner -->
+      <div class="wiz-live-banner">
+        <div class="wiz-live-pill"><div class="wlp-label">OTD Price</div><div class="wlp-value" id="wizOtd">$0</div></div>
+        <div class="wiz-live-pill amber"><div class="wlp-label">Down</div><div class="wlp-value" id="wizDown">$0</div></div>
+        <div class="wiz-live-pill"><div class="wlp-label">Finance</div><div class="wlp-value" id="wizFinance">$0</div></div>
+        <div class="wiz-live-pill green"><div class="wlp-label">72mo Pay</div><div class="wlp-value" id="wizPay72">$0</div></div>
+      </div>
+
       <!-- Payment Grid -->
       <div class="card">
-        <div class="card-title">📋 Payment Grid</div>
+        <div class="wiz-section-title"><i data-lucide="calculator" class="ico-lg"></i><span class="wiz-accent">Payment</span> Grid</div>
         <div class="payment-wrap">
           <table class="payment-table">
-            <thead>
-              <tr>
-                <th>Down Payment</th>
-                <th>48 Months</th>
-                <th>60 Months</th>
-                <th>72 Months</th>
-                <th>84 Months</th>
-              </tr>
-            </thead>
-            <tbody id="paymentGrid">
-              <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">Enter deal details to calculate payments</td></tr>
-            </tbody>
+            <thead><tr><th>Down Payment</th><th>48 Months</th><th>60 Months</th><th>72 Months</th><th>84 Months</th></tr></thead>
+            <tbody id="paymentGrid"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">Enter deal details to calculate payments</td></tr></tbody>
           </table>
         </div>
         <div class="rate-compare-card">
-          <div class="rc-title">📊 Rate Comparison — Same Deal, 3 Rates</div>
+          <div class="rc-title" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--primary);margin-bottom:10px;">Rate Comparison — Same Deal, 3 Rates</div>
           <div class="rc-rate-inputs">
             <div class="fgroup" style="margin:0;"><label>Buy Rate (%)</label><input type="number" id="rc_buy" value="6.50" step="0.01" oninput="updateRateComparison()"></div>
             <div class="fgroup" style="margin:0;"><label>Contract Rate (%)</label><input type="number" id="rc_contract" value="8.99" step="0.01" oninput="updateRateComparison()"></div>
@@ -1007,12 +1192,11 @@ select option{background:#0d1526;color:var(--text);}
       </div>
 
       <!-- F&I Products -->
-      <div class="card">
-        <div class="card-title green">🛡️ F&I Protection Package</div>
+      <div class="card" style="margin-top:16px;">
+        <div class="wiz-section-title"><i data-lucide="shield-check" class="ico-lg" style="color:var(--green)"></i><span class="wiz-accent green">F&I</span> Protection Package</div>
 
-        <!-- Payment Impact FIRST — what the customer sees -->
         <div style="background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(30,90,246,.06));border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:16px;margin-bottom:16px;">
-          <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">📋 Monthly Payment @ 72 Months</div>
+          <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Monthly Payment @ 72 Months</div>
           <div class="comp-row"><span class="comp-label">Vehicle Only</span><span class="comp-value" id="basePayment72">$0.00</span></div>
           <div class="comp-row"><span class="comp-label">+ GAP Insurance</span><span class="comp-value" id="withGap">$0.00</span></div>
           <div class="comp-row"><span class="comp-label">+ GAP + Warranty</span><span class="comp-value" id="withGapVsc">$0.00</span></div>
@@ -1023,59 +1207,51 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
 
-        <!-- Product Sell Price Entry — clean, no cost visible -->
         <div class="product-box">
-          <div class="product-header">
-            <span class="product-name">Vehicle Service Contract (VSC)</span>
-            <span class="product-impact" id="vscImpact" style="color:var(--green);">+$0.00/mo</span>
-          </div>
-          <div class="fgroup" style="margin:0;">
-            <label>Customer Price ($)</label>
-            <input type="number" class="product-price" id="vscPrice" value="0" oninput="calculate()" style="width:100%;">
-          </div>
+          <div class="product-header"><span class="product-name">Vehicle Service Contract (VSC)</span><span class="product-impact" id="vscImpact" style="color:var(--green);">+$0.00/mo</span></div>
+          <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="vscPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
         <div class="product-box">
-          <div class="product-header">
-            <span class="product-name">GAP Insurance</span>
-            <span class="product-impact" id="gapImpact" style="color:var(--green);">+$0.00/mo</span>
-          </div>
-          <div class="fgroup" style="margin:0;">
-            <label>Customer Price ($)</label>
-            <input type="number" class="product-price" id="gapPrice" value="0" oninput="calculate()" style="width:100%;">
-          </div>
+          <div class="product-header"><span class="product-name">GAP Insurance</span><span class="product-impact" id="gapImpact" style="color:var(--green);">+$0.00/mo</span></div>
+          <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="gapPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
         <div class="product-box">
-          <div class="product-header">
-            <span class="product-name">Tire & Wheel Protection</span>
-            <span class="product-impact" id="twImpact" style="color:var(--green);">+$0.00/mo</span>
-          </div>
-          <div class="fgroup" style="margin:0;">
-            <label>Customer Price ($)</label>
-            <input type="number" class="product-price" id="twPrice" value="0" oninput="calculate()" style="width:100%;">
-          </div>
+          <div class="product-header"><span class="product-name">Tire & Wheel Protection</span><span class="product-impact" id="twImpact" style="color:var(--green);">+$0.00/mo</span></div>
+          <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="twPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
         <div class="product-box">
-          <div class="product-header">
-            <span class="product-name">Wear Appearance (WA)</span>
-            <span class="product-impact" id="waImpact" style="color:var(--green);">+$0.00/mo</span>
-          </div>
-          <div class="fgroup" style="margin:0;">
-            <label>Customer Price ($)</label>
-            <input type="number" class="product-price" id="waPrice" value="0" oninput="calculate()" style="width:100%;">
-          </div>
+          <div class="product-header"><span class="product-name">Wear Appearance (WA)</span><span class="product-impact" id="waImpact" style="color:var(--green);">+$0.00/mo</span></div>
+          <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="waPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
+      </div>
+
+      <div class="wiz-nav">
+        <button class="btn btn-ghost" onclick="goWizStep(2)">← Structure</button>
+        <button class="btn btn-primary" onclick="goWizStep(4)">Review & Close →</button>
+      </div>
+    </div>
+
+    <!-- ════════════════════ STEP 5: REVIEW & CLOSE ════════════════════ -->
+    <div class="wiz-step" id="wizStep4">
+
+      <!-- Live Deal Banner -->
+      <div class="wiz-live-banner">
+        <div class="wiz-live-pill"><div class="wlp-label">OTD Price</div><div class="wlp-value" id="wizOtd2">$0</div></div>
+        <div class="wiz-live-pill amber"><div class="wlp-label">Down</div><div class="wlp-value" id="wizDown2">$0</div></div>
+        <div class="wiz-live-pill"><div class="wlp-label">Finance</div><div class="wlp-value" id="wizFinance2">$0</div></div>
+        <div class="wiz-live-pill green"><div class="wlp-label">72mo Pay</div><div class="wlp-value" id="wizPay72_2">$0</div></div>
       </div>
 
       <!-- Manager View -->
       <div class="card">
-        <div class="card-title amber">🔒 Manager View</div>
+        <div class="wiz-section-title"><i data-lucide="lock" class="ico-lg" style="color:var(--amber)"></i><span class="wiz-accent amber">Manager</span> View</div>
         <div class="mgr-tabs">
-          <button class="mgr-tab active" onclick="showMgrTab('profit',this)">💵 Gross Profit</button>
-          <button class="mgr-tab" onclick="showMgrTab('reserve',this)">🏦 Reserve</button>
-          <button class="mgr-tab" onclick="showMgrTab('subprime',this)">⚠️ Subprime</button>
-          <button class="mgr-tab" onclick="showMgrTab('checklist',this)">✅ Checklist</button>
-          <button class="mgr-tab" onclick="showMgrTab('tools',this)">🛠️ Tools</button>
-          <button class="mgr-tab" onclick="showMgrTab('commission',this)">💵 Commission</button>
+          <button class="mgr-tab active" onclick="showMgrTab('profit',this)"><i data-lucide="dollar-sign" class="ico-sm"></i>Gross Profit</button>
+          <button class="mgr-tab" onclick="showMgrTab('reserve',this)"><i data-lucide="landmark" class="ico-sm"></i>Reserve</button>
+          <button class="mgr-tab" onclick="showMgrTab('subprime',this)"><i data-lucide="alert-triangle" class="ico-sm"></i>Subprime</button>
+          <button class="mgr-tab" onclick="showMgrTab('checklist',this)"><i data-lucide="check-square" class="ico-sm"></i>Checklist</button>
+          <button class="mgr-tab" onclick="showMgrTab('tools',this)"><i data-lucide="wrench" class="ico-sm"></i>Tools</button>
+          <button class="mgr-tab" onclick="showMgrTab('commission',this)"><i data-lucide="coins" class="ico-sm"></i>Commission</button>
         </div>
 
         <div id="mgr-profit" class="mgr-content active">
@@ -1122,9 +1298,7 @@ select option{background:#0d1526;color:var(--text);}
         </div>
 
         <div id="mgr-subprime" class="mgr-content">
-          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:14px;margin-bottom:14px;font-size:12px;color:var(--amber);">
-            ⚠️ Subprime analysis helps ensure deal structure meets lender requirements.
-          </div>
+          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:14px;margin-bottom:14px;font-size:12px;color:var(--amber);">Subprime analysis helps ensure deal structure meets lender requirements.</div>
           <div class="two-col">
             <div class="fgroup"><label>Advance ($)</label><input type="number" id="subAdvance" value="0" oninput="calculateSubprime()"></div>
             <div class="fgroup"><label>NADA Book ($)</label><input type="number" id="subNada" value="0" oninput="calculateSubprime()"></div>
@@ -1138,21 +1312,21 @@ select option{background:#0d1526;color:var(--text);}
         </div>
 
         <div id="mgr-checklist" class="mgr-content">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">📋 Customer Documents</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Customer Documents</div>
           <div class="chk-item"><input type="checkbox" id="chk1"><label for="chk1">Government-issued ID (front & back)</label></div>
           <div class="chk-item"><input type="checkbox" id="chk2"><label for="chk2">SIN / Insurance Number</label></div>
           <div class="chk-item"><input type="checkbox" id="chk3"><label for="chk3">Proof of Income (recent pay stubs)</label></div>
           <div class="chk-item"><input type="checkbox" id="chk4"><label for="chk4">Bank Statement (last 3 months)</label></div>
           <div class="chk-item"><input type="checkbox" id="chk5"><label for="chk5">Proof of Residence</label></div>
           <div class="chk-item"><input type="checkbox" id="chk6"><label for="chk6">Insurance — Binder confirmed</label></div>
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;">📝 Contract</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;">Contract</div>
           <div class="chk-item"><input type="checkbox" id="chk7"><label for="chk7">Credit Application signed</label></div>
           <div class="chk-item"><input type="checkbox" id="chk8"><label for="chk8">Retail Installment Contract signed</label></div>
           <div class="chk-item"><input type="checkbox" id="chk9"><label for="chk9">Disclosure of Terms reviewed</label></div>
           <div class="chk-item"><input type="checkbox" id="chk10"><label for="chk10">Trade Documentation (if applicable)</label></div>
           <div class="chk-item"><input type="checkbox" id="chk11"><label for="chk11">Registration / Transfer Forms</label></div>
           <div class="chk-item"><input type="checkbox" id="chk12"><label for="chk12">GAP/VSC/Product Forms signed</label></div>
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;">📤 Submission</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px;">Submission</div>
           <div class="chk-item"><input type="checkbox" id="chk13"><label for="chk13">All documents scanned & uploaded</label></div>
           <div class="chk-item"><input type="checkbox" id="chk14"><label for="chk14">Contract submitted to lender</label></div>
           <div class="chk-item"><input type="checkbox" id="chk15"><label for="chk15">Funding approval received</label></div>
@@ -1160,7 +1334,7 @@ select option{background:#0d1526;color:var(--text);}
 
         <div id="mgr-tools" class="mgr-content">
           <div class="mini-calc">
-            <div class="mini-title">🔢 Quick Payment Calculator</div>
+            <div class="mini-title" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:15px;"><i data-lucide="calculator" class="ico"></i>Quick Payment Calculator</div>
             <div class="two-col">
               <div class="fgroup"><label>Amount ($)</label><input type="number" id="toolAmount" value="30000"></div>
               <div class="fgroup"><label>Rate (%)</label><input type="number" id="toolRate" value="8.99" step="0.01"></div>
@@ -1170,7 +1344,7 @@ select option{background:#0d1526;color:var(--text);}
             <div class="calc-result" id="quickResult">$0.00 / month</div>
           </div>
           <div class="mini-calc">
-            <div class="mini-title">💰 Reverse Calculator (Find Max Amount)</div>
+            <div class="mini-title" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:15px;"><i data-lucide="arrow-up-down" class="ico"></i>Reverse Calculator (Find Max Amount)</div>
             <div class="two-col">
               <div class="fgroup"><label>Target Payment ($)</label><input type="number" id="revPayment" value="500"></div>
               <div class="fgroup"><label>Rate (%)</label><input type="number" id="revRate" value="8.99" step="0.01"></div>
@@ -1180,7 +1354,7 @@ select option{background:#0d1526;color:var(--text);}
             <div class="calc-result" id="reverseResult">Max: $0</div>
           </div>
           <div class="mini-calc">
-            <div class="mini-title">📈 Profit Margin</div>
+            <div class="mini-title" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:15px;"><i data-lucide="trending-up" class="ico"></i>Profit Margin</div>
             <div class="two-col">
               <div class="fgroup"><label>Cost ($)</label><input type="number" id="mCost" value="1000"></div>
               <div class="fgroup"><label>Sell ($)</label><input type="number" id="mSell" value="1500"></div>
@@ -1191,7 +1365,7 @@ select option{background:#0d1526;color:var(--text);}
         </div>
 
         <div id="mgr-commission" class="mgr-content">
-          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">💡 Enter cost data in Gross Profit tab first — commission pulls live numbers.</div>
+          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">Enter cost data in Gross Profit tab first — commission pulls live numbers.</div>
           <div class="two-col">
             <div class="fgroup"><label>Front Split (%)</label><input type="number" id="commFrontPct" value="25" step="1" oninput="calcCommission()"></div>
             <div class="fgroup"><label>Back Split (%)</label><input type="number" id="commBackPct" value="30" step="1" oninput="calcCommission()"></div>
@@ -1202,55 +1376,51 @@ select option{background:#0d1526;color:var(--text);}
             <div class="comm-big" id="commTotal">$0</div>
             <div class="comm-breakdown" id="commBreakdown">—</div>
           </div>
-          <button class="btn btn-success btn-full" style="margin-top:10px;" onclick="calcCommission()">🔄 Recalculate</button>
+          <button class="btn btn-success btn-full" style="margin-top:10px;" onclick="calcCommission()">Recalculate</button>
         </div>
-
       </div>
 
-      <!-- Log Deal -->
-      <div style="display:flex;gap:10px;margin-bottom:16px;">
-        <button class="btn btn-success" style="flex:1;padding:12px;" onclick="logDeal()">📊 LOG THIS DEAL</button>
-        <button class="btn btn-ghost" style="flex:1;padding:12px;" onclick="openModal('lenderParserModal')">🏦 PASTE LENDER APPROVAL</button>
-        <button class="btn btn-primary" style="padding:12px 16px;" onclick="printWorksheet()" title="Print Deal Worksheet">🖨️ Worksheet</button>
+      <!-- Log Deal + Actions -->
+      <div style="display:flex;gap:10px;margin:16px 0;">
+        <button class="btn btn-success" style="flex:1;padding:14px;font-size:14px;" onclick="logDeal()"><i data-lucide="check-circle" class="ico-sm"></i>LOG THIS DEAL</button>
+        <button class="btn btn-ghost" style="flex:1;padding:14px;" onclick="openModal('lenderParserModal')"><i data-lucide="clipboard-paste" class="ico-sm"></i>PASTE LENDER APPROVAL</button>
+        <button class="btn btn-primary" style="padding:14px 16px;" onclick="printWorksheet()" title="Print Deal Worksheet"><i data-lucide="printer" class="ico-sm"></i>Print</button>
+      </div>
+
+      <div class="wiz-nav">
+        <button class="btn btn-ghost" onclick="goWizStep(3)">← F&I & Payments</button>
+        <button class="btn btn-success" onclick="logDeal()"><i data-lucide="check-circle" class="ico-sm"></i>Log >Log & Close Deal</button> Close Deal</button>
       </div>
     </div>
-  </div>
 
-  <!-- DEAL SCENARIOS — full width below the two-col grid -->
+  </div><!-- /.wiz-container -->
+
+  <!-- DEAL SCENARIOS — full width below wizard -->
   <div class="scenario-strip">
     <div class="scenario-card" id="sc0">
-      <div class="sc-header">
-        <input class="sc-label-input" id="sc0label" value="SCENARIO A" placeholder="Label">
-        <span class="sc-badge" id="sc0badge">Empty</span>
-      </div>
+      <div class="sc-header"><input class="sc-label-input" id="sc0label" value="SCENARIO A" placeholder="Label"><span class="sc-badge" id="sc0badge">Empty</span></div>
       <div class="sc-data" id="sc0data" style="color:var(--muted);font-style:italic;">No deal saved yet.</div>
       <div class="sc-actions">
-        <button class="btn btn-amber btn-sm" onclick="saveScenario(0)">💾 Save</button>
-        <button class="btn btn-primary btn-sm" onclick="loadScenario(0)">📂 Load</button>
+        <button class="btn btn-amber btn-sm" onclick="saveScenario(0)"><i data-lucide="save" class="ico-sm"></i>Save</button>
+        <button class="btn btn-primary btn-sm" onclick="loadScenario(0)"><i data-lucide="folder-open" class="ico-sm"></i>Load</button>
         <button class="btn btn-ghost btn-sm" onclick="clearScenario(0)">✕</button>
       </div>
     </div>
     <div class="scenario-card" id="sc1">
-      <div class="sc-header">
-        <input class="sc-label-input" id="sc1label" value="SCENARIO B" placeholder="Label">
-        <span class="sc-badge" id="sc1badge">Empty</span>
-      </div>
+      <div class="sc-header"><input class="sc-label-input" id="sc1label" value="SCENARIO B" placeholder="Label"><span class="sc-badge" id="sc1badge">Empty</span></div>
       <div class="sc-data" id="sc1data" style="color:var(--muted);font-style:italic;">No deal saved yet.</div>
       <div class="sc-actions">
-        <button class="btn btn-amber btn-sm" onclick="saveScenario(1)">💾 Save</button>
-        <button class="btn btn-primary btn-sm" onclick="loadScenario(1)">📂 Load</button>
+        <button class="btn btn-amber btn-sm" onclick="saveScenario(1)"><i data-lucide="save" class="ico-sm"></i>Save</button>
+        <button class="btn btn-primary btn-sm" onclick="loadScenario(1)"><i data-lucide="folder-open" class="ico-sm"></i>Load</button>
         <button class="btn btn-ghost btn-sm" onclick="clearScenario(1)">✕</button>
       </div>
     </div>
     <div class="scenario-card" id="sc2">
-      <div class="sc-header">
-        <input class="sc-label-input" id="sc2label" value="SCENARIO C" placeholder="Label">
-        <span class="sc-badge" id="sc2badge">Empty</span>
-      </div>
+      <div class="sc-header"><input class="sc-label-input" id="sc2label" value="SCENARIO C" placeholder="Label"><span class="sc-badge" id="sc2badge">Empty</span></div>
       <div class="sc-data" id="sc2data" style="color:var(--muted);font-style:italic;">No deal saved yet.</div>
       <div class="sc-actions">
-        <button class="btn btn-amber btn-sm" onclick="saveScenario(2)">💾 Save</button>
-        <button class="btn btn-primary btn-sm" onclick="loadScenario(2)">📂 Load</button>
+        <button class="btn btn-amber btn-sm" onclick="saveScenario(2)"><i data-lucide="save" class="ico-sm"></i>Save</button>
+        <button class="btn btn-primary btn-sm" onclick="loadScenario(2)"><i data-lucide="folder-open" class="ico-sm"></i>Load</button>
         <button class="btn btn-ghost btn-sm" onclick="clearScenario(2)">✕</button>
       </div>
     </div>
@@ -1262,14 +1432,14 @@ select option{background:#0d1526;color:var(--text);}
 <section id="section-inventory" class="section">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-      <div class="card-title" style="margin:0;border:none;padding:0;">📦 Vehicle Inventory</div>
+      <div class="card-title" style="margin:0;border:none;padding:0;"><i data-lucide="package" class="ico"></i>Vehicle Inventory</div>
       <div style="display:flex;gap:10px;align-items:center;">
         <span class="inv-count" id="invCount">0 vehicles</span>
-        <button class="btn btn-amber btn-sm" onclick="openModal('csvImportModal')">📤 Import CSV</button>
+        <button class="btn btn-amber btn-sm" onclick="openModal('csvImportModal')"><i data-lucide="upload" class="ico-sm"></i>Import CSV</button>
       </div>
     </div>
     <div class="inv-search">
-      <input type="text" id="invSearch" placeholder="🔍 Search by Stock #, Make, Model, Year, Price..." oninput="filterInventory()">
+      <input type="text" id="invSearch" placeholder="Search by Stock #, Make, Model, Year, Price..." oninput="filterInventory()">
     </div>
     <div class="table-wrap">
       <table class="data-table">
@@ -1299,7 +1469,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="ltab" onclick="showLenderTab('lq-sda',this)">SDA</button>
     <button class="ltab" onclick="showLenderTab('lq-servus',this)">Servus</button>
     <button class="ltab" onclick="showLenderTab('lq-wsleasing',this)">WS Leasing</button>
-    <button class="ltab" onclick="showLenderTab('lq-quickref',this)">📊 Quick Ref</button>
+    <button class="ltab" onclick="showLenderTab('lq-quickref',this)"><i data-lucide="book-open" class="ico-sm"></i>Quick Ref</button>
   </div>
   <div id="lender-panels"></div>
 </section>
@@ -1309,7 +1479,7 @@ select option{background:#0d1526;color:var(--text);}
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
       <div>
-        <div class="card-title" style="margin:0;border:none;padding:0;">⚡ All-Lender Comparison Engine</div>
+        <div class="card-title" style="margin:0;border:none;padding:0;"><i data-lucide="zap" class="ico" style="color:var(--amber)"></i>All-Lender Comparison Engine</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">Select a vehicle to instantly rank all 11 lenders — best to worst.</div>
       </div>
       <div style="background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(30,90,246,.15));border:1px solid rgba(245,158,11,.3);color:var(--amber);padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;">LIVE COMPARISON ENGINE</div>
@@ -1337,16 +1507,16 @@ select option{background:#0d1526;color:var(--text);}
     <div id="compareVehicleCard" style="display:none;" class="compare-vehicle-card"></div>
     <div id="compareResults" style="display:none;">
       <div class="summary-bar" id="compareSummaryBar"></div>
-      <div class="section-label eligible">✅ ELIGIBLE LENDERS <span class="count-pill green" id="eligibleCount"></span></div>
+      <div class="section-label eligible">ELIGIBLE LENDERS <span class="count-pill green" id="eligibleCount"></span></div>
       <div class="compare-grid" id="compareEligible"></div>
-      <div class="section-label ineligible" id="ineligibleLabel" style="display:none;">⛔ INELIGIBLE LENDERS <span class="count-pill gray" id="ineligibleCount"></span></div>
+      <div class="section-label ineligible" id="ineligibleLabel" style="display:none;">INELIGIBLE LENDERS <span class="count-pill gray" id="ineligibleCount"></span></div>
       <div class="compare-grid" id="compareIneligible"></div>
     </div>
     <div id="comparePlaceholder" class="compare-placeholder">
-      <div class="placeholder-icon">🚗</div>
+      <div class="placeholder-icon" style="width:60px;height:60px;border-radius:50%;background:rgba(30,90,246,.1);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><span style="font-size:24px;color:var(--primary);font-weight:800;">?</span></div>
       <div class="placeholder-title">Select a Vehicle to Begin</div>
       <div style="font-size:13px;">Choose a stock number above to instantly compare all 11 lenders side by side</div>
-      <div style="margin-top:14px;font-size:12px;color:var(--primary);">Tip: Use the ⚡ Check All Lenders button from the Deal Desk to auto-populate this screen.</div>
+      <div style="margin-top:14px;font-size:12px;color:var(--primary);">Tip: Use the Check All Lenders button from the Deal Desk to auto-populate this screen.</div>
     </div>
   </div>
 </section>
@@ -1354,18 +1524,18 @@ select option{background:#0d1526;color:var(--text);}
 <!-- ═══ ANALYTICS ═══ -->
 <section id="section-analytics" class="section">
   <div class="mgr-tabs" style="margin-bottom:20px;">
-    <button class="mgr-tab active" onclick="showAnalyticsTab('deals',this)">📊 Deal Log</button>
-    <button class="mgr-tab" onclick="showAnalyticsTab('stats',this)">📈 Stats</button>
-    <button class="mgr-tab" onclick="showAnalyticsTab('crm',this)">👥 CRM</button>
-    <button class="mgr-tab" onclick="showAnalyticsTab('target',this)">🎯 Monthly Target</button>
+    <button class="mgr-tab active" onclick="showAnalyticsTab('deals',this)"><i data-lucide="list" class="ico-sm"></i>Deal Log</button>
+    <button class="mgr-tab" onclick="showAnalyticsTab('stats',this)"><i data-lucide="trending-up" class="ico-sm"></i>Stats</button>
+    <button class="mgr-tab" onclick="showAnalyticsTab('crm',this)"><i data-lucide="users" class="ico-sm"></i>CRM</button>
+    <button class="mgr-tab" onclick="showAnalyticsTab('target',this)"><i data-lucide="target" class="ico-sm"></i>Monthly Target</button>
   </div>
 
   <!-- Deal Log -->
   <div id="atab-deals" class="mgr-content active">
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-      <button class="btn btn-success" onclick="logDeal()">➕ Log Current Deal</button>
-      <button class="btn btn-ghost" onclick="exportJSON('deals')">💾 Export JSON</button>
-      <button class="btn btn-danger btn-sm" onclick="clearAllDeals()">🗑️ Clear All</button>
+      <button class="btn btn-success" onclick="logDeal()"><i data-lucide="plus" class="ico-sm"></i>Log Current Deal</button>
+      <button class="btn btn-ghost" onclick="exportJSON('deals')"><i data-lucide="download" class="ico-sm"></i>Export JSON</button>
+      <button class="btn btn-danger btn-sm" onclick="clearAllDeals()"><i data-lucide="trash-2" class="ico-sm"></i>Clear All</button>
     </div>
     <div class="table-wrap"><div id="dealLogContainer"></div></div>
   </div>
@@ -1378,7 +1548,7 @@ select option{background:#0d1526;color:var(--text);}
       <div class="stat-card"><div class="stat-number" id="statWeek">0</div><div class="stat-label">This Week</div></div>
       <div class="stat-card"><div class="stat-number" id="statToday">0</div><div class="stat-label">Today</div></div>
     </div>
-    <div class="card-title" style="margin-bottom:12px;">Product Penetration</div>
+    <div class="card-title" style="margin-bottom:12px;"><i data-lucide="pie-chart" class="ico"></i>Product Penetration</div>
     <div class="penetration-grid">
       <div class="pen-card"><div class="pen-pct" id="penVSC">0%</div><div class="pen-label">VSC</div><div class="pen-sub" id="penVSCn">0 of 0</div></div>
       <div class="pen-card"><div class="pen-pct" id="penGAP">0%</div><div class="pen-label">GAP</div><div class="pen-sub" id="penGAPn">0 of 0</div></div>
@@ -1386,7 +1556,7 @@ select option{background:#0d1526;color:var(--text);}
       <div class="pen-card"><div class="pen-pct" id="penWA">0%</div><div class="pen-label">WA</div><div class="pen-sub" id="penWAn">0 of 0</div></div>
     </div>
     <div class="two-col">
-      <div class="card"><div class="card-title">💰 Revenue</div>
+      <div class="card"><div class="card-title"><i data-lucide="trending-up" class="ico"></i>Revenue</div>
         <div class="cline"><span class="cl-label">Average PVR</span><span class="cl-value" id="avgPVR">$0</span></div>
         <div class="cline"><span class="cl-label">Total Backend</span><span class="cl-value" id="totalBackend">$0</span></div>
       </div>
@@ -1396,8 +1566,8 @@ select option{background:#0d1526;color:var(--text);}
   <!-- CRM -->
   <div id="atab-crm" class="mgr-content">
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-      <button class="btn btn-primary" onclick="promptAddCRM()">➕ Add Customer</button>
-      <button class="btn btn-ghost" onclick="exportJSON('crm')">💾 Export CRM</button>
+      <button class="btn btn-primary" onclick="promptAddCRM()"><i data-lucide="user-plus" class="ico-sm"></i>Add Customer</button>
+      <button class="btn btn-ghost" onclick="exportJSON('crm')"><i data-lucide="download" class="ico-sm"></i>Export CRM</button>
     </div>
     <div class="table-wrap"><div id="crmContainer"></div></div>
   </div>
@@ -1405,7 +1575,7 @@ select option{background:#0d1526;color:var(--text);}
   <!-- Monthly Target -->
   <div id="atab-target" class="mgr-content">
     <div class="card" style="max-width:500px;">
-      <div class="card-title">🎯 Monthly Target Tracker</div>
+      <div class="card-title"><i data-lucide="target" class="ico" style="color:var(--amber)"></i>Monthly Target Tracker</div>
       <div class="two-col" style="margin-bottom:14px;">
         <div class="fgroup"><label>Monthly Target (deals)</label><input type="number" id="targetInput" value="30" oninput="updateTarget()"></div>
       </div>
@@ -1429,7 +1599,7 @@ select option{background:#0d1526;color:var(--text);}
 <div class="modal-overlay" id="emailModal" onclick="closeModalOutside(event,'emailModal')">
   <div class="modal-box">
     <button class="modal-close" onclick="closeModal('emailModal')">×</button>
-    <div class="modal-title">📧 Email Quote</div>
+    <div class="modal-title"><i data-lucide="mail" class="ico-lg"></i>Email Quote</div>
     <div class="two-col">
       <div class="fgroup"><label>Customer Email</label><input type="email" id="emailTo" placeholder="customer@email.com"></div>
       <div class="fgroup"><label>Salesperson Name</label><input type="text" id="salesName" value="Franco Fannin"></div>
@@ -1437,7 +1607,7 @@ select option{background:#0d1526;color:var(--text);}
     <div class="fgroup"><label>Dealership Name</label><input type="text" id="dealerName" value="Automaxx"></div>
     <button class="btn btn-primary btn-full" onclick="generateEmail()" style="margin-bottom:14px;">Generate Email</button>
     <div id="emailPreview" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;white-space:pre-wrap;font-family:monospace;font-size:11px;max-height:350px;overflow-y:auto;color:var(--text);"></div>
-    <button class="btn btn-amber btn-sm" style="margin-top:10px;" onclick="copyText('emailPreview')">📋 Copy to Clipboard</button>
+    <button class="btn btn-amber btn-sm" style="margin-top:10px;" onclick="copyText('emailPreview')">Copy to Clipboard</button>
   </div>
 </div>
 
@@ -1445,7 +1615,7 @@ select option{background:#0d1526;color:var(--text);}
 <div class="modal-overlay" id="settingsModal" onclick="closeModalOutside(event,'settingsModal')">
   <div class="modal-box">
     <button class="modal-close" onclick="closeModal('settingsModal')">×</button>
-    <div class="modal-title">⚙️ Settings</div>
+    <div class="modal-title"><i data-lucide="settings" class="ico-lg"></i>Settings</div>
     <div class="settings-grid">
       <div class="fgroup"><label>Salesperson Name</label><input type="text" id="setPerson" placeholder="Your Name"></div>
       <div class="fgroup"><label>Dealership Name</label><input type="text" id="setDealer" placeholder="Dealership Name"></div>
@@ -1454,7 +1624,7 @@ select option{background:#0d1526;color:var(--text);}
       <div class="fgroup"><label>Default APR (%)</label><input type="number" id="setAPR" value="8.99" step="0.01"></div>
       <div class="fgroup"><label>Monthly Deal Target</label><input type="number" id="setTarget" value="30"></div>
     </div>
-    <button class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:8px;">💾 Save Settings</button>
+    <button class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:8px;"><i data-lucide="save" class="ico-sm"></i>Save Settings</button>
   </div>
 </div>
 
@@ -1462,7 +1632,7 @@ select option{background:#0d1526;color:var(--text);}
 <div class="modal-overlay" id="lenderParserModal" onclick="closeModalOutside(event,'lenderParserModal')">
   <div class="modal-box" style="max-width:680px;">
     <button class="modal-close" onclick="closeModal('lenderParserModal')">×</button>
-    <div class="modal-title">🏦 Lender Approval Parser</div>
+    <div class="modal-title"><i data-lucide="file-search" class="ico-lg"></i>Lender Approval Parser</div>
 
     <!-- PDF Drop Zone -->
     <div id="pdfDropZone"
@@ -1471,7 +1641,7 @@ select option{background:#0d1526;color:var(--text);}
       ondrop="handleApprovalDrop(event)"
       ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(30,90,246,.06)'"
       ondragleave="this.style.borderColor='var(--border2)';this.style.background=''">
-      <div style="font-size:26px;margin-bottom:6px;">📄</div>
+      <div style="font-size:22px;margin-bottom:6px;color:var(--muted);font-weight:700;">PDF</div>
       <div style="font-weight:700;font-size:13px;color:var(--text);">Drop DealerTrack PDF here</div>
       <div style="font-size:11px;color:var(--muted);margin-top:3px;">or click to browse · also accepts pasted text below</div>
       <div id="pdfFileName" style="font-size:11px;color:var(--primary);margin-top:6px;font-weight:600;"></div>
@@ -1490,7 +1660,7 @@ select option{background:#0d1526;color:var(--text);}
         placeholder="Paste lender approval text here..."
         style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;resize:vertical;"></textarea>
     </div>
-    <button class="btn btn-primary btn-full" onclick="parseLender()">🔍 Parse Document</button>
+    <button class="btn btn-primary btn-full" onclick="parseLender()">Parse Document</button>
     <div id="lenderParseResults" style="margin-top:16px;"></div>
   </div>
 </div>
@@ -1499,7 +1669,7 @@ select option{background:#0d1526;color:var(--text);}
 <div class="modal-overlay" id="csvImportModal" onclick="closeModalOutside(event,'csvImportModal')">
   <div class="modal-box">
     <button class="modal-close" onclick="closeModal('csvImportModal')">×</button>
-    <div class="modal-title">📤 Import Inventory CSV</div>
+    <div class="modal-title"><i data-lucide="upload" class="ico-lg"></i>Import Inventory CSV</div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);">
       Expected columns: <strong style="color:var(--amber);">stock, year, make, model, mileage, price, condition, carfax, type</strong><br>
       Any column order is fine. Headers must be in row 1.
@@ -1520,11 +1690,11 @@ select option{background:#0d1526;color:var(--text);}
       <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">SMS Outreach · Conversations · Voice · Analytics</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="hbtn" onclick="loadSarahDashboard()" style="background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;">🔄 Refresh</button>
-      <button class="hbtn" onclick="exportData('appointments')">📥 Export Appts</button>
-      <button class="hbtn" onclick="exportData('callbacks')">📥 Export Callbacks</button>
-      <button class="hbtn" onclick="exportData('conversations')">📥 Export Convs</button>
-      <button class="hbtn" onclick="exportData('analytics')">📥 Export Analytics</button>
+      <button class="hbtn" onclick="loadSarahDashboard()" style="background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
+      <button class="hbtn" onclick="exportData('appointments')"><i data-lucide="download" class="ico-sm"></i>Export Appts</button>
+      <button class="hbtn" onclick="exportData('callbacks')"><i data-lucide="download" class="ico-sm"></i>Export Callbacks</button>
+      <button class="hbtn" onclick="exportData('conversations')"><i data-lucide="download" class="ico-sm"></i>Export Convs</button>
+      <button class="hbtn" onclick="exportData('analytics')"><i data-lucide="download" class="ico-sm"></i>Export Analytics</button>
     </div>
   </div>
 
@@ -1539,27 +1709,27 @@ select option{background:#0d1526;color:var(--text);}
 
   <!-- Sarah Tabs -->
   <div class="mgr-tabs" style="margin-bottom:16px;">
-    <button class="mgr-tab active" onclick="showSarahTab('conversations',this)">💬 Conversations</button>
-    <button class="mgr-tab" onclick="showSarahTab('appointments',this)">📅 Appointments</button>
-    <button class="mgr-tab" onclick="showSarahTab('callbacks',this)">📞 Callbacks</button>
-    <button class="mgr-tab" onclick="showSarahTab('launch',this)">🚀 Launch SMS</button>
-    <button class="mgr-tab" onclick="showSarahTab('bulk',this)">📋 Bulk SMS</button>
-    <button class="mgr-tab" onclick="showSarahTab('voice',this)">🔊 Voice</button>
-    <button class="mgr-tab" onclick="showSarahTab('sarahanalytics',this)">📊 Analytics</button>
-    <button class="mgr-tab" onclick="showSarahTab('voicemails',this);loadVoicemails()">📬 Voicemails</button>
+    <button class="mgr-tab active" onclick="showSarahTab('conversations',this)"><i data-lucide="message-circle" class="ico-sm"></i>Conversations</button>
+    <button class="mgr-tab" onclick="showSarahTab('appointments',this)"><i data-lucide="calendar" class="ico-sm"></i>Appointments</button>
+    <button class="mgr-tab" onclick="showSarahTab('callbacks',this)"><i data-lucide="phone-incoming" class="ico-sm"></i>Callbacks</button>
+    <button class="mgr-tab" onclick="showSarahTab('launch',this)"><i data-lucide="send" class="ico-sm"></i>Launch SMS</button>
+    <button class="mgr-tab" onclick="showSarahTab('bulk',this)"><i data-lucide="mail" class="ico-sm"></i>Bulk SMS</button>
+    <button class="mgr-tab" onclick="showSarahTab('voice',this)"><i data-lucide="phone" class="ico-sm"></i>Voice</button>
+    <button class="mgr-tab" onclick="showSarahTab('sarahanalytics',this)"><i data-lucide="bar-chart-3" class="ico-sm"></i>Analytics</button>
+    <button class="mgr-tab" onclick="showSarahTab('voicemails',this);loadVoicemails()"><i data-lucide="voicemail" class="ico-sm"></i>Voicemails</button>
   </div>
 
   <!-- ── Conversations Tab ── -->
   <div id="stab-conversations" class="mgr-content active">
     <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
-      <input type="text" id="convSearch" placeholder="🔍 Search name or phone..." oninput="filterConversations()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:12px;min-width:200px;">
+      <input type="text" id="convSearch" placeholder="Search name or phone..." oninput="filterConversations()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:12px;min-width:200px;">
       <select id="convStatusFilter" onchange="filterConversations()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;">
         <option value="all">All Status</option>
         <option value="active">Active</option>
         <option value="converted">Converted</option>
         <option value="stopped">Stopped</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()">🔄 Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
     </div>
     <div id="conversationList" style="max-height:600px;overflow-y:auto;">
       <div style="text-align:center;padding:40px;color:var(--muted);">Loading conversations...</div>
@@ -1570,7 +1740,7 @@ select option{background:#0d1526;color:var(--text);}
   <div id="stab-appointments" class="mgr-content">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="font-size:12px;color:var(--muted);">Customers who booked an appointment through Sarah</div>
-      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()">🔄 Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
     </div>
     <div id="appointmentsList" style="max-height:600px;overflow-y:auto;">
       <div style="text-align:center;padding:40px;color:var(--muted);">Loading appointments...</div>
@@ -1581,7 +1751,7 @@ select option{background:#0d1526;color:var(--text);}
   <div id="stab-callbacks" class="mgr-content">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="font-size:12px;color:var(--muted);">Customers who requested a callback</div>
-      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()">🔄 Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
     </div>
     <div id="callbacksList" style="max-height:600px;overflow-y:auto;">
       <div style="text-align:center;padding:40px;color:var(--muted);">Loading callbacks...</div>
@@ -1591,21 +1761,21 @@ select option{background:#0d1526;color:var(--text);}
   <!-- ── Launch SMS Tab ── -->
   <div id="stab-launch" class="mgr-content">
     <div class="card" style="max-width:600px;">
-      <div class="card-title">🚀 Launch Sarah — Send Outreach SMS</div>
+      <div class="card-title"><i data-lucide="send" class="ico"></i>Launch Sarah — Send Outreach SMS</div>
       <div class="fgroup">
         <label>Phone Number</label>
         <input type="tel" id="launchPhone" class="phone-fmt" placeholder="(587) 000-0000" oninput="formatPhoneInput(this)">
       </div>
       <div class="fgroup">
         <label>Opening Message</label>
-        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! 👋 I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
+        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="launchCharCount">0 characters</div>
-      <button class="btn btn-primary btn-full" id="launchSendBtn" onclick="sendLaunchSMS()">🚀 Send Message</button>
+      <button class="btn btn-primary btn-full" id="launchSendBtn" onclick="sendLaunchSMS()">Send Message</button>
       <div id="launchResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
     </div>
     <div class="card" style="max-width:600px;margin-top:0;">
-      <div class="card-title amber">📤 Manual Reply to Existing Customer</div>
+      <div class="card-title amber"><i data-lucide="reply" class="ico" style="color:var(--amber)"></i>Manual Reply to Existing Customer</div>
       <div class="fgroup">
         <label>Customer Phone</label>
         <input type="tel" id="replyPhone" class="phone-fmt" placeholder="(587) 000-0000" oninput="formatPhoneInput(this)">
@@ -1614,7 +1784,7 @@ select option{background:#0d1526;color:var(--text);}
         <label>Message</label>
         <textarea id="replyMessage" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" placeholder="Type your reply..."></textarea>
       </div>
-      <button class="btn btn-amber btn-full" onclick="sendManualReplyForm()">📤 Send Reply</button>
+      <button class="btn btn-amber btn-full" onclick="sendManualReplyForm()">Send Reply</button>
       <div id="replyResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
     </div>
   </div>
@@ -1624,9 +1794,9 @@ select option{background:#0d1526;color:var(--text);}
     <div class="two-col" style="align-items:start;">
       <div>
         <div class="card">
-          <div class="card-title">📋 Upload CSV List</div>
+          <div class="card-title"><i data-lucide="upload" class="ico"></i>Upload CSV List</div>
           <div class="bulk-zone" id="bulkDropZone" onclick="document.getElementById('csvFileInput').click()" ondrop="handleFileDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-            <div style="font-size:28px;margin-bottom:8px;">📄</div>
+            <div style="font-size:22px;margin-bottom:8px;color:var(--muted);font-weight:700;">CSV</div>
             <div style="font-weight:700;color:var(--text);">Drop CSV here or click to browse</div>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;">Format: Name, Phone (one per row)</div>
           </div>
@@ -1638,19 +1808,19 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
         <div class="card" id="campaignForm" style="display:none;">
-          <div class="card-title green">📝 Campaign Setup</div>
+          <div class="card-title green"><i data-lucide="rocket" class="ico" style="color:var(--green)"></i>Campaign Setup</div>
           <div class="fgroup"><label>Campaign Name</label><input type="text" id="campaignName" placeholder="March Follow-Up 2025"></div>
           <div class="fgroup">
             <label>Message Template <span style="color:var(--muted);font-size:10px;">— must include {name}</span></label>
-            <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! 👋 This is Sarah from First Financial. We have some great vehicles in stock — are you still looking? (Reply STOP to opt out)</textarea>
+            <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! This is Sarah from First Financial. We have some great vehicles in stock — are you still looking? (Reply STOP to opt out)</textarea>
             <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px;"><span id="charCount">0</span> characters</div>
           </div>
-          <button class="btn btn-primary btn-full" onclick="launchBulkCampaign()">🚀 Launch Campaign</button>
+          <button class="btn btn-primary btn-full" onclick="launchBulkCampaign()">Launch Campaign</button>
         </div>
       </div>
       <div>
         <div class="card" id="progressTracker" style="display:none;">
-          <div class="card-title">📊 Campaign Progress</div>
+          <div class="card-title"><i data-lucide="activity" class="ico"></i>Campaign Progress</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;text-align:center;">
             <div style="background:var(--surface2);border-radius:6px;padding:10px;"><div style="font-size:22px;font-weight:800;color:var(--green);" id="sentCount">0</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Sent</div></div>
             <div style="background:var(--surface2);border-radius:6px;padding:10px;"><div style="font-size:22px;font-weight:800;color:var(--amber);" id="pendingCount">0</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Pending</div></div>
@@ -1660,13 +1830,13 @@ select option{background:#0d1526;color:var(--text);}
           <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px;" id="progressText">Ready</div>
         </div>
         <div class="card">
-          <div class="card-title amber">⚙️ Bulk Controls</div>
+          <div class="card-title amber"><i data-lucide="settings" class="ico" style="color:var(--amber)"></i>Bulk Controls</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
-            <button class="btn btn-primary btn-full" onclick="checkBulkStatus()">📊 Check Status</button>
-            <button class="btn btn-amber btn-full" onclick="pauseBulkSMS()">⏸️ Pause</button>
+            <button class="btn btn-primary btn-full" onclick="checkBulkStatus()">Check Status</button>
+            <button class="btn btn-amber btn-full" onclick="pauseBulkSMS()">Pause</button>
             <button class="btn btn-ghost btn-full" onclick="resumeBulkSMS()">▶️ Resume</button>
-            <button class="btn btn-ghost btn-full" onclick="wipeBulkMessages()" style="border-color:rgba(245,158,11,.3);color:var(--amber);">🗑️ Wipe Queue</button>
-            <button class="btn btn-full" onclick="emergencyStopBulk()" style="background:var(--red);color:white;border-color:var(--red);font-weight:800;">🚨 EMERGENCY STOP</button>
+            <button class="btn btn-ghost btn-full" onclick="wipeBulkMessages()" style="border-color:rgba(245,158,11,.3);color:var(--amber);">Wipe Queue</button>
+            <button class="btn btn-full" onclick="emergencyStopBulk()" style="background:var(--red);color:white;border-color:var(--red);font-weight:800;">EMERGENCY STOP</button>
           </div>
           <div id="bulkStatusDisplay" style="display:none;margin-top:12px;"></div>
         </div>
@@ -1677,13 +1847,13 @@ select option{background:#0d1526;color:var(--text);}
   <!-- ── Voice Tab ── -->
   <div id="stab-voice" class="mgr-content">
     <div style="background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#06b6d4;">
-      <strong>📋 One-time Twilio setup for inbound calls:</strong><br>
+      <strong>One-time Twilio setup for inbound calls:</strong><br>
       Twilio console → Phone Numbers → your number → Voice → A call comes in → Webhook<br>
       Set to: <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px;font-size:11px;">POST https://firstfin.up.railway.app/api/voice/inbound</code>
     </div>
     <div class="two-col" style="align-items:start;">
       <div class="card">
-        <div class="card-title">📵 Single Voicemail Drop</div>
+        <div class="card-title"><i data-lucide="voicemail" class="ico"></i>Single Voicemail Drop</div>
         <div class="two-col">
           <div class="fgroup"><label>Phone Number</label><input type="tel" id="vd_phone" class="phone-fmt" placeholder="(587) 000-0000" oninput="formatPhoneInput(this)"></div>
           <div class="fgroup"><label>Customer Name</label><input type="text" id="vd_name" placeholder="First Name"></div>
@@ -1692,12 +1862,12 @@ select option{background:#0d1526;color:var(--text);}
           <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name} for customer's name)</span></label>
           <textarea id="vd_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from First Financial. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!</textarea>
         </div>
-        <button class="btn btn-primary btn-full" onclick="sendVoiceDrop()">📞 Send Voicemail Drop</button>
+        <button class="btn btn-primary btn-full" onclick="sendVoiceDrop()">Send Voicemail Drop</button>
         <div id="voiceDropResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
       </div>
       <div class="card">
-        <div class="card-title">📋 Bulk Voice Campaign</div>
-        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">⚡ Pulls from CRM. Each call spaced 10 seconds apart to avoid carrier flags. Customer can press 1 to connect live.</div>
+        <div class="card-title"><i data-lucide="phone-outgoing" class="ico"></i>Bulk Voice Campaign</div>
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">Pulls from CRM. Each call spaced 10 seconds apart to avoid carrier flags. Customer can press 1 to connect live.</div>
         <div class="fgroup">
           <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name})</span></label>
           <textarea id="vc_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from First Financial with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!</textarea>
@@ -1713,7 +1883,7 @@ select option{background:#0d1526;color:var(--text);}
           </select>
         </div>
         <div id="vcTargetCount" style="font-size:11px;color:var(--muted);margin-bottom:10px;"></div>
-        <button class="btn btn-amber btn-full" onclick="sendVoiceCampaign()">🚀 Launch Voice Campaign</button>
+        <button class="btn btn-amber btn-full" onclick="sendVoiceCampaign()">Launch Voice Campaign</button>
       </div>
     </div>
   </div>
@@ -1744,11 +1914,11 @@ select option{background:#0d1526;color:var(--text);}
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-title">🚗 Top Vehicle Types</div>
+        <div class="card-title"><i data-lucide="car" class="ico"></i>Top Vehicle Types</div>
         <div id="sa-topVehicles" style="font-size:12px;color:var(--muted);">Loading...</div>
       </div>
       <div class="card">
-        <div class="card-title green">💰 Budget Distribution</div>
+        <div class="card-title green"><i data-lucide="wallet" class="ico" style="color:var(--green)"></i>Budget Distribution</div>
         <div id="sa-budgetDist" style="font-size:12px;color:var(--muted);">Loading...</div>
       </div>
     </div>
@@ -1757,7 +1927,7 @@ select option{background:#0d1526;color:var(--text);}
   <div id="stab-voicemails" class="mgr-content">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
       <div style="font-size:12px;color:var(--muted);">Inbound voicemails with auto-transcription. Requires Twilio inbound webhook configured.</div>
-      <button class="btn btn-primary btn-sm" onclick="loadVoicemails()">🔄 Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="loadVoicemails()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
     </div>
     <div id="voicemailsList" style="max-height:600px;overflow-y:auto;">
       <div style="text-align:center;padding:40px;color:var(--muted);">Click Refresh to load voicemails.</div>
@@ -1785,7 +1955,7 @@ select option{background:#0d1526;color:var(--text);}
   </div>
   <div class="pw-grid">
     <div class="pw-section">
-      <div class="pw-section-title">🚘 Vehicle</div>
+      <div class="pw-section-title">Vehicle</div>
       <div class="pw-row"><span>Description</span><strong id="pw-desc">—</strong></div>
       <div class="pw-row"><span>Stock #</span><strong id="pw-stock">—</strong></div>
       <div class="pw-row"><span>VIN (Last 8)</span><strong id="pw-vin">—</strong></div>
@@ -1793,14 +1963,14 @@ select option{background:#0d1526;color:var(--text);}
       <div class="pw-row"><span>Condition</span><strong id="pw-cond">—</strong></div>
     </div>
     <div class="pw-section">
-      <div class="pw-section-title">👤 Customer</div>
+      <div class="pw-section-title">Customer</div>
       <div class="pw-row"><span>Name</span><strong id="pw-name">—</strong></div>
       <div class="pw-row"><span>Phone</span><strong id="pw-phone">—</strong></div>
       <div class="pw-row"><span>Email</span><strong id="pw-email">—</strong></div>
     </div>
   </div>
   <div class="pw-section" style="margin-bottom:12px;">
-    <div class="pw-section-title">💰 Financial Summary</div>
+    <div class="pw-section-title">Financial Summary</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;">
       <div class="pw-row"><span>Selling Price</span><strong id="pw-price">—</strong></div>
       <div class="pw-row"><span>Doc Fee</span><strong id="pw-doc">—</strong></div>
@@ -1812,11 +1982,11 @@ select option{background:#0d1526;color:var(--text);}
   </div>
   <div class="pw-otd"><div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#666;margin-bottom:4px;">TOTAL OUT-THE-DOOR</div><div class="pw-otd-amount" id="pw-otd">—</div></div>
   <div class="pw-section" style="margin-bottom:12px;">
-    <div class="pw-section-title">📋 Payment Options</div>
+    <div class="pw-section-title">Payment Options</div>
     <div id="pw-payment-grid"></div>
   </div>
   <div class="pw-section" style="margin-bottom:12px;">
-    <div class="pw-section-title">🛡️ F&I Protection Package</div>
+    <div class="pw-section-title">F&I Protection Package</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
       <div class="pw-row"><span>Vehicle Service Contract</span><strong id="pw-vsc">—</strong></div>
       <div class="pw-row"><span>GAP Insurance</span><strong id="pw-gap">—</strong></div>
@@ -1835,19 +2005,19 @@ select option{background:#0d1526;color:var(--text);}
 <div class="modal-overlay" id="lenderRateModal" onclick="closeModalOutside(event,'lenderRateModal')">
   <div class="modal-box" style="max-width:800px;">
     <button class="modal-close" onclick="closeModal('lenderRateModal')">×</button>
-    <div class="modal-title">✏️ Lender Rate Editor</div>
+    <div class="modal-title"><i data-lucide="sliders" class="ico-lg"></i>Lender Rate Editor</div>
     <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:10px;margin-bottom:16px;font-size:11px;color:var(--amber);">
-      ⚠️ Changes are saved locally to this device. Hard-limit lenders use these for eligibility checks. Credit-based lenders (CIBC, RBC) use only Max LTV.
+      Changes are saved locally to this device. Hard-limit lenders use these for eligibility checks. Credit-based lenders (CIBC, RBC) use only Max LTV.
     </div>
     <div class="lre-grid" id="lenderRateEditorGrid"></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
-      <button class="btn btn-primary" onclick="saveLenderRates()">💾 Save All Changes</button>
+      <button class="btn btn-primary" onclick="saveLenderRates()"><i data-lucide="save" class="ico-sm"></i>Save All Changes</button>
       <button class="btn btn-ghost" onclick="resetLenderRates()">↩️ Reset to Defaults</button>
     </div>
   </div>
 </div>
 
-<div id="toast">✅ Saved!</div>
+<div id="toast">Saved!</div>
 
 <script src="/js/api-client.js"></script>
 <script>
@@ -1948,6 +2118,7 @@ function showSection(id, btn){
   document.getElementById('section-'+id).classList.add('active');
   if(btn) btn.classList.add('active');
   if(id==='analytics') refreshAllAnalytics();
+  setTimeout(refreshIcons, 50);
 }
 
 // ── INVENTORY INIT (Cloud & Database Version) ─────────
@@ -2005,7 +2176,7 @@ function renderInventory(list){
       <td>${Number(v.mileage).toLocaleString()} km</td>
       <td><strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong></td>
       <td><span class="badge badge-${String(v.condition).toLowerCase()}">${v.condition}</span></td>
-      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')">Use in Deal</button></td>
+      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
     </tr>`).join('');
 }
 
@@ -2024,8 +2195,64 @@ function filterInventory(){
   renderInventory(filtered);
 }
 
+// ── DEAL WIZARD NAVIGATION ────────────────────────────
+let currentWizStep = 0;
+const WIZ_STEPS = 5;
+
+function goWizStep(n) {
+  if (n < 0 || n >= WIZ_STEPS) return;
+
+  // Mark previous steps as done
+  const dots = document.querySelectorAll('.wiz-dot-wrap');
+  dots.forEach((d, i) => {
+    d.classList.remove('active', 'done');
+    if (i < n) d.classList.add('done');
+    if (i === n) d.classList.add('active');
+  });
+
+  // Show/hide step panels
+  for (let i = 0; i < WIZ_STEPS; i++) {
+    const panel = document.getElementById('wizStep' + i);
+    if (panel) {
+      panel.classList.remove('active');
+      if (i === n) panel.classList.add('active');
+    }
+  }
+
+  currentWizStep = n;
+
+  // Scroll to top of deal section
+  const section = document.getElementById('section-deal');
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Recalculate when entering payment/review steps
+  if (n >= 3) calculate();
+}
+
+function updateWizBanners(otd, down, finance, pay72) {
+  const fmt = v => '$' + Math.round(v).toLocaleString();
+  // Step 4 banner
+  const w1 = document.getElementById('wizOtd');
+  const w2 = document.getElementById('wizDown');
+  const w3 = document.getElementById('wizFinance');
+  const w4 = document.getElementById('wizPay72');
+  if (w1) w1.textContent = fmt(otd);
+  if (w2) w2.textContent = fmt(down);
+  if (w3) w3.textContent = fmt(finance);
+  if (w4) w4.textContent = $f(pay72);
+  // Step 5 banner (duplicate IDs with _2 suffix)
+  const w5 = document.getElementById('wizOtd2');
+  const w6 = document.getElementById('wizDown2');
+  const w7 = document.getElementById('wizFinance2');
+  const w8 = document.getElementById('wizPay72_2');
+  if (w5) w5.textContent = fmt(otd);
+  if (w6) w6.textContent = fmt(down);
+  if (w7) w7.textContent = fmt(finance);
+  if (w8) w8.textContent = $f(pay72);
+}
+
 function sendToDeal(stock){
-  const data = window.ffInventory || window.inventory || []; //
+  const data = window.ffInventory || window.inventory || [];
   const v = data.find(x => x.stock === stock);
   
   if(!v) return;
@@ -2036,17 +2263,18 @@ function sendToDeal(stock){
   document.getElementById('vehicleType').value = v.type || '';
   document.getElementById('odometer').value = v.mileage;
   document.getElementById('condition').value = v.condition || 'Average';
-  document.getElementById('sellingPrice').value = v.price;
   document.getElementById('vin').value = v.vin || '';
+  document.getElementById('sellingPrice').value = v.price;
   document.getElementById('docFee').value = settings.docFee;
   
-  calculate(); // Trigger math update
+  calculate();
   showSection('deal', document.querySelector('.nav-btn'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const dealBtn = document.querySelector('button[onclick*="\'deal\'"]');
   if(dealBtn) dealBtn.classList.add('active');
+  goWizStep(1); // Vehicle filled — advance to Customer step
   
-  toast(`✅ Loaded: ${v.year} ${v.make} ${v.model}`);
+  toast('Loaded: ' + v.year + ' ' + v.make + ' ' + v.model);
 }
 
 function loadVehicleFromStock(){
@@ -2132,6 +2360,9 @@ function calculate(){
   calculateReserve();
   calculateSubprime();
   calculatePTI();
+
+  // Update wizard live banners (steps 4 & 5)
+  updateWizBanners(otd, finalDown, finAmt, PMT(mr,72,-finAmt));
 }
 
 function calcCustom(){
@@ -2214,7 +2445,7 @@ function calculatePTI(){
   const totalPayments = payment+existing;
   const pti = income>0?((totalPayments/income)*100):0;
   document.getElementById('ptiResult').textContent = pti.toFixed(1)+'%';
-  const status = pti<=ptiLimit?'✅ PASS':'⚠️ EXCEEDS LIMIT';
+  const status = pti<=ptiLimit?'PASS':'EXCEEDS LIMIT';
   document.getElementById('ptiStatus').textContent = status;
   document.getElementById('ptiStatus').style.color = pti<=ptiLimit?'var(--green)':'var(--red)';
 }
@@ -2223,10 +2454,10 @@ function assessRisk(){
   const score = parseInt(document.getElementById('creditScore').value)||0;
   const risk = document.getElementById('refiRisk');
   const resStatus = document.getElementById('reserveStatus');
-  if(score>=750){risk.textContent='🟢 LOW';risk.style.color='var(--green)';resStatus.textContent='🔒 SECURE';resStatus.style.color='var(--green)';}
-  else if(score>=700){risk.textContent='🟡 MODERATE';risk.style.color='var(--amber)';resStatus.textContent='⚠️ WATCH';resStatus.style.color='var(--amber)';}
-  else if(score>=650){risk.textContent='🟠 ELEVATED';risk.style.color='var(--amber)';resStatus.textContent='⚠️ AT RISK';resStatus.style.color='var(--amber)';}
-  else{risk.textContent='🔴 HIGH';risk.style.color='var(--red)';resStatus.textContent='🚨 CHARGEBACKS';resStatus.style.color='var(--red)';}
+  if(score>=750){risk.textContent='LOW';risk.style.color='var(--green)';resStatus.textContent='SECURE';resStatus.style.color='var(--green)';}
+  else if(score>=700){risk.textContent='MODERATE';risk.style.color='var(--amber)';resStatus.textContent='WATCH';resStatus.style.color='var(--amber)';}
+  else if(score>=650){risk.textContent='ELEVATED';risk.style.color='var(--amber)';resStatus.textContent='AT RISK';resStatus.style.color='var(--amber)';}
+  else{risk.textContent='HIGH';risk.style.color='var(--red)';resStatus.textContent='CHARGEBACKS';resStatus.style.color='var(--red)';}
 }
 
 function calculateTrade(){
@@ -2277,7 +2508,7 @@ function calcMargin(){
 // ── BRIDGE: DEAL DESK → COMPARE ───────────────────────
 function bridgeToCompare(){
   const stock = document.getElementById('stockNum').value;
-  if(!stock){toast('⚠️ Select a vehicle stock number first');return;}
+  if(!stock){toast('Select a vehicle stock number first');return;}
   const down  = parseFloat(document.getElementById('tradeAllow').value)||0;
   const fees  = parseFloat(document.getElementById('docFee').value)||0;
   document.getElementById('compareStock').value = stock;
@@ -2285,7 +2516,7 @@ function bridgeToCompare(){
   document.getElementById('compareFees').value  = fees;
   showSection('compare', document.querySelectorAll('.nav-btn')[3]);
   runComparison();
-  toast('⚡ Lender comparison loaded!');
+  toast('Lender comparison loaded');
 }
 
 // ── LENDER SECTION INIT ───────────────────────────────
@@ -2298,8 +2529,8 @@ function initLenderPanels(){
       <div class="lender-header-box">
         <div class="lender-name-big">${l.name}</div>
         <div class="lender-contact-row">
-          <div>📞 <span>${l.phone}</span></div>
-          <div>🌐 <span>${l.web}</span></div>
+          <div><span>${l.phone}</span></div>
+          <div><span>${l.web}</span></div>
           <div>Max LTV: <span>${l.maxLTV}%</span></div>
           ${l.maxMileage?`<div>Max Mileage: <span>${l.maxMileage.toLocaleString()} km</span></div>`:''}
           ${l.maxCarfax?`<div>Max Carfax: <span>$${l.maxCarfax.toLocaleString()}</span></div>`:''}
@@ -2311,7 +2542,7 @@ function initLenderPanels(){
         <tbody>${l.programs.map(p=>`<tr><td><strong>${p.tier}</strong></td><td style="color:var(--amber);">${p.rate}</td><td>${p.fico}</td><td>${p.minYear}</td><td>${p.maxMile}</td><td>${p.maxCfx}</td><td>${p.maxLtv}</td></tr>`).join('')}</tbody>
       </table>
       <div class="checker-box">
-        <div class="checker-title">🔍 Vehicle Approval Checker</div>
+        <div class="checker-title"><i data-lucide="search" class="ico"></i>Vehicle Approval Checker</div>
         <div class="fgroup">
           <label>Select Vehicle</label>
           <select id="chk-stock-${lid}" onchange="checkLenderApproval('${lid}')" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
@@ -2322,7 +2553,7 @@ function initLenderPanels(){
         <div id="chk-results-${lid}"></div>
         <div id="chk-ltv-${lid}" style="display:none;">
           <div class="ltv-result-box" style="margin-top:14px;">
-            <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--amber);">💰 LTV Calculator</div>
+            <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--amber);"><i data-lucide="percent" class="ico-sm"></i>LTV Calculator</div>
             <div class="three-col">
               <div class="fgroup"><label>Down Payment ($)</label><input type="number" id="ltv-down-${lid}" value="0" oninput="calcLTV('${lid}')"></div>
               <div class="fgroup"><label>Trade-in ($)</label><input type="number" id="ltv-trade-${lid}" value="0" oninput="calcLTV('${lid}')"></div>
@@ -2339,8 +2570,8 @@ function initLenderPanels(){
   // Quick Ref panel
   container.innerHTML += `
   <div id="lq-quickref" class="lcontent">
-    <div class="card-title" style="margin-bottom:16px;">📊 Quick Reference — All Lenders</div>
-    <div class="warning-box">⚠️ CIBC & RBC use rate-based programs without hard mileage/Carfax limits. WS Leasing is a lease program. Data verified January 2026.</div>
+    <div class="card-title" style="margin-bottom:16px;"><i data-lucide="book-open" class="ico"></i>Quick Reference — All Lenders</div>
+    <div class="warning-box">CIBC & RBC use rate-based programs without hard mileage/Carfax limits. WS Leasing is a lease program. Data verified January 2026.</div>
     <div class="table-wrap"><table class="qr-table">
       <thead><tr><th>Lender</th><th>Best For</th><th>Min Year</th><th>Max Mileage</th><th>Max Carfax</th><th>Max LTV</th><th>Rate Range</th><th>Phone</th></tr></thead>
       <tbody>
@@ -2392,7 +2623,7 @@ function checkLenderApproval(lid){
     const cfxOk   = l.maxCarfax  ? v.carfax  <= l.maxCarfax  : true;
     const approved = yearOk && mileOk && cfxOk;
     const decClass = approved?'decision-approved':'decision-rejected';
-    const decText  = approved?'✅ VEHICLE ELIGIBLE':'❌ NOT ELIGIBLE';
+    const decText  = approved?'VEHICLE ELIGIBLE':'NOT ELIGIBLE';
     resDiv.innerHTML = vHTML+`
       <div class="val-row"><div><div class="val-req">Min Year Required</div><div class="val-sub">Requires ${l.minYear} — Vehicle is ${v.year}</div></div><span class="status-pill ${yearOk?'pill-pass':'pill-fail'}">${yearOk?'✓ PASS':'✗ FAIL'}</span></div>
       <div class="val-row"><div><div class="val-req">Max Mileage</div><div class="val-sub">Limit ${l.maxMileage?l.maxMileage.toLocaleString():'N/A'} km — Vehicle ${v.mileage.toLocaleString()} km</div></div><span class="status-pill ${mileOk?'pill-pass':'pill-fail'}">${mileOk?'✓ PASS':'✗ FAIL'}</span></div>
@@ -2438,11 +2669,11 @@ function calcLTV(lid){
     <div class="cline"><span class="cl-label">Down Payment</span><span class="cl-value">-${$f(down)}</span></div>
     <div class="cline"><span class="cl-label">Trade-in</span><span class="cl-value">-${$f(trade)}</span></div>
     <div class="cline" style="border-top:2px solid var(--border2);margin-top:6px;padding-top:10px;"><span class="cl-label" style="font-size:15px;">Amount to Finance</span><span class="cl-value" style="font-size:16px;color:var(--amber);">${$f(finance)}</span></div>
-    <div class="cline"><span class="cl-label">Your LTV</span><span class="cl-value" style="color:${ok?'var(--green)':'var(--red)'};">${ltvPct.toFixed(2)}% ${ok?'✓':'⚠️'}</span></div>
+    <div class="cline"><span class="cl-label">Your LTV</span><span class="cl-value" style="color:${ok?'var(--green)':'var(--red)'};">${ltvPct.toFixed(2)}% ${ok?'✓':'!'}</span></div>
     <div class="cline"><span class="cl-label">Max Loan Amount</span><span class="cl-value" style="color:var(--green);">${$f(maxLoan)}</span></div>
     <div class="ltv-bar-wrap"><div class="ltv-bar ${barClass}" style="width:${barW}%"></div></div>
     <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px;"><span>0%</span><span style="color:${ok?'var(--green)':'var(--red)'};font-weight:700;">${ltvPct.toFixed(1)}% of ${l.maxLTV}% max</span><span>${l.maxLTV}%</span></div>
-    <div class="decision-box ${ok?'decision-approved':'decision-rejected'}" style="margin-top:10px;">${ok?'✅ LTV WITHIN LIMITS':'⚠️ LTV EXCEEDED — Increase down or reduce advance'}</div>`;
+    <div class="decision-box ${ok?'decision-approved':'decision-rejected'}" style="margin-top:10px;">${ok?'LTV WITHIN LIMITS':'LTV EXCEEDED — Increase down or reduce advance'}</div>`;
 }
 
 // ── COMPARE ALL LENDERS ENGINE ─────────────────────────
@@ -2487,9 +2718,9 @@ function runComparison(){
   });
   eligible.sort((a,b)=>{if(a.type===b.type)return a.maxLTV-b.maxLTV;return a.type==='hard'?-1:1;});
   document.getElementById('compareSummaryBar').innerHTML = `
-    <div class="sum-pill sum-green">✅ ${eligible.length} Eligible</div>
-    <div class="sum-pill sum-red">⛔ ${ineligible.length} Ineligible</div>
-    <div class="sum-pill sum-blue">💰 To Finance: ${$f(amountToFinance)}</div>`;
+    <div class="sum-pill sum-green">${eligible.length} Eligible</div>
+    <div class="sum-pill sum-red">${ineligible.length} Ineligible</div>
+    <div class="sum-pill sum-blue">To Finance: ${$f(amountToFinance)}</div>`;
   document.getElementById('eligibleCount').textContent = eligible.length;
   document.getElementById('compareEligible').innerHTML = eligible.map(r=>buildLenderCard(r,v,false)).join('');
   const inelLabel = document.getElementById('ineligibleLabel');
@@ -2511,7 +2742,7 @@ function buildLenderCard(r,v,isIneligible){
     if(!r.mileOk) reasons.push(`Mileage ${v.mileage.toLocaleString()} km > Max ${l.maxMileage.toLocaleString()} km`);
     if(!r.cfxOk)  reasons.push(`Carfax $${v.carfax.toLocaleString()} > Max $${l.maxCarfax.toLocaleString()}`);
     return `<div class="lender-card ineligible"><div class="lc-header ineligible"><span class="lc-name">${l.name}</span><span class="lc-check">✗</span></div>
-      <div class="lc-body">${reasons.map(rs=>`<div class="fail-reason">⛔ ${rs}</div>`).join('')}
+      <div class="lc-body">${reasons.map(rs=>`<div class="fail-reason">${rs}</div>`).join('')}
       <div class="lc-row" style="margin-top:8px;"><span class="lc-lbl">Rate Range</span><span class="lc-val">${r.rates}</span></div></div></div>`;
   }
   const isCredit = r.type==='credit';
@@ -2524,7 +2755,7 @@ function buildLenderCard(r,v,isIneligible){
       <div class="lc-row"><span class="lc-lbl">Rate Range</span><span class="lc-val blue">${r.rates}</span></div>
       <div class="lc-row"><span class="lc-lbl">Max LTV</span><span class="lc-val">${r.maxLTV}%</span></div>
       <div class="lc-row"><span class="lc-lbl">Max Loan</span><span class="lc-val green">${$f(r.maxLoan)}</span></div>
-      <div class="lc-row"><span class="lc-lbl">Your LTV</span><span class="lc-val ${r.ltvOk?'green':'red'}">${r.ltvPct.toFixed(1)}% ${r.ltvOk?'✓':'⚠️'}</span></div>
+      <div class="lc-row"><span class="lc-lbl">Your LTV</span><span class="lc-val ${r.ltvOk?'green':'red'}">${r.ltvPct.toFixed(1)}% ${r.ltvOk?'✓':'!'}</span></div>
       <div class="lc-row"><span class="lc-lbl">Amount to Finance</span><span class="lc-val">${$f(r.atf)}</span></div>
       <div class="ltv-bar-wrap"><div class="ltv-bar ${barClass}" style="width:${barW}%"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:3px;color:var(--muted);"><span>0%</span><span style="color:${r.ltvOk?'var(--green)':'var(--red)'};">${r.ltvPct.toFixed(1)}% / ${r.maxLTV}%</span><span>${r.maxLTV}%</span></div>
@@ -2547,12 +2778,12 @@ function getDealData(){
 function saveDeal(){
   const d = getDealData();
   localStorage.setItem('ffCurrentDeal',JSON.stringify(d));
-  toast('💾 Deal saved!');
+  toast('Deal saved');
   return d;
 }
 function loadDeal(){
   const s = localStorage.getItem('ffCurrentDeal');
-  if(!s){toast('❌ No saved deal');return;}
+  if(!s){toast('No saved deal');return;}
   const d = JSON.parse(s);
   const v = d.vehicle||{};const f = d.financial||{};const p = d.products||{};const c = d.customer||{};const co = d.costs||{};
   setVal('stockNum',v.stock);setVal('vehicleDesc',v.desc);setVal('vin',v.vin);setVal('odometer',v.km);setVal('condition',v.condition);setVal('vehicleType',v.type);
@@ -2560,7 +2791,7 @@ function loadDeal(){
   setVal('vscPrice',p.vscPrice);setVal('vscCost',p.vscCost);setVal('gapPrice',p.gapPrice);setVal('gapCost',p.gapCost);setVal('twPrice',p.twPrice);setVal('twCost',p.twCost);setVal('waPrice',p.waPrice);setVal('waCost',p.waCost);
   setVal('custName',c.name);setVal('custPhone',c.phone);setVal('custEmail',c.email);setVal('creditScore',c.beacon);setVal('monthlyIncome',c.income);
   setVal('unitAcv',co.acv);setVal('recon',co.recon);setVal('lotPack',co.pack);
-  calculate();toast('📂 Deal loaded!');
+  calculate();toast('Deal loaded');
 }
 
 // ── EMAIL ──────────────────────────────────────────────
@@ -2615,7 +2846,7 @@ ${dealer}
 
 function copyText(id){
   const txt = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(txt).then(()=>toast('📋 Copied!'));
+  navigator.clipboard.writeText(txt).then(()=>toast('Copied to clipboard'));
 }
 
 // ── LENDER APPROVAL PARSER — DealerTrack Edition ──────────────────
@@ -2627,7 +2858,7 @@ function handleApprovalDrop(e){
   e.currentTarget.style.background  = '';
   const file = e.dataTransfer.files[0];
   if(file && file.type === 'application/pdf') loadApprovalPDF(file);
-  else toast('⚠️ Please drop a PDF file');
+  else toast('Please drop a PDF file');
 }
 function handleApprovalFile(e){
   const file = e.target.files[0];
@@ -2648,11 +2879,11 @@ async function loadApprovalPDF(file){
       fullText += content.items.map(item => item.str).join(' ') + '\n';
     }
     textEl.value = fullText;
-    if(nameEl) nameEl.textContent = '✅ ' + file.name + ' loaded — click Parse';
-    toast('✅ PDF loaded — click Parse Document');
+    if(nameEl) nameEl.textContent = file.name + ' loaded — click Parse';
+    toast('PDF loaded — click Parse Document');
   } catch(e){
-    if(nameEl) nameEl.textContent = '❌ Could not read PDF';
-    toast('❌ PDF read error: ' + e.message);
+    if(nameEl) nameEl.textContent = 'Could not read PDF';
+    toast('PDF read error: ' + e.message);
     console.error('PDF parse error:', e);
   }
 }
@@ -2738,11 +2969,11 @@ function parseLender(){
 
   // ── Render results ────────────────────────────────────────────
   const statusColor = {
-    'APPROVED':             { bg:'rgba(16,185,129,.12)', border:'rgba(16,185,129,.3)', text:'var(--green)',  icon:'✅' },
-    'CONDITIONAL APPROVAL': { bg:'rgba(245,158,11,.1)',  border:'rgba(245,158,11,.3)', text:'var(--amber)', icon:'⚠️' },
-    'DECLINED':             { bg:'rgba(239,68,68,.1)',   border:'rgba(239,68,68,.3)',  text:'var(--red)',   icon:'❌' }
+    'APPROVED':             { bg:'rgba(16,185,129,.12)', border:'rgba(16,185,129,.3)', text:'var(--green)',  icon:'' },
+    'CONDITIONAL APPROVAL': { bg:'rgba(245,158,11,.1)',  border:'rgba(245,158,11,.3)', text:'var(--amber)', icon:'' },
+    'DECLINED':             { bg:'rgba(239,68,68,.1)',   border:'rgba(239,68,68,.3)',  text:'var(--red)',   icon:'' }
   };
-  const sc = statusColor[p.status] || { bg:'rgba(30,90,246,.08)', border:'var(--border2)', text:'var(--primary)', icon:'🔍' };
+  const sc = statusColor[p.status] || { bg:'rgba(30,90,246,.08)', border:'var(--border2)', text:'var(--primary)', icon:'' };
 
   const row = (label, val, color='') =>
     val ? `<div class="cline"><span class="cl-label">${label}</span><span class="cl-value" ${color?`style="color:${color}"`:''}>${val}</span></div>` : '';
@@ -2778,12 +3009,12 @@ function parseLender(){
   }
 
   if(p.status !== 'DECLINED'){
-    html += `<button class="btn btn-primary btn-full" style="margin-top:14px;" onclick='applyParsed(${JSON.stringify(p)})'>✅ Apply to Deal Desk</button>`;
+    html += `<button class="btn btn-primary btn-full" style="margin-top:14px;" onclick='applyParsed(${JSON.stringify(p)})'>Apply to Deal Desk</button>`;
   }
 
   html += `</div>`;
   resDiv.innerHTML = html;
-  toast(p.status === 'APPROVED' ? '✅ Approved!' : p.status === 'DECLINED' ? '❌ Declined' : '⚠️ Conditional');
+  toast(p.status === 'APPROVED' ? 'Approved' : p.status === 'DECLINED' ? 'Declined' : 'Conditional');
 }
 
 function applyParsed(p){
@@ -2799,7 +3030,7 @@ function applyParsed(p){
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.id === 'nav-deal' || b.getAttribute('onclick')?.includes("'deal'"));
   });
-  toast('✅ Approval applied to Deal Desk!');
+  toast('Approval applied to Deal Desk');
 }
 
 // ── SETTINGS ──────────────────────────────────────────
@@ -2813,25 +3044,25 @@ function saveSettings(){
   localStorage.setItem('ffSettings',JSON.stringify(settings));
   setVal('docFee',settings.docFee);setVal('gstRate',settings.gst);setVal('apr',settings.apr);
   document.getElementById('targetInput').value=settings.target;
-  closeModal('settingsModal');toast('⚙️ Settings saved!');
+  closeModal('settingsModal');toast('Settings saved!');
   calculate();
 }
 
 // ── CRM ───────────────────────────────────────────────
 function addToCRM(){
   const d = getDealData();const c=d.customer;const v=d.vehicle;
-  if(!c.name){toast('⚠️ Enter customer name first');return;}
+  if(!c.name){toast('Enter customer name first');return;}
   const customer={id:Date.now(),date:new Date().toLocaleDateString('en-CA'),name:c.name,phone:c.phone,email:c.email,vehicle:`${v.desc}`.trim()||'Not specified',stock:v.stock,beacon:c.beacon,status:'Lead'};
   crmData.unshift(customer);
   localStorage.setItem('ffCRM',JSON.stringify(crmData));
-  toast('✅ Added to CRM!');
+  toast('Added to CRM');
 }
 function promptAddCRM(){
   const name=prompt('Customer Name:');if(!name)return;
   const phone=prompt('Phone:')||'';const email=prompt('Email:')||'';
   crmData.unshift({id:Date.now(),date:new Date().toLocaleDateString('en-CA'),name,phone,email,vehicle:'Not specified',stock:'',beacon:'',status:'Lead'});
   localStorage.setItem('ffCRM',JSON.stringify(crmData));
-  renderCRM();toast('✅ Customer added!');
+  renderCRM();toast('Customer added');
 }
 function renderCRM(){
   const container=document.getElementById('crmContainer');
@@ -2861,7 +3092,7 @@ function logDeal(){
   d.id=Date.now();d.pvr=pvr;
   dealLog.unshift(d);
   localStorage.setItem('ffDealLog',JSON.stringify(dealLog));
-  toast('📊 Deal logged!');
+  toast('Deal logged');
   refreshAllAnalytics();
   renderScenarios();
 }
@@ -2888,7 +3119,7 @@ function renderDealLog(){
   </tbody></table>`;
 }
 function deleteLog(id){if(!confirm('Delete?'))return;dealLog=dealLog.filter(d=>d.id!==id);localStorage.setItem('ffDealLog',JSON.stringify(dealLog));refreshAllAnalytics();}
-function clearAllDeals(){if(!confirm('⚠️ Clear ALL '+dealLog.length+' logged deals?'))return;dealLog=[];localStorage.setItem('ffDealLog','[]');refreshAllAnalytics();toast('🗑️ Cleared');}
+function clearAllDeals(){if(!confirm('Clear ALL '+dealLog.length+' logged deals?'))return;dealLog=[];localStorage.setItem('ffDealLog','[]');refreshAllAnalytics();toast('Cleared');}
 
 function refreshAllAnalytics(){
   renderDealLog();renderCRM();
@@ -2940,10 +3171,10 @@ function updateTarget(dealsThisMonth){
   const neededPD=daysLeft>0?(needed/daysLeft).toFixed(1):0;
   const expected=(dayOfMonth/daysInMonth)*target;
   let pace='—';
-  if(dealsThisMonth>=target)pace='🎉 Hit!';
-  else if(dealsThisMonth>=expected*1.1)pace='🚀 Ahead';
-  else if(dealsThisMonth>=expected*0.9)pace='✅ On Track';
-  else pace='⚠️ Behind';
+  if(dealsThisMonth>=target)pace='Hit!';
+  else if(dealsThisMonth>=expected*1.1)pace='Ahead';
+  else if(dealsThisMonth>=expected*0.9)pace='On Track';
+  else pace='Behind';
   document.getElementById('tDeals').textContent=dealsThisMonth;
   document.getElementById('tTarget').textContent=target;
   document.getElementById('tPct').textContent=pct;
@@ -2955,9 +3186,9 @@ function updateTarget(dealsThisMonth){
 // ── CSV IMPORT (Updated for Cloud & Sync) ──────────────
 function importCSV(){
   const txt=document.getElementById('csvText').value.trim();
-  if(!txt){toast('⚠️ Paste CSV content first');return;}
+  if(!txt){toast('Paste CSV content first');return;}
   const lines=txt.split('\n');
-  if(lines.length<2){toast('⚠️ Need at least header + 1 data row');return;}
+  if(lines.length<2){toast('Need at least header + 1 data row');return;}
   const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
   const idx=k=>headers.indexOf(k);
   const imported=[];
@@ -2978,7 +3209,7 @@ function importCSV(){
     });
   }
   
-  if(!imported.length){toast('❌ No valid rows found');return;}
+  if(!imported.length){toast('No valid rows found');return;}
 
   // 1. Update the new global variables
   window.inventory = imported;
@@ -2997,7 +3228,7 @@ function importCSV(){
   }
   
   closeModal('csvImportModal');
-  toast(`✅ Imported ${imported.length} vehicles!`);
+  toast(` Imported ${imported.length} vehicles!`);
 }
 
 // ── EXPORT ────────────────────────────────────────────
@@ -3010,7 +3241,7 @@ function exportJSON(type){
   a.download=name;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast('💾 Exported!');
+  toast('Exported');
 }
 
 // ── MODALS ────────────────────────────────────────────
@@ -3022,9 +3253,9 @@ function closeModalOutside(e,id){if(e.target===document.getElementById(id))close
 function toggleDarkMode(){
   const isLight = document.body.classList.toggle('light-mode');
   const btn = document.getElementById('darkModeBtn');
-  btn.textContent = isLight ? '🌙 Dark Mode' : '☀️ Light Mode';
+  btn.textContent = isLight ? 'Dark' : 'Light';
   localStorage.setItem('ffTheme', isLight ? 'light' : 'dark');
-  toast(isLight ? '☀️ Switched to Light Mode' : '🌙 Switched to Dark Mode');
+  toast(isLight ? 'Switched to Light Mode' : 'Switched to Dark Mode');
 }
 
 // ── TOAST ─────────────────────────────────────────────
@@ -3048,8 +3279,8 @@ document.addEventListener('keydown',e=>{
 let _adminToken = null;
 function getAdminToken(){
   if(_adminToken) return _adminToken;
-  const t = prompt('🔒 Admin Token Required\nEnter your ADMIN_TOKEN:','');
-  if(!t||!t.trim()){ toast('❌ Cancelled'); return null; }
+  const t = prompt('Admin Token Required\nEnter your ADMIN_TOKEN:','');
+  if(!t||!t.trim()){ toast('Cancelled'); return null; }
   _adminToken = t.trim(); return _adminToken;
 }
 function clearAdminToken(){ _adminToken = null; }
@@ -3059,7 +3290,7 @@ async function adminFetch(url, options={}){
   if(!token) return null;
   const sep = url.includes('?')?'&':'?';
   const res = await fetch(url + sep + 'token=' + encodeURIComponent(token), options);
-  if(res.status===403){ clearAdminToken(); toast('❌ Wrong token'); return null; }
+  if(res.status===403){ clearAdminToken(); toast('Wrong token'); return null; }
   return await res.json();
 }
 
@@ -3118,10 +3349,11 @@ async function loadSarahDashboard(){
     // Callbacks
     renderCallbacks(stats.recentCallbacks || []);
 
-    toast('✅ Sarah data refreshed');
+    toast('Sarah data refreshed');
+    setTimeout(refreshIcons, 100);
   } catch(e){
     console.error('Sarah load error:', e);
-    toast('❌ Could not load Sarah data: ' + e.message);
+    toast('Could not load Sarah data: ' + e.message);
   }
 }
 
@@ -3147,16 +3379,16 @@ function renderConversations(convs){
   el.innerHTML = convs.map(c=>{
     const cleanPhone = (c.customer_phone||'').replace(/[^0-9]/g,'');
     const statusBadge = `<span class="conv-badge badge-${c.status||'active'}">${c.status||'active'}</span>`;
-    const vehicle = c.vehicle_type ? `🚗 ${c.vehicle_type}` : '';
-    const budget  = c.budget       ? ` · 💰 ${c.budget}`    : '';
-    const msgs    = c.message_count? ` · 💬 ${c.message_count} msgs` : '';
+    const vehicle = c.vehicle_type ? `${c.vehicle_type}` : '';
+    const budget  = c.budget       ? ` · ${c.budget}`    : '';
+    const msgs    = c.message_count? ` · ${c.message_count} msgs` : '';
     // Show voice activity indicator if last message was a call/voicemail
     const lastMsg = c.last_message || '';
-    const hasVoice = lastMsg.startsWith('📞')||lastMsg.startsWith('📬')||lastMsg.startsWith('📵');
+    const hasVoice = lastMsg.startsWith('[Call')||lastMsg.startsWith('[VM')||lastMsg.startsWith('[Missed');
     const voiceTag = hasVoice ? ` · ${lastMsg.split('|')[0].trim()}` : '';
     return `<div class="conv-item" id="convitem-${cleanPhone}">
       <div class="conv-header" onclick="toggleConversation('${c.customer_phone}','${cleanPhone}')">
-        <div class="conv-avatar">👤</div>
+        <div class="conv-avatar">${(c.customer_name||'?')[0].toUpperCase()}</div>
         <div class="conv-info">
           <div class="conv-name">${c.customer_name||'Unknown'} ${statusBadge}</div>
           <div class="conv-phone">${c.customer_phone||''}</div>
@@ -3187,7 +3419,7 @@ async function toggleConversation(phone, cleanPhone){
     const inputId = 'ri-'+cleanPhone, btnId = 'rb-'+cleanPhone;
     thread.innerHTML = data.messages.map(m=>`
       <div class="msg-bubble ${m.role}">
-        <div class="msg-role">${m.role==='user'?'👤 Customer':'🤖 Sarah AI'}</div>
+        <div class="msg-role">${m.role==='user'?'Customer':'Sarah AI'}</div>
         <div style="color:var(--text);line-height:1.5;white-space:pre-wrap;">${escapeHtml(m.content)}</div>
         <div class="msg-time">${new Date(m.created_at).toLocaleString()}</div>
       </div>`).join('') +
@@ -3211,9 +3443,9 @@ async function sendThreadReply(phone, inputId, btnId){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({phone,message:msg,token})
     }).then(r=>r.json());
-    if(res.success){ input.value=''; toast('✅ Reply sent!'); }
-    else toast('❌ '+res.error);
-  } catch(e){ toast('❌ '+e.message); }
+    if(res.success){ input.value=''; toast('Reply sent'); }
+    else toast(res.error);
+  } catch(e){ toast(e.message); }
   btn.disabled=false; btn.textContent='Send';
 }
 
@@ -3221,9 +3453,9 @@ async function deleteConversation(phone){
   if(!confirm('Delete this entire conversation? This cannot be undone.')) return;
   try {
     const res = await fetch('/api/conversation/'+encodeURIComponent(phone),{method:'DELETE'}).then(r=>r.json());
-    if(res.success){ toast('✅ Conversation deleted'); loadSarahDashboard(); }
-    else toast('❌ '+res.error);
-  } catch(e){ toast('❌ '+e.message); }
+    if(res.success){ toast('Conversation deleted'); loadSarahDashboard(); }
+    else toast(res.error);
+  } catch(e){ toast(e.message); }
 }
 
 function loadConvToDeskCRM(phone, name, vehicle){
@@ -3231,7 +3463,7 @@ function loadConvToDeskCRM(phone, name, vehicle){
   setVal('custPhone', phone.replace('+1',''));
   if(vehicle) setVal('vehicleDesc', vehicle);
   showSection('deal');
-  toast('✅ '+( name||phone)+' loaded into Deal Desk!');
+  toast((name||phone)+' loaded into Deal Desk');
 }
 
 // ── Appointments ──────────────────────────────────────────────────
@@ -3243,8 +3475,8 @@ function renderAppointments(apts){
     <div class="appt-card">
       <div class="appt-top" onclick="document.getElementById('aptd-${a.id}').classList.toggle('open')">
         <div>
-          <div class="appt-name">🗓️ ${escapeHtml(a.customer_name||'Unknown')} — ${escapeHtml(a.datetime||'TBD')}</div>
-          <div class="appt-vehicle">🚗 ${escapeHtml(a.vehicle_type||'—')} · ${a.customer_phone}</div>
+          <div class="appt-name">${escapeHtml(a.customer_name||'Unknown')} — ${escapeHtml(a.datetime||'TBD')}</div>
+          <div class="appt-vehicle">${escapeHtml(a.vehicle_type||'—')} · ${a.customer_phone}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();loadConvToDeskCRM('${a.customer_phone}','${escapeHtml(a.customer_name||'')}','${escapeHtml(a.vehicle_type||'')}')">→ Desk</button>
@@ -3265,8 +3497,8 @@ function renderAppointments(apts){
 async function deleteAppointment(id){
   if(!confirm('Delete this appointment?')) return;
   const res = await fetch('/api/appointment/'+id,{method:'DELETE'}).then(r=>r.json());
-  if(res.success){ toast('✅ Deleted'); loadSarahDashboard(); }
-  else toast('❌ '+res.error);
+  if(res.success){ toast('Deleted'); loadSarahDashboard(); }
+  else toast(res.error);
 }
 
 // ── Callbacks ─────────────────────────────────────────────────────
@@ -3278,8 +3510,8 @@ function renderCallbacks(cbs){
     <div class="appt-card" style="border-left:3px solid var(--amber);">
       <div class="appt-top" onclick="document.getElementById('cbd-${c.id}').classList.toggle('open')">
         <div>
-          <div class="appt-name">📞 ${escapeHtml(c.customer_name||'Unknown')} — ${escapeHtml(c.datetime||'Anytime')}</div>
-          <div class="appt-vehicle" style="color:var(--amber);">🚗 ${escapeHtml(c.vehicle_type||'—')} · ${c.customer_phone}</div>
+          <div class="appt-name">${escapeHtml(c.customer_name||'Unknown')} — ${escapeHtml(c.datetime||'Anytime')}</div>
+          <div class="appt-vehicle" style="color:var(--amber);">${escapeHtml(c.vehicle_type||'—')} · ${c.customer_phone}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();loadConvToDeskCRM('${c.customer_phone}','${escapeHtml(c.customer_name||'')}','${escapeHtml(c.vehicle_type||'')}')">→ Desk</button>
@@ -3299,8 +3531,8 @@ function renderCallbacks(cbs){
 async function deleteCallback(id){
   if(!confirm('Delete this callback request?')) return;
   const res = await fetch('/api/callback/'+id,{method:'DELETE'}).then(r=>r.json());
-  if(res.success){ toast('✅ Deleted'); loadSarahDashboard(); }
-  else toast('❌ '+res.error);
+  if(res.success){ toast('Deleted'); loadSarahDashboard(); }
+  else toast(res.error);
 }
 
 // ── Launch SMS ────────────────────────────────────────────────────
@@ -3332,8 +3564,8 @@ async function sendLaunchSMS(){
   const msg   = document.getElementById('launchMessage')?.value?.trim();
   const btn   = document.getElementById('launchSendBtn');
   const res   = document.getElementById('launchResult');
-  if(!phone){ toast('⚠️ Invalid phone number'); return; }
-  if(!msg){ toast('⚠️ Enter a message'); return; }
+  if(!phone){ toast('Invalid phone number'); return; }
+  if(!msg){ toast('Enter a message'); return; }
   btn.disabled=true; btn.textContent='⏳ Sending...';
   res.style.display='none';
   try {
@@ -3343,22 +3575,22 @@ async function sendLaunchSMS(){
     }).then(r=>r.json());
     if(data.success){
       res.style.cssText='display:block;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:10px;font-size:12px;color:var(--green);';
-      res.textContent='✅ SMS sent to '+phone;
+      res.textContent='SMS sent to '+phone;
       document.getElementById('launchPhone').value='';
     } else throw new Error(data.error||'Failed');
   } catch(e){
     res.style.cssText='display:block;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:10px;font-size:12px;color:var(--red);';
-    res.textContent='❌ '+e.message;
+    res.textContent=e.message;
   }
-  btn.disabled=false; btn.textContent='🚀 Send Message';
+  btn.disabled=false; btn.textContent='Send Message';
 }
 
 async function sendManualReplyForm(){
   const phone = phoneInputToE164(document.getElementById('replyPhone')?.value||'');
   const msg   = document.getElementById('replyMessage')?.value?.trim();
   const res   = document.getElementById('replyResult');
-  if(!phone){ toast('⚠️ Invalid phone number'); return; }
-  if(!msg){ toast('⚠️ Enter a message'); return; }
+  if(!phone){ toast('Invalid phone number'); return; }
+  if(!msg){ toast('Enter a message'); return; }
   const token = getAdminToken(); if(!token) return;
   try {
     const data = await fetch('/api/manual-reply',{
@@ -3367,12 +3599,12 @@ async function sendManualReplyForm(){
     }).then(r=>r.json());
     if(data.success){
       res.style.cssText='display:block;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:10px;font-size:12px;color:var(--green);';
-      res.textContent='✅ Reply sent to '+phone;
+      res.textContent='Reply sent to '+phone;
       document.getElementById('replyMessage').value='';
     } else throw new Error(data.error||'Failed');
   } catch(e){
     res.style.cssText='display:block;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:10px;font-size:12px;color:var(--red);';
-    res.textContent='❌ '+e.message;
+    res.textContent=e.message;
   }
 }
 
@@ -3412,18 +3644,18 @@ function parseCSVFile(file){
       if(seen.has(phone)){ errors.push('Row '+(i+1)+': Duplicate'); continue; }
       seen.add(phone); contacts.push({name,phone});
     }
-    if(!contacts.length){ toast('⚠️ No valid contacts in file'); return; }
+    if(!contacts.length){ toast('No valid contacts in file'); return; }
     parsedContacts=contacts;
     const preview=document.getElementById('contactPreview');
     const countEl=document.getElementById('contactCountDisplay');
     const listEl=document.getElementById('contactList');
     const errEl=document.getElementById('csvErrors');
-    if(countEl) countEl.textContent='✅ '+contacts.length+' valid contacts loaded';
+    if(countEl) countEl.textContent=contacts.length+' valid contacts loaded';
     if(listEl) listEl.innerHTML=contacts.slice(0,8).map(c=>'<div style="padding:2px 0;font-size:11px;">✓ '+escapeHtml(c.name)+' — '+c.phone+'</div>').join('')+(contacts.length>8?'<div style="font-size:11px;color:var(--muted);">...and '+(contacts.length-8)+' more</div>':'');
-    if(errEl) errEl.innerHTML=errors.length?'<div style="font-size:11px;color:var(--amber);margin-top:6px;">⚠️ '+errors.length+' skipped</div>':'';
+    if(errEl) errEl.innerHTML=errors.length?'<div style="font-size:11px;color:var(--amber);margin-top:6px;">'+errors.length+' skipped</div>':'';
     if(preview) preview.style.display='block';
     document.getElementById('campaignForm').style.display='block';
-    toast('✅ '+contacts.length+' contacts ready');
+    toast(contacts.length+' contacts ready');
   };
   reader.readAsText(file);
 }
@@ -3431,10 +3663,10 @@ function parseCSVFile(file){
 async function launchBulkCampaign(){
   const name = document.getElementById('campaignName')?.value?.trim();
   const tmpl = document.getElementById('messageTemplate')?.value?.trim();
-  if(!name){ toast('⚠️ Enter a campaign name'); return; }
-  if(!tmpl){ toast('⚠️ Enter a message template'); return; }
-  if(!tmpl.includes('{name}')){ toast('⚠️ Template must include {name}'); return; }
-  if(!parsedContacts.length){ toast('⚠️ Upload a CSV first'); return; }
+  if(!name){ toast('Enter a campaign name'); return; }
+  if(!tmpl){ toast('Enter a message template'); return; }
+  if(!tmpl.includes('{name}')){ toast('Template must include {name}'); return; }
+  if(!parsedContacts.length){ toast('Upload a CSV first'); return; }
   if(!confirm('Launch "'+name+'" to '+parsedContacts.length+' contacts?')) return;
   try {
     const res = await fetch('/api/bulk-sms/create-campaign',{
@@ -3444,10 +3676,10 @@ async function launchBulkCampaign(){
     if(res.success){
       document.getElementById('campaignForm').style.display='none';
       document.getElementById('progressTracker').style.display='block';
-      toast('✅ Launched! '+res.messageCount+' messages (~'+res.estimatedTime+' min)');
+      toast('Launched! '+res.messageCount+' messages (~'+res.estimatedTime+' min)');
       trackBulkProgress(name);
-    } else toast('❌ '+res.error);
-  } catch(e){ toast('❌ '+e.message); }
+    } else toast(res.error);
+  } catch(e){ toast(e.message); }
 }
 
 let _progressTimer=null;
@@ -3466,7 +3698,7 @@ async function updateBulkProgress(name){
     const pct = s.total>0?Math.round((parseInt(s.sent)/parseInt(s.total))*100):0;
     document.getElementById('progressBar').style.width  = pct+'%';
     const done = parseInt(s.pending)===0;
-    document.getElementById('progressText').textContent = done?'✅ Complete! '+s.sent+' sent':'Sending... ('+s.sent+'/'+s.total+')';
+    document.getElementById('progressText').textContent = done?'Complete! '+s.sent+' sent':'Sending... ('+s.sent+'/'+s.total+')';
     if(done&&_progressTimer){ clearInterval(_progressTimer); _progressTimer=null; }
   } catch(e){ console.error('Progress error',e); }
 }
@@ -3478,35 +3710,35 @@ async function checkBulkStatus(){
     const running = d.processorRunning;
     const paused  = d.paused;
     let html = '<div style="font-size:13px;font-weight:700;margin-bottom:10px;">Processor: ';
-    html += running?(paused?'<span style="color:var(--amber);">⏸️ PAUSED</span>':'<span style="color:var(--green);">🟢 RUNNING</span>'):'<span style="color:var(--red);">🔴 STOPPED</span>';
+    html += running?(paused?'<span style="color:var(--amber);">PAUSED</span>':'<span style="color:var(--green);">RUNNING</span>'):'<span style="color:var(--red);">STOPPED</span>';
     html += '</div>';
     if(d.stats?.length){
       d.stats.forEach(s=>{
-        const em = s.status==='sent'?'✅':s.status==='failed'?'❌':s.status==='cancelled'?'🚫':'⏳';
+        const em = s.status==='sent'?'Sent':s.status==='failed'?'Failed':s.status==='cancelled'?'Cancelled':'Pending';
         html+=`<div style="font-size:12px;padding:4px 0;">${em} <strong>${s.status.toUpperCase()}</strong>: ${s.count}</div>`;
       });
     } else { html+='<div style="font-size:12px;color:var(--green);">✓ Queue empty</div>'; }
     display.innerHTML=html; display.style.display='block';
-  } catch(e){ toast('❌ '+e.message); }
+  } catch(e){ toast(e.message); }
 }
 
 async function pauseBulkSMS(){
   const d=await adminFetch('/api/bulk-sms/pause'); if(!d) return;
-  if(d.success){ toast('⏸️ Bulk SMS paused'); checkBulkStatus(); } else toast('❌ '+d.error);
+  if(d.success){ toast('Bulk SMS paused'); checkBulkStatus(); } else toast(d.error);
 }
 async function resumeBulkSMS(){
   const d=await adminFetch('/api/bulk-sms/resume'); if(!d) return;
-  if(d.success){ toast('▶️ Bulk SMS resumed'); checkBulkStatus(); } else toast('❌ '+d.error);
+  if(d.success){ toast('Bulk SMS resumed'); checkBulkStatus(); } else toast(d.error);
 }
 async function emergencyStopBulk(){
-  if(!confirm('🚨 EMERGENCY STOP — Cancel ALL pending messages?')) return;
+  if(!confirm('EMERGENCY STOP — Cancel ALL pending messages?')) return;
   const d=await adminFetch('/api/emergency-stop-bulk'); if(!d) return;
-  if(d.success){ toast('🚨 Emergency stop! '+d.cancelled+' messages cancelled'); checkBulkStatus(); }
+  if(d.success){ toast('Emergency stop! '+d.cancelled+' messages cancelled'); checkBulkStatus(); }
 }
 async function wipeBulkMessages(){
-  if(!confirm('⚠️ Wipe ALL bulk messages from queue? This cannot be undone.')) return;
+  if(!confirm('Wipe ALL bulk messages from queue? This cannot be undone.')) return;
   const d=await adminFetch('/api/wipe-bulk'); if(!d) return;
-  if(d.success){ toast('🗑️ Queue wiped ('+d.wiped+' messages)'); checkBulkStatus(); }
+  if(d.success){ toast('Queue wiped ('+d.wiped+' messages)'); checkBulkStatus(); }
 }
 
 // ── Voice (uses Sarah's new voice API routes) ─────────────────────
@@ -3515,7 +3747,7 @@ async function sendVoiceDrop(){
   const customerName = document.getElementById('vd_name')?.value||'there';
   const message      = document.getElementById('vd_message')?.value||'';
   const res          = document.getElementById('voiceDropResult');
-  if(!phone){ toast('⚠️ Invalid phone'); return; }
+  if(!phone){ toast('Invalid phone'); return; }
   const token=getAdminToken(); if(!token) return;
   try {
     const d = await fetch('/api/voice/drop-v2',{
@@ -3524,11 +3756,11 @@ async function sendVoiceDrop(){
     }).then(r=>r.json());
     if(d.success){
       res.style.cssText='display:block;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:10px;font-size:12px;color:var(--green);';
-      res.textContent='✅ Drop sent! Natural pacing active. Call SID: '+d.callSid;
+      res.textContent='Drop sent! Natural pacing active. Call SID: '+d.callSid;
     } else throw new Error(d.error||'Failed');
   } catch(e){
     res.style.cssText='display:block;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:10px;font-size:12px;color:var(--red);';
-    res.textContent='❌ '+e.message;
+    res.textContent=e.message;
   }
 }
 
@@ -3543,8 +3775,8 @@ async function sendVoiceCampaign(){
   const message = document.getElementById('vc_message')?.value;
   const status  = (document.getElementById('vc_status')||{}).value||'Lead';
   const contacts= crmData.filter(c=>c.phone&&(status==='all'||c.status===status)).map(c=>({name:c.name||'there',phone:c.phone}));
-  if(!contacts.length){ toast('⚠️ No CRM contacts match that filter'); return; }
-  if(!message){ toast('⚠️ Enter a message script'); return; }
+  if(!contacts.length){ toast('No CRM contacts match that filter'); return; }
+  if(!message){ toast('Enter a message script'); return; }
   if(!confirm('Send voice drops to '+contacts.length+' contacts?')) return;
   const token=getAdminToken(); if(!token) return;
   try {
@@ -3552,9 +3784,9 @@ async function sendVoiceCampaign(){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({contacts,message,delaySeconds:10,token})
     }).then(r=>r.json());
-    if(d.success) toast('📞 Voice campaign launched — '+d.scheduled+' calls queued!');
-    else toast('❌ '+d.error);
-  } catch(e){ toast('❌ '+e.message); }
+    if(d.success) toast('Voice campaign launched — '+d.scheduled+' calls queued!');
+    else toast(d.error);
+  } catch(e){ toast(e.message); }
 }
 
 // ── Exports ───────────────────────────────────────────────────────
@@ -3575,7 +3807,7 @@ async function sendDealFundedFollowup(phone, customerName, vehicleDesc){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({phone,customerName,vehicleDesc,token,dealership:settings.dealerName||'First Financial'})
     });
-    console.log('✅ Deal follow-up SMS triggered for',phone);
+    console.log('Deal follow-up SMS triggered for',phone);
   } catch(e){ console.warn('Follow-up SMS failed (non-critical):', e.message); }
 }
 
@@ -3599,11 +3831,11 @@ function renderTimelineMessage(m) {
   const time    = m.created_at ? new Date(m.created_at).toLocaleString() : '';
 
   // ── Voice events — special pills ─────────────────────────────
-  if (content.startsWith('📞') || content.startsWith('📬') || content.startsWith('📵')) {
-    let icon = '📞', label = '', color = 'var(--primary)', bg = 'rgba(30,90,246,.08)', border = 'rgba(30,90,246,.2)';
+  if (content.startsWith('[Call') || content.startsWith('[VM') || content.startsWith('[Missed')) {
+    let icon = 'call', label = '', color = 'var(--primary)', bg = 'rgba(30,90,246,.08)', border = 'rgba(30,90,246,.2)';
 
     if (content.includes('VOICEMAIL')) {
-      icon = '📬'; color = 'var(--amber)'; bg = 'rgba(245,158,11,.08)'; border = 'rgba(245,158,11,.2)';
+      icon = 'vm'; color = 'var(--amber)'; bg = 'rgba(245,158,11,.08)'; border = 'rgba(245,158,11,.2)';
       // Extract transcript if present
       const txMatch = content.match(/transcript:\s*"(.+)"$/s);
       const durMatch = content.match(/duration:(\d+s)/);
@@ -3619,7 +3851,7 @@ function renderTimelineMessage(m) {
     }
 
     if (content.includes('VOICE_DROP')) {
-      icon = '📵'; color = '#8b5cf6'; bg = 'rgba(139,92,246,.08)'; border = 'rgba(139,92,246,.2)';
+      icon = 'missed'; color = '#8b5cf6'; bg = 'rgba(139,92,246,.08)'; border = 'rgba(139,92,246,.2)';
       label = content.includes('CALLBACK') ? 'Called back — connected' : 'Voicemail drop sent';
     } else if (content.includes('CALL_INBOUND')) {
       const statusMatch = content.match(/status:(\w+)/);
@@ -3651,7 +3883,7 @@ function renderTimelineMessage(m) {
   // ── Regular SMS message ───────────────────────────────────────
   const isUser = m.role === 'user';
   return `<div class="msg-bubble ${m.role}">
-    <div class="msg-role">${isUser ? '👤 Customer' : '🤖 Sarah AI'}</div>
+    <div class="msg-role">${isUser ? 'Customer' : 'Sarah AI'}</div>
     <div style="color:var(--text);line-height:1.5;white-space:pre-wrap;">${escapeHtml(content)}</div>
     <div class="msg-time">${time}</div>
   </div>`;
@@ -3679,7 +3911,7 @@ async function loadVoicemails(){
       return `<div class="appt-card" style="border-left:3px solid var(--primary);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
           <div>
-            <div style="font-weight:700;font-size:13px;">📬 ${caller} <span style="color:var(--muted);font-weight:400;font-size:11px;">${date} · ${dur}</span></div>
+            <div style="font-weight:700;font-size:13px;">${caller} <span style="color:var(--muted);font-weight:400;font-size:11px;">${date} · ${dur}</span></div>
             ${hasTx
               ? `<div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.5;background:var(--surface2);padding:10px;border-radius:6px;border-left:3px solid var(--amber);">"${escapeHtml(v.transcript)}"</div>`
               : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">⏳ Transcript pending...</div>'
@@ -3693,7 +3925,7 @@ async function loadVoicemails(){
       </div>`;
     }).join('');
   } catch(e){
-    el.innerHTML = '<div style="padding:20px;color:var(--red);">❌ '+e.message+'</div>';
+    el.innerHTML = '<div style="padding:20px;color:var(--red);">' + +e.message+'</div>';
   }
 }
 
@@ -3745,7 +3977,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Restore theme
   if(localStorage.getItem('ffTheme')==='light'){
     document.body.classList.add('light-mode');
-    document.getElementById('darkModeBtn').textContent = '🌙 Dark Mode';
+    document.getElementById('darkModeBtn').textContent = 'Dark';
   }
   // Apply settings defaults
   setVal('docFee',settings.docFee);
@@ -3761,8 +3993,22 @@ document.addEventListener('DOMContentLoaded',()=>{
   setVal('setTarget',settings.target);
   calculate();
   refreshAllAnalytics();
-console.log('%c✅ FIRST-FIN DEALER PLATFORM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
-console.log('%c🚗 Inventory: pending cloud sync | 🏦 Lenders: '+Object.keys(lenders).length,'color:#f59e0b;font-size:12px;');
+console.log('%cFIRST-FIN DEALER PLATFORM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
+
+// Initialize Lucide icons on page load and provide refresh function for dynamic content
+if (typeof lucide !== 'undefined') {
+  lucide.createIcons();
+  window.refreshIcons = () => { try { lucide.createIcons(); } catch(e){} };
+  // Auto-refresh icons periodically for first 10 seconds (catches dynamic renders)
+  let _iconTick = 0;
+  const _iconInterval = setInterval(() => {
+    refreshIcons();
+    if (++_iconTick >= 20) clearInterval(_iconInterval);
+  }, 500);
+} else {
+  window.refreshIcons = () => {};
+}
+console.log('%cInventory: pending cloud sync | Lenders: '+Object.keys(lenders).length,'color:#f59e0b;font-size:12px;');
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -3815,7 +4061,7 @@ function saveLenderRates(){
   });
   localStorage.setItem('ffLenderRates', JSON.stringify(overrides));
   closeModal('lenderRateModal');
-  toast('✅ Lender rates saved & active!');
+  toast('Lender rates saved');
 }
 
 function resetLenderRates(){
@@ -3903,8 +4149,8 @@ function runBeaconMatch(){
   const row    = document.getElementById('beaconLenderRow');
   const badges = document.getElementById('beaconBadges');
 
-  if(!beacon){ toast('⚠️ Enter a Beacon score first'); return; }
-  if(!stock){  toast('⚠️ Select a vehicle first'); return; }
+  if(!beacon){ toast('Enter a Beacon score first'); return; }
+  if(!stock){  toast('Select a vehicle first'); return; }
 
   const v = inventory.find(x => x.stock === stock);
   row.style.display = 'block';
@@ -3967,7 +4213,7 @@ function carryTradeEquity(){
   document.getElementById('tradeAllow').value = Math.max(0, adjustedACV).toFixed(0);
   calculateTrade();
   calculate();
-  toast('✅ Trade ACV applied to Deal Structure!');
+  toast('Trade ACV applied to Deal Structure');
 }
 
 // ── DEAL SCENARIOS A / B / C ─────────────────────────────────
@@ -4023,14 +4269,14 @@ function saveScenario(i){
   scenarios[i] = d;
   localStorage.setItem('ffScenarios', JSON.stringify(scenarios));
   renderScenarios();
-  toast(`💾 Scenario ${['A','B','C'][i]} saved!`);
+  toast(`Scenario ${['A','B','C'][i]} saved!`);
 }
 
 function loadScenario(i){
-  if(!scenarios[i]){ toast('⚠️ No scenario saved in this slot'); return; }
+  if(!scenarios[i]){ toast('No scenario saved in this slot'); return; }
   localStorage.setItem('ffCurrentDeal', JSON.stringify(scenarios[i]));
   loadDeal();
-  toast(`📂 Scenario ${['A','B','C'][i]} loaded!`);
+  toast(`Scenario ${['A','B','C'][i]} loaded!`);
 }
 
 function clearScenario(i){
@@ -4163,7 +4409,7 @@ function printWorksheet(){
   document.getElementById('pw-payment-grid').innerHTML = pgHTML;
 
   window.print();
-  toast('🖨️ Printing worksheet...');
+  toast('Printing worksheet...');
 }
 
 // ── HOOK calculate() to also update Rate Comparison ──────────
@@ -4189,7 +4435,7 @@ calculate = function(){
     var box=document.getElementById('dt-log');
     if(!box)return;
     var d=document.createElement('div');
-    d.className='dt-log-line'+(msg.indexOf('Error')>-1||msg.indexOf('❌')>-1?' err':msg.indexOf('💾')>-1||msg.indexOf('✅')>-1?' ok':'');
+    d.className='dt-log-line'+(msg.indexOf('Error')>-1||msg.indexOf('Error')>-1?' err':msg.indexOf('Saved')>-1||msg.indexOf('Success')>-1?' ok':'');
     d.textContent=msg;
     box.appendChild(d);
     box.scrollTop=box.scrollHeight;
