@@ -221,11 +221,11 @@ module.exports = function (app, pool) {
     try {
       const v = req.body;
       const result = await client.query(
-        `INSERT INTO desk_inventory (stock, year, make, model, mileage, price, condition, carfax, type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT (stock) DO UPDATE SET year=$2, make=$3, model=$4, mileage=$5, price=$6, condition=$7, carfax=$8, type=$9, updated_at=NOW()
+        `INSERT INTO desk_inventory (stock, year, make, model, mileage, price, condition, carfax, type, vin)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (stock) DO UPDATE SET year=$2, make=$3, model=$4, mileage=$5, price=$6, condition=$7, carfax=$8, type=$9, vin=$10, updated_at=NOW()
          RETURNING *`,
-        [v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type]
+        [v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null]
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
@@ -248,10 +248,10 @@ module.exports = function (app, pool) {
 
       for (const v of vehicles) {
         await client.query(
-          `INSERT INTO desk_inventory (stock, year, make, model, mileage, price, condition, carfax, type, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'available')
-           ON CONFLICT (stock) DO UPDATE SET year=$2, make=$3, model=$4, mileage=$5, price=$6, condition=$7, carfax=$8, type=$9, status='available', updated_at=NOW()`,
-          [v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type]
+          `INSERT INTO desk_inventory (stock, year, make, model, mileage, price, condition, carfax, type, vin, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'available')
+           ON CONFLICT (stock) DO UPDATE SET year=$2, make=$3, model=$4, mileage=$5, price=$6, condition=$7, carfax=$8, type=$9, vin=$10, status='available', updated_at=NOW()`,
+          [v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null]
         );
       }
       await client.query('COMMIT');
