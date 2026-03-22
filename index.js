@@ -45,26 +45,18 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5001'
 ];
-// Paths that legitimately receive server-to-server callbacks with no Origin header
-// (Twilio webhooks, Stripe webhooks) — all others require a recognized browser origin
+// Paths that receive server-to-server callbacks (Twilio, Stripe) — no browser Origin header
 const WEBHOOK_PATHS = ['/api/sms-webhook', '/api/voice/', '/api/stripe/webhook', '/api/request-access'];
-
-// Path-aware CORS: only enforce on /api/ routes — browser page loads have no Origin header
-app.use((req, res, next) => {
-  if (!req.path.startsWith('/api/')) return next();
-  cors({
-    origin: function(origin, callback) {
-      if (!origin) {
-        const isWebhook = WEBHOOK_PATHS.some(p => req.path.startsWith(p));
-        if (isWebhook) return callback(null, true);
-        return callback(null, false); // reject silently, no thrown error
-      }
-      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-      callback(null, false);
-    },
-    credentials: true
-  })(req, res, next);
-});
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow missing origin only for webhook/server-to-server requests
+    // (Twilio callbacks, Stripe webhooks, curl — these never send Origin)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('CORS: origin not allowed — ' + origin));
+  },
+  credentials: true
+}));
 // ── Stripe webhook needs raw body BEFORE express.json() ──────────
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
@@ -112,17 +104,7 @@ const notifyOwner         = makeNotifyOwner(twilioClient);
 
 // ── Bulk SMS processor ────────────────────────────────────────────
 const { createBulkMessagesTable, makeBulkProcessor } = require('./lib/bulk');
-const { createVoiceTable } = require('./routes/voice');
-const { createDealsTable } = require('./routes/deals');
-
-// ── M8: Explicit table creation at startup (not at require() time) ─
-Promise.all([
-  createBulkMessagesTable(),
-  createVoiceTable(),
-  createDealsTable(),
-]).then(() => console.log('✅ All runtime tables verified'))
-  .catch(e => console.error('❌ Table setup error:', e.message));
-
+createBulkMessagesTable();
 const { startBulkProcessor } = makeBulkProcessor(twilioClient);
 startBulkProcessor();
 
