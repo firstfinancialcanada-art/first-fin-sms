@@ -1,6 +1,6 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
-const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator, sanitizeError } = require('../lib/helpers');
+const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator } = require('../lib/helpers');
 const validateTwilio = makeTwilioWebhookValidator();
 
 // ── Voice table setup ─────────────────────────────────────────────
@@ -29,7 +29,7 @@ async function createVoiceTable() {
     console.error('❌ voicemails table error:', e.message);
   } finally { client.release(); }
 }
-// Table creation is called explicitly at app startup in index.js
+createVoiceTable();
 
 // ── Get recent SMS history for call preview ───────────────────────
 async function getCustomerSMSHistory(phone, userId, limit = 4) {
@@ -101,7 +101,7 @@ async function saveVoiceEvent(phone, eventContent, role = 'user', userId = null)
   }
 }
 
-function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
+module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
 
   // ── Health check for Desk ─────────────────────────────────────
   app.get('/api/desk-ping', (req, res) => {
@@ -446,7 +446,7 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
       );
       res.json({ success: true, voicemails: result.rows });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally { client.release(); }
   });
 
@@ -497,7 +497,7 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
       res.json({ success: true, callSid: call.sid, to: normalized });
     } catch(e) {
       console.error('❌ /api/voice/drop-v2 error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -576,7 +576,7 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
       res.json({ success: true, scheduled, skipped, message: `${scheduled} voice drops queued (${delay}s apart)` });
     } catch(e) {
       console.error('❌ /api/voice/campaign-v2 error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -598,7 +598,7 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
       res.json({ success: true, callSid: call.sid, to: normalized });
     } catch(e) {
       console.error('❌ /api/voice/drop error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -638,7 +638,7 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
       res.json({ success: true, scheduled, message: `${scheduled} voice drops queued` });
     } catch(e) {
       console.error('❌ /api/voice/campaign error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -655,5 +655,3 @@ function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
 
 };
 
-module.exports = voiceRoutes;
-module.exports.createVoiceTable = createVoiceTable;
