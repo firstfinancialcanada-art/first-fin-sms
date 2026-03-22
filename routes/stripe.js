@@ -2,7 +2,6 @@
 const { pool } = require('../lib/db');
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
-const { sanitizeError } = require('../lib/helpers');
 
 // ── Input validation helpers ──────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -190,7 +189,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
       res.json({ success: true, url: session.url });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -211,7 +210,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
       const status = getBillingStatus(user, exempt);
       res.json({ success: true, ...status, exempt });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
