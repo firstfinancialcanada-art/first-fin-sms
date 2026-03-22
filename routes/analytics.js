@@ -1,6 +1,5 @@
 // routes/analytics.js
 const { pool } = require('../lib/db');
-const { sanitizeError } = require('../lib/helpers');
 
 // CSV formula injection prevention — prefix dangerous leading chars with tab
 function csvSafe(val) {
@@ -20,7 +19,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
       const result = await notifyOwner('🧪 Test notification from FIRST-FIN Platform — ' + new Date().toLocaleString());
       res.json({ success: result, message: result ? '✅ SMS sent to your phone!' : '❌ FORWARD_PHONE not set' });
     } catch (error) {
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     }
   });
 
@@ -168,7 +167,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
       });
     } catch (error) {
       console.error('❌ Analytics error:', error);
-      res.json({ error: sanitizeError(error) });
+      res.json({ error: error.message });
     } finally { client.release(); }
   });
 
