@@ -149,20 +149,6 @@ async function setup() {
     `);
     console.log('✅ desk_audit table');
 
-    // ── 9. PLATFORM INQUIRIES (request-access form submissions) ──
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS platform_inquiries (
-        id           SERIAL PRIMARY KEY,
-        name         VARCHAR(255),
-        dealership   VARCHAR(255),
-        phone        VARCHAR(30),
-        email        VARCHAR(255),
-        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pinq_created ON platform_inquiries(created_at DESC);
-    `);
-    console.log('✅ platform_inquiries table');
-
     console.log('\n🎉 Phase 1 migration complete!');
     console.log('ℹ️  Your existing SARAH tables are untouched.');
     console.log('ℹ️  Run: node seed-inventory.js  to load your inventory into the DB.\n');
