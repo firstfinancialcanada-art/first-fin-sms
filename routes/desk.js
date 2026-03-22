@@ -14,7 +14,6 @@ const {
 } = require('../middleware/auth');
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
-const { sanitizeError } = require('../lib/helpers');
 const TRIAL_DAYS = 3;
 
 module.exports = function (app, pool, twilioClient, requireBilling) {
@@ -126,7 +125,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ Register error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -182,7 +181,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ Login error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -231,7 +230,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       res.json({ success: true, accessToken: newAccess, refreshToken: newRefresh });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -267,7 +266,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         billing
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -280,7 +279,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -328,7 +327,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const result = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]);
       res.json({ success: true, settings: normalizeSettings(result.rows[0]?.settings_json || {}) });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -356,7 +355,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
       res.json({ success: true, tenantBranding: buildTenantBrandingFromSettings(normalized) });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -394,7 +393,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch(e) {
       console.error('Twilio number search error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -442,7 +441,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       if (e.code === 21422 || e.message?.includes('not available')) {
         return res.status(409).json({ success: false, error: 'This number was just taken — please search again and pick another.' });
       }
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -460,7 +459,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, inventory: result.rows });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -479,7 +478,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -507,7 +506,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true, count: vehicles.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -519,7 +518,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND user_id = $2', [req.params.stock, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -537,7 +536,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, crm: result.rows });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -564,7 +563,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true, count: crm.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -581,7 +580,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, entry: result.rows[0] });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -597,7 +596,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -609,7 +608,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_crm WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -628,7 +627,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const dealLog = result.rows.map(r => ({ ...r.deal_data, _dbId: r.id }));
       res.json({ success: true, dealLog });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -654,7 +653,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true, count: dealLog.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -669,7 +668,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, id: result.rows[0].id });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -681,7 +680,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_deal_log WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -699,7 +698,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, overrides: result.rows[0]?.overrides_json || {} });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -717,7 +716,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -729,7 +728,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_lender_rates WHERE user_id = $1', [req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -749,7 +748,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       for (const row of result.rows) slots[row.slot] = row.deal_data;
       res.json({ success: true, scenarios: slots });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -779,7 +778,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -795,7 +794,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, deal: result.rows[0]?.deal_data || null });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -813,7 +812,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -874,7 +873,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ /api/desk/load-all error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
