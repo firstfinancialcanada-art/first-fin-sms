@@ -1,6 +1,6 @@
 // routes/deals.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
-const { normalizePhone, sanitizeError } = require('../lib/helpers');
+const { normalizePhone } = require('../lib/helpers');
 const { saveBulkCampaign } = require('../lib/bulk');
 
 async function createDealsTable() {
@@ -54,9 +54,9 @@ async function createDealsTable() {
     client.release();
   }
 }
-// Table creation is called explicitly at app startup in index.js
+createDealsTable();
 
-function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
+module.exports = function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
 
   // ── Qualified leads (Sarah → Desk CRM) ───────────────────────
   app.get('/api/qualified-leads', requireAuth, async (req, res) => {
@@ -92,7 +92,7 @@ function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
       res.json({ success: true, leads: result.rows, total: result.rows.length });
     } catch (e) {
       console.error('❌ /api/qualified-leads error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally { client.release(); }
   });
 
@@ -134,7 +134,7 @@ function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
       res.json({ success: true, dealId: result.rows[0].id, loggedAt: result.rows[0].logged_at });
     } catch (e) {
       console.error('❌ /api/deals POST error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally { client.release(); }
   });
 
@@ -150,7 +150,7 @@ function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
       const result = await client.query('SELECT * FROM deals ORDER BY logged_at DESC LIMIT $1', [limit]);
       res.json({ success: true, deals: result.rows, total: result.rows.length });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally { client.release(); }
   });
 
@@ -196,7 +196,7 @@ function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
       res.json({ success: true, message: 'Follow-up SMS sent!', to: normalized });
     } catch (e) {
       console.error('❌ /api/deal-funded error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -222,11 +222,9 @@ function dealsRoutes(app, { requireAuth, requireBilling, twilioClient }) {
       res.json({ success: true, message: `Campaign "${campaignName}" created with ${valid.length} contacts`, total: valid.length, skipped: contacts.length - valid.length });
     } catch (e) {
       console.error('❌ /api/campaign-from-crm error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
 };
 
-module.exports = dealsRoutes;
-module.exports.createDealsTable = createDealsTable;
