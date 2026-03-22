@@ -4,7 +4,6 @@
 // Mounts: /api/lenders/*
 // ============================================================
 const { requireAuth } = require('../middleware/auth');
-const { sanitizeError } = require('../lib/helpers');
 
 // multer is lazy-loaded inside the upload route — missing dep won't crash the server
 function getUpload() {
@@ -317,7 +316,7 @@ module.exports = function (app, pool, requireBilling) {
       );
       res.json({ success: true, rates: rows, hasCustomRates: rows.length > 0 });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -405,7 +404,7 @@ module.exports = function (app, pool, requireBilling) {
 
     } catch (e) {
       console.error('❌ PDF parse error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -443,7 +442,7 @@ module.exports = function (app, pool, requireBilling) {
       res.json({ success: true, count: tiers.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -459,7 +458,7 @@ module.exports = function (app, pool, requireBilling) {
       );
       res.json({ success: true, message: `${req.params.lenderName} reset to platform defaults` });
     } catch (e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
