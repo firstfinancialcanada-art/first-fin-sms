@@ -1,6 +1,5 @@
 // routes/admin-dashboard.js — FIRST-FIN Admin Panel API
 const { pool } = require('../lib/db');
-const { sanitizeError } = require('../lib/helpers');
 
 module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
@@ -51,7 +50,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Admin stats error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -118,7 +117,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
     } catch(e) {
       console.error('Admin users error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -132,7 +131,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET suspended = TRUE WHERE id = $1', [req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -145,7 +144,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET suspended = FALSE WHERE id = $1', [req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -185,7 +184,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
       res.json({ success: true, releasedNumber: twilioNumber || null });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -210,7 +209,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       res.json({ success: true, inquiries: result.rows });
     } catch(e) {
       console.error('Admin inquiries error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -224,7 +223,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE platform_inquiries SET status = $1 WHERE id = $2', [status, req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -254,7 +253,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       );
       res.json({ success: true, user: result.rows[0] });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -275,7 +274,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       );
       res.json({ success: true, user: result.rows[0] });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -294,7 +293,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -346,7 +345,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Release number error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
@@ -370,7 +369,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       ]);
       res.json({ success: true, message: 'fintest account reset — all data cleared' });
     } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     } finally {
       client.release();
     }
