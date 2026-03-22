@@ -1,7 +1,6 @@
 // routes/admin.js
 const { pool } = require('../lib/db');
 const { state } = require('../lib/bulk');
-const { sanitizeError } = require('../lib/helpers');
 
 module.exports = function adminRoutes(app, { twilioClient }) {
 
@@ -31,7 +30,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
         message: 'PERMANENTLY STOPPED & BLOCKED'
       });
     } catch (error) {
-      res.status(500).json({ success: false, error: sanitizeError(error) });
+      res.status(500).json({ success: false, error: error.message });
     } finally {
       client.release();
     }
@@ -47,7 +46,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
       const result = await client.query('DELETE FROM bulk_messages');
       res.json({ success: true, wiped: result.rowCount, message: 'Bulk table cleared! Ready for fresh upload.' });
     } catch (error) {
-      res.status(500).json({ success: false, error: sanitizeError(error) });
+      res.status(500).json({ success: false, error: error.message });
     } finally {
       client.release();
     }
@@ -125,7 +124,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
       );
       res.json({ success: true, cancelled: result.rowCount, message: `Emergency stop: ${result.rowCount} pending messages cancelled` });
     } catch (error) {
-      res.status(500).json({ success: false, error: sanitizeError(error) });
+      res.status(500).json({ success: false, error: error.message });
     } finally {
       client.release();
     }
@@ -156,7 +155,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
       res.json({ success: true });
     } catch (error) {
       console.error('Request access error:', error);
-      res.status(500).json({ success: false, error: sanitizeError(error) });
+      res.status(500).json({ success: false, error: error.message });
     } finally {
       client.release();
     }
