@@ -1,4 +1,3 @@
-const { sanitizeError } = require('../lib/helpers');
 // ═══════════════════════════════════════════════════════════════
 // FIRST-FIN: User-Facing Probability Routes
 // routes/probability.js
@@ -53,7 +52,7 @@ module.exports = function(app, pool, requireAuth, requireBilling) {
       res.json({ success: true, probabilities });
     } catch (e) {
       console.error('❌ Probability query error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -125,7 +124,7 @@ module.exports = function(app, pool, requireAuth, requireBilling) {
       });
     } catch (e) {
       console.error('❌ Single probability error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
@@ -178,7 +177,7 @@ module.exports = function(app, pool, requireAuth, requireBilling) {
       res.json({ success: true, outcomeId: result.rows[0].id });
     } catch (e) {
       console.error('❌ log-approval error:', e.message);
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      res.status(500).json({ success: false, error: e.message });
     }
   });
 
