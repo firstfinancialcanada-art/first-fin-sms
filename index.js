@@ -49,21 +49,18 @@ const ALLOWED_ORIGINS = [
 // (Twilio webhooks, Stripe webhooks) — all others require a recognized browser origin
 const WEBHOOK_PATHS = ['/api/sms-webhook', '/api/voice/', '/api/stripe/webhook', '/api/request-access'];
 
-// Path-aware CORS: null origin only permitted on webhook paths
+// Path-aware CORS: only enforce on /api/ routes — browser page loads have no Origin header
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  // Build a per-request cors handler so we can see the path
+  if (!req.path.startsWith('/api/')) return next();
   cors({
     origin: function(origin, callback) {
       if (!origin) {
-        // Allow null origin only for webhook/server-to-server paths
         const isWebhook = WEBHOOK_PATHS.some(p => req.path.startsWith(p));
         if (isWebhook) return callback(null, true);
-        // Reject null-origin requests to all other routes (sandboxed iframe, file://, etc.)
-        return callback(new Error('CORS: null origin not permitted on this route'));
+        return callback(null, false); // reject silently, no thrown error
       }
       if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-      callback(new Error('CORS: origin not allowed — ' + origin));
+      callback(null, false);
     },
     credentials: true
   })(req, res, next);
