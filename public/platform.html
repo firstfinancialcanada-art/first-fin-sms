@@ -63,8 +63,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .platform-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;background:linear-gradient(90deg,var(--primary),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;flex-shrink:0;}
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
-.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;flex-shrink:1;}
-.nav-btn{padding:6px 10px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:1;}
+.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;overflow-x:auto;scrollbar-width:none;}.main-nav::-webkit-scrollbar{display:none;}
+.nav-btn{padding:6px 7px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
 .nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
@@ -1012,8 +1012,8 @@ select option{background:#0d1526;color:var(--text);}
     <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah"><i data-lucide="bot" class="ico"></i>SARAH</button>
     <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
-    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
-    <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><i data-lucide="facebook" class="ico"></i>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
+    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 3px;letter-spacing:0;margin-left:1px;vertical-align:middle;">BETA</span></button>
+    <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><i data-lucide="facebook" class="ico"></i>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 3px;letter-spacing:0;margin-left:1px;vertical-align:middle;">BETA</span></button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -2591,7 +2591,7 @@ async function startLoginBuy() {
     <div style="background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(30,90,246,.05));border:1px solid rgba(59,130,246,.25);border-radius:14px;padding:28px;">
       <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px;">Get Early Access</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">
-        Facebook Poster is currently in closed beta. We're onboarding dealers one at a time to make sure it's rock solid before full release.<br><br>
+        FB Poster is currently in closed beta. We're onboarding dealers one at a time to make sure it's rock solid before full release.<br><br>
         Contact us to get set up — we'll walk you through the configuration and get your inventory live on Marketplace.
       </div>
 
