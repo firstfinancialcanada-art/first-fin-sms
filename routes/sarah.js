@@ -2,7 +2,7 @@
 const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveMessage, hasActiveConversation, deleteConversation,
         saveAppointment, saveCallback, logAnalytics } = require('../lib/db');
-const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator, sanitizeError } = require('../lib/helpers');
+const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const validateTwilio = makeTwilioWebhookValidator();
 
@@ -30,7 +30,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         recentCallbacks:    callbacks.rows
       });
     } catch (error) {
-      res.json({ error: sanitizeError(error) });
+      res.json({ error: error.message });
     } finally {
       client.release();
     }
@@ -58,7 +58,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       result.rows.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
       res.json(result.rows.slice(0, 50));
     } catch (error) {
-      res.json({ error: sanitizeError(error) });
+      res.json({ error: error.message });
     } finally {
       client.release();
     }
@@ -90,7 +90,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       res.json({ conversation: conversation.rows[0], messages: messages.rows });
     } catch (error) {
-      res.json({ error: sanitizeError(error) });
+      res.json({ error: error.message });
     } finally {
       client.release();
     }
@@ -107,7 +107,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         res.json({ success: false, error: 'Conversation not found' });
       }
     } catch (error) {
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     }
   });
 
@@ -121,7 +121,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, message: 'Appointment deleted' });
     } catch (error) {
       console.error('Error deleting appointment:', error);
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     } finally {
       client.release();
     }
@@ -137,7 +137,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, message: 'Callback deleted' });
     } catch (error) {
       console.error('Error deleting callback:', error);
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     } finally {
       client.release();
     }
@@ -167,7 +167,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, message: 'Reply sent!' });
     } catch (error) {
       console.error('❌ Error sending manual reply:', error);
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     }
   });
 
@@ -207,7 +207,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, message: 'SMS sent!' });
     } catch (error) {
       console.error('❌ Error sending SMS:', error);
-      res.json({ success: false, error: sanitizeError(error) });
+      res.json({ success: false, error: error.message });
     }
   });
 
