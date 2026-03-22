@@ -63,8 +63,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .platform-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;background:linear-gradient(90deg,var(--primary),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;flex-shrink:0;}
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
-.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;flex-shrink:1;}
-.nav-btn{padding:6px 10px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:1;}
+.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;overflow-x:auto;scrollbar-width:none;}.main-nav::-webkit-scrollbar{display:none;}
+.nav-btn{padding:6px 8px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:0;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;}
 .nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
 .nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
