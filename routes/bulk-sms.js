@@ -1,7 +1,7 @@
 // routes/bulk-sms.js
 const { pool } = require('../lib/db');
 const { state, saveBulkCampaign, getBulkCampaignStats } = require('../lib/bulk');
-const { normalizePhone, sanitizeError } = require('../lib/helpers');
+const { normalizePhone } = require('../lib/helpers');
 
 module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
 
@@ -36,7 +36,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       }
       res.json({ success: true, contacts, errors, total: contacts.length, errorCount: errors.length });
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -63,7 +63,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       const messageIds = await saveBulkCampaign(campaignName, messageTemplate, contacts, req.user.userId);
       res.json({ success: true, campaignName, messageCount: messageIds.length, estimatedTime: Math.ceil(contacts.length * 15 / 60) });
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -74,7 +74,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       const stats = await getBulkCampaignStats(campaignName, req.user.userId);
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -97,7 +97,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
         res.json({ success: true, message: '🚨 EMERGENCY STOP ACTIVATED', cancelled: result.rowCount, processorStopped: true });
       } finally { client.release(); }
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -114,7 +114,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
         res.json({ success: true, cancelled: result.rowCount });
       } finally { client.release(); }
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -134,7 +134,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
         });
       } finally { client.release(); }
     } catch (error) {
-      res.status(500).json({ error: sanitizeError(error) });
+      res.status(500).json({ error: error.message });
     }
   });
 
