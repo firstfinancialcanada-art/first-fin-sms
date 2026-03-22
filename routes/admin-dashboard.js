@@ -1,0 +1,393 @@
+// routes/admin-dashboard.js — FIRST-FIN Admin Panel API
+const { pool } = require('../lib/db');
+const { sanitizeError } = require('../lib/helpers');
+
+module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
+
+  function adminAuth(req, res, next) {
+    const token = req.headers['x-admin-token'] || req.query.token;
+    if (!token || token !== process.env.ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    next();
+  }
+
+  app.get('/admin', adminAuth, (req, res) => {
+    const path = require('path');
+    res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+  });
+
+  // ── GET /api/admin/stats ──────────────────────────────────
+  app.get('/api/admin/stats', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const [users, inventory, deals, inquiries, conversations, appointments, bulk, sarahActive] = await Promise.all([
+        client.query('SELECT COUNT(*) FROM desk_users'),
+        client.query('SELECT COUNT(*) FROM desk_inventory').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query('SELECT COUNT(*) FROM desk_deals').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query("SELECT COUNT(*) FROM platform_inquiries WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
+        client.query('SELECT COUNT(*) FROM conversations').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query('SELECT COUNT(*) FROM appointments').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query("SELECT COUNT(*) FROM bulk_messages WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
+        client.query("SELECT COUNT(*) FROM desk_users WHERE subscription_status = 'active'").catch(() => ({ rows: [{ count: 0 }] })),
+      ]);
+      const subBreakdown = await client.query(
+        "SELECT subscription_status, COUNT(*) as count FROM desk_users GROUP BY subscription_status"
+      ).catch(() => ({ rows: [] }));
+
+      res.json({
+        success: true,
+        stats: {
+          totalUsers:        parseInt(users.rows[0].count),
+          activeUsers:       parseInt(sarahActive.rows[0].count),
+          pendingInquiries:  parseInt(inquiries.rows[0].count),
+          totalInventory:    parseInt(inventory.rows[0].count),
+          totalDeals:        parseInt(deals.rows[0].count),
+          totalConversations:parseInt(conversations.rows[0].count),
+          totalAppointments: parseInt(appointments.rows[0].count),
+          pendingBulk:       parseInt(bulk.rows[0].count),
+          subBreakdown:      subBreakdown.rows
+        }
+      });
+    } catch(e) {
+      console.error('Admin stats error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── GET /api/admin/users ──────────────────────────────────
+  app.get('/api/admin/users', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      // Check which columns actually exist on desk_users
+      const colCheck = await client.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'desk_users'
+      `);
+      const cols = colCheck.rows.map(r => r.column_name);
+      const hasSuspended = cols.includes('suspended');
+      const hasCreatedAt = cols.includes('created_at');
+      const hasLastLogin = cols.includes('last_login');
+
+      // Try to add suspended if missing
+      if (!hasSuspended) {
+        try { await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE'); } catch(e) {}
+      }
+
+      const suspendedSel = hasSuspended ? 'COALESCE(u.suspended, FALSE) AS suspended' : 'FALSE AS suspended';
+      const createdSel   = hasCreatedAt ? 'u.created_at,' : '';
+      const lastLoginSel = hasLastLogin ? 'u.last_login,' : '';
+      const orderBy      = hasCreatedAt ? 'ORDER BY u.created_at DESC' : 'ORDER BY u.id DESC';
+
+      // Try full JOIN query
+      try {
+        const result = await client.query(`
+          SELECT u.id, u.email, u.display_name, u.role,
+                 ${createdSel} ${lastLoginSel}
+                 ${suspendedSel},
+                 COALESCE(u.subscription_status, 'trial') AS subscription_status,
+                 u.trial_ends_at,
+                 u.twilio_number,
+                 u.stripe_customer_id,
+                 u.settings_json,
+                 COUNT(DISTINCT i.id)    AS inventory_count,
+                 COUNT(DISTINCT c.id)    AS crm_count,
+                 COUNT(DISTINCT conv.id) AS conversation_count,
+                 COUNT(DISTINCT appt.id) AS appointment_count
+          FROM desk_users u
+          LEFT JOIN desk_inventory  i    ON i.user_id    = u.id
+          LEFT JOIN desk_crm        c    ON c.user_id    = u.id
+          LEFT JOIN conversations   conv ON conv.user_id = u.id
+          LEFT JOIN appointments    appt ON appt.user_id = u.id
+          GROUP BY u.id ${orderBy}
+        `);
+        return res.json({ success: true, users: result.rows });
+      } catch(joinErr) {
+        console.warn('Admin users JOIN failed, bare query:', joinErr.message);
+      }
+
+      // Last resort — no joins at all
+      const result = await client.query(`
+        SELECT id, email, display_name, role,
+               FALSE AS suspended, 0 AS inventory_count, 0 AS crm_count
+        FROM desk_users ORDER BY id DESC
+      `);
+      res.json({ success: true, users: result.rows });
+
+    } catch(e) {
+      console.error('Admin users error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/suspend ─────────────────────
+  app.post('/api/admin/users/:id/suspend', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      try { await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE'); } catch(e) {}
+      await client.query('UPDATE desk_users SET suspended = TRUE WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/unsuspend ───────────────────
+  app.post('/api/admin/users/:id/unsuspend', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query('UPDATE desk_users SET suspended = FALSE WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── DELETE /api/admin/users/:id ───────────────────────────
+  app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      // Fetch Twilio number before deleting — release it first to stop billing
+      const userRow = await client.query('SELECT twilio_number FROM desk_users WHERE id = $1', [req.params.id]);
+      const twilioNumber = userRow.rows[0]?.twilio_number;
+      if (twilioNumber && twilioClient) {
+        try {
+          const numbers = await twilioClient.incomingPhoneNumbers.list({ phoneNumber: twilioNumber, limit: 1 });
+          if (numbers.length > 0) {
+            await twilioClient.incomingPhoneNumbers(numbers[0].sid).remove();
+            console.log(`✅ Twilio number released on user delete: ${twilioNumber}`);
+          }
+        } catch(twilioErr) {
+          console.warn(`⚠️ Could not release Twilio number ${twilioNumber} on delete:`, twilioErr.message);
+          // Don't block deletion if Twilio release fails
+        }
+      }
+      // Cascade delete all tenant data
+      const uid = req.params.id;
+      await client.query('DELETE FROM desk_refresh_tokens   WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_inventory        WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_crm              WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_deals            WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM conversations         WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM appointments          WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM callbacks             WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM bulk_messages         WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM voicemails            WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM lender_rate_sheets    WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
+      res.json({ success: true, releasedNumber: twilioNumber || null });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── GET /api/admin/inquiries ──────────────────────────────
+  app.get('/api/admin/inquiries', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS platform_inquiries (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          dealership TEXT,
+          phone TEXT NOT NULL,
+          email TEXT,
+          status TEXT DEFAULT 'pending',
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      const result = await client.query('SELECT * FROM platform_inquiries ORDER BY created_at DESC');
+      res.json({ success: true, inquiries: result.rows });
+    } catch(e) {
+      console.error('Admin inquiries error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/inquiries/:id/status ──────────────────
+  app.post('/api/admin/inquiries/:id/status', adminAuth, async (req, res) => {
+    const { status } = req.body;
+    const client = await pool.connect();
+    try {
+      await client.query('UPDATE platform_inquiries SET status = $1 WHERE id = $2', [status, req.params.id]);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/create ─────────────────────────
+  app.post('/api/admin/users/create', adminAuth, async (req, res) => {
+    const bcrypt = require('bcryptjs');
+    const { email, password, name, dealerName } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ success: false, error: 'email, password, name required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    const client = await pool.connect();
+    try {
+      const existing = await client.query('SELECT id FROM desk_users WHERE email = $1', [email.toLowerCase()]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ success: false, error: 'Email already registered' });
+      }
+      const hash = await bcrypt.hash(password, 12);
+      const result = await client.query(
+        `INSERT INTO desk_users (email, password_hash, display_name, role, settings_json, subscription_status)
+         VALUES ($1, $2, $3, 'owner', $4, 'active') RETURNING id, email, display_name`,
+        [email.toLowerCase(), hash, name, JSON.stringify({ salesName: name, dealerName: dealerName || name + ' Auto' })]
+      );
+      res.json({ success: true, user: result.rows[0] });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/subscription ───────────────
+  app.post('/api/admin/users/:id/subscription', adminAuth, async (req, res) => {
+    const { status } = req.body;
+    const allowed = ['active', 'trial', 'lapsed', 'cancelled', 'past_due'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'UPDATE desk_users SET subscription_status = $1 WHERE id = $2 RETURNING id, email, subscription_status',
+        [status, req.params.id]
+      );
+      res.json({ success: true, user: result.rows[0] });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/reset-password ──────────────
+  app.post('/api/admin/users/:id/reset-password', adminAuth, async (req, res) => {
+    const bcrypt = require('bcryptjs');
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+    }
+    const client = await pool.connect();
+    try {
+      const hash = await bcrypt.hash(password, 12);
+      await client.query('UPDATE desk_users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/release-number ──────────────
+  // Releases a tenant's Twilio number back to Twilio's pool and clears it from their account
+  app.post('/api/admin/users/:id/release-number', adminAuth, async (req, res) => {
+    if (!twilioClient) return res.status(503).json({ success: false, error: 'Twilio not configured on server' });
+    const client = await pool.connect();
+    try {
+      // Fetch the tenant's current twilio_number
+      const row = await client.query(
+        'SELECT twilio_number, settings_json FROM desk_users WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Tenant not found' });
+
+      const { twilio_number, settings_json } = row.rows[0];
+      if (!twilio_number) {
+        return res.status(400).json({ success: false, error: 'This tenant has no Twilio number assigned' });
+      }
+
+      // Find the Twilio IncomingPhoneNumber SID by number, then delete it
+      const numbers = await twilioClient.incomingPhoneNumbers
+        .list({ phoneNumber: twilio_number, limit: 1 });
+
+      if (numbers.length > 0) {
+        await twilioClient.incomingPhoneNumbers(numbers[0].sid).remove();
+        console.log(`✅ Twilio number released: ${twilio_number} (SID: ${numbers[0].sid}) — tenant ${req.params.id}`);
+      } else {
+        // Number not found in Twilio (may have been manually removed) — still clear from DB
+        console.warn(`⚠️  Twilio number ${twilio_number} not found in account — clearing from DB only`);
+      }
+
+      // Clear from settings_json and twilio_number column
+      const s = typeof settings_json === 'string' ? JSON.parse(settings_json || '{}') : (settings_json || {});
+      delete s.twilioNumber;
+      delete s.wizDone; // Reset wizard so tenant re-runs setup with a new number
+      await client.query(
+        'UPDATE desk_users SET twilio_number = NULL, settings_json = $1::jsonb WHERE id = $2',
+        [JSON.stringify(s), req.params.id]
+      );
+
+      res.json({
+        success: true,
+        releasedNumber: twilio_number,
+        message: `${twilio_number} released from Twilio and cleared from tenant account. Wizard reset so they can claim a new number.`
+      });
+    } catch(e) {
+      console.error('Release number error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/fintest/reset ─────────────────────────
+  app.post('/api/admin/fintest/reset', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const u = await client.query("SELECT id FROM desk_users WHERE email = 'fintest@fintest.com'");
+      if (!u.rows.length) return res.status(404).json({ success: false, error: 'fintest account not found' });
+      const uid = u.rows[0].id;
+      await Promise.all([
+        client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]),
+        client.query('DELETE FROM desk_deals WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM callbacks WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM messages WHERE user_id = $1', [uid]).catch(() => {}),
+      ]);
+      res.json({ success: true, message: 'fintest account reset — all data cleared' });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── GET /api/admin/system-status ──────────────────────────
+  app.get('/api/admin/system-status', adminAuth, async (req, res) => {
+    const { state } = require('../lib/bulk');
+    res.json({
+      success: true,
+      bulkProcessorRunning: !!state.bulkSmsProcessor,
+      bulkPaused:           state.bulkSmsProcessorPaused,
+      aiPaused:             state.aiResponderPaused,
+      uptime:               Math.floor(process.uptime()),
+      nodeVersion:          process.version,
+      memoryMB:             Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+    });
+  });
+
+};
