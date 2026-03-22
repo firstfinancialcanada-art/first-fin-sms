@@ -59,12 +59,37 @@ html{overflow-x:hidden;}
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;transition:background .3s,color .3s;overflow-x:hidden;}
 
 /* ── NAV ── */
+.beta-tag{font-size:7px;border-radius:3px;padding:0 4px;font-weight:800;letter-spacing:0.5px;margin-bottom:-1px;}
 .platform-header{background:linear-gradient(135deg,#050b18 0%,#0a1530 100%);border-bottom:1px solid var(--border2);padding:0 12px;display:flex;align-items:center;gap:8px;height:60px;position:sticky;top:0;z-index:1000;}
 .platform-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;background:linear-gradient(90deg,var(--primary),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;flex-shrink:0;}
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
-.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;flex-shrink:1;}
-.nav-btn{padding:6px 10px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:1;}
+.main-nav{display:flex;gap:4px;flex:1;min-width:0;margin-left:8px;overflow-x:auto;scrollbar-width:none;}.main-nav::-webkit-scrollbar{display:none;}
+
+.nav-btn {
+  padding: 4px 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  transition: all .2s;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 65px;
+  height: 52px;
+}
+
 .nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
 .nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
@@ -1006,13 +1031,16 @@ select option{background:#0d1526;color:var(--text);}
     </div>
   </div>
   <nav class="main-nav">
-    <button class="nav-btn active" onclick="showSection('deal',this)"><i data-lucide="briefcase" class="ico"></i>Deal Desk</button>
-    <button class="nav-btn" onclick="showSection('inventory',this)"><i data-lucide="warehouse" class="ico"></i>Inventory</button>
-    <button class="nav-btn" onclick="showSection('lenders',this)"><i data-lucide="landmark" class="ico"></i>Lenders</button>
+    <button class="nav-btn active" onclick="showSection('deal',this)"><i data-lucide="briefcase" class="ico" style="margin:0"></i>Deal Desk</button>
+    <button class="nav-btn" onclick="showSection('inventory',this)"><i data-lucide="warehouse" class="ico" style="margin:0"></i>Inventory</button>
+    <button class="nav-btn" onclick="showSection('lenders',this)"><i data-lucide="landmark" class="ico" style="margin:0"></i>Lenders</button>
     <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah"><i data-lucide="bot" class="ico"></i>SARAH</button>
-    <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
+    <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico" style="margin:0"></i>Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
-    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
+    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(30,90,246,.1));color:#10b981;border-color:rgba(16,185,129,.3);">
+    <span class="beta-tag" style="background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.4);">BETA</span>
+    <div style="display:flex;align-items:center;gap:3px;"><i data-lucide="refresh-cw" class="ico" style="margin:0"></i>DT Sync</div>
+  </button>
     <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><i data-lucide="facebook" class="ico"></i>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
