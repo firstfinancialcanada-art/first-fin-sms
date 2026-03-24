@@ -156,7 +156,7 @@ let crmData  = [];
 
 // ── LENDER DATA ─────────────────────────────────────────
 const lenders = {
-  autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,
+  autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier 1 — Prime",rate:"13.49%",fico:"680+",minYear:2025,maxMile:"Unlimited",maxCfx:"$0",maxLtv:"175%"},
       {tier:"Tier 2 — Standard",rate:"14.49%",fico:"620–679",minYear:2024,maxMile:"Unlimited",maxCfx:"$2,500",maxLtv:"175%"},
@@ -165,60 +165,69 @@ const lenders = {
       {tier:"Tier 5 — Poor",rate:"21.49%",fico:"540–559",minYear:2020,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"},
       {tier:"Tier 6 — Subprime",rate:"23.49%",fico:"<540",minYear:2015,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"}
     ]},
-  cibc:{name:"CIBC AUTO FINANCE",phone:"1-855-598-1856",web:"cibc.com/auto",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,
+  cibc:{name:"CIBC AUTO FINANCE",phone:"1-855-598-1856",web:"cibc.com/auto",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Chequing Acct Program",rate:"6.36%",fico:"N/A",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"2023–2026 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2023,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"2018–2022 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2018,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"84%"},
       {tier:"Newcomers Program",rate:"Varies",fico:"No history",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"}
     ]},
-  edenpark:{name:"EDENPARK",phone:"1-855-366-8667",web:"edenparkfinancial.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,
+  edenpark:{name:"EDENPARK",phone:"1-855-366-8667",web:"edenparkfinancial.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier A",rate:"11.99%",fico:"640+",minYear:2020,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"140%"},
       {tier:"Tier B",rate:"15.99%",fico:"600–639",minYear:2017,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"135%"},
       {tier:"Tier C",rate:"19.99%",fico:"560–599",minYear:2016,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"130%"},
       {tier:"Tier D",rate:"23.99%",fico:"<560",minYear:2015,maxMile:"170,000",maxCfx:"$7,500",maxLtv:"125%"}
     ]},
-  iceberg:{name:"ICEBERG FINANCE",phone:"855-694-0960",web:"icebergfinance.ca",minYear:2012,maxMileage:180000,maxCarfax:6500,maxLTV:140,hard:true,
+  iceberg:{name:"ICEBERG FINANCE",phone:"855-694.0960",web:"icebergfinance.ca",minYear:2012,maxMileage:180000,maxCarfax:6500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1750,maxPayment:825,
     programs:[
       {tier:"Tier 1",rate:"12.99%",fico:"640+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"140%"},
       {tier:"Tier 2",rate:"17.99%",fico:"600–639",minYear:2015,maxMile:"170,000",maxCfx:"$5,000",maxLtv:"135%"},
       {tier:"Tier 3",rate:"22.99%",fico:"560–599",minYear:2013,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"130%"},
       {tier:"Tier 4",rate:"31.99%",fico:"<560",minYear:2012,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"125%"}
     ]},
-  northlake:{name:"NORTHLAKE FINANCIAL",phone:"1-888-652-5320",web:"northlakefinancial.ca",minYear:2003,maxMileage:300000,maxCarfax:7500,maxLTV:140,hard:true,
+  northlake:{name:"NORTHLAKE FINANCIAL",phone:"1-888-652-5320",web:"northlakefinancial.ca",minYear:2003,maxMileage:300000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1800,maxPayment:930,
     programs:[
       {tier:"Standard",rate:"10.99%–16.99%",fico:"No min",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"},
       {tier:"Extended",rate:"17.99%–22.99%",fico:"No min",minYear:2003,maxMile:"300,000",maxCfx:"$7,500",maxLtv:"130%"}
     ]},
-  prefera:{name:"PREFERA FINANCE",phone:"1-844-734-3577",web:"preferafinance.ca",minYear:2015,maxMileage:200000,maxCarfax:5000,maxLTV:170,hard:true,
+  prefera:{name:"PREFERA FINANCE",phone:"1-844-734-3577",web:"preferafinance.ca",minYear:2015,maxMileage:200000,maxCarfax:5000,maxLTV:170,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier A",rate:"16.95%",fico:"620+",minYear:2018,maxMile:"150,000",maxCfx:"$2,500",maxLtv:"170%"},
       {tier:"Tier B",rate:"21.95%",fico:"580–619",minYear:2016,maxMile:"175,000",maxCfx:"$3,500",maxLtv:"160%"},
       {tier:"Tier C",rate:"25.95%",fico:"550–579",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"150%"},
       {tier:"Tier D",rate:"30.95%",fico:"<550",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"}
     ]},
-  rbc:{name:"RBC AUTO FINANCE",phone:"1-888-529-6999",web:"rbcautofinance.ca",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,
+  rbc:{name:"RBC AUTO FINANCE",phone:"1-888-529-6999",web:"rbcautofinance.ca",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Prime Program",rate:"5.79%–7.99%",fico:"720+",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"Standard Program",rate:"7.99%–9.99%",fico:"650–719",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"90%"}
     ]},
-  santander:{name:"SANTANDER CONSUMER",phone:"1-888-222-4227",web:"santanderconsumerusa.com",minYear:2015,maxMileage:160000,maxCarfax:6000,maxLTV:150,hard:true,
+  santander:{name:"SANTANDER CONSUMER",phone:"1-888-222-4227",web:"santanderconsumerusa.com",minYear:2015,maxMileage:160000,maxCarfax:6000,maxLTV:150,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier 1",rate:"9.99%–14.99%",fico:"650+",minYear:2018,maxMile:"120,000",maxCfx:"$3,000",maxLtv:"150%"},
       {tier:"Tier 2",rate:"15.99%–21.99%",fico:"600–649",minYear:2016,maxMile:"140,000",maxCfx:"$4,500",maxLtv:"140%"},
       {tier:"Tier 3",rate:"22.99%–29.99%",fico:"<600",minYear:2015,maxMile:"160,000",maxCfx:"$6,000",maxLtv:"130%"}
     ]},
-  sda:{name:"SDA FINANCE",phone:"1-800-731-2345",web:"sdafinance.ca",minYear:2012,maxMileage:250000,maxCarfax:8000,maxLTV:135,hard:true,
+  sda:{name:"SDA FINANCE",phone:"1-800-731-2345",web:"sdafinance.ca",minYear:2012,maxMileage:250000,maxCarfax:8000,maxLTV:135,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Standard",rate:"15.99%–24.99%",fico:"No min",minYear:2012,maxMile:"250,000",maxCfx:"$8,000",maxLtv:"135%"}
     ]},
-  servus:{name:"SERVUS CREDIT UNION",phone:"1-877-378-8728",web:"servus.ca",minYear:2015,maxMileage:180000,maxCarfax:5000,maxLTV:100,hard:true,
+  servus:{name:"SERVUS CREDIT UNION",phone:"1-877-378-8728",web:"servus.ca",minYear:2015,maxMileage:180000,maxCarfax:5000,maxLTV:100,hard:true,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Prime",rate:"6.50%–8.99%",fico:"700+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"100%"},
       {tier:"Near Prime",rate:"9.99%–14.99%",fico:"640–699",minYear:2015,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"95%"}
     ]},
-  wsleasing:{name:"WS LEASING",phone:"1-888-975-3273",web:"wsleasing.ca",minYear:2018,maxMileage:120000,maxCarfax:3000,maxLTV:100,hard:true,
+  iauto:{name:"iA AUTO FINANCE",phone:"1-855-378-5626",web:"ia.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:1000,
+    programs:[
+      {tier:'6th Gear',fico:'700+',   rate:'11.49', maxLtv:140, minYear:2015},
+      {tier:'5th Gear',fico:'650-699',rate:'15.49', maxLtv:140, minYear:2015},
+      {tier:'4th Gear',fico:'600-649',rate:'20.49', maxLtv:135, minYear:2015},
+      {tier:'3rd Gear',fico:'560-599',rate:'25.49', maxLtv:125, minYear:2015},
+      {tier:'2nd Gear',fico:'520-559',rate:'29.99', maxLtv:125, minYear:2015},
+      {tier:'1st Gear',fico:'<520',   rate:'29.99', maxLtv:110, minYear:2015},
+    ]},
+  wsleasing:{name:"WS LEASING",phone:"1-888-975-3273",web:"wsleasing.ca",minYear:2018,maxMileage:120000,maxCarfax:3000,maxLTV:100,hard:true,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Lease Program A",rate:"7.99%–11.99%",fico:"680+",minYear:2020,maxMile:"100,000",maxCfx:"$2,000",maxLtv:"100%"},
       {tier:"Lease Program B",rate:"12.99%–16.99%",fico:"640–679",minYear:2018,maxMile:"120,000",maxCfx:"$3,000",maxLtv:"95%"}
@@ -237,12 +246,39 @@ const LENDER_FEES = {
   santander: 595,
   sda: 995,
   servus: 0,
-  wsleasing: 0
+  wsleasing: 0,
+  iauto: 699
 };
 
 // ── MATH HELPERS ──────────────────────────────────────
 function PMT(rate,nper,pv){if(rate===0)return Math.abs(pv/nper);return Math.abs(pv*(rate*Math.pow(1+rate,nper))/(Math.pow(1+rate,nper)-1));}
 function PV(rate,nper,pmt){if(rate===0)return pmt*nper;return pmt*((1-Math.pow(1+rate,-nper))/rate);}
+
+// ── BI-WEEKLY MODE ────────────────────────────────────────────────
+window._biweekly = false;
+function toggleBiweekly(el){
+  window._biweekly = el.checked;
+  // Sync all toggles
+  document.querySelectorAll('.bw-toggle').forEach(t=>{ t.checked = window._biweekly; });
+  calculate();
+  updateRateComparison();
+}
+// BPMT: calculates payment based on current mode (monthly or bi-weekly)
+function BPMT(apr, months, fin){
+  if(window._biweekly){
+    const r = apr/100/26;
+    const n = Math.round(months * 26/12);
+    return PMT(r, n, fin);
+  }
+  return PMT(apr/100/12, months, fin);
+}
+function _pmtLabel(){ return window._biweekly ? '/bi-wk' : '/mo'; }
+function _biweeklyToggleHTML(id){
+  return `<label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
+    <input type="checkbox" class="bw-toggle" id="${id}" onchange="toggleBiweekly(this)" ${window._biweekly?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary);">
+    <span style="letter-spacing:.5px;text-transform:uppercase;">Bi-Weekly Payments</span>
+  </label>`;
+}
 const $f = n => '$'+Number(n).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const $i = n => '$'+Math.round(n).toLocaleString('en-CA');
 
@@ -253,6 +289,11 @@ function showSection(id, btn){
   document.getElementById('section-'+id).classList.add('active');
   if(btn) btn.classList.add('active');
   if(id==='analytics') refreshAllAnalytics();
+  // Pre-populate Compare All from Deal Desk whenever tab opens
+  if(id==='compare') {
+    setTimeout(() => restoreCompareSession(), 60);
+    setTimeout(() => syncCompareFromDeal(false), 120); // false = don't overwrite restored values
+  }
   setTimeout(refreshIcons, 50);
 }
 
@@ -350,6 +391,7 @@ function renderInventory(list){
       <td style="color:var(--muted);">${v.type || ''}</td>
       <td>${Number(v.mileage).toLocaleString()} km</td>
       <td><strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong></td>
+      <td style="color:var(--muted);font-size:11px;">${v.book_value&&v.book_value>0?'$'+Number(v.book_value).toLocaleString():'—'}</td>
       <td><span class="badge badge-${String(v.condition).toLowerCase()}">${v.condition}</span></td>
       <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
     </tr>`).join('');
@@ -565,6 +607,22 @@ function calculate(){
   const downs = [0,2000,5000];
   const terms = [48,60,72,84];
   let html = '';
+
+  // Update table headers to reflect monthly vs bi-weekly
+  const pmtLbl = window._biweekly ? 'Bi-Wkly' : 'Monthly';
+  const thEl = document.querySelector('.payment-table thead tr');
+  if(thEl) thEl.innerHTML = `<th>Down Payment</th><th>48 ${pmtLbl}</th><th>60 ${pmtLbl}</th><th>72 ${pmtLbl}</th><th>84 ${pmtLbl}</th>`;
+
+  // Inject biweekly toggle above payment table
+  let toggleWrap = document.getElementById('bw-toggle-wrap-grid');
+  if(!toggleWrap){
+    toggleWrap = document.createElement('div');
+    toggleWrap.id = 'bw-toggle-wrap-grid';
+    const tableWrap = document.querySelector('.payment-wrap');
+    if(tableWrap) tableWrap.parentNode.insertBefore(toggleWrap, tableWrap);
+  }
+  toggleWrap.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">${_biweeklyToggleHTML('bw-toggle-grid')}</div>`;
+
   // Highlight the row matching finalDown if it matches one of the preset rows
   downs.forEach(down=>{
     const isChosen = finalDown > 0 && Math.abs(down - finalDown) < 1;
@@ -572,7 +630,7 @@ function calculate(){
     html += `<td><strong style="color:var(--text);">$${down.toLocaleString()}</strong></td>`;
     terms.forEach(t=>{
       const fin = Math.max(0, otd - down);
-      const pmt = fin > 0 ? PMT(mr,t,-fin) : 0;
+      const pmt = fin > 0 ? BPMT(apr,t,fin) : 0;
       html += `<td class="payment-val">${$f(pmt)}</td>`;
     });
     html += '</tr>';
@@ -583,7 +641,7 @@ function calculate(){
     html += `<td><strong style="color:var(--amber);">$${finalDown.toLocaleString()} ★</strong></td>`;
     [48,60,72,84].forEach(t=>{
       const fin = Math.max(0, otd - finalDown);
-      const pmt = PMT(mr,t,-fin);
+      const pmt = BPMT(apr,t,fin);
       html += `<td class="payment-val" style="color:var(--amber);font-weight:800;">${$f(pmt)}</td>`;
     });
     html += '</tr>';
@@ -600,17 +658,24 @@ function calculate(){
   const tw  = parseFloat(document.getElementById('twPrice').value)||0;
   const wa  = parseFloat(document.getElementById('waPrice').value)||0;
 
-  const b72 = PMT(mr,72,-otd);
+  const b72 = BPMT(apr,72,otd);
+  const bwPeriods = window._biweekly ? Math.round(72*26/12) : 72;
+  const lbl = _pmtLabel();
   document.getElementById('basePayment72').textContent = $f(b72);
-  document.getElementById('withGap').textContent = $f(b72+(gap/72));
-  document.getElementById('withGapVsc').textContent = $f(b72+(gap/72)+(vsc/72));
-  document.getElementById('withAllProtection').textContent = $f(b72+(gap/72)+(vsc/72)+(tw/72));
-  document.getElementById('fullProtection').textContent = $f(b72+(gap/72)+(vsc/72)+(tw/72)+(wa/72));
+  document.getElementById('withGap').textContent = $f(b72+(gap/bwPeriods));
+  document.getElementById('withGapVsc').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods));
+  document.getElementById('withAllProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods));
+  document.getElementById('fullProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods)+(wa/bwPeriods));
 
-  document.getElementById('vscImpact').textContent = '+'+$f(vsc/72)+'/mo';
-  document.getElementById('gapImpact').textContent = '+'+$f(gap/72)+'/mo';
-  document.getElementById('twImpact').textContent  = '+'+$f(tw/72)+'/mo';
-  document.getElementById('waImpact').textContent  = '+'+$f(wa/72)+'/mo';
+  document.getElementById('vscImpact').textContent = '+'+$f(vsc/bwPeriods)+lbl;
+  document.getElementById('gapImpact').textContent = '+'+$f(gap/bwPeriods)+lbl;
+  document.getElementById('twImpact').textContent  = '+'+$f(tw/bwPeriods)+lbl;
+  document.getElementById('waImpact').textContent  = '+'+$f(wa/bwPeriods)+lbl;
+
+  // Update F&I section label to show current payment mode
+  const fi72Label = document.querySelector('#wizStep3 .wiz-section-title + div .insight-label, #wizStep3 [style*="Monthly Payment"]');
+  const fi72Header = document.querySelector('#wizStep3 div[style*="72 Months"]');
+  if(fi72Header) fi72Header.textContent = `Payment @ 72 ${window._biweekly?'Bi-Weekly':'Months'}`;
 
   calculateProfit();
   calculateReserve();
@@ -618,7 +683,7 @@ function calculate(){
   calculatePTI();
 
   // Update wizard live banners (steps 4 & 5)
-  updateWizBanners(otd, finalDown, finAmt, PMT(mr,72,-finAmt));
+  updateWizBanners(otd, finalDown, finAmt, BPMT(apr,72,finAmt));
 }
 
 function calcCustom(){
@@ -632,11 +697,10 @@ function calcCustom(){
   const netTrade = tAllow - tPayoff;
   const gstAmt   = (price + doc - netTrade) * (gst/100);
   const otd      = price + doc - netTrade + gstAmt;
-  const mr = apr/100/12;
   const fin = otd - down;
   [48,60,72,84].forEach(t=>{
     const el = document.getElementById('c'+t);
-    if(el) el.textContent = fin>0?$f(PMT(mr,t,-fin)):'—';
+    if(el) el.textContent = fin>0?$f(BPMT(apr,t,fin)):'—';
   });
 }
 
@@ -870,10 +934,134 @@ function initLenderPanels(){
   </div>`;
 }
 
+// ── DYNAMIC EXTRA LENDER PANELS ──────────────────────────────────
+// Called after loadTenantRates() — adds panels for uploaded unknown lenders
+function initExtraLenderPanels(){
+  const extra = window._extraLenders || {};
+  if(!Object.keys(extra).length) return;
+
+  const container  = document.getElementById('lender-panels');
+  const tabStrip   = document.querySelector('.lender-tabs');
+  if(!container || !tabStrip) return;
+
+  // Remove existing extra panels so we don't duplicate on reload
+  document.querySelectorAll('.lcontent.extra-lender').forEach(el => el.remove());
+  document.querySelectorAll('.ltab.extra-ltab').forEach(el => el.remove());
+
+  const inv = window.ffInventory || window.inventory || [];
+
+  Object.entries(extra).forEach(([lid, lenderData]) => {
+    const panelId  = `lq-extra-${lid}`;
+    const tiers    = lenderData.tiers || [];
+    const dispName = lenderData.name || lid.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+
+    // Build rate table rows from DB tiers
+    const tierRows = tiers.map(t => `
+      <tr>
+        <td><strong>${t.tier}</strong></td>
+        <td style="color:var(--amber);">${t.rate}%</td>
+        <td>${t.minFico === 0 ? 'No Min' : t.minFico}${t.maxFico >= 9999 ? '+' : '–'+t.maxFico}</td>
+        <td>${t.minYear || 2015}</td>
+        <td>${t.maxMileage ? t.maxMileage.toLocaleString()+' km' : '—'}</td>
+        <td>${t.maxCarfax ? '$'+t.maxCarfax.toLocaleString() : '—'}</td>
+        <td>${t.maxLTV || 140}%</td>
+      </tr>`).join('');
+
+    const maxLTV     = tiers.length ? Math.max(...tiers.map(t=>t.maxLTV||140)) : 140;
+    const maxMileage = tiers.length ? Math.max(...tiers.map(t=>t.maxMileage||200000)) : 200000;
+    const maxCarfax  = tiers.length ? Math.max(...tiers.map(t=>t.maxCarfax||7500)) : 7500;
+    const minRate    = tiers.length ? Math.min(...tiers.map(t=>t.rate||99)) : 0;
+    const maxRate    = tiers.length ? Math.max(...tiers.map(t=>t.rate||0)) : 0;
+
+    // Stock options for approval checker
+    const stockOpts = inv.map(v =>
+      `<option value="${v.stock}">${v.stock} — ${v.year} ${v.make} ${v.model} ($${(v.price||0).toLocaleString()})</option>`
+    ).join('');
+
+    const panel = `
+    <div id="${panelId}" class="lcontent extra-lender">
+      <div class="lender-header-box">
+        <div class="lender-name-big">${dispName}</div>
+        <div style="font-size:10px;background:rgba(6,182,212,.12);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:4px;padding:2px 8px;display:inline-block;margin-bottom:8px;font-weight:700;letter-spacing:1px;">CUSTOM RATE SHEET</div>
+        <div class="lender-contact-row">
+          <div>Max LTV: <span>${maxLTV}%</span></div>
+          <div>Max Mileage: <span>${maxMileage.toLocaleString()} km</span></div>
+          <div>Max Carfax: <span>$${maxCarfax.toLocaleString()}</span></div>
+        </div>
+      </div>
+      <table class="programs-table">
+        <thead><tr><th>Tier</th><th>Rate</th><th>Beacon</th><th>Min Year</th><th>Max Mileage</th><th>Max Carfax</th><th>Max LTV</th></tr></thead>
+        <tbody>${tierRows}</tbody>
+      </table>
+      <div class="checker-box">
+        <div class="checker-title"><i data-lucide="search" class="ico"></i>Vehicle Approval Checker</div>
+        <div class="fgroup">
+          <label>Select Vehicle</label>
+          <select id="chk-stock-extra-${lid}" onchange="checkExtraLenderApproval('${lid}')"
+            style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
+            <option value="">— Select a vehicle —</option>
+            ${stockOpts}
+          </select>
+        </div>
+        <div id="chk-results-extra-${lid}"></div>
+      </div>
+    </div>`;
+
+    container.innerHTML += panel;
+
+    // Add tab button before Quick Ref
+    const quickRefBtn = tabStrip.querySelector('.ltab[onclick*="quickref"]');
+    const btn = document.createElement('button');
+    btn.className = 'ltab extra-ltab';
+    btn.setAttribute('onclick', `showLenderTab('${panelId}',this)`);
+    btn.textContent = dispName.split(' ')[0]; // First word as short label
+    if(quickRefBtn) tabStrip.insertBefore(btn, quickRefBtn);
+    else tabStrip.appendChild(btn);
+  });
+
+  lucide.createIcons();
+}
+
+// ── Approval checker for extra lenders ───────────────────────────
+function checkExtraLenderApproval(lid){
+  const extra = window._extraLenders || {};
+  const lenderData = extra[lid];
+  if(!lenderData) return;
+  const stock  = document.getElementById(`chk-stock-extra-${lid}`)?.value;
+  const resDiv = document.getElementById(`chk-results-extra-${lid}`);
+  if(!stock || !resDiv) return;
+  const inv = window.ffInventory || window.inventory || [];
+  const v = inv.find(x => x.stock === stock);
+  if(!v){ resDiv.innerHTML = ''; return; }
+  const curYear = new Date().getFullYear();
+  const tiers   = lenderData.tiers || [];
+  let html = '<div class="v-details-grid">';
+  ['Year','Mileage','Price','Carfax'].forEach((k,i) => {
+    const vals = [v.year, (v.mileage||0).toLocaleString()+' km', '$'+(v.price||0).toLocaleString(), '$'+(v.carfax||0).toLocaleString()];
+    html += `<div class="vd-item"><div class="vd-label">${k}</div><div class="vd-value">${vals[i]}</div></div>`;
+  });
+  html += '</div>';
+  // Check each tier
+  tiers.forEach(t => {
+    const yearOk = v.year >= (t.minYear||2015);
+    const mileOk = (v.mileage||0) <= (t.maxMileage||999999);
+    const cfxOk  = (v.carfax||0)  <= (t.maxCarfax||999999);
+    const ageOk  = (curYear - v.year) + 6 <= 14;
+    const pass   = yearOk && mileOk && cfxOk && ageOk;
+    html += `<div class="val-row">
+      <div><div class="val-req">${t.tier} — ${t.rate}%</div>
+      <div class="val-sub">Beacon ${t.minFico === 0 ? 'No Min' : t.minFico+'+'}  · LTV ${t.maxLTV||140}%</div></div>
+      <span class="status-pill ${pass?'pill-pass':'pill-fail'}">${pass?'✓ ELIGIBLE':'✗ INELIGIBLE'}</span>
+    </div>`;
+  });
+  resDiv.innerHTML = html;
+}
+
 function showLenderTab(id, btn){
   document.querySelectorAll('.lcontent').forEach(c=>c.classList.remove('active'));
   document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const panel = document.getElementById(id);
+  if(panel) panel.classList.add('active');
   if(btn) btn.classList.add('active');
 }
 
@@ -990,7 +1178,21 @@ async function loadTenantRates(){
       console.log('%cTenant rate sheets loaded','color:#f59e0b;font-size:11px;',
         Object.keys(window._tenantRates).map(k=>k+':'+window._tenantRates[k].length+'tiers').join(' | '));
     }
-  } catch(e){ /* silently fall back to hardcoded */ }
+    // Extra lenders: DB lenders not in the hardcoded lenders object
+    // These get their own dynamic cards in Compare All
+    if(data.success && data.extraLenders && Object.keys(data.extraLenders).length > 0){
+      window._extraLenders = data.extraLenders;
+      console.log('%cExtra lenders loaded','color:#06b6d4;font-size:11px;',
+        Object.keys(data.extraLenders).join(', '));
+    } else {
+      window._extraLenders = {};
+    }
+    // Build dynamic panels now that _extraLenders is ready
+    if(typeof initExtraLenderPanels === 'function') initExtraLenderPanels();
+  } catch(e){
+    window._extraLenders = {};
+    /* silently fall back to hardcoded */
+  }
 }
 
 // Returns the best qualifying program for a lender + beacon score
@@ -1080,6 +1282,8 @@ function runComparison(){
   if(!v) return;
   const curYear = new Date().getFullYear();
   ph.style.display='none'; vCard.style.display='block'; res.style.display='block';
+  const simEl = document.getElementById('beaconSimulator');
+  if(simEl) simEl.style.display = 'block';
 
   vCard.innerHTML = `
     <div style="font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Selected Vehicle</div>
@@ -1088,80 +1292,308 @@ function runComparison(){
       ${[['Stock',v.stock],['Mileage',(v.mileage||0).toLocaleString()+' km'],['Price','$'+(v.price||0).toLocaleString()],['Carfax','$'+(v.carfax||0).toLocaleString()],['Type',v.type||'—']].map(([k,val])=>`<div style="background:rgba(255,255,255,.08);border-radius:6px;padding:8px;"><div style="font-size:10px;opacity:.6;text-transform:uppercase;margin-bottom:4px;">${k}</div><div style="font-weight:700;">${val}</div></div>`).join('')}
     </div>`;
 
+  // Read BK/proposal flag and book value override from UI
+  const hasBK        = document.getElementById('compareBK')?.checked || false;
+  const bookValOver  = parseFloat(document.getElementById('compareBookVal')?.value) || 0;
+  const coBeacon     = parseInt(document.getElementById('compareCoBeacon')?.value)  || 0;
+  const coIncome     = parseFloat(document.getElementById('compareCoIncome')?.value) || 0;
+  const combinedIncome = income + coIncome;
+  // Effective beacon: lenders use primary beacon for tier matching
+  // but some use lower of two — dealer can toggle via co-app beacon field
+  const hasCoApp = coIncome > 0 || coBeacon > 0;
+  // Override income used in evaluateLender with combined income
+  // evaluateLender reads `income` from closure — reassign here
+  // We store original for display purposes
+  const primaryIncome = income;
+
+  // Contract rate for gross/reserve calc
+  const contractRate = parseFloat(document.getElementById('compareContractRate')?.value) || 0;
+
+  // Save compare session to localStorage
+  try {
+    localStorage.setItem('ffCompareSession', JSON.stringify({
+      stock, down, trade, fees, term, beacon,
+      income, existing, contractRate,
+      bookVal: document.getElementById('compareBookVal')?.value || '',
+      condition: document.getElementById('compareCondition')?.value || '',
+      coBeacon: document.getElementById('compareCoBeacon')?.value || '',
+      coIncome: document.getElementById('compareCoIncome')?.value || '',
+      bk: document.getElementById('compareBK')?.checked || false,
+      gstEnabled: document.getElementById('compareGst')?.checked || false,
+      savedAt: Date.now()
+    }));
+  } catch(e){}
+
+  // GST setting — read from compare toggle or fall back to dealer settings
+  const compareGstEl  = document.getElementById('compareGst');
+  const gstEnabled    = compareGstEl ? compareGstEl.checked : false;
+  const gstRate       = gstEnabled ? (parseFloat(document.getElementById('gstRate')?.value) || settings.gst || 5) : 0;
+
+  // ── Core per-lender evaluator — shared by hardcoded and extra lenders ──────
+  function evaluateLender(lid, l, prog) {
+    const income = combinedIncome; // use combined primary + co-app income for PTI/DTI
+    const lenderFee  = prog ? (prog.fee || 0) : 0;
+    // GST-correct ATF: tax applies to (price + fees - trade), then subtract down and add lender fee
+    const taxableBase = v.price + fees - trade;
+    const gstAmt      = taxableBase * (gstRate / 100);
+    const atf         = taxableBase + gstAmt + lenderFee - down;
+    const bookVal    = bookValOver > 0 ? bookValOver : (v.book_value || v.bookValue || v.price);
+    const maxLTV     = prog ? prog.maxLTV : l.maxLTV;
+    const ltvPct     = (atf / bookVal) * 100;
+    const ltvOk      = ltvPct <= maxLTV;
+    const maxLoan    = (bookVal * maxLTV) / 100;
+    const downNeeded = ltvOk ? 0 : Math.ceil(atf - maxLoan);
+
+    const lMaxPti    = l.maxPti    || 20;
+    const lMaxDti    = l.maxDti    || 44;
+    const lMinIncome = l.minIncome || 0;
+    const lMaxPay    = l.maxPayment || null;
+
+    const minYear    = prog ? (prog.minYear    || l.minYear)    : l.minYear;
+    const rawMaxMile = prog ? (prog.maxMileage || l.maxMileage  || 999999) : (l.maxMileage || 999999);
+    const maxCfx     = prog ? (prog.maxCarfax  || l.maxCarfax   || 999999) : (l.maxCarfax  || 999999);
+    const condOverride = document.getElementById('compareCondition')?.value || '';
+    const cond       = (condOverride || v.condition || 'Average').toLowerCase();
+    const condMult   = (cond === 'rough' || cond === 'very rough') ? 0.90 : 1.0;
+    const maxMile    = Math.floor(rawMaxMile * condMult);
+
+    const yearOk     = v.year >= minYear;
+    const mileOk     = (v.mileage||0) <= maxMile;
+    const cfxOk      = (v.carfax||0)  <= maxCfx;
+    const incomeOk   = lMinIncome === 0 || income === 0 || income >= lMinIncome;
+
+    // ── Term optimization: try 48/60/72/84 ───────────────────────────────────
+    const ALL_TERMS   = [48, 60, 72, 84];
+    const buyRate     = prog && prog.rate > 0 ? prog.rate : 8.99;
+    const termResults = {};
+
+    ALL_TERMS.forEach(t => {
+      const ageAtPayoff = (curYear - v.year) + (t / 12);
+      const ageOkT      = ageAtPayoff <= 14;
+      const pmt         = atf > 0 ? BPMT(buyRate, t, atf) : 0;
+      let ptiOkT = true, dtiOkT = true, payOkT = true;
+      let ptiPctT = 0, dtiPctT = 0;
+      if (income > 0 && pmt > 0) {
+        ptiPctT = (pmt / income) * 100;
+        dtiPctT = ((pmt + existing) / income) * 100;
+        ptiOkT  = ptiPctT <= lMaxPti;
+        dtiOkT  = dtiPctT <= lMaxDti;
+        payOkT  = lMaxPay === null || pmt <= lMaxPay;
+      }
+      const passes = ageOkT && ltvOk && incomeOk &&
+                     (income === 0 || (ptiOkT && dtiOkT && payOkT));
+      termResults[t] = { term: t, payment: pmt, ageAtPayoff, ageOk: ageOkT,
+                         ptiOk: ptiOkT, dtiOk: dtiOkT, payOk: payOkT,
+                         ptiPct: ptiPctT, dtiPct: dtiPctT, passes };
+    });
+
+    // Best term = shortest that passes all gates (least interest risk for lender)
+    // Optimal term = longest that passes (lowest payment for customer)
+    const passingTerms = ALL_TERMS.filter(t => termResults[t].passes);
+    const bestTerm     = passingTerms.length ? passingTerms[0]      : term; // shortest
+    const optimalTerm  = passingTerms.length ? passingTerms[passingTerms.length-1] : term; // longest
+
+    // Use selected term for primary display, best term as recommendation
+    const selResult    = termResults[term] || termResults[72];
+    const payment      = selResult.payment;
+    const ptiPct       = selResult.ptiPct;
+    const dtiPct       = selResult.dtiPct;
+    const ptiOk        = selResult.ptiOk;
+    const dtiOk        = selResult.dtiOk;
+    const payOk        = selResult.payOk;
+    const vehicleAgeAtPayoff = selResult.ageAtPayoff;
+    const ageOk        = selResult.ageOk;
+
+    // ── Gross estimate ────────────────────────────────────────────────────────
+    // Flat dealer reserve (already in lenderFee for display lenders, 0 here as it's in ATF)
+    // Rate spread reserve: if contract rate entered, estimate additional gross
+    const flatReserve  = prog ? (prog.fee || lenderFee || 0) : lenderFee;
+    let spreadReserve  = 0;
+    let totalGross     = flatReserve;
+    if (contractRate > 0 && contractRate > buyRate) {
+      const spread = contractRate - buyRate;
+      // Approximate: spread * ATF * term factor (simplified actuarial)
+      spreadReserve = Math.round((spread / 100 / 12) * atf * optimalTerm * 0.82);
+      totalGross    = flatReserve + spreadReserve;
+    }
+
+    // ── Structuring tips — min down for EVERY failure type ──────────
+    let structureTip = null;
+    const structureTips = []; // collect all applicable tips
+
+    // LTV fail: add down
+    if (!ltvOk && downNeeded > 0) {
+      const fixedPmt = BPMT(buyRate, optimalTerm, atf - downNeeded);
+      structureTips.push(`Add $${downNeeded.toLocaleString()} down → LTV passes (${$f(fixedPmt)}/mo at ${optimalTerm}mo)`);
+    }
+
+    // PTI fail: try 84mo first, then calculate min down
+    if (income > 0 && !ptiOk) {
+      if (termResults[84] && termResults[84].ptiOk && ltvOk) {
+        structureTips.push(`Extend to 84mo → PTI drops to ${termResults[84].ptiPct.toFixed(1)}% (${$f(termResults[84].payment)}/mo) ✓`);
+      } else if (ltvOk) {
+        // Calc min down so payment * lMaxPti/100 * income passes — solve for atf
+        // payment = BPMT(rate, term, atf) <= income * lMaxPti / 100
+        // target_payment = income * lMaxPti / 100
+        const targetPmt = income * lMaxPti / 100;
+        const mr = buyRate / 100 / 12;
+        const maxAtfForPti = mr > 0
+          ? targetPmt * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
+          : targetPmt * optimalTerm;
+        const downForPti = Math.ceil(atf - maxAtfForPti);
+        if (downForPti > 0) structureTips.push(`Add $${downForPti.toLocaleString()} down → PTI within ${lMaxPti}% at ${optimalTerm}mo`);
+      }
+    }
+
+    // Pay call fail: try 84mo, then calc min down
+    if (income > 0 && lMaxPay && !payOk) {
+      if (termResults[84] && termResults[84].payOk && ltvOk) {
+        structureTips.push(`Extend to 84mo → payment ${$f(termResults[84].payment)}/mo within pay call ✓`);
+      } else if (ltvOk) {
+        const mr = buyRate / 100 / 12;
+        const maxAtfForPay = mr > 0
+          ? lMaxPay * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
+          : lMaxPay * optimalTerm;
+        const downForPay = Math.ceil(atf - maxAtfForPay);
+        if (downForPay > 0) structureTips.push(`Add $${downForPay.toLocaleString()} down → payment within $${lMaxPay}/mo pay call`);
+      }
+    }
+
+    // DTI fail: same approach
+    if (income > 0 && !dtiOk && ltvOk) {
+      const targetDtiPmt = (income * lMaxDti / 100) - existing;
+      if (targetDtiPmt > 0) {
+        const mr = buyRate / 100 / 12;
+        const maxAtfForDti = mr > 0
+          ? targetDtiPmt * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
+          : targetDtiPmt * optimalTerm;
+        const downForDti = Math.ceil(atf - maxAtfForDti);
+        if (downForDti > 0) structureTips.push(`Add $${downForDti.toLocaleString()} down → DTI within ${lMaxDti}%`);
+      }
+    }
+
+    // Income fail: show what income is needed
+    if (!incomeOk && lMinIncome > 0 && income > 0) {
+      structureTips.push(`Income $${income.toLocaleString()} below min $${lMinIncome.toLocaleString()} — co-applicant could bridge gap`);
+    }
+
+    structureTip = structureTips.length ? structureTips[0] : null; // primary tip
+    const allStructureTips = structureTips; // full list for display
+
+    // Co-app tip: if primary fails PTI but combined passes, flag it
+    let coAppTip = null;
+    if (hasCoApp && primaryIncome > 0 && !ptiOk) {
+      const primaryPti = payment > 0 ? (payment / primaryIncome) * 100 : 0;
+      if (primaryPti > lMaxPti && ptiPct <= lMaxPti) {
+        coAppTip = `Co-app income required — primary PTI ${primaryPti.toFixed(1)}% exceeds ${lMaxPti}%, combined ${ptiPct.toFixed(1)}% ✓`;
+      }
+    }
+
+    return {
+      lid, l, prog, atf, ltvPct, maxLTV, ltvOk, maxLoan, bookVal, downNeeded,
+      yearOk, mileOk, cfxOk, ageOk, minYear, maxMile, maxCfx,
+      payment, ptiPct, dtiPct, ptiOk, dtiOk, payOk, incomeOk,
+      lMaxPti, lMaxDti, lMinIncome, lMaxPay,
+      term, bestTerm, optimalTerm, termResults, passingTerms,
+      flatReserve, spreadReserve, totalGross, contractRate, buyRate,
+      beacon, income, primaryIncome, coIncome, hasCoApp, existing, lenderFee, hasBK,
+      vehicleAgeAtPayoff, v, cond, structureTip, allStructureTips, coAppTip
+    };
+  }
+
   const eligible=[], ineligible=[];
 
   Object.entries(lenders).forEach(([lid, l])=>{
     const prog = getQualifyingProgram(lid, beacon);
-    const lenderFee = prog ? (prog.fee || 0) : 0;
-    // ATF includes lender fee — this is what the bank actually sees
-    const atf      = v.price + fees + lenderFee - down - trade;
-    const bookVal  = v.bookValue || v.book_value || v.price; // Use book value for LTV, fallback to price
-    const ltvPct   = (atf / bookVal) * 100;
-    const maxLTV   = prog ? prog.maxLTV : l.maxLTV;
-    const ltvOk    = ltvPct <= maxLTV;
-    const maxLoan  = (bookVal * maxLTV) / 100;
-    // Vehicle hard gates — use per-program minimums when available
-    const minYear  = prog ? (prog.minYear || l.minYear) : l.minYear;
-    const maxMile  = prog ? (prog.maxMileage || l.maxMileage||999999) : (l.maxMileage||999999);
-    const maxCfx   = prog ? (prog.maxCarfax  || l.maxCarfax ||999999) : (l.maxCarfax ||999999);
-    const yearOk   = v.year   >= minYear;
-    const mileOk   = (v.mileage||0) <= maxMile;
-    const cfxOk    = (v.carfax||0)  <= maxCfx;
-    // Vehicle age + term end-of-life gate (SDA/Autocapital: car can't exceed 14 yrs at payoff)
-    const vehicleAgeAtPayoff = (curYear - v.year) + (term / 12);
-    const ageOk    = vehicleAgeAtPayoff <= 14;
-    // Payment calculation at qualifying rate
-    let payment = 0, ptiPct = 0, dtiPct = 0, ptiOk = true, dtiOk = true;
-    if(prog && prog.rate > 0){
-      const mr = prog.rate / 100 / 12;
-      payment  = PMT(mr, term, -atf);
-    } else if(atf > 0){
-      payment  = PMT(8.99/100/12, term, -atf); // fallback estimate
-    }
-    if(income > 0 && payment > 0){
-      ptiPct = (payment / income) * 100;
-      dtiPct = ((payment + existing) / income) * 100;
-      ptiOk  = ptiPct <= 20;    // 20% PTI hard limit
-      dtiOk  = dtiPct <= 44;    // 44% DTI hard limit (SDA standard)
-    }
-    const r = {
-      lid, l, prog, atf, ltvPct, maxLTV, ltvOk, maxLoan, bookVal,
-      yearOk, mileOk, cfxOk, ageOk, minYear, maxMile, maxCfx,
-      payment, ptiPct, dtiPct, ptiOk, dtiOk,
-      term, beacon, income, existing, lenderFee,
-      vehicleAgeAtPayoff, v
-    };
-    // Determine overall eligibility
-    const vehiclePass = yearOk && mileOk && cfxOk && ageOk;
-    const dealPass    = ltvOk && ptiOk && dtiOk;
+    const r    = evaluateLender(lid, l, prog);
+
+    const vehiclePass = r.yearOk && r.mileOk && r.cfxOk && r.ageOk;
+    const dealPass    = r.ltvOk && r.ptiOk && r.dtiOk && r.payOk && r.incomeOk;
     const hasBeacon   = beacon > 0;
     const beaconPass  = !hasBeacon || prog !== null;
-    r.type = l.hard ? 'hard' : 'credit';
+    r.type        = l.hard ? 'hard' : 'credit';
     r.vehiclePass = vehiclePass;
     r.dealPass    = dealPass;
     r.beaconPass  = beaconPass;
-    // Hard-limit lenders: vehicle must pass, + deal gates if we have customer data
+
+    // A lender is eligible if vehicle passes AND beacon passes AND
+    // either no income entered OR all deal gates pass
     if(l.hard){
-      r.approved = vehiclePass && beaconPass && (income === 0 || dealPass) && ltvOk;
+      r.approved = vehiclePass && beaconPass && (income === 0 || dealPass) && r.ltvOk;
     } else {
-      // Credit-based: beacon and income gates still apply
-      r.approved = beaconPass && (income === 0 || dealPass) && ltvOk;
+      r.approved = beaconPass && (income === 0 || dealPass) && r.ltvOk;
     }
     (r.approved ? eligible : ineligible).push(r);
   });
 
-  // Sort eligible: lowest qualifying rate first
-  eligible.sort((a,b) => {
-    const rA = a.prog ? a.prog.rate : 99;
-    const rB = b.prog ? b.prog.rate : 99;
-    return rA - rB;
+  // ── Extra dynamic lenders (uploaded PDFs not in hardcoded list) ──
+  const extraLenders = window._extraLenders || {};
+  Object.entries(extraLenders).forEach(([lid, lenderData]) => {
+    const tiers = lenderData.tiers || [];
+    if (!tiers.length) return;
+
+    // Find best qualifying tier by beacon score
+    let prog = null;
+    if (beacon > 0) {
+      const matching = tiers.filter(t => beacon >= t.minFico && beacon <= t.maxFico);
+      if (matching.length) {
+        const best = matching.sort((a,b) => a.rate - b.rate)[0];
+        prog = { tier: best.tier, rate: best.rate, maxLTV: best.maxLTV,
+                 minYear: best.minYear, maxMileage: best.maxMileage,
+                 maxCarfax: best.maxCarfax, fee: best.fee, isCustom: true };
+      }
+    } else {
+      const sorted = [...tiers].sort((a,b) => a.rate - b.rate);
+      if (sorted.length) prog = { ...sorted[0], isEstimate: true, isCustom: true };
+    }
+
+    const l = {
+      name: lenderData.name, phone: '', web: '', hard: true,
+      maxPti: 20, maxDti: 44, minIncome: 0, maxPayment: null,
+      minYear:    Math.min(...tiers.map(t => t.minYear    || 2015)),
+      maxMileage: Math.max(...tiers.map(t => t.maxMileage || 200000)),
+      maxCarfax:  Math.max(...tiers.map(t => t.maxCarfax  || 7500)),
+      maxLTV:     Math.max(...tiers.map(t => t.maxLTV     || 140)),
+      programs: tiers.map(t => ({ tier: t.tier, rate: String(t.rate),
+                                   fico: `${t.minFico}-${t.maxFico === 9999 ? '∞' : t.maxFico}` }))
+    };
+
+    const r    = evaluateLender(lid, l, prog);
+    r.type        = 'hard';
+    r.vehiclePass = r.yearOk && r.mileOk && r.cfxOk && r.ageOk;
+    r.dealPass    = r.ltvOk && r.ptiOk && r.dtiOk && r.payOk && r.incomeOk;
+    r.beaconPass  = beacon === 0 || prog !== null;
+    r.approved    = r.vehiclePass && r.beaconPass && (income === 0 || r.dealPass) && r.ltvOk;
+    (r.approved ? eligible : ineligible).push(r);
   });
 
-  // Best rate summary
-  let bestLabel = '';
-  if(eligible.length){
-    const best = eligible.find(r => r.prog && r.prog.rate > 0);
-    if(best) bestLabel = `<div class="sum-pill sum-amber">★ Best: ${best.prog.rate}% @ ${best.l.name.split(' ')[0]}</div>`;
+  // ── Sort eligible: by priority score (rate + gross potential + passing terms) ─
+  eligible.sort((a, b) => {
+    const rA = a.prog ? a.prog.rate : 99;
+    const rB = b.prog ? b.prog.rate : 99;
+    // Secondary sort: more passing terms = more flexible lender
+    const ptA = a.passingTerms ? a.passingTerms.length : 0;
+    const ptB = b.passingTerms ? b.passingTerms.length : 0;
+    // Primary: lowest rate, tiebreak: more term flexibility
+    if (Math.abs(rA - rB) > 0.5) return rA - rB;
+    return ptB - ptA;
+  });
+
+  // ── Best deal summary ─────────────────────────────────────────────────────
+  let bestLabel = '', bestPayLabel = '', bestGrossLabel = '';
+  if (eligible.length) {
+    const bestRate = eligible.find(r => r.prog && r.prog.rate > 0);
+    if (bestRate) {
+      const optPmt = bestRate.termResults[bestRate.optimalTerm]?.payment || bestRate.payment;
+      bestLabel = `<div class="sum-pill sum-amber">★ ${bestRate.prog.rate}% @ ${bestRate.l.name.split(' ')[0]}</div>`;
+      bestPayLabel = `<div class="sum-pill" style="background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);">⬇ ${$f(optPmt)}/mo (${bestRate.optimalTerm}mo)</div>`;
+    }
+    // Best gross (if contract rate entered)
+    const grossLenders = eligible.filter(r => r.totalGross > 0);
+    if (grossLenders.length) {
+      const bestGross = grossLenders.sort((a,b) => b.totalGross - a.totalGross)[0];
+      bestGrossLabel = `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">$ Est. Gross: ${$f(bestGross.totalGross)} @ ${bestGross.l.name.split(' ')[0]}</div>`;
+    }
   }
 
   const beaconNote = beacon > 0
@@ -1169,13 +1601,15 @@ function runComparison(){
     : `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">⚠ Enter Beacon for exact tiers</div>`;
   const incNote = income > 0
     ? `<div class="sum-pill sum-blue">PTI/DTI Active</div>`
-    : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/DTI</div>`;
+    : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/DTI check</div>`;
+  const taxBase = v.price + fees - trade;
+  const atfVal  = taxBase * (1 + gstRate/100) - down;
 
   document.getElementById('compareSummaryBar').innerHTML = `
     <div class="sum-pill sum-green">${eligible.length} Will Buy</div>
     <div class="sum-pill sum-red">${ineligible.length} Declined</div>
-    <div class="sum-pill sum-blue">ATF: ${$f(v.price + fees - down - trade)}</div>
-    ${bestLabel}${beaconNote}${incNote}`;
+    <div class="sum-pill sum-blue">ATF: ${$f(atfVal)}</div>
+    ${bestLabel}${bestPayLabel}${bestGrossLabel}${beaconNote}${incNote}`;
 
   document.getElementById('eligibleCount').textContent = eligible.length;
   document.getElementById('compareEligible').innerHTML = eligible.map(r=>buildLenderCard(r,v,false)).join('');
@@ -1193,6 +1627,10 @@ function runComparison(){
   if (window.ProbabilityDisplay) {
     setTimeout(() => window.ProbabilityDisplay.injectProbabilities(), 150);
   }
+  // Render submission tracker (shows existing submissions for this deal)
+  setTimeout(renderSubmissionTracker, 100);
+  // Beacon range simulator
+  setTimeout(runBeaconSimulator, 120);
 }
 
 function buildLenderCard(r, v, isIneligible){
@@ -1202,19 +1640,28 @@ function buildLenderCard(r, v, isIneligible){
 
   if(isIneligible){
     const reasons = [];
-    if(!r.yearOk)    reasons.push(`Year ${v.year} < Min ${r.minYear}`);
-    if(!r.mileOk)    reasons.push(`Mileage ${(v.mileage||0).toLocaleString()} km > Max ${(r.maxMile||0).toLocaleString()} km`);
-    if(!r.cfxOk)     reasons.push(`Carfax $${(v.carfax||0).toLocaleString()} > Max $${(r.maxCfx||0).toLocaleString()}`);
-    if(r.ageOk===false) reasons.push(`Vehicle ${(curYear-v.year)}yrs + ${r.term}mo term = ${r.vehicleAgeAtPayoff.toFixed(1)}yrs at payoff (max 14)`);
-    if(!r.beaconPass)reasons.push(`Beacon ${r.beacon} below minimum for any tier`);
-    if(!r.ltvOk)     reasons.push(`LTV ${r.ltvPct.toFixed(1)}% exceeds max ${r.maxLTV}%`);
-    if(r.ptiOk===false) reasons.push(`PTI ${r.ptiPct.toFixed(1)}% exceeds 20% limit`);
-    if(r.dtiOk===false) reasons.push(`DTI ${r.dtiPct.toFixed(1)}% exceeds 44% limit`);
-    const rateRange = l.programs.map(p=>p.rate).join(' / ');
+    if(!r.yearOk)       reasons.push(`Year ${v.year} below min ${r.minYear}`);
+    if(!r.mileOk)       reasons.push(`Mileage ${(v.mileage||0).toLocaleString()} km > max ${(r.maxMile||0).toLocaleString()} km${r.cond&&r.cond!=='average'?' ('+r.cond+' condition)':''}`);
+    if(!r.cfxOk)        reasons.push(`Carfax $${(v.carfax||0).toLocaleString()} > max $${(r.maxCfx||0).toLocaleString()}`);
+    if(r.ageOk===false) reasons.push(`Age at payoff ${r.vehicleAgeAtPayoff.toFixed(1)} yrs exceeds 14 yr limit`);
+    if(!r.beaconPass)   reasons.push(`Beacon ${r.beacon} — no qualifying tier`);
+    if(!r.ltvOk)        reasons.push(`LTV ${r.ltvPct.toFixed(1)}% exceeds ${r.maxLTV}% max — need $${(r.downNeeded||0).toLocaleString()} more down`);
+    if(r.ptiOk===false) reasons.push(`PTI ${r.ptiPct.toFixed(1)}% exceeds ${r.lMaxPti}% limit`);
+    if(r.dtiOk===false) reasons.push(`DTI ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
+    if(r.payOk===false) reasons.push(`Payment ${$f(r.payment)} exceeds max ${$f(r.lMaxPay)} for this lender`);
+    if(r.incomeOk===false) reasons.push(`Income $${(r.income||0).toLocaleString()} below min $${(r.lMinIncome||0).toLocaleString()}/mo`);
+    const rateRange = l.programs ? l.programs.map(p=>p.rate).join(' / ') : '—';
+    // Show "what would it take" tip if only LTV fails
+    const fixTip = (r.allStructureTips && r.allStructureTips.length)
+      ? `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 10px;margin-top:8px;font-size:11px;color:var(--amber);font-weight:600;">
+           ${r.allStructureTips.map((t,i) => `<div style="${i>0?'margin-top:5px;padding-top:5px;border-top:1px solid rgba(245,158,11,.2);':''}">💡 ${t}</div>`).join('')}
+         </div>`
+      : '';
     return `<div class="lender-card ineligible">
       <div class="lc-header ineligible"><span class="lc-name">${l.name}</span><span class="lc-check" style="color:var(--red);">✗</span></div>
       <div class="lc-body">
         ${reasons.map(rs=>`<div class="fail-reason">${rs}</div>`).join('')}
+        ${fixTip}
         <div class="lc-row" style="margin-top:8px;"><span class="lc-lbl">Rate Range</span><span class="lc-val">${rateRange}</span></div>
       </div></div>`;
   }
@@ -1227,11 +1674,60 @@ function buildLenderCard(r, v, isIneligible){
   const tierBadge = prog
     ? `<div style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:5px;padding:5px 10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11px;font-weight:700;color:var(--green);">${prog.tier}${prog.isCustom?' ★':''}</span><span style="font-size:13px;font-weight:800;color:var(--green);">${prog.rate}%${prog.isEstimate?' (est.)':''}</span></div>`
     : `<div style="background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.25);border-radius:5px;padding:5px 10px;margin-bottom:10px;font-size:11px;color:var(--primary);">${r.beacon > 0 ? 'No matching tier for beacon '+r.beacon : 'Enter beacon score to match tier'}</div>`;
-  const paymentRow = r.payment > 0
-    ? `<div class="lc-row"><span class="lc-lbl">Est. Payment (${r.term}mo)</span><span class="lc-val" style="color:var(--amber);font-weight:800;">${$f(r.payment)}/mo</span></div>` : '';
+  // ── Multi-term payment grid ────────────────────────────────────────
+  const ALL_TERMS_CARD = [48, 60, 72, 84];
+  const termGrid = r.termResults ? `
+    <div style="margin:8px 0 10px;">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:700;">Payment by Term</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+        ${ALL_TERMS_CARD.map(t => {
+          const tr = r.termResults[t];
+          if (!tr) return '';
+          const isSelected = t === r.term;
+          const isOptimal  = t === r.optimalTerm;
+          const isBest     = t === r.bestTerm;
+          const passes     = tr.passes;
+          const bg = passes
+            ? (isOptimal ? 'rgba(16,185,129,.25)' : 'rgba(16,185,129,.1)')
+            : 'rgba(239,68,68,.08)';
+          const border = isOptimal ? '1px solid rgba(16,185,129,.6)' : passes ? '1px solid rgba(16,185,129,.25)' : '1px solid rgba(239,68,68,.2)';
+          const badge = isOptimal ? '<div style="font-size:8px;color:var(--green);font-weight:800;margin-bottom:2px;">OPTIMAL</div>'
+                      : isBest    ? '<div style="font-size:8px;color:var(--amber);font-weight:800;margin-bottom:2px;">SHORTEST</div>'
+                      : isSelected? '<div style="font-size:8px;color:var(--muted);margin-bottom:2px;">SELECTED</div>' : '<div style="margin-bottom:10px;"></div>';
+          return `<div style="background:${bg};border:${border};border-radius:6px;padding:6px 4px;text-align:center;">
+            ${badge}
+            <div style="font-size:11px;font-weight:800;color:${passes?'var(--green)':'var(--muted)'};">${$f(tr.payment)}</div>
+            <div style="font-size:9px;color:var(--muted);">${t}mo</div>
+            <div style="font-size:9px;margin-top:2px;">${passes?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--red);">✗</span>'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${r.optimalTerm !== r.term ? `<div style="font-size:10px;color:var(--green);margin-top:5px;font-weight:600;">💡 Optimal: ${r.optimalTerm}mo at ${$f(r.termResults[r.optimalTerm]?.payment)}/mo</div>` : ''}
+    </div>` : '';
+
+  // Gross display
+  const grossRow = r.flatReserve > 0 || r.spreadReserve > 0
+    ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;padding:8px 10px;margin:8px 0;">
+         <div style="font-size:10px;color:var(--amber);font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Est. Gross</div>
+         ${r.flatReserve > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--muted);">Flat Reserve</span><span style="font-weight:700;">${$f(r.flatReserve)}</span></div>` : ''}
+         ${r.spreadReserve > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--muted);">Rate Spread (est.)</span><span style="font-weight:700;">${$f(r.spreadReserve)}</span></div>` : ''}
+         <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:800;border-top:1px solid rgba(245,158,11,.2);margin-top:4px;padding-top:4px;"><span style="color:var(--amber);">Total Est. Gross</span><span style="color:var(--amber);">${$f(r.totalGross)}</span></div>
+         ${r.spreadReserve > 0 ? `<div style="font-size:9px;color:var(--muted);margin-top:3px;">Rate spread at ${r.contractRate}% contract vs ${r.buyRate}% buy — estimate only</div>` : ''}
+       </div>` : '';
+
+  const paymentRow = ''; // replaced by termGrid above
+  const coAppBadge = r.hasCoApp && r.coIncome > 0
+    ? `<div style="font-size:10px;background:rgba(6,182,212,.12);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:4px;padding:3px 8px;margin-bottom:6px;font-weight:700;">
+         CO-APP INCOME INCLUDED — Primary $${(r.primaryIncome||0).toLocaleString()} + Co-app $${(r.coIncome||0).toLocaleString()} = $${(r.income||0).toLocaleString()}/mo
+       </div>` : '';
+  const coAppTipRow = r.coAppTip
+    ? `<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.25);border-radius:5px;padding:6px 10px;font-size:11px;color:#06b6d4;font-weight:600;margin-bottom:6px;">ℹ️ ${r.coAppTip}</div>` : '';
   const ptiRow = r.income > 0
-    ? `<div class="lc-row"><span class="lc-lbl">PTI Check</span><span class="lc-val ${r.ptiOk?'green':'red'}">${r.ptiPct.toFixed(1)}% ${r.ptiOk?'✓ PASS':'✗ HIGH'}</span></div><div class="lc-row"><span class="lc-lbl">DTI Check</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>`
-    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/DTI</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
+    ? `${coAppBadge}${coAppTipRow}<div class="lc-row"><span class="lc-lbl">PTI (max ${r.lMaxPti}%)</span><span class="lc-val ${r.ptiOk?'green':'red'}">${r.ptiPct.toFixed(1)}% ${r.ptiOk?'✓ PASS':'✗ HIGH'}</span></div>
+       <div class="lc-row"><span class="lc-lbl">DTI (max ${r.lMaxDti}%)</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>
+       ${r.lMinIncome>0?`<div class="lc-row"><span class="lc-lbl">Min Income</span><span class="lc-val ${r.incomeOk?'green':'red'}">$${(r.income||0).toLocaleString()} ${r.incomeOk?'✓':'✗ Need $'+r.lMinIncome.toLocaleString()}</span></div>`:''}
+       ${r.lMaxPay?`<div class="lc-row"><span class="lc-lbl">Max Pay Call</span><span class="lc-val ${r.payOk?'green':'red'}">${$f(r.payment)} ${r.payOk?'✓':'✗ Limit '+$f(r.lMaxPay)}</span></div>`:''}`
+    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/DTI/Income</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
   const ageRow = ageWarn
     ? `<div class="lc-row" style="background:rgba(245,158,11,.08);border-radius:4px;padding:4px 6px;"><span class="lc-lbl" style="color:var(--amber);">⚠ Age at Payoff</span><span class="lc-val" style="color:var(--amber);">${r.vehicleAgeAtPayoff.toFixed(1)} yrs</span></div>` : '';
   const feeRow = r.lenderFee > 0
@@ -1253,7 +1749,7 @@ function buildLenderCard(r, v, isIneligible){
     <div class="lc-header ${isCredit?'credit':'eligible'}"><span class="lc-name">${l.name}${customBadge}</span><span class="lc-check">${isCredit?'ℹ️':'✓'}</span></div>
     <div class="lc-body">
       ${isCredit?`<div style="font-size:11px;background:rgba(30,90,246,.15);color:var(--primary);padding:5px 10px;border-radius:5px;margin-bottom:8px;font-weight:700;">Credit Profile Decision — Full Application Required</div>`:''}
-      ${tierBadge}${paymentRow}${ptiRow}${ageRow}
+      ${tierBadge}${termGrid}${grossRow}${ptiRow}${ageRow}
       <div class="lc-row"><span class="lc-lbl">LTV (incl. fees)</span><span class="lc-val ${r.ltvOk?'green':'red'}">${r.ltvPct.toFixed(1)}% / ${r.maxLTV}% max ${r.ltvOk?'✓':'!'}</span></div>
       <div class="lc-row"><span class="lc-lbl">Max Loan</span><span class="lc-val green">${$f(r.maxLoan)}</span></div>
       <div class="lc-row"><span class="lc-lbl">ATF (w/ lender fee)</span><span class="lc-val">${$f(r.atf)}</span></div>
@@ -1273,6 +1769,13 @@ function buildLenderCard(r, v, isIneligible){
           onmouseout="this.style.background='rgba(30,90,246,.1)'"
           title="Copy formatted deal summary for lender submission">
           📋 COPY PACKAGE
+        </button>
+        <button onclick="logSubmission('${l.name}')"
+          style="padding:9px 6px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:7px;color:var(--amber);font-weight:800;font-size:11px;letter-spacing:.3px;cursor:pointer;transition:all .2s;grid-column:1/-1;"
+          onmouseover="this.style.background='rgba(245,158,11,.2)'"
+          onmouseout="this.style.background='rgba(245,158,11,.1)'"
+          title="Log this lender submission in the tracker">
+          📤 LOG SUBMISSION
         </button>
       </div>
     </div></div>`;
@@ -1320,9 +1823,8 @@ function generateEmail(){
   const gstAmt=(price+doc-netTrade)*(gst/100);
   const otd=price+doc-netTrade+gstAmt;
   const vsc=parseFloat(p.vscPrice)||0,gap=parseFloat(p.gapPrice)||0,tw=parseFloat(p.twPrice)||0,wa=parseFloat(p.waPrice)||0;
-  const mr=apr/100/12;
-  const pmt72=$f(PMT(mr,72,-(otd+vsc+gap+tw+wa)));
-  const pmt84=$f(PMT(mr,84,-(otd+vsc+gap+tw+wa)));
+  const pmt72=$f(BPMT(apr,72,otd+vsc+gap+tw+wa));
+  const pmt84=$f(BPMT(apr,84,otd+vsc+gap+tw+wa));
   const email = `Subject: Your ${v.desc} Quote — ${dealer}
 
 Dear ${c.name||'Valued Customer'},
@@ -1869,6 +2371,112 @@ async function deleteCRM(id){
 }
 
 // ── DEAL LOG ──────────────────────────────────────────
+// ── LENDER SUBMISSION TRACKER ────────────────────────────────────
+function _submissionKey(){
+  const stock  = document.getElementById('compareStock')?.value || 'unknown';
+  const beacon = document.getElementById('compareBeacon')?.value || '0';
+  return `ffSub_${stock}_${beacon}`;
+}
+
+function getSubmissions(){
+  try { return JSON.parse(localStorage.getItem(_submissionKey()) || '[]'); }
+  catch(e){ return []; }
+}
+
+function saveSubmissions(subs){
+  localStorage.setItem(_submissionKey(), JSON.stringify(subs));
+}
+
+function logSubmission(lenderName){
+  const subs = getSubmissions();
+  const existing = subs.find(s => s.lender === lenderName);
+  if(existing){
+    toast(`${lenderName} already logged — update status in tracker`);
+    renderSubmissionTracker();
+    return;
+  }
+  subs.push({
+    lender: lenderName,
+    date: new Date().toLocaleDateString('en-CA'),
+    time: new Date().toLocaleTimeString('en-CA', {hour:'2-digit',minute:'2-digit'}),
+    status: 'Pending',
+    notes: ''
+  });
+  saveSubmissions(subs);
+  toast(`Logged: ${lenderName} — Pending`);
+  renderSubmissionTracker();
+}
+
+function updateSubmissionStatus(lenderName, status){
+  const subs = getSubmissions();
+  const s = subs.find(x => x.lender === lenderName);
+  if(s){ s.status = status; s.updatedAt = new Date().toLocaleTimeString('en-CA',{hour:'2-digit',minute:'2-digit'}); }
+  saveSubmissions(subs);
+  renderSubmissionTracker();
+}
+
+function updateSubmissionNotes(lenderName, notes){
+  const subs = getSubmissions();
+  const s = subs.find(x => x.lender === lenderName);
+  if(s) s.notes = notes;
+  saveSubmissions(subs);
+}
+
+function deleteSubmission(lenderName){
+  const subs = getSubmissions().filter(s => s.lender !== lenderName);
+  saveSubmissions(subs);
+  renderSubmissionTracker();
+}
+
+function renderSubmissionTracker(){
+  const el = document.getElementById('submissionTracker');
+  if(!el) return;
+  const subs = getSubmissions();
+  if(!subs.length){ el.innerHTML = ''; el.style.display='none'; return; }
+
+  const statusColors = {
+    'Pending':  { bg:'rgba(245,158,11,.12)',  color:'var(--amber)',  border:'rgba(245,158,11,.3)'  },
+    'Approved': { bg:'rgba(16,185,129,.12)',  color:'var(--green)',  border:'rgba(16,185,129,.3)'  },
+    'Counter':  { bg:'rgba(30,90,246,.12)',   color:'var(--primary)',border:'rgba(30,90,246,.3)'   },
+    'Declined': { bg:'rgba(239,68,68,.1)',    color:'var(--red)',    border:'rgba(239,68,68,.3)'   },
+  };
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+      <span style="width:8px;height:8px;background:var(--amber);border-radius:50%;display:inline-block;"></span>
+      Credit App Submissions (${subs.length})
+    </div>
+    ${subs.map(s => {
+      const sc = statusColors[s.status] || statusColors['Pending'];
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:800;font-size:13px;">${s.lender}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Submitted ${s.date} ${s.time}${s.updatedAt?' · Updated '+s.updatedAt:''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${['Pending','Approved','Counter','Declined'].map(st => {
+              const active = s.status === st;
+              return `<button onclick="updateSubmissionStatus('${s.lender.replace(/'/g,"\\'")}','${st}')"
+                style="padding:4px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;
+                  background:${active ? sc.bg : 'transparent'};
+                  color:${active ? sc.color : 'var(--muted)'};
+                  border:1px solid ${active ? sc.border : 'var(--border)'};">
+                ${st}
+              </button>`;
+            }).join('')}
+            <button onclick="deleteSubmission('${s.lender.replace(/'/g,"\\'")}') "
+              style="padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer;background:transparent;border:1px solid var(--border);color:var(--muted);">✕</button>
+          </div>
+        </div>
+        <input type="text" placeholder="Notes (counter offer, conditions, etc.)" value="${s.notes||''}"
+          oninput="updateSubmissionNotes('${s.lender.replace(/'/g,"\\'")}',this.value)"
+          style="width:100%;margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:11px;color:var(--text);font-family:'Outfit',sans-serif;box-sizing:border-box;">
+      </div>`;
+    }).join('')}`;
+}
+
 async function logDeal(){
   const d=getDealData();
   const now=new Date();
@@ -1877,6 +2485,15 @@ async function logDeal(){
   d.loggedAt=now.toLocaleDateString('en-CA');d.loggedTime=now.toLocaleTimeString('en-CA');
   d.loggedMonth=now.getMonth();d.loggedYear=now.getFullYear();d.loggedDay=now.toDateString();
   d.id=Date.now();d.pvr=pvr;
+
+  // Store both monthly and biweekly payments
+  const _apr = parseFloat(d.finance?.apr)||0;
+  const _term = parseFloat(d.finance?.termMonths)||72;
+  const _fin = parseFloat(d.finance?.financeAmount)||0;
+  if(_apr && _term && _fin){
+    d.monthlyPayment = PMT(_apr/100/12, _term, _fin);
+    d.biweeklyPayment = PMT(_apr/100/26, Math.round(_term*26/12), _fin);
+  }
   try{
     const res=await FF.apiFetch('/api/desk/deal-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deal:d})}).then(r=>r.json());
     if(res.success){d._dbId=res.id;}
@@ -2029,7 +2646,8 @@ function importCSV(){
       price:parseFloat(cols[idx('price')])||0,
       condition:cols[idx('condition')]||'Average',
       carfax:parseFloat(cols[idx('carfax')])||0,
-      type:cols[idx('type')]||''
+      type:cols[idx('type')]||'',
+      book_value:parseFloat(cols[idx('book_value')]||cols[idx('book value')]||cols[idx('bookvalue')])||0
     });
   }
   
@@ -3435,15 +4053,29 @@ function openPresentation(){
   const finalDown = parseFloat(document.getElementById('finalDown')?.value)||0;
   let cardsHTML = '';
   const featured_term = 72;
+
+  // Biweekly toggle for presentation
+  const presToggleBar = `<div style="display:flex;justify-content:center;margin-bottom:20px;">${_biweeklyToggleHTML('bw-toggle-pres')}</div>`;
+  let presToggleWrap = document.getElementById('bw-toggle-wrap-pres');
+  if(!presToggleWrap){
+    presToggleWrap = document.createElement('div');
+    presToggleWrap.id = 'bw-toggle-wrap-pres';
+    const ladder = document.getElementById('presPaymentLadder');
+    if(ladder) ladder.parentNode.insertBefore(presToggleWrap, ladder);
+  }
+  presToggleWrap.innerHTML = presToggleBar;
+
   [60, 72, 84].forEach(term => {
     const fin = Math.max(0, finance - finalDown);
-    const pmt = PMT(mr, term, -fin);
+    const pmt = BPMT(apr, term, fin);
     const featured = term === featured_term;
+    const termLabel = window._biweekly ? `${Math.round(term*26/12)} BI-WEEKLY` : `${term} MONTHS`;
+    const pmtFreq = window._biweekly ? '/bi-weekly' : '/month';
     cardsHTML += `
     <div class="pres-pmt-card ${featured?'featured':''}">
-      <div class="pres-term">${term} MONTHS</div>
+      <div class="pres-term">${termLabel}</div>
       <div class="pres-amount">${$f(pmt)}</div>
-      <div class="pres-monthly">/month</div>
+      <div class="pres-monthly">${pmtFreq}</div>
       ${finalDown>0?`<div class="pres-down-note">$${finalDown.toLocaleString()} down</div>`:'<div class="pres-obo">No money down</div>'}
     </div>`;
   });
@@ -3504,20 +4136,72 @@ function runBeaconMatch(){
   });
 }
 
-// ── LIVE SYNC: Deal Desk customer fields → Compare All ───────────
-function syncCompareFromDeal(){
+// ── LIVE SYNC: Deal Desk → Compare All (full pre-population) ────
+function syncCompareFromDeal(forceAll){
+  const compareActive = document.getElementById('section-compare')?.classList.contains('active');
+  let changed = false;
+
+  function syncEl(id, val, force){
+    if(!val) return;
+    const el = document.getElementById(id);
+    if(el && (force || el.value === '' || el.value === '0')){
+      el.value = val; changed = true;
+    }
+  }
+
+  // Customer fields — always sync if deal desk has values
   const beacon   = getVal('creditScore');
   const income   = getVal('monthlyIncome');
   const existing = getVal('existingPayments');
-  let changed = false;
   const bEl = document.getElementById('compareBeacon');
   const iEl = document.getElementById('compareIncome');
   const eEl = document.getElementById('compareExisting');
   if(bEl && beacon   && bEl.value !== beacon)   { bEl.value = beacon;   changed = true; }
   if(iEl && income   && iEl.value !== income)   { iEl.value = income;   changed = true; }
   if(eEl && existing && eEl.value !== existing) { eEl.value = existing; changed = true; }
-  // Only re-run comparison if Compare section is active and a vehicle is selected
-  if(changed && document.getElementById('section-compare')?.classList.contains('active')){
+
+  // Vehicle + deal structure — sync on tab open (forceAll) or if fields empty
+  if(forceAll || compareActive){
+    // Stock
+    const stock = getVal('stockNum');
+    const stockSel = document.getElementById('compareStock');
+    if(stockSel && stock){
+      // Set compareStock to match deal desk stock
+      for(let i=0;i<stockSel.options.length;i++){
+        if(stockSel.options[i].value === stock){ stockSel.selectedIndex = i; changed = true; break; }
+      }
+    }
+
+    // Down payment = finalDown from deal desk
+    const down = getVal('finalDown') || '0';
+    syncEl('compareDown', down, forceAll);
+
+    // Net trade equity = allowance - payoff
+    const tAllow  = parseFloat(getVal('tradeAllow'))  || 0;
+    const tPayoff = parseFloat(getVal('tradePayoff')) || 0;
+    const netTrade = Math.max(0, tAllow - tPayoff);
+    if(netTrade > 0) syncEl('compareTrade', String(netTrade), forceAll);
+
+    // Fees = doc fee
+    const docFee = getVal('docFee');
+    syncEl('compareFees', docFee, forceAll);
+
+    // Contract rate from reserve panel
+    const cRate = getVal('contractRate');
+    syncEl('compareContractRate', cRate, forceAll);
+
+    // Book value from inventory if vehicle selected
+    const inv = window.ffInventory || window.inventory || [];
+    const v = inv.find(x => x.stock === stock);
+    if(v){
+      if(v.book_value && v.book_value > 0) syncEl('compareBookVal', String(v.book_value), forceAll);
+      // Condition
+      const condSel = document.getElementById('compareCondition');
+      if(condSel && v.condition && forceAll) { condSel.value = v.condition.toLowerCase(); changed = true; }
+    }
+  }
+
+  if(changed && (compareActive || forceAll)){
     runComparison();
   }
 }
@@ -3571,8 +4255,7 @@ function renderScenarios(){
       const gstA    = (price + doc_val - netTr) * (gst_v/100);
       const otd     = price + doc_val - netTr + gstA;
       const products= vsc + gap + tw + wa;
-      const mr      = apr_val / 100 / 12;
-      const pmt72   = PMT(mr, 72, -(otd + products));
+      const pmt72   = BPMT(apr_val, 72, otd + products);
       const prods   = [vsc?'VSC':'',gap?'GAP':'',tw?'T&W':'',wa?'WA':''].filter(Boolean);
       if(sc.label) labelEl.value = sc.label;
       dataEl.innerHTML = `<span class="sc-payment">${$f(pmt72)}<span style="font-size:12px;font-weight:400;">/mo</span></span>
@@ -3640,18 +4323,29 @@ function updateRateComparison(){
 
   const terms = [48, 60, 72, 84];
   let html = '';
+
+  // Inject biweekly toggle above rate comparison table
+  let rcToggleWrap = document.getElementById('bw-toggle-wrap-rc');
+  if(!rcToggleWrap){
+    rcToggleWrap = document.createElement('div');
+    rcToggleWrap.id = 'bw-toggle-wrap-rc';
+    tbody.parentNode.parentNode.insertBefore(rcToggleWrap, tbody.parentNode);
+  }
+  rcToggleWrap.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">${_biweeklyToggleHTML('bw-toggle-rc')}</div>`;
+
+  const pmtSuffix = window._biweekly ? '/bi-wk' : '/mo';
   terms.forEach(t => {
-    const pBuy = PMT(buyRate/100/12, t, -otd);
-    const pCon = PMT(conRate/100/12, t, -otd);
-    const pMax = PMT(maxRate/100/12, t, -otd);
-    // Reserve estimate: (pCon - pBuy) spread per month
-    const reservePerMo = pCon - pBuy;
+    const pBuy = BPMT(buyRate, t, otd);
+    const pCon = BPMT(conRate, t, otd);
+    const pMax = BPMT(maxRate, t, otd);
+    const reservePerPeriod = pCon - pBuy;
+    const tLabel = window._biweekly ? `${Math.round(t*26/12)} bi-wk` : `${t} mo`;
     html += `<tr>
-      <td><strong>${t} mo</strong></td>
+      <td><strong>${tLabel}</strong></td>
       <td class="rc-buy">${$f(pBuy)}</td>
       <td class="rc-contract">${$f(pCon)}</td>
       <td class="rc-max">${$f(pMax)}</td>
-      <td style="color:var(--green);">+${$f(reservePerMo)}</td>
+      <td style="color:var(--green);">+${$f(reservePerPeriod)}</td>
     </tr>`;
   });
   tbody.innerHTML = html;
@@ -3723,15 +4417,17 @@ function printWorksheet(){
   // Build print payment grid
   const downs = [0, 2000, 5000];
   const terms = [48, 60, 72, 84];
+  const pwPmtLbl = window._biweekly ? 'Bi-Wkly' : 'Months';
   let pgHTML = '<div class="pw-payment-grid">';
   // Header row
   pgHTML += '<div class="pw-pg-cell header">Down</div>';
-  terms.forEach(t => pgHTML += `<div class="pw-pg-cell header">${t} Months</div>`);
+  terms.forEach(t => pgHTML += `<div class="pw-pg-cell header">${t} ${pwPmtLbl}</div>`);
   // Payment rows
   downs.forEach(d => {
     pgHTML += `<div class="pw-pg-cell"><strong>$${d.toLocaleString()}</strong></div>`;
     terms.forEach(t => {
-      const pmt = PMT(mr, t, -(otd + vsc + gap + tw + wa - d));
+      const fin = otd + vsc + gap + tw + wa - d;
+      const pmt = BPMT(apr, t, fin);
       pgHTML += `<div class="pw-pg-cell payment">${$f(pmt)}</div>`;
     });
   });
@@ -3740,6 +4436,193 @@ function printWorksheet(){
 
   window.print();
   toast('Printing worksheet...');
+}
+
+
+// ── RESTORE COMPARE SESSION ──────────────────────────────────────
+function restoreCompareSession(){
+  try {
+    const s = JSON.parse(localStorage.getItem('ffCompareSession') || 'null');
+    if(!s) return;
+    // Only restore if saved within 24hrs
+    if(Date.now() - (s.savedAt||0) > 86400000) return;
+    // Verify stock still exists in inventory
+    const inv = window.ffInventory || window.inventory || [];
+    if(s.stock && !inv.find(x => x.stock === s.stock)) return;
+
+    const set = (id, val) => { const e=document.getElementById(id); if(e&&val!==undefined&&val!=='') e.value=val; };
+    const chk = (id, val) => { const e=document.getElementById(id); if(e) e.checked=val; };
+    const sel = (id, val) => {
+      const e=document.getElementById(id); if(!e||!val) return;
+      for(let i=0;i<e.options.length;i++) if(e.options[i].value===val){e.selectedIndex=i;break;}
+    };
+
+    sel('compareStock', s.stock);
+    set('compareDown', s.down);
+    set('compareTrade', s.trade);
+    set('compareFees', s.fees);
+    sel('compareTerm', s.term);
+    set('compareBeacon', s.beacon);
+    set('compareIncome', s.income);
+    set('compareExisting', s.existing);
+    set('compareContractRate', s.contractRate);
+    set('compareBookVal', s.bookVal);
+    sel('compareCondition', s.condition);
+    set('compareCoBeacon', s.coBeacon);
+    set('compareCoIncome', s.coIncome);
+    chk('compareBK', s.bk);
+    if(s.gstEnabled !== undefined) chk('compareGst', s.gstEnabled);
+
+    if(s.stock) setTimeout(runComparison, 200);
+  } catch(e){}
+}
+
+// ── BEACON RANGE SIMULATOR ────────────────────────────────────────
+function runBeaconSimulator(){
+  const el = document.getElementById('beaconSimulator');
+  if(!el) return;
+
+  const stock    = document.getElementById('compareStock')?.value || '';
+  const inv      = window.ffInventory || window.inventory || [];
+  const v        = inv.find(x => x.stock === stock);
+  if(!v){ el.innerHTML = ''; return; }
+
+  const down     = parseFloat(document.getElementById('compareDown')?.value)    || 0;
+  const trade    = parseFloat(document.getElementById('compareTrade')?.value)   || 0;
+  const fees     = parseFloat(document.getElementById('compareFees')?.value)    || 0;
+  const income   = parseFloat(document.getElementById('compareIncome')?.value)  || 0;
+  const existing = parseFloat(document.getElementById('compareExisting')?.value)|| 0;
+  const term     = parseInt(document.getElementById('compareTerm')?.value)      || 72;
+  const bookValOver = parseFloat(document.getElementById('compareBookVal')?.value) || 0;
+  const coIncome = parseFloat(document.getElementById('compareCoIncome')?.value)|| 0;
+  const combinedInc = income + coIncome;
+  const contractRate = parseFloat(document.getElementById('compareContractRate')?.value) || 0;
+  const curYear  = new Date().getFullYear();
+
+  const BEACON_RANGES = [
+    { label: '<500',  min: 0,   max: 499  },
+    { label: '500',   min: 500, max: 539  },
+    { label: '540',   min: 540, max: 559  },
+    { label: '560',   min: 560, max: 579  },
+    { label: '580',   min: 580, max: 599  },
+    { label: '600',   min: 600, max: 619  },
+    { label: '620',   min: 620, max: 639  },
+    { label: '640',   min: 640, max: 659  },
+    { label: '660',   min: 660, max: 679  },
+    { label: '680',   min: 680, max: 699  },
+    { label: '700',   min: 700, max: 719  },
+    { label: '720',   min: 720, max: 749  },
+    { label: '750+',  min: 750, max: 9999 },
+  ];
+
+  const results = BEACON_RANGES.map(range => {
+    const testBeacon = range.min === 0 ? 0 : range.min + 10;
+    let approved = 0, bestRate = 99;
+    Object.entries(lenders).forEach(([lid, l]) => {
+      const prog = getQualifyingProgram(lid, testBeacon);
+      if(!prog) return;
+      const lenderFee = prog.fee || 0;
+      const atf = v.price + fees + lenderFee - down - trade;
+      const bookVal = bookValOver > 0 ? bookValOver : (v.book_value || v.bookValue || v.price);
+      const maxLTV = prog.maxLTV || l.maxLTV;
+      const ltvPct = (atf / bookVal) * 100;
+      if(ltvPct > maxLTV) return;
+      const minYear = prog.minYear || l.minYear;
+      if(v.year < minYear) return;
+      const maxMile = prog.maxMileage || l.maxMileage || 999999;
+      if((v.mileage||0) > maxMile) return;
+      const maxCfx = prog.maxCarfax || l.maxCarfax || 999999;
+      if((v.carfax||0) > maxCfx) return;
+      const ageAtPayoff = (curYear - v.year) + (term/12);
+      if(ageAtPayoff > 14) return;
+      const lMaxPti = l.maxPti || 20;
+      if(combinedInc > 0 && prog.rate > 0){
+        const pmt = BPMT(prog.rate, term, atf);
+        const pti = (pmt / combinedInc) * 100;
+        if(pti > lMaxPti) return;
+      }
+      approved++;
+      if(prog.rate < bestRate) bestRate = prog.rate;
+    });
+    return { ...range, approved, bestRate: bestRate < 99 ? bestRate : null };
+  });
+
+  const maxApproved = Math.max(...results.map(r => r.approved), 1);
+  const currentBeacon = parseInt(document.getElementById('compareBeacon')?.value) || 0;
+
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+      <span>📊 Beacon Range Simulator</span>
+      <span style="font-size:10px;font-weight:400;color:var(--muted);">How many lenders approve at each beacon score?</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(${results.length},1fr);gap:3px;align-items:end;height:80px;">
+      ${results.map(r => {
+        const pct   = r.approved > 0 ? Math.max(15, Math.round((r.approved / maxApproved) * 100)) : 4;
+        const isNow = currentBeacon >= r.min && currentBeacon <= r.max;
+        const col   = r.approved === 0 ? 'rgba(239,68,68,.4)'
+                    : r.approved <= 2  ? 'rgba(245,158,11,.6)'
+                    : r.approved <= 5  ? 'rgba(16,185,129,.5)'
+                    :                    'rgba(16,185,129,.85)';
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <div style="font-size:9px;color:${r.approved>0?'var(--green)':'var(--muted)'};">${r.approved>0?r.approved:''}</div>
+          <div style="width:100%;height:${pct}%;background:${col};border-radius:3px 3px 0 0;${isNow?'outline:2px solid var(--amber);':''};transition:height .3s;"></div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(${results.length},1fr);gap:3px;margin-top:3px;">
+      ${results.map(r => {
+        const isNow = currentBeacon >= r.min && currentBeacon <= r.max;
+        return `<div style="font-size:8px;text-align:center;color:${isNow?'var(--amber)':'var(--muted)'};font-weight:${isNow?800:400};">${r.label}</div>`;
+      }).join('')}
+    </div>
+    ${results.some(r => r.bestRate) ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;">Best rate by range: ${results.filter(r=>r.bestRate).map(r=>`<span style="color:var(--green);font-weight:700;">${r.label}: ${r.bestRate}%</span>`).join(' · ')}</div>` : ''}`;
+}
+// ── PRINT COMPARISON ─────────────────────────────────────────────
+function printComparison(){
+  const el = document.getElementById('printComparisonDiv');
+  if(!el){ console.warn('printComparisonDiv not found'); return; }
+
+  const stock  = document.getElementById('compareStock')?.value || '';
+  const inv    = window.ffInventory || window.inventory || [];
+  const v      = inv.find(x => x.stock === stock);
+  const beacon = document.getElementById('compareBeacon')?.value || '';
+  const income = document.getElementById('compareIncome')?.value || '';
+  const down   = document.getElementById('compareDown')?.value || '0';
+  const term   = document.getElementById('compareTerm')?.value || '72';
+  const coInc  = document.getElementById('compareCoIncome')?.value || '';
+
+  const vDesc = v ? `${v.year} ${v.make} ${v.model}` : stock;
+  const vInfo = v ? `${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()} · ${v.condition||''}` : '';
+  const today = new Date().toLocaleDateString('en-CA',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+  // Collect eligible and ineligible results from rendered cards
+  const eligEl   = document.getElementById('compareEligible');
+  const inelEl   = document.getElementById('compareIneligible');
+  const summaryEl= document.getElementById('compareSummaryBar');
+
+  el.innerHTML = `
+    <div class="cpr-header">
+      <div class="cpr-logo">${settings.dealerName || 'FIRST-FIN'}</div>
+      <div class="cpr-title">LENDER COMPARISON</div>
+      <div class="cpr-sub">${today} · Beacon: ${beacon||'—'} · Income: ${income?'$'+parseInt(income).toLocaleString()+'/mo':'—'}${coInc?' + Co-app $'+parseInt(coInc).toLocaleString():''}</div>
+    </div>
+    <div class="cpr-vehicle">
+      <strong>${vDesc}</strong>${vInfo?' · '+vInfo:''}
+      <span class="cpr-pill">Down: $${parseInt(down||0).toLocaleString()}</span>
+      <span class="cpr-pill">Term: ${term}mo</span>
+    </div>
+    <div class="cpr-summary">${summaryEl ? summaryEl.innerHTML : ''}</div>
+    <div class="cpr-section-title cpr-green">✓ ELIGIBLE LENDERS</div>
+    <div class="cpr-cards">${eligEl ? eligEl.innerHTML : '<em>None</em>'}</div>
+    <div class="cpr-section-title cpr-red" style="margin-top:16px;">✗ INELIGIBLE LENDERS</div>
+    <div class="cpr-cards">${inelEl ? inelEl.innerHTML : '<em>None</em>'}</div>
+    <div class="cpr-footer">Generated by FIRST-FIN · ${today} · For dealer use only. Estimates subject to lender approval.</div>`;
+
+  // Trigger print
+  document.body.classList.add('print-comparison');
+  window.print();
+  setTimeout(() => document.body.classList.remove('print-comparison'), 500);
+  toast('Printing comparison...');
 }
 
 // ── HOOK calculate() to also update Rate Comparison ──────────
