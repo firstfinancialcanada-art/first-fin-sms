@@ -32,6 +32,12 @@ function validatePublicCheckoutInput({ plan, email, name, dealership }) {
   return null; // valid
 }
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function stripeRoutes(app, { requireAuth }) {
 
   function getStripe() {
@@ -189,7 +195,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
       res.json({ success: true, url: session.url });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -210,7 +216,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
       const status = getBillingStatus(user, exempt);
       res.json({ success: true, ...status, exempt });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
