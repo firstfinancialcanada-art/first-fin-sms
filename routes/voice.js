@@ -101,6 +101,12 @@ async function saveVoiceEvent(phone, eventContent, role = 'user', userId = null)
   }
 }
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireBilling }) {
 
   // ── Health check for Desk ─────────────────────────────────────
@@ -446,7 +452,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       );
       res.json({ success: true, voicemails: result.rows });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally { client.release(); }
   });
 
@@ -497,7 +503,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, callSid: call.sid, to: normalized });
     } catch(e) {
       console.error('❌ /api/voice/drop-v2 error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -576,7 +582,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, scheduled, skipped, message: `${scheduled} voice drops queued (${delay}s apart)` });
     } catch(e) {
       console.error('❌ /api/voice/campaign-v2 error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -598,7 +604,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, callSid: call.sid, to: normalized });
     } catch(e) {
       console.error('❌ /api/voice/drop error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -638,7 +644,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ success: true, scheduled, message: `${scheduled} voice drops queued` });
     } catch(e) {
       console.error('❌ /api/voice/campaign error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
