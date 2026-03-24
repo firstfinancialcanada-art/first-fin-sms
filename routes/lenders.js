@@ -49,6 +49,7 @@ function detectLender(text) {
   if (/rbc.*auto|royal.*bank.*auto/i.test(text)) return 'rbc';
   if (/cibc.*auto/i.test(text))  return 'cibc';
   if (/servus/i.test(text))      return 'servus';
+  if (/iA\s*Auto\s*Finance|ia\.ca|iafastincome|shift\s*into\s*gear/i.test(text)) return 'iauto';
   return null;
 }
 
@@ -135,6 +136,41 @@ function extractAutocapital(lines) {
 // ── Northlake parser ───────────────────────────────────────────────────────
 function extractNorthlake(lines) {
   const programs = [];
+  const text = lines.join(' ');
+
+  // ── Current format (March 2026): Titanium/Platinum/Gold/Standard ─────────
+  // Titanium 750+: 6.99%+, LTV 150%, PTI 20%
+  // Platinum 700-749: 8.99%+, LTV 140%, PTI 20%
+  // Gold 600-699: 12.99%+, LTV 135%, PTI 18%
+  // Standard 500-599: 17.99%+, LTV 125%, PTI 17%
+  const currentTiers = [
+    { name: 'Titanium', minFico: 750, maxFico: 9999, rate: 6.99,  maxLTV: 150, maxMileage: 300000 },
+    { name: 'Platinum', minFico: 700, maxFico: 749,  rate: 8.99,  maxLTV: 140, maxMileage: 300000 },
+    { name: 'Gold',     minFico: 600, maxFico: 699,  rate: 12.99, maxLTV: 135, maxMileage: 300000 },
+    { name: 'Standard', minFico: 500, maxFico: 599,  rate: 17.99, maxLTV: 125, maxMileage: 300000 },
+  ];
+
+  const hasTitanium = /titanium/i.test(text);
+  const hasPlatinum = /platinum/i.test(text);
+
+  if (hasTitanium || hasPlatinum) {
+    // Current tier format detected — use known rates, optionally parse from PDF
+    currentTiers.forEach(t => {
+      // Try to parse rate from PDF text for this tier
+      const ratePattern = new RegExp(t.name + '[^%\d]*(\d{1,2}\.\d{2})\s*\+?\s*%?', 'i');
+      const m = text.match(ratePattern);
+      const rate = m ? parseFloat(m[1]) : t.rate;
+      programs.push({
+        tier: t.name, rate,
+        minFico: t.minFico, maxFico: t.maxFico,
+        maxLTV: t.maxLTV, minYear: 2003,
+        maxMileage: t.maxMileage, maxCarfax: 7500, fee: 695
+      });
+    });
+    return programs;
+  }
+
+  // ── Legacy format: Standard/Extended/U-Drive ──────────────────────────────
   const keywords = { standard: 0, extended: 1, 'u-drive': 2, drive: 2 };
   lines.forEach((line, i) => {
     const lc = line.toLowerCase();
@@ -213,6 +249,35 @@ function extractEdenpark(lines) {
 // ── Iceberg parser ─────────────────────────────────────────────────────────
 function extractIceberg(lines) {
   const programs = [];
+  const text = lines.join(' ');
+
+  // Iceberg uses Gold/Silver/Bronze tiers (current rate sheet format)
+  // Gold: 12.99%-20.25%, Silver: 20.99%-27.25%, Bronze: 27.99%-31.99%
+  // Gold = 640+ beacon, Silver = 600-639, Bronze = 560-599
+  const tierDefs = [
+    { names: ['gold'],   minFico: 640, maxFico: 9999, ratePattern: /gold[^%]*?(\d{1,2}\.\d{2})\s*%/i,   minYear: 2012, maxLTV: 140, maxMileage: 180000, maxCarfax: 6500 },
+    { names: ['silver'], minFico: 600, maxFico: 639,  ratePattern: /silver[^%]*?(\d{1,2}\.\d{2})\s*%/i, minYear: 2012, maxLTV: 140, maxMileage: 180000, maxCarfax: 6500 },
+    { names: ['bronze'], minFico: 0,   maxFico: 599,  ratePattern: /bronze[^%]*?(\d{1,2}\.\d{2})\s*%/i, minYear: 2012, maxLTV: 140, maxMileage: 180000, maxCarfax: 6500 },
+  ];
+
+  // Try Gold/Silver/Bronze format first
+  let found = false;
+  tierDefs.forEach(def => {
+    const m = text.match(def.ratePattern);
+    const rate = m ? parseFloat(m[1]) : null;
+    if (rate) {
+      programs.push({
+        tier: def.names[0].charAt(0).toUpperCase() + def.names[0].slice(1),
+        rate, minFico: def.minFico, maxFico: def.maxFico,
+        maxLTV: def.maxLTV, minYear: def.minYear,
+        maxMileage: def.maxMileage, maxCarfax: def.maxCarfax, fee: 695
+      });
+      found = true;
+    }
+  });
+  if (found) return programs;
+
+  // Fallback: look for legacy Tier 1/2/3/4 format
   const tierMap = {
     1: { minFico: 640, maxFico: 9999, minYear: 2018, maxLTV: 140 },
     2: { minFico: 600, maxFico: 639,  minYear: 2015, maxLTV: 135 },
@@ -237,10 +302,113 @@ function extractIceberg(lines) {
   return programs.filter((p, i, arr) => arr.findIndex(x => x.tier === p.tier) === i);
 }
 
+// ── iA Auto Finance parser (Gear-based tiers) ────────────────────────────
+function extractIAuto(lines) {
+  const text = lines.join(' ');
+  const programs = [];
+
+  // iA uses 6th/5th/4th/3rd/2nd/1st Gear naming
+  // Try to parse rates directly from PDF text
+  const gearDefs = [
+    { name: '6th Gear', minFico: 700, maxFico: 9999, defaultRate: 11.49, maxLTV: 140, maxMileage: 180000 },
+    { name: '5th Gear', minFico: 650, maxFico: 699,  defaultRate: 15.49, maxLTV: 140, maxMileage: 180000 },
+    { name: '4th Gear', minFico: 600, maxFico: 649,  defaultRate: 20.49, maxLTV: 135, maxMileage: 180000 },
+    { name: '3rd Gear', minFico: 560, maxFico: 599,  defaultRate: 25.49, maxLTV: 125, maxMileage: 180000 },
+    { name: '2nd Gear', minFico: 520, maxFico: 559,  defaultRate: 29.99, maxLTV: 125, maxMileage: 140000 },
+    { name: '1st Gear', minFico: 0,   maxFico: 519,  defaultRate: 29.99, maxLTV: 110, maxMileage: 140000 },
+  ];
+
+  // Try to find rates in a row — iA lists them as: 11.49% 15.49% 20.49% 25.49% 29.99% 29.99%
+  const rateMatches = text.match(/(\d{1,2}\.\d{2})%/g);
+  const rates = rateMatches ? rateMatches.map(r => parseFloat(r)).filter(r => r > 5 && r < 40) : [];
+  // Deduplicate while preserving order
+  const uniqueRates = [...new Map(rates.map(r => [r, r])).values()];
+
+  gearDefs.forEach((def, i) => {
+    const rate = uniqueRates[i] || def.defaultRate;
+    programs.push({
+      tier: def.name, rate,
+      minFico: def.minFico, maxFico: def.maxFico,
+      maxLTV: def.maxLTV, minYear: 2015,
+      maxMileage: def.maxMileage, maxCarfax: 7500, fee: 699
+    });
+  });
+
+  return programs;
+}
+
 // ── Generic fallback parser (pull any % rates with tier labels) ───────────
 function extractGeneric(lines) {
   const programs = [];
-  const tierPatterns = [/Tier\s*(\d)/i, /Tier\s*([A-D])/i, /Star\s*(\d)/i, /Program\s*(\d)/i, /Grade\s*([A-D])/i];
+  const text = lines.join(' ');
+
+  // ── Pattern 1: Named tiers — Gold/Silver/Bronze/Platinum/Titanium/Standard ──
+  const namedTiers = [
+    { pat: /titanium/i, name: 'Titanium', minFico: 750 },
+    { pat: /platinum/i, name: 'Platinum', minFico: 700 },
+    { pat: /gold/i,     name: 'Gold',     minFico: 640 },
+    { pat: /silver/i,   name: 'Silver',   minFico: 600 },
+    { pat: /bronze/i,   name: 'Bronze',   minFico: 560 },
+    { pat: /standard/i, name: 'Standard', minFico: 500 },
+  ];
+  const namedFound = namedTiers.filter(t => t.pat.test(text));
+  if (namedFound.length >= 2) {
+    namedFound.forEach((t, idx) => {
+      const rateP = new RegExp(t.name + '[^%\\d]*(\\d{1,2}\\.\\d{2})\\s*\\+?\\s*%?', 'i');
+      const m = text.match(rateP);
+      if (m) {
+        programs.push({
+          tier: t.name, rate: parseFloat(m[1]),
+          minFico: t.minFico, maxFico: namedFound[idx-1] ? namedFound[idx-1].minFico - 1 : 9999,
+          maxLTV: 140, minYear: 2015,
+          maxMileage: 200000, maxCarfax: 7500, fee: 0
+        });
+      }
+    });
+    if (programs.length >= 2) return programs;
+  }
+
+  // ── Pattern 2: Ordinal Gear tiers — 6th, 5th, 4th etc ───────────────────
+  const gearM = text.match(/(\d+)(?:st|nd|rd|th)\s*(?:gear)?[^%]*(\d{1,2}\.\d{2})\s*%/gi);
+  if (gearM && gearM.length >= 2) {
+    gearM.forEach(match => {
+      const numM = match.match(/(\d+)(?:st|nd|rd|th)/i);
+      const rateM = match.match(/(\d{1,2}\.\d{2})\s*%/);
+      if (numM && rateM) {
+        programs.push({
+          tier: numM[0] + ' Gear', rate: parseFloat(rateM[1]),
+          minFico: 0, maxFico: 9999,
+          maxLTV: 140, minYear: 2015,
+          maxMileage: 200000, maxCarfax: 7500, fee: 0
+        });
+      }
+    });
+    if (programs.length >= 2) return programs.slice(0, 8);
+  }
+
+  // ── Pattern 3: Lettered tiers — A/B/C/D ─────────────────────────────────
+  const letterTiers = ['A','B','C','D','E'];
+  const letterFico  = [700, 640, 580, 520, 0];
+  let letterFound = 0;
+  lines.forEach((line, i) => {
+    const m = line.match(/^(?:Tier\s*)?([A-E])(?:\s|$|\+|-)/);
+    if (!m) return;
+    const idx = letterTiers.indexOf(m[1]);
+    if (idx < 0) return;
+    const rate = findRateInBlock(lines, i, 4);
+    if (!rate) return;
+    programs.push({
+      tier: 'Tier ' + m[1], rate,
+      minFico: letterFico[idx], maxFico: idx > 0 ? letterFico[idx-1]-1 : 9999,
+      maxLTV: 140 - (idx * 5), minYear: 2015,
+      maxMileage: 200000, maxCarfax: 7500, fee: 0
+    });
+    letterFound++;
+  });
+  if (letterFound >= 2) return programs.filter((p,i,a) => a.findIndex(x=>x.tier===p.tier)===i);
+
+  // ── Pattern 4: Numbered tiers — Tier 1/2/3/4 Star 7/6/5 etc ─────────────
+  const tierPatterns = [/Tier\s*(\d)/i, /Star\s*(\d)/i, /Program\s*(\d)/i, /Grade\s*([A-D])/i];
   lines.forEach((line, i) => {
     let tierName = null;
     for (const pat of tierPatterns) {
@@ -271,11 +439,18 @@ function extractRates(text, lenderName) {
     case 'prefera':     return extractPrefera(lines);
     case 'edenpark':    return extractEdenpark(lines);
     case 'iceberg':     return extractIceberg(lines);
+    case 'iauto':       return extractIAuto(lines);
     default:            return extractGeneric(lines);
   }
 }
 
 // ── Route module ───────────────────────────────────────────────────────────
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function (app, pool, requireBilling) {
 
   // Ensure table exists on first load
@@ -303,7 +478,7 @@ module.exports = function (app, pool, requireBilling) {
   })().catch(e => console.error('❌ lender_rate_sheets migration:', e.message));
 
   // ── GET /api/lenders/rates ─────────────────────────────────────────────
-  // Returns tenant's custom rate sheets. hasCustomRates=false → use hardcoded defaults.
+  // Returns tenant's custom rate sheets + extraLenders (DB lenders not in hardcoded list)
   app.get('/api/lenders/rates', requireAuth, async (req, res) => {
     try {
       const { rows } = await pool.query(
@@ -314,9 +489,49 @@ module.exports = function (app, pool, requireBilling) {
          ORDER BY lender_name, min_fico DESC`,
         [req.user.userId]
       );
-      res.json({ success: true, rates: rows, hasCustomRates: rows.length > 0 });
+
+      // Known lender keys — these are handled by hardcoded lender objects in frontend
+      const KNOWN_KEYS = ['sda','autocapital','northlake','prefera','edenpark','iceberg',
+                          'cibc','rbc','santander','servus','wsleasing','iauto'];
+
+      // Group all DB rates by lender_name
+      const grouped = {};
+      rows.forEach(r => {
+        if (!grouped[r.lender_name]) grouped[r.lender_name] = [];
+        grouped[r.lender_name].push(r);
+      });
+
+      // extraLenders = lenders in DB not in the known hardcoded list
+      const extraLenders = {};
+      Object.entries(grouped).forEach(([key, tiers]) => {
+        if (!KNOWN_KEYS.includes(key)) {
+          // Build a display name from the key
+          const displayName = key.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          extraLenders[key] = {
+            name: displayName,
+            tiers: tiers.map(t => ({
+              tier: t.tier_name,
+              minFico: parseInt(t.min_fico) || 0,
+              maxFico: parseInt(t.max_fico) || 9999,
+              rate: parseFloat(t.buy_rate) || 0,
+              maxLTV: parseInt(t.max_ltv) || 140,
+              minYear: parseInt(t.min_year) || 2015,
+              maxMileage: parseInt(t.max_mileage) || 200000,
+              maxCarfax: parseInt(t.max_carfax) || 7500,
+              fee: parseFloat(t.lender_fee) || 0,
+            }))
+          };
+        }
+      });
+
+      res.json({
+        success: true,
+        rates: rows,
+        hasCustomRates: rows.length > 0,
+        extraLenders   // dynamic lenders unknown to frontend
+      });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -332,7 +547,7 @@ module.exports = function (app, pool, requireBilling) {
       upload.single('sheet')(req, res, (err) => {
         if (err) reject(err); else resolve();
       });
-    }).catch(err => { return res.status(400).json({ success: false, error: err.message }); });
+    }).catch(err => { return res.status(400).json({ success: false, error: sanitizeError(err) }); });
     if (res.headersSent) return;
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
     let pdf;
@@ -404,7 +619,7 @@ module.exports = function (app, pool, requireBilling) {
 
     } catch (e) {
       console.error('❌ PDF parse error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -442,7 +657,7 @@ module.exports = function (app, pool, requireBilling) {
       res.json({ success: true, count: tiers.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -458,7 +673,7 @@ module.exports = function (app, pool, requireBilling) {
       );
       res.json({ success: true, message: `${req.params.lenderName} reset to platform defaults` });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
