@@ -8,6 +8,49 @@ const validateTwilio = makeTwilioWebhookValidator();
 
 module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireBilling, notifyOwner }) {
 
+  // ── Tenant settings cache — 5 min TTL ────────────────────────────
+  const _tenantCache = new Map();
+  const TENANT_CACHE_TTL = 5 * 60 * 1000;
+
+  async function getTenantSettings(userId) {
+    const cached = _tenantCache.get(userId);
+    if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL) return cached.data;
+    const result = await pool.query(
+      `SELECT settings_json, twilio_number FROM desk_users WHERE id = $1`,
+      [userId]
+    );
+    if (!result.rows[0]) return null;
+    const row = result.rows[0];
+    const parsed = typeof row.settings_json === 'string'
+      ? JSON.parse(row.settings_json) : (row.settings_json || {});
+    const data = {
+      twilioNumber:    row.twilio_number || parsed.twilioNumber  || null,
+      notifyPhone:     parsed.notifyPhone   || null,
+      dealerName:      parsed.dealerName    || null,
+      dealerCity:      parsed.dealerCity    || null,
+      googleReviewUrl: parsed.googleReviewUrl || null,
+    };
+    _tenantCache.set(userId, { data, ts: Date.now() });
+    return data;
+  }
+
+  function invalidateTenantCache(userId) { _tenantCache.delete(userId); }
+
+  // Expose cache invalidation for desk.js settings save
+  app.locals.invalidateTenantCache = invalidateTenantCache;
+
+  // ── Ensure twilio_number index exists ─────────────────────────────
+  ;(async () => {
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_desk_users_twilio_number
+        ON desk_users(twilio_number)
+        WHERE twilio_number IS NOT NULL
+      `);
+    } catch(e) { /* index already exists or schema issue */ }
+  })();
+
+
   // ── Dashboard stats ───────────────────────────────────────────
   app.get('/api/dashboard', requireAuth, async (req, res) => {
     const uid = req.user.userId;
@@ -185,7 +228,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           error: 'This customer already has an active conversation. Check "Recent Conversations" below to continue their conversation.'
         });
       }
-      const messageBody = message || "Hi! 👋 I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)";
+      const tenantName = TENANT_DEALER_NAME || 'the dealership';
+      const messageBody = message || `Hi! 👋 I'm Sarah from ${tenantName}. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)`;
       const uid = req.user.userId;
       await getOrCreateCustomer(normalizedPhone, uid);
       const conversation = await getOrCreateConversation(normalizedPhone, uid);
@@ -194,9 +238,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // Use tenant's twilio number for outbound
       let startFromNumber = process.env.TWILIO_PHONE_NUMBER;
       try {
-        const ts = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [uid]);
-        const sp = typeof ts.rows[0]?.settings_json === 'string' ? JSON.parse(ts.rows[0].settings_json) : (ts.rows[0]?.settings_json || {});
-        if (sp.twilioNumber) startFromNumber = sp.twilioNumber;
+        const ts = await getTenantSettings(uid);
+        if (ts?.twilioNumber) startFromNumber = ts.twilioNumber;
       } catch(e) {}
       await twilioClient.messages.create({
         body: messageBody,
@@ -256,32 +299,28 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return res.status(500).send('No tenant');
     }
 
-    // Fetch tenant outbound number + notify phone
+    // Fetch tenant settings (cached) + inventory in parallel
     let TENANT_FROM_NUMBER = process.env.TWILIO_PHONE_NUMBER;
     let TENANT_NOTIFY_PHONE = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
     let TENANT_DEALER_NAME  = process.env.DEALER_NAME  || 'First Financial Auto';
     let TENANT_DEALER_CITY  = process.env.DEALER_CITY  || 'Calgary, AB';
     let TENANT_INVENTORY    = [];
     try {
-      const tenantSettings = await pool.query(
-        `SELECT settings_json FROM desk_users WHERE id = $1`,
-        [WEBHOOK_USER_ID]
-      );
-      if (tenantSettings.rows[0]?.settings_json) {
-        const s = tenantSettings.rows[0].settings_json;
-        const parsed = typeof s === 'string' ? JSON.parse(s) : s;
-        if (parsed.twilioNumber) TENANT_FROM_NUMBER  = parsed.twilioNumber;
-        if (parsed.notifyPhone)  TENANT_NOTIFY_PHONE = parsed.notifyPhone;
-        if (parsed.dealerName)   TENANT_DEALER_NAME  = parsed.dealerName;
-        if (parsed.dealerCity)   TENANT_DEALER_CITY  = parsed.dealerCity;
+      const [ts, invResult] = await Promise.all([
+        getTenantSettings(WEBHOOK_USER_ID),
+        pool.query(
+          `SELECT year, make, model, mileage, price, type, condition, stock
+           FROM desk_inventory WHERE user_id = $1 AND status = 'available'
+           ORDER BY year DESC LIMIT 20`,
+          [WEBHOOK_USER_ID]
+        )
+      ]);
+      if (ts) {
+        if (ts.twilioNumber) TENANT_FROM_NUMBER  = ts.twilioNumber;
+        if (ts.notifyPhone)  TENANT_NOTIFY_PHONE = ts.notifyPhone;
+        if (ts.dealerName)   TENANT_DEALER_NAME  = ts.dealerName;
+        if (ts.dealerCity)   TENANT_DEALER_CITY  = ts.dealerCity;
       }
-      // Load available inventory for this tenant
-      const invResult = await pool.query(
-        `SELECT year, make, model, mileage, price, type, condition, stock
-         FROM desk_inventory WHERE user_id = $1 AND status = 'available'
-         ORDER BY year DESC LIMIT 20`,
-        [WEBHOOK_USER_ID]
-      );
       TENANT_INVENTORY = invResult.rows;
     } catch(e) { console.error('⚠️ Tenant settings/inventory fetch failed:', e.message); }
 
@@ -296,6 +335,20 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // Background processing
       (async () => {
         try {
+          // ── Dedup: block if this MessageSid was already processed ──
+          const msgSid = req.body.MessageSid || req.body.SmsSid || '';
+          if (msgSid) {
+            const sidKey = `twilio_sid_${msgSid}`;
+            if (global._processedSids && global._processedSids.has(sidKey)) {
+              console.log('[WEBHOOK] Duplicate MessageSid blocked:', msgSid);
+              return;
+            }
+            if (!global._processedSids) global._processedSids = new Set();
+            global._processedSids.add(sidKey);
+            // Clean up after 5 minutes to prevent memory growth
+            setTimeout(() => { if (global._processedSids) global._processedSids.delete(sidKey); }, 5 * 60 * 1000);
+          }
+
           const _wd = String(phone).replace(/\D/g,'');
           const _nanp = (_wd.length===10&&_wd[0]>='2')||(_wd.length===11&&_wd.startsWith('1')&&_wd[1]>='2');
           if (!_nanp) { console.log('[WEBHOOK] Non-NANP blocked:', phone); return; }
@@ -329,12 +382,24 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_NOTIFY_PHONE, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY);
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
-          await twilioClient.messages.create({
-            body: aiResponse,
-            from: TENANT_FROM_NUMBER,
-            to: phone
-          });
-          console.log('✅ Sarah replied:', aiResponse);
+          try {
+            await twilioClient.messages.create({
+              body: aiResponse,
+              from: TENANT_FROM_NUMBER,
+              to: phone
+            });
+            console.log('✅ Sarah replied:', aiResponse);
+          } catch (twilioErr) {
+            console.error(`❌ Sarah send FAILED to ${phone} — Code: ${twilioErr.code} Status: ${twilioErr.status} Msg: ${twilioErr.message}`);
+            // Log failed send to analytics so dealer can see it
+            try {
+              await logAnalytics('sms_send_failed', phone, {
+                error_code: twilioErr.code,
+                error_message: twilioErr.message,
+                attempted_message: aiResponse.substring(0, 100)
+              }, WEBHOOK_USER_ID);
+            } catch(e) {}
+          }
 
           const custName  = conversation.customer_name || 'Unknown';
           const custPhone = formatPretty(phone);
@@ -370,6 +435,44 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
 
+    // ── BARE GREETING — hi/hello/hey ─────────────────────────
+    if (lowerMsg === 'hi' || lowerMsg === 'hello' || lowerMsg === 'hey' ||
+        lowerMsg === 'hey there' || lowerMsg === 'hi there' || lowerMsg === 'good morning' ||
+        lowerMsg === 'good afternoon' || lowerMsg === 'good evening' || lowerMsg === 'howdy') {
+      if (conversation.stage === 'confirmed' || conversation.status === 'converted') {
+        return `Hey${name ? ' '+name : ''}! You're all set for ${conversation.datetime || 'your appointment'}. Anything else I can help with?`;
+      }
+      if (name && conversation.vehicle_type) {
+        // Returning customer mid-funnel — pick up where they left off
+        if (conversation.stage === 'budget' && !conversation.budget) return `Hey ${name}! Still here 😊 Where are you comfortable for monthly payments on a ${conversation.vehicle_type}?`;
+        if (conversation.stage === 'appointment') return `Hey ${name}! Would you like to come in for a test drive or would a quick call be easier?`;
+        if (conversation.stage === 'datetime') return `Hey ${name}! When works best for you?`;
+      }
+      return pick(
+        `Hey${name ? ' '+name : ''}! 👋 Great to hear from you. Are you looking for a Car, Truck, Van, or SUV?`,
+        `Hi${name ? ' '+name : ''}! I'm Sarah — what type of vehicle are you looking for today?`,
+        `Hey there${name ? ' '+name : ''}! Looking for a vehicle? Car, Truck, Van, or SUV — what are you after?`
+      );
+    }
+
+    // ── AMBIGUOUS POSITIVE — ok/sure/yeah/sounds good ────────
+    if (lowerMsg === 'ok' || lowerMsg === 'okay' || lowerMsg === 'sure' ||
+        lowerMsg === 'yeah' || lowerMsg === 'yep' || lowerMsg === 'sounds good' ||
+        lowerMsg === 'alright' || lowerMsg === 'cool' || lowerMsg === 'great' ||
+        lowerMsg === 'perfect' || lowerMsg === 'works for me') {
+      // Route based on current stage
+      if (conversation.stage === 'confirmed') return `${name ? 'Great '+name+'! ' : 'Great! '}See you ${conversation.datetime || 'soon'}! Text me if anything changes.`;
+      if (conversation.stage === 'appointment' && !conversation.intent) {
+        await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
+        return name ? `${name}, when works best to come in?` : "What's your name? I'll get everything set up.";
+      }
+      if (conversation.stage === 'datetime') return `When works best${name ? ' '+name : ''}? Morning, afternoon, or evening?`;
+      if (conversation.stage === 'name' && !name) return "What's your name?";
+      if (!conversation.vehicle_type) return "Are you looking for a Car, Truck, Van, or SUV?";
+      if (!conversation.budget) return `What monthly payment range works for you on a ${conversation.vehicle_type}?`;
+      return `${name ? name+', when' : 'When'} works best for you to come in or get a call?`;
+    }
+
     // ── STOP / UNSUBSCRIBE ────────────────────────────────────
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
         lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
@@ -390,6 +493,46 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     }
 
     // ── NOT INTERESTED ────────────────────────────────────────
+    // ── ALREADY SPOKE TO SOMEONE ─────────────────────────────
+    if (lowerMsg.includes('already spoke') || lowerMsg.includes('already talked') ||
+        lowerMsg.includes('already called') || lowerMsg.includes('someone called me') ||
+        lowerMsg.includes('already dealing') || lowerMsg.includes('already working') ||
+        lowerMsg.includes('salesperson') || lowerMsg.includes('sales person') ||
+        lowerMsg.includes('already in touch') || lowerMsg.includes('already contacted')) {
+      if (conversation.stage === 'confirmed' || conversation.status === 'converted') {
+        return `${name ? 'Hey '+name+'! ' : ''}Sounds like you\'re all set — our team will take great care of you. If you have any other questions, just text me anytime!`;
+      }
+      await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+      if (!name) return "No problem at all! What's your name so I can make sure the right person follows up?";
+      return `${name}, no problem! I'll flag it so the team knows you've already been in touch. When's the best time for them to reach back out?`;
+    }
+
+    // ── ALREADY BOUGHT / FOUND ONE ELSEWHERE ────────────────
+    if (lowerMsg.includes('already bought') || lowerMsg.includes('already got') ||
+        lowerMsg.includes('found one') || lowerMsg.includes('got one') ||
+        lowerMsg.includes('purchased') || lowerMsg.includes('just bought') ||
+        lowerMsg.includes('went with') || lowerMsg.includes('went somewhere') ||
+        lowerMsg.includes('got a car') || lowerMsg.includes('got a truck') ||
+        lowerMsg.includes('got a vehicle') || lowerMsg.includes('nevermind') ||
+        lowerMsg.includes('never mind') || lowerMsg.includes('no longer') ||
+        lowerMsg.includes('not looking anymore') || lowerMsg.includes('found what')) {
+      // Congratulate but still try to open a door
+      await updateConversation(conversation.id, { intent: 'callback', stage: 'name' });
+      if (conversation.status === 'converted') {
+        return `${name ? 'Congrats '+name+'! ' : 'Congrats! '}Excited for you — enjoy the new ride! If you ever need anything down the road, we're always here.`;
+      }
+      if (!name) {
+        return pick(
+          "Congrats on the new vehicle! 🎉 Just so you know — if you ever need anything down the road, financing options, trade-in, or protection packages, we're always here. What's your name? I'll keep you on file.",
+          "Oh nice, congrats! 🎉 If things don't work out or you're ever looking again, we'd love to earn your business. What's your name?"
+        );
+      }
+      return pick(
+        `Congrats ${name}! 🎉 Enjoy the new ride. If you ever need anything — trade-in, protection packages, or a vehicle down the road — just text me anytime. Would you be open to a quick call from our manager just to introduce himself?`,
+        `That's awesome ${name}! 🎉 If anything comes up or you know someone looking, we'd love the chance. Would a quick call from our team be okay — just a 2-minute intro, no pressure?`
+      );
+    }
+
     if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') ||
         lowerMsg.includes('no thank you') || lowerMsg.includes('wrong number') ||
         lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
@@ -411,9 +554,31 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         lowerMsg.includes('bad credit') || lowerMsg.includes('no credit') || lowerMsg.includes('poor credit') ||
         lowerMsg.includes('bankrupt') || lowerMsg.includes('consumer proposal') || lowerMsg.includes('cosign') ||
         lowerMsg.includes('down payment') || lowerMsg.includes('trade') || lowerMsg.includes('trading')) {
+      const hasTrade = lowerMsg.includes('trade') || lowerMsg.includes('trading');
+      if (hasTrade) {
+        if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Trades are no problem — we handle all makes and models, and we'll give you a fair value. What's your name? I'll have someone reach out to discuss what you've got."; }
+        await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
+        return `${name}, trades are no problem at all! Our team will assess your vehicle and give you a real number. When's a good time for a quick call to go over the details?`;
+      }
       if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Great question — that's exactly what our finance team handles. We work with all credit situations and have flexible options. What's your name? I'll have someone reach out who can walk you through everything."; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, our finance team handles all of that — they work with every credit situation. When's a good time for them to give you a quick call? No obligation.`;
+    }
+
+    // ── FINANCING TIMELINE / PROCESS QUESTIONS ──────────────
+    if (lowerMsg.includes('how long') || lowerMsg.includes('how does') || lowerMsg.includes('how do') ||
+        lowerMsg.includes('process') || lowerMsg.includes('timeline') || lowerMsg.includes('how fast') ||
+        lowerMsg.includes('quick') || lowerMsg.includes('same day') || lowerMsg.includes('how soon') ||
+        lowerMsg.includes('when can i') || lowerMsg.includes('how does financing') ||
+        lowerMsg.includes('what do i need') || lowerMsg.includes('what documents') ||
+        lowerMsg.includes('what papers') || lowerMsg.includes('requirements') ||
+        (lowerMsg.includes('financing') && (lowerMsg.includes('work') || lowerMsg.includes('take') || lowerMsg.includes('long') || lowerMsg.includes('fast')))) {
+      if (!name) {
+        await updateConversation(conversation.id, { intent: 'callback', stage: 'name' });
+        return "Great question! Our finance managers can walk you through the whole process — it's usually pretty quick. What's your name? I'll have one of them reach out.";
+      }
+      await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
+      return `${name}, our finance manager can walk you through everything — most deals move fast, sometimes same day depending on the situation. When's a good time for a quick call? They'll answer all your questions.`;
     }
 
     if (lowerMsg.includes('how much') || lowerMsg.includes('price') || lowerMsg.includes('cost') ||
@@ -429,6 +594,37 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Absolutely — I'll have one of our guys reach out with all the details. What's your name?"; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, I'll get one of our team on it. When's the best time to reach you?`;
+    }
+
+    // ── SPECIFIC YEAR/MAKE/MODEL REQUEST ─────────────────────
+    const yearMatch = message.match(/\b(19|20)\d{2}\b/);
+    const makeWords = ['ford','toyota','honda','chevrolet','chevy','gmc','dodge','ram','jeep','nissan','hyundai','kia','mazda','subaru','volkswagen','vw','bmw','mercedes','audi','lexus','infiniti','acura','cadillac','lincoln','buick','chrysler','mitsubishi','volvo','tesla','genesis'];
+    const hasMake = makeWords.some(m => lowerMsg.includes(m));
+    if ((yearMatch || hasMake) && (lowerMsg.includes('have') || lowerMsg.includes('got') || lowerMsg.includes('looking') || lowerMsg.includes('want') || lowerMsg.includes('need') || lowerMsg.includes('find') || lowerMsg.includes('sell') || lowerMsg.includes('any') || lowerMsg.includes('do you') || lowerMsg.includes('stock'))) {
+      const year = yearMatch ? yearMatch[0] : null;
+      const make = makeWords.find(m => lowerMsg.includes(m)) || '';
+      const makeLabel = make ? make.charAt(0).toUpperCase() + make.slice(1) : '';
+      const label = [year, makeLabel].filter(Boolean).join(' ');
+      if (inventory && inventory.length > 0) {
+        const matches = inventory.filter(v => {
+          const matchYear = year ? String(v.year) === year : true;
+          const matchMake = make ? (v.make || '').toLowerCase().includes(make) : true;
+          return matchYear && matchMake;
+        });
+        if (matches.length > 0) {
+          const examples = matches.slice(0,3).map(v => `${v.year} ${v.make} ${v.model}${v.mileage ? ' ('+Math.round(v.mileage/1000)+'k km)' : ''}${v.price ? ' — $'+Number(v.price).toLocaleString() : ''}`).join(', ');
+          if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name', vehicle_type: makeLabel || conversation.vehicle_type }); return `Yes! We have ${matches.length} ${label} option${matches.length>1?'s':''}: ${examples}. I can have someone reach out with full details and photos — what's your name?`; }
+          await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime', vehicle_type: makeLabel || conversation.vehicle_type });
+          return `${name}, we have ${matches.length} ${label} option${matches.length>1?'s':''} in stock: ${examples}. Want to come take a look, or would a quick call to go over the details work better?`;
+        } else {
+          if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `We don't have a ${label} in stock right now, but inventory moves fast and we can source vehicles. What's your name? I'll have someone reach out with what's coming in.`; }
+          await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
+          return `${name}, we don't have a ${label} right now but we can source them and get something close. When's a good time for one of our guys to reach out with options?`;
+        }
+      }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `Great choice! I'll have one of our guys reach out with details on ${label} options. What's your name?`; }
+      await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
+      return `${name}, I'll have the team pull up ${label} options for you. When's a good time to reach out?`;
     }
 
     if (lowerMsg.includes('do you have') || lowerMsg.includes('got any') || lowerMsg.includes('available') ||
@@ -477,6 +673,26 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return `${name}, I'll have the team send over what we've got. When's a good time to reach you? They can send photos and walk you through the options.`;
     }
 
+    // ── MULTI-INTENT: inventory ask + call request in same message ──
+    const wantsCall = lowerMsg.includes('call me') || lowerMsg.includes('give me a call') ||
+                      lowerMsg.includes('reach me') || lowerMsg.includes('contact me') ||
+                      lowerMsg.includes('someone call') || lowerMsg.includes('have someone');
+    const wantsInfo = lowerMsg.includes('do you have') || lowerMsg.includes('got any') ||
+                      lowerMsg.includes('in stock') || lowerMsg.includes('available');
+    if (wantsCall && wantsInfo && conversation.stage !== 'confirmed') {
+      // Answer the inventory question first, then capture callback intent
+      if (inventory && inventory.length > 0) {
+        const typeLabel = conversation.vehicle_type || 'vehicle';
+        const matches = inventory.slice(0, 3).map(v => `${v.year} ${v.make} ${v.model}`).join(', ');
+        await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+        if (!name) return `Yes! We have ${inventory.length} vehicles in stock — ${matches} and more. What's your name? I'll have someone reach out with details and photos.`;
+        return `${name}, yes! We have options in stock right now. I'll have one of our guys call you — when's the best time to reach you?`;
+      }
+      await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+      if (!name) return "Yes we do! What's your name? I'll have someone call you with full details.";
+      return `${name}, I'll have someone call you with what we've got. When's the best time to reach you?`;
+    }
+
     // ── STAGE 1: GREETING ─────────────────────────────────────
     if (conversation.stage === 'greeting' || !conversation.vehicle_type) {
       const truckWords = ['ram','f-150','f150','silverado','tacoma','tundra','pickup','sierra','ranger','frontier','colorado','gladiator','canyon','half ton','3/4 ton','1 ton','ton','truck'];
@@ -502,6 +718,20 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           `${vehicleType}s are popular right now! What monthly payment range works for you? Just a rough number is fine.`,
           `Love it! To narrow things down — where are you at for monthly payments? Like $300, $500, $700 range?`
         );
+      }
+      // Number without context at greeting — could be a budget
+      const greetNumbers = message.match(/\d+/g);
+      if (greetNumbers && greetNumbers.length > 0) {
+        const num = parseInt(greetNumbers[0]);
+        if (num >= 200 && num <= 2000) {
+          // Looks like a monthly budget — treat it as such
+          const budgetRange = (num * 72) < 30000 ? 'Under $30k' : (num * 72) < 50000 ? '$30k-$50k' : '$50k+';
+          await updateConversation(conversation.id, { budget: budgetRange, budget_amount: num, stage: 'appointment' });
+          return pick(
+            `$${num}/month — solid! I've got great options in that range. Would you like to come in for a test drive, or would a quick call work better?`,
+            `Around $${num}/month works! I can find you some solid vehicles. Want to come take a look, or start with a quick call?`
+          );
+        }
       }
       return pick(
         "Are you looking for a Car, Truck, Van, or SUV? Just let me know and I'll find you the best options.",
@@ -550,6 +780,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (budgetAmount > 0 && budgetAmount < 100) {
         return "Just to make sure I understand — is that $" + budgetAmount + " per month, or total budget? Most people are in the $300-$700/month range.";
+      }
+      // Price objection handler
+      if (lowerMsg.includes('too expensive') || lowerMsg.includes('too much') || lowerMsg.includes("can't afford") ||
+          lowerMsg.includes('cannot afford') || lowerMsg.includes('out of my budget') || lowerMsg.includes('too high') ||
+          lowerMsg.includes('no money') || lowerMsg.includes('broke') || lowerMsg.includes('tight') ||
+          lowerMsg.includes('cheaper') || lowerMsg.includes('less expensive') || lowerMsg.includes('lower payment')) {
+        await updateConversation(conversation.id, { budget: 'Under $30k', stage: 'appointment' });
+        return pick(
+          `No worries at all${name ? ' '+name : ''}! We work with all budgets and every credit situation. Even $200-$300/month gets you into something solid. Would you like to come in and see what we can do, or would a quick call be easier?`,
+          `${name ? name+', we' : "We"} specialize in making deals work — we've helped customers in every situation. Let's figure out what works for you. Want to come in or would a call be better?`
+        );
       }
       return pick(
         "Just a rough number is fine — like $300/month, $500/month, or a total budget like $25k, $40k. Whatever you're comfortable with.",
@@ -632,6 +873,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         finalDateTime = 'ASAP';
       }
 
+      // After-hours awareness: flag if booked outside typical hours
+      const nowHour = new Date().getHours();
+      const isAfterHours = nowHour >= 21 || nowHour < 8; // After 9pm or before 8am
       await updateConversation(conversation.id, { datetime: finalDateTime, stage: 'confirmed', status: 'converted' });
       const data = {
         phone, name: conversation.customer_name, vehicleType: conversation.vehicle_type,
@@ -655,7 +899,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           } catch(e) { console.warn('⚠️ Appt confirmation SMS failed:', e.message); }
         }, 60000);
         await logAnalytics('appointment_booked', phone, data, userId);
-        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}. We're at ${dealerName} in ${dealerCity} and we deliver across Canada. I'll have everything ready when you get here.\n\nIf anything changes just text me back. See you soon!`;
+        const afterHoursNote = isAfterHours ? ` Our team will confirm your time in the morning.` : '';
+        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}.${afterHoursNote} We're at ${dealerName} in ${dealerCity} and we deliver across Canada. I'll have everything ready when you get here.\n\nIf anything changes just text me back. See you soon!`;
       } else {
         await saveCallback(data);
         try {
