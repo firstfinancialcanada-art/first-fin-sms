@@ -6,6 +6,12 @@
 // For operator-only access to logging and management.
 // ═══════════════════════════════════════════════════════════════
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function(app, pool) {
   
   // Admin auth middleware (same as admin-dashboard.js)
@@ -49,7 +55,7 @@ module.exports = function(app, pool) {
       });
     } catch (e) {
       console.error('❌ Admin outcome stats error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -75,7 +81,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, pending: result.rows });
     } catch (e) {
       console.error('❌ Admin pending outcomes error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -131,7 +137,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, outcome: result.rows[0] });
     } catch (e) {
       console.error('❌ Admin update outcome error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -180,7 +186,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, outcomeId: result.rows[0].id });
     } catch (e) {
       console.error('❌ Admin log outcome error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -213,7 +219,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, stats: result.rows });
     } catch (e) {
       console.error('❌ Admin lender stats error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -241,7 +247,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, outcomes: result.rows });
     } catch (e) {
       console.error('❌ Admin recent outcomes error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -265,7 +271,7 @@ module.exports = function(app, pool) {
       res.json({ success: true, deleted: id });
     } catch (e) {
       console.error('❌ Admin delete outcome error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
