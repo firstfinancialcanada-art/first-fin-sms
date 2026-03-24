@@ -8,6 +8,12 @@ function csvSafe(val) {
   return '"' + s + '"';
 }
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
 
   // ── Test notification ─────────────────────────────────────────
