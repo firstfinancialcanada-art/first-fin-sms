@@ -14,9 +14,64 @@ const {
 } = require('../middleware/auth');
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
+
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
 const TRIAL_DAYS = 3;
 
 module.exports = function (app, pool, twilioClient, requireBilling) {
+
+  // ── Feature telemetry table ───────────────────────────────────────
+  ;(async () => {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS feature_events (
+          id         BIGSERIAL PRIMARY KEY,
+          user_id    INTEGER REFERENCES desk_users(id) ON DELETE CASCADE,
+          feature    VARCHAR(80) NOT NULL,
+          action     VARCHAR(80),
+          meta       JSONB DEFAULT '{}',
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_fe_user ON feature_events(user_id, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_fe_feature ON feature_events(feature, created_at DESC)`);
+      await pool.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_du_last_active ON desk_users(last_active DESC NULLS LAST)`);
+      console.log('✅ feature_events + last_active ready');
+    } catch(e) { console.error('⚠️ telemetry migration:', e.message); }
+  })();
+
+  // ── Telemetry helper — fire-and-forget, never blocks route ────────
+  async function trackFeature(userId, feature, action, meta) {
+    if (!userId) return;
+    try {
+      await Promise.all([
+        pool.query(
+          `INSERT INTO feature_events (user_id, feature, action, meta) VALUES ($1,$2,$3,$4)`,
+          [userId, feature, action || 'used', JSON.stringify(meta || {})]
+        ),
+        pool.query(`UPDATE desk_users SET last_active = NOW() WHERE id = $1`, [userId])
+      ]);
+    } catch(e) {}
+  }
+
+  // ── requireAuth wrapper that also tracks last_active ─────────────
+  function requireAuthTracked(req, res, next) {
+    const origNext = next;
+    requireAuth(req, res, () => {
+      // Fire and forget — update last_active on every authenticated request
+      if (req.user?.userId) {
+        pool.query(`UPDATE desk_users SET last_active = NOW() WHERE id = $1`, [req.user.userId])
+          .catch(() => {});
+      }
+      origNext();
+    });
+  }
+
   // ── Helpers ────────────────────────────────────────────────
   const DEFAULT_SETTINGS = {
     salesName: '',
@@ -28,7 +83,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     apr: 8.99,
     target: 30,
     twilioNumber: '',   // tenant's Twilio phone number (e.g. +14031234567)
-    notifyPhone: ''     // owner's cell for Sarah appointment/callback alerts
+    notifyPhone: '',    // owner's cell for Sarah appointment/callback alerts
+    googleReviewUrl: '' // sent to customer after deal funded
   };
 
   function normalizeSettings(raw) {
@@ -125,7 +181,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ Register error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -181,7 +237,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ Login error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -230,7 +286,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       res.json({ success: true, accessToken: newAccess, refreshToken: newRefresh });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -266,7 +322,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         billing
       });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -279,7 +335,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -327,7 +383,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const result = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]);
       res.json({ success: true, settings: normalizeSettings(result.rows[0]?.settings_json || {}) });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -352,10 +408,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         console.error('⚠️ settings UPDATE matched 0 rows for userId:', req.user.userId);
       } else {
         console.log('✅ settings saved for userId:', req.user.userId, normalized.dealerName, twilioNum ? `| Twilio: ${twilioNum}` : '');
+        trackFeature(req.user.userId, 'settings', 'saved');
+        // Invalidate tenant cache if exposed
+        if (app.locals.invalidateTenantCache) app.locals.invalidateTenantCache(req.user.userId);
       }
       res.json({ success: true, tenantBranding: buildTenantBrandingFromSettings(normalized) });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -393,7 +452,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch(e) {
       console.error('Twilio number search error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
@@ -441,7 +500,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       if (e.code === 21422 || e.message?.includes('not available')) {
         return res.status(409).json({ success: false, error: 'This number was just taken — please search again and pick another.' });
       }
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -454,12 +513,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
+        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
         [req.user.userId]
       );
       res.json({ success: true, inventory: result.rows });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -470,15 +529,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     try {
       const v = req.body;
       const result = await client.query(
-        `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, updated_at=NOW()
+        `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, book_value=$12, updated_at=NOW()
          RETURNING *`,
-        [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null]
+        [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -495,18 +554,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       for (const v of vehicles) {
         await client.query(
-          `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'available')
-           ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, status='available', updated_at=NOW()`,
-          [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null]
+          `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'available')
+           ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, book_value=$12, status='available', updated_at=NOW()`,
+          [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
         );
       }
 
       await client.query('COMMIT');
+      trackFeature(req.user.userId, 'inventory', 'bulk_upload', { count: vehicles.length });
       res.json({ success: true, count: vehicles.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -518,7 +578,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND user_id = $2', [req.params.stock, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -536,7 +596,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, crm: result.rows });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -563,7 +623,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true, count: crm.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -580,7 +640,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, entry: result.rows[0] });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -596,7 +656,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -608,7 +668,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_crm WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -627,7 +687,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const dealLog = result.rows.map(r => ({ ...r.deal_data, _dbId: r.id }));
       res.json({ success: true, dealLog });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -653,7 +713,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true, count: dealLog.length });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -667,8 +727,48 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         [req.user.userId, JSON.stringify(req.body.deal)]
       );
       res.json({ success: true, id: result.rows[0].id });
+      trackFeature(req.user.userId, 'deal_desk', 'deal_logged');
+
+      // ── Deal-funded customer SMS ─────────────────────────────
+      // Fire async — non-blocking, never fails the log
+      (async () => {
+        try {
+          const deal = req.body.deal || {};
+          const custPhone = deal.customer?.phone || deal.customerPhone || '';
+          const custName  = (deal.customer?.name || deal.customerName || '').split(' ')[0] || 'there';
+          const vehicleDesc = deal.vehicle?.desc || deal.vehicleDesc || 'your new vehicle';
+          if (!custPhone) return;
+
+          // Get dealer settings for review URL and Twilio number
+          const settingsRow = await client.query(
+            'SELECT settings_json, twilio_number FROM desk_users WHERE id = $1',
+            [req.user.userId]
+          );
+          if (!settingsRow.rows.length) return;
+          const settings = normalizeSettings(settingsRow.rows[0].settings_json || {});
+          const fromNumber = settingsRow.rows[0].twilio_number || process.env.TWILIO_PHONE_NUMBER;
+          const reviewUrl  = settings.googleReviewUrl || '';
+          const dealerName = settings.dealerName || 'us';
+
+          if (!fromNumber) return;
+
+          const reviewLine = reviewUrl
+            ? `\n\nIf you have a moment, we'd love a quick review: ${reviewUrl}`
+            : '';
+          const smsBody = `Congrats ${custName} on your ${vehicleDesc}! 🎉 It was a pleasure working with you at ${dealerName}. Enjoy the ride!${reviewLine}`;
+
+          await twilioClient.messages.create({
+            body: smsBody,
+            from: fromNumber,
+            to: custPhone.replace(/\D/g, '').replace(/^(\d{10})$/, '+1$1').replace(/^1(\d{10})$/, '+1$1')
+          });
+          console.log('✅ Deal-funded SMS sent to', custPhone);
+        } catch(e) {
+          console.error('⚠️ Deal-funded SMS failed:', e.message);
+        }
+      })();
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -680,7 +780,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_deal_log WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -698,7 +798,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, overrides: result.rows[0]?.overrides_json || {} });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -716,7 +816,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -728,7 +828,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('DELETE FROM desk_lender_rates WHERE user_id = $1', [req.user.userId]);
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -748,7 +848,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       for (const row of result.rows) slots[row.slot] = row.deal_data;
       res.json({ success: true, scenarios: slots });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -778,7 +878,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.json({ success: true });
     } catch (e) {
       await client.query('ROLLBACK');
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -794,7 +894,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, deal: result.rows[0]?.deal_data || null });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -812,7 +912,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true });
     } catch (e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -821,6 +921,20 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // LOAD ALL — single endpoint to hydrate frontend
   // ═══════════════════════════════════════════════════════════
+  // ── FEATURE TELEMETRY API (dealer's own) ────────────────────────
+  app.get('/api/desk/feature-events', requireAuth, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+      const { rows } = await pool.query(`
+        SELECT feature, action, COUNT(*) as count, MAX(created_at) as last_used
+        FROM feature_events
+        WHERE user_id = $1 AND created_at > NOW() - INTERVAL '30 days'
+        GROUP BY feature, action ORDER BY count DESC
+      `, [userId]);
+      res.json({ success: true, events: rows });
+    } catch(e) { res.status(500).json({ success: false, error: sanitizeError(e) }); }
+  });
+
   app.get('/api/desk/load-all', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
@@ -873,7 +987,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       });
     } catch (e) {
       console.error('❌ /api/desk/load-all error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
