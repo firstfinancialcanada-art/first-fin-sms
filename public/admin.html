@@ -248,7 +248,10 @@ tr:hover td{background:rgba(30,90,246,.03);}
         <div class="card">
           <div class="card-header">
             <div class="card-title">TENANTS <span id="tenant-count"></span></div>
-            <button class="act blue" onclick="document.getElementById('createModal').classList.add('open')">+ New Tenant</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="act" style="background:rgba(16,185,129,.15);color:#10b981;border-color:rgba(16,185,129,.3);" onclick="loadTenantHealth()">📊 Health</button>
+              <button class="act blue" onclick="document.getElementById('createModal').classList.add('open')">+ New Tenant</button>
+            </div>
           </div>
           <div class="tbl-wrap">
             <table>
@@ -267,6 +270,26 @@ tr:hover td{background:rgba(30,90,246,.03);}
                 <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-family:'DM Mono',monospace;font-size:12px;">Loading tenants...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- TENANT HEALTH PANEL -->
+        <div class="card" id="healthCard" style="display:none;">
+          <div class="card-header">
+            <div class="card-title">TENANT HEALTH <span id="health-summary" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);font-weight:400;margin-left:10px;"></span></div>
+            <div style="display:flex;gap:8px;">
+              <select id="healthFilter" onchange="filterHealth(this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 10px;font-size:12px;">
+                <option value="all">All Tenants</option>
+                <option value="critical">🔴 Critical</option>
+                <option value="high">🟠 High Risk</option>
+                <option value="medium">🟡 Medium Risk</option>
+                <option value="low">🟢 Active</option>
+              </select>
+              <button class="act" onclick="document.getElementById('healthCard').style.display='none'">✕ Close</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div id="healthGrid" style="padding:16px;"></div>
           </div>
         </div>
 
@@ -459,7 +482,103 @@ async function api(path, opts = {}) {
 // ── LOAD ALL ─────────────────────────────────────────────────────
 async function loadAll() {
   await Promise.all([loadStats(), loadUsers(), loadInquiries(), loadSystemStatus()]);
+  // Pre-load tenant health in background
+  loadTenantHealth().catch(() => {});
   loadOutcomeData();
+}
+
+// ── TENANT HEALTH ────────────────────────────────────────────────
+let allHealthData = [];
+
+async function loadTenantHealth() {
+  document.getElementById('healthCard').style.display = 'block';
+  document.getElementById('healthGrid').innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px;">Loading health data...</div>';
+  try {
+    const d = await api('/api/admin/tenant-health');
+    if (!d.success) throw new Error(d.error);
+    allHealthData = d.tenants;
+
+    const s = d.summary;
+    document.getElementById('health-summary').textContent =
+      `${s.total} tenants · ${s.active30d} active 30d · ${s.riskHigh} high risk · ${s.noPhone} no Twilio`;
+
+    renderHealth(allHealthData);
+  } catch(e) {
+    document.getElementById('healthGrid').innerHTML = `<div style="color:var(--red);padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+function filterHealth(risk) {
+  const filtered = risk === 'all' ? allHealthData : allHealthData.filter(t => t.churnRisk === risk);
+  renderHealth(filtered);
+}
+
+function renderHealth(tenants) {
+  if (!tenants.length) {
+    document.getElementById('healthGrid').innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);">No tenants match filter</div>';
+    return;
+  }
+
+  const riskColor = { low:'#10b981', medium:'#f59e0b', high:'#ef4444', critical:'#dc2626' };
+  const riskLabel = { low:'ACTIVE', medium:'MEDIUM', high:'HIGH RISK', critical:'CRITICAL' };
+
+  document.getElementById('healthGrid').innerHTML = tenants.map(t => {
+    const rc    = riskColor[t.churnRisk] || '#666';
+    const rl    = riskLabel[t.churnRisk] || t.churnRisk;
+    const lastA = t.lastActive
+      ? new Date(t.lastActive).toLocaleDateString('en-CA',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Never';
+    const dayStr = t.daysInactive !== null ? `${t.daysInactive}d ago` : 'Never logged in';
+
+    const featureBar = (label, count, max, color) => {
+      const pct = Math.min(100, max > 0 ? Math.round((count/max)*100) : (count > 0 ? 100 : 0));
+      return `<div style="margin-bottom:5px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:2px;">
+          <span>${label}</span><span style="color:${count>0?'var(--text)':'var(--muted)'};">${count}</span>
+        </div>
+        <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;">
+          <div style="height:3px;width:${pct}%;background:${color};border-radius:2px;transition:width .3s;"></div>
+        </div>
+      </div>`;
+    };
+
+    const maxDeals = Math.max(...tenants.map(x=>x.usage.deals), 1);
+    const maxConvs = Math.max(...tenants.map(x=>x.sarah.conversations), 1);
+
+    return `<div style="border:1px solid rgba(255,255,255,.08);border-left:3px solid ${rc};border-radius:8px;padding:14px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:800;font-size:13px;">${esc(t.dealerName !== '—' ? t.dealerName : t.name)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(t.email)} · ${esc(t.dealerCity)}</div>
+          <div style="font-size:10px;margin-top:3px;color:${t.daysInactive > 14 ? '#f59e0b' : 'var(--muted)'};">
+            Last active: ${lastA} (${dayStr})
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="padding:3px 10px;border-radius:4px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};border:1px solid ${rc}44;">${rl}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">${t.status?.replace('_',' ').toUpperCase() || 'TRIAL'}</div>
+          ${!t.hasPhone ? '<div style="font-size:9px;color:#f59e0b;margin-top:2px;">⚠ No Twilio #</div>' : ''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Platform Usage (30d)</div>
+          ${featureBar('Deals Logged', t.usage.deals, maxDeals, '#f59e0b')}
+          ${featureBar('Inventory Uploads', t.usage.inventory, 5, '#10b981')}
+          ${featureBar('CRM Entries', t.usage.crm, 10, '#3b82f6')}
+          ${featureBar('Lender PDFs', t.usage.lenderPdfs, 5, '#8b5cf6')}
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">SARAH Performance</div>
+          ${featureBar('Conversations', t.sarah.conversations, maxConvs, '#06b6d4')}
+          ${featureBar('Conversions', t.sarah.conversions, Math.max(...tenants.map(x=>x.sarah.conversions),1), '#10b981')}
+          <div style="margin-top:8px;font-size:10px;color:var(--muted);">
+            Conv. rate: <strong style="color:var(--text);">${t.sarah.conversations > 0 ? ((t.sarah.conversions/t.sarah.conversations)*100).toFixed(1)+'%' : '—'}</strong>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function loadStats() {
