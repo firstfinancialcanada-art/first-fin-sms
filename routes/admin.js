@@ -2,6 +2,12 @@
 const { pool } = require('../lib/db');
 const { state } = require('../lib/bulk');
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function adminRoutes(app, { twilioClient }) {
 
   // 🚨 EMERGENCY STOP +12899688778
