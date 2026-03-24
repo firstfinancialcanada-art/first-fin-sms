@@ -1,6 +1,12 @@
 // routes/admin-dashboard.js — FIRST-FIN Admin Panel API
 const { pool } = require('../lib/db');
 
+// ── Error sanitizer — never leak DB internals to client ──────────
+function sanitizeError(e) {
+  console.error('Route error:', e);
+  return 'An unexpected error occurred. Please try again.';
+}
+
 module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   function adminAuth(req, res, next) {
@@ -50,7 +56,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Admin stats error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -117,7 +123,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
     } catch(e) {
       console.error('Admin users error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -131,7 +137,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET suspended = TRUE WHERE id = $1', [req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -144,7 +150,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET suspended = FALSE WHERE id = $1', [req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -184,7 +190,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
       res.json({ success: true, releasedNumber: twilioNumber || null });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -209,7 +215,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       res.json({ success: true, inquiries: result.rows });
     } catch(e) {
       console.error('Admin inquiries error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -223,7 +229,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE platform_inquiries SET status = $1 WHERE id = $2', [status, req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -253,7 +259,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       );
       res.json({ success: true, user: result.rows[0] });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -274,7 +280,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       );
       res.json({ success: true, user: result.rows[0] });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -293,7 +299,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('UPDATE desk_users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
       res.json({ success: true });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -345,7 +351,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Release number error:', e.message);
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
@@ -369,13 +375,129 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       ]);
       res.json({ success: true, message: 'fintest account reset — all data cleared' });
     } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
   });
 
   // ── GET /api/admin/system-status ──────────────────────────
+  // ── TENANT HEALTH DASHBOARD ──────────────────────────────────────
+  // Returns per-tenant usage stats, churn risk, feature adoption
+  app.get('/api/admin/tenant-health', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      // Main tenant query — join desk_users with feature_events and conversations
+      const { rows } = await client.query(`
+        SELECT
+          u.id,
+          u.email,
+          u.display_name,
+          u.subscription_status,
+          u.trial_ends_at,
+          u.created_at            AS joined_at,
+          u.last_active,
+          u.twilio_number,
+          u.settings_json,
+          -- Days since last active
+          EXTRACT(DAY FROM NOW() - u.last_active)::int AS days_inactive,
+          -- Feature usage counts (last 30 days)
+          COALESCE(fe.deal_count,  0) AS deals_last_30d,
+          COALESCE(fe.inv_count,   0) AS inventory_uploads_last_30d,
+          COALESCE(fe.crm_count,   0) AS crm_entries_last_30d,
+          COALESCE(fe.set_count,   0) AS settings_saves_last_30d,
+          COALESCE(fe.pdf_count,   0) AS lender_pdfs_last_30d,
+          -- SARAH stats (all time)
+          COALESCE(cv.total_convs, 0) AS total_conversations,
+          COALESCE(cv.converted,   0) AS total_conversions,
+          COALESCE(cv.appts,       0) AS total_appointments
+        FROM desk_users u
+        LEFT JOIN (
+          SELECT
+            user_id,
+            COUNT(*) FILTER (WHERE feature = 'deal_desk')   AS deal_count,
+            COUNT(*) FILTER (WHERE feature = 'inventory')   AS inv_count,
+            COUNT(*) FILTER (WHERE feature = 'crm')         AS crm_count,
+            COUNT(*) FILTER (WHERE feature = 'settings')    AS set_count,
+            COUNT(*) FILTER (WHERE feature = 'lenders')     AS pdf_count
+          FROM feature_events
+          WHERE created_at > NOW() - INTERVAL '30 days'
+          GROUP BY user_id
+        ) fe ON fe.user_id = u.id
+        LEFT JOIN (
+          SELECT
+            user_id,
+            COUNT(*)                                           AS total_convs,
+            COUNT(*) FILTER (WHERE status = 'converted')       AS converted,
+            0                                                  AS appts
+          FROM conversations
+          GROUP BY user_id
+        ) cv ON cv.user_id = u.id
+        WHERE u.role != 'admin'
+        ORDER BY u.last_active DESC NULLS LAST
+      `);
+
+      // Churn risk scoring
+      const tenants = rows.map(t => {
+        const daysInactive = t.days_inactive || 999;
+        const hasActivity  = t.deals_last_30d > 0 || t.crm_entries_last_30d > 0 || t.inventory_uploads_last_30d > 0;
+        const isTrial      = t.subscription_status === 'trial';
+        const trialExpired = isTrial && t.trial_ends_at && new Date(t.trial_ends_at) < new Date();
+
+        let churnRisk = 'low';
+        if (trialExpired)                          churnRisk = 'critical';
+        else if (daysInactive > 21 && !hasActivity) churnRisk = 'high';
+        else if (daysInactive > 14 || !hasActivity) churnRisk = 'medium';
+
+        const settings = typeof t.settings_json === 'string'
+          ? JSON.parse(t.settings_json || '{}') : (t.settings_json || {});
+
+        return {
+          id:              t.id,
+          email:           t.email,
+          name:            t.display_name || settings.dealerName || t.email,
+          dealerName:      settings.dealerName || '—',
+          dealerCity:      settings.dealerCity || '—',
+          status:          t.subscription_status,
+          joinedAt:        t.joined_at,
+          lastActive:      t.last_active,
+          daysInactive:    daysInactive < 999 ? daysInactive : null,
+          hasPhone:        !!t.twilio_number,
+          churnRisk,
+          usage: {
+            deals:         t.deals_last_30d,
+            inventory:     t.inventory_uploads_last_30d,
+            crm:           t.crm_entries_last_30d,
+            settings:      t.settings_saves_last_30d,
+            lenderPdfs:    t.lender_pdfs_last_30d,
+          },
+          sarah: {
+            conversations: t.total_conversations,
+            conversions:   t.total_conversions,
+            appointments:  t.total_appointments,
+          }
+        };
+      });
+
+      // Platform-wide summary
+      const summary = {
+        total:       tenants.length,
+        active30d:   tenants.filter(t => t.daysInactive !== null && t.daysInactive <= 30).length,
+        riskHigh:    tenants.filter(t => t.churnRisk === 'high' || t.churnRisk === 'critical').length,
+        riskMedium:  tenants.filter(t => t.churnRisk === 'medium').length,
+        noPhone:     tenants.filter(t => !t.hasPhone).length,
+        trials:      tenants.filter(t => t.status === 'trial').length,
+      };
+
+      res.json({ success: true, tenants, summary });
+    } catch(e) {
+      console.error('⚠️ tenant-health error:', e.message);
+      res.status(500).json({ success: false, error: e.message });
+    } finally {
+      client.release();
+    }
+  });
+
   app.get('/api/admin/system-status', adminAuth, async (req, res) => {
     const { state } = require('../lib/bulk');
     res.json({
