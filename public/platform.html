@@ -59,37 +59,12 @@ html{overflow-x:hidden;}
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;transition:background .3s,color .3s;overflow-x:hidden;}
 
 /* ── NAV ── */
-.beta-tag{font-size:7px;border-radius:3px;padding:0 4px;font-weight:800;letter-spacing:0.5px;margin-bottom:-1px;}
 .platform-header{background:linear-gradient(135deg,#050b18 0%,#0a1530 100%);border-bottom:1px solid var(--border2);padding:0 12px;display:flex;align-items:center;gap:8px;height:60px;position:sticky;top:0;z-index:1000;}
 .platform-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;background:linear-gradient(90deg,var(--primary),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;flex-shrink:0;}
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
-.main-nav{display:flex;gap:4px;flex:1;min-width:0;margin-left:8px;overflow-x:auto;scrollbar-width:none;}.main-nav::-webkit-scrollbar{display:none;}
-
-.nav-btn {
-  padding: 4px 8px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--muted);
-  font-family: 'Outfit', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .5px;
-  cursor: pointer;
-  transition: all .2s;
-  text-transform: uppercase;
-  white-space: nowrap;
-  flex-shrink: 0;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 65px;
-  height: 52px;
-}
-
+.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;flex-shrink:1;}
+.nav-btn{padding:6px 10px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:1;}
 .nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
 .nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
@@ -248,7 +223,7 @@ select option{background:#0d1526;color:var(--text);}
 .ltv-over{background:linear-gradient(90deg,var(--red),#f87171);}
 
 /* ── COMPARE ENGINE ── */
-.compare-input-bar{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;}
+.compare-input-bar{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;}
 .compare-vehicle-card{background:linear-gradient(135deg,#070d1a,#0a1530);border:1px solid var(--border2);border-radius:10px;padding:18px;margin-bottom:20px;}
 .compare-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-bottom:14px;}
 .lender-card{border:2px solid var(--green);border-radius:10px;overflow:hidden;background:var(--surface);transition:transform .2s;}
@@ -394,6 +369,36 @@ select option{background:#0d1526;color:var(--text);}
 .comm-breakdown{font-size:11px;color:var(--muted);margin-top:4px;}
 
 /* ── PRINT WORKSHEET ── */
+@media print{
+  body.print-comparison *{display:none;}
+  body.print-comparison #printComparisonDiv,
+  body.print-comparison #printComparisonDiv *{display:block!important;}
+  body.print-comparison #printComparisonDiv{position:fixed;inset:0;padding:20px;font-family:'Outfit',sans-serif;font-size:11px;color:#000;background:white;overflow:auto;}
+  body.print-comparison .cpr-header{text-align:center;border-bottom:3px solid #1e5af6;padding-bottom:12px;margin-bottom:16px;}
+  body.print-comparison .cpr-logo{font-size:20px;font-weight:900;color:#1e5af6;letter-spacing:2px;}
+  body.print-comparison .cpr-title{font-size:14px;font-weight:700;letter-spacing:3px;margin-top:4px;}
+  body.print-comparison .cpr-sub{font-size:10px;color:#666;margin-top:4px;}
+  body.print-comparison .cpr-vehicle{background:#f5f7ff;border:1px solid #dde;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:700;}
+  body.print-comparison .cpr-pill{display:inline-block;margin-left:10px;padding:2px 8px;background:#e8eeff;border-radius:4px;font-size:10px;font-weight:600;color:#1e5af6;}
+  body.print-comparison .cpr-summary{display:flex!important;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  body.print-comparison .sum-pill{padding:4px 10px;border-radius:5px;font-size:10px;font-weight:700;border:1px solid #ddd;background:#f9f9f9;}
+  body.print-comparison .cpr-section-title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:6px 10px;border-radius:5px;}
+  body.print-comparison .cpr-green{background:#e8faf2;color:#059669;}
+  body.print-comparison .cpr-red{background:#fef2f2;color:#dc2626;}
+  body.print-comparison .cpr-cards{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px;}
+  body.print-comparison .lender-card{break-inside:avoid;border:1px solid #ddd;border-radius:6px;padding:10px;}
+  body.print-comparison .lc-header{padding:6px 10px;border-radius:4px;margin-bottom:6px;display:flex!important;justify-content:space-between;}
+  body.print-comparison .lc-header.eligible,.lc-header:not(.ineligible){background:#e8faf2;}
+  body.print-comparison .lc-header.ineligible{background:#fef2f2;}
+  body.print-comparison .lc-name{font-weight:800;font-size:11px;}
+  body.print-comparison .lc-body{font-size:10px;}
+  body.print-comparison .lc-row{display:flex!important;justify-content:space-between;padding:2px 0;border-bottom:1px solid #f5f5f5;}
+  body.print-comparison .fail-reason{color:#dc2626;font-size:9px;margin:2px 0;}
+  body.print-comparison .ltv-bar-wrap,.ltv-bar,.bw-toggle-wrap-rc,.lc-header .lc-check{display:none!important;}
+  body.print-comparison button{display:none!important;}
+  body.print-comparison .cpr-footer{text-align:center;font-size:9px;color:#999;margin-top:16px;border-top:1px solid #eee;padding-top:8px;}
+}
+
 @media print{
   body *{display:none;}
   #printWorksheet,#printWorksheet *{display:block!important;}
@@ -1031,16 +1036,13 @@ select option{background:#0d1526;color:var(--text);}
     </div>
   </div>
   <nav class="main-nav">
-    <button class="nav-btn active" onclick="showSection('deal',this)"><i data-lucide="briefcase" class="ico" style="margin:0"></i>Deal Desk</button>
-    <button class="nav-btn" onclick="showSection('inventory',this)"><i data-lucide="warehouse" class="ico" style="margin:0"></i>Inventory</button>
-    <button class="nav-btn" onclick="showSection('lenders',this)"><i data-lucide="landmark" class="ico" style="margin:0"></i>Lenders</button>
+    <button class="nav-btn active" onclick="showSection('deal',this)"><i data-lucide="briefcase" class="ico"></i>Deal Desk</button>
+    <button class="nav-btn" onclick="showSection('inventory',this)"><i data-lucide="warehouse" class="ico"></i>Inventory</button>
+    <button class="nav-btn" onclick="showSection('lenders',this)"><i data-lucide="landmark" class="ico"></i>Lenders</button>
     <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah"><i data-lucide="bot" class="ico"></i>SARAH</button>
-    <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico" style="margin:0"></i>Compare All</button>
+    <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
-    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(30,90,246,.1));color:#10b981;border-color:rgba(16,185,129,.3);">
-    <span class="beta-tag" style="background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.4);">BETA</span>
-    <div style="display:flex;align-items:center;gap:3px;"><i data-lucide="refresh-cw" class="ico" style="margin:0"></i>DT Sync</div>
-  </button>
+    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
     <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><i data-lucide="facebook" class="ico"></i>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
@@ -1535,7 +1537,7 @@ select option{background:#0d1526;color:var(--text);}
         <thead>
           <tr>
             <th>Stock #</th><th>Year</th><th>Make</th><th>Model</th><th>Type</th>
-            <th>Mileage</th><th>Price</th><th>Condition</th><th>Action</th>
+            <th>Mileage</th><th>Price</th><th>Book Val</th><th>Condition</th><th>Action</th>
           </tr>
         </thead>
         <tbody id="inventoryBody"></tbody>
@@ -1558,6 +1560,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="ltab" onclick="showLenderTab('lq-sda',this)">SDA</button>
     <button class="ltab" onclick="showLenderTab('lq-servus',this)">Servus</button>
     <button class="ltab" onclick="showLenderTab('lq-wsleasing',this)">WS Leasing</button>
+    <button class="ltab" onclick="showLenderTab('lq-iauto',this)">iA Auto</button>
     <button class="ltab" onclick="showLenderTab('lq-quickref',this)"><i data-lucide="book-open" class="ico-sm"></i>Quick Ref</button>
   </div>
   <div id="lender-panels"></div>
@@ -1601,6 +1604,10 @@ select option{background:#0d1526;color:var(--text);}
           <option value="84">84 months</option>
         </select>
       </div>
+      <div class="fgroup" style="margin:0;">
+        <label>Contract Rate (%) <span style="font-size:9px;color:var(--amber);font-weight:400;">for gross calc</span></label>
+        <input type="number" id="compareContractRate" placeholder="e.g. 14.99" step="0.01" oninput="runComparison()" style="background:var(--surface);border:1px solid rgba(245,158,11,.4);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;">
+      </div>
     </div>
     <!-- Customer Profile Row -->
     <div class="compare-input-bar" style="margin-top:10px;padding-top:14px;border-top:1px solid var(--border);">
@@ -1617,15 +1624,70 @@ select option{background:#0d1526;color:var(--text);}
         <input type="number" id="compareExisting" placeholder="e.g. 800" oninput="runComparison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
       </div>
     </div>
+    <div class="compare-input-bar" style="margin-top:10px;padding-top:14px;border-top:1px solid var(--border);grid-template-columns:1fr 1fr auto;">
+      <div class="fgroup" style="margin:0;">
+        <label>Book Value Override ($) <span style="font-size:9px;color:var(--muted);font-weight:400;">— overrides inventory book value for LTV calc</span></label>
+        <input type="number" id="compareBookVal" placeholder="Leave blank to use inventory value" oninput="runComparison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
+      </div>
+      <div class="fgroup" style="margin:0;">
+        <label>Condition</label>
+        <select id="compareCondition" onchange="runComparison()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
+          <option value="">Use vehicle condition</option>
+          <option value="clean">Clean</option>
+          <option value="average">Average</option>
+          <option value="rough">Rough</option>
+          <option value="very rough">Very Rough</option>
+        </select>
+      </div>
+      <div class="fgroup" style="margin:0;display:flex;align-items:center;gap:10px;padding-top:20px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--amber);white-space:nowrap;">
+          <input type="checkbox" id="compareBK" onchange="runComparison()" style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer;">
+          BK / Proposal
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--green);white-space:nowrap;">
+          <input type="checkbox" id="compareGst" onchange="runComparison()" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
+          Include GST
+        </label>
+      </div>
+    </div>
+    <!-- Co-Applicant Row -->
+    <div class="compare-input-bar" style="margin-top:8px;padding:14px 18px;border-top:1px solid rgba(6,182,212,.2);background:rgba(6,182,212,.04);border-radius:10px;border:1px solid rgba(6,182,212,.2);grid-template-columns:auto 1fr 1fr;">
+      <div style="display:flex;align-items:center;padding-right:12px;">
+        <span style="font-size:11px;font-weight:800;color:#06b6d4;white-space:nowrap;text-transform:uppercase;letter-spacing:1px;">Co-Applicant</span>
+      </div>
+      <div class="fgroup" style="margin:0;">
+        <label style="color:#06b6d4;">Co-App Beacon Score</label>
+        <input type="number" id="compareCoBeacon" placeholder="e.g. 620" oninput="runComparison()" style="background:var(--surface);border:1px solid rgba(6,182,212,.4);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
+      </div>
+      <div class="fgroup" style="margin:0;">
+        <label style="color:#06b6d4;">Co-App Monthly Income ($)</label>
+        <input type="number" id="compareCoIncome" placeholder="e.g. 3500" oninput="runComparison()" style="background:var(--surface);border:1px solid rgba(6,182,212,.4);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-family:'Outfit',sans-serif;">
+      </div>
+    </div>
 
     <div id="compareVehicleCard" style="display:none;" class="compare-vehicle-card"></div>
+
+    <!-- Beacon Range Simulator -->
+    <div id="beaconSimulator" style="margin-bottom:16px;padding:16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;display:none;"></div>
+
     <div id="compareResults" style="display:none;">
       <div class="summary-bar" id="compareSummaryBar"></div>
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 4px;">
+        <button onclick="printComparison()" style="padding:7px 16px;background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.3);border-radius:6px;color:var(--primary);font-weight:700;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;" title="Print or export comparison">
+          🖨️ Print Comparison
+        </button>
+      </div>
       <div class="section-label eligible">ELIGIBLE LENDERS <span class="count-pill green" id="eligibleCount"></span></div>
       <div class="compare-grid" id="compareEligible"></div>
       <div class="section-label ineligible" id="ineligibleLabel" style="display:none;">INELIGIBLE LENDERS <span class="count-pill gray" id="ineligibleCount"></span></div>
       <div class="compare-grid" id="compareIneligible"></div>
     </div>
+    <!-- Lender Submission Tracker -->
+    <div id="submissionTracker" style="display:none;margin-top:20px;padding:18px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;"></div>
+
+    <!-- Hidden print comparison div -->
+    <div id="printComparisonDiv" style="display:none;"></div>
+
     <div id="comparePlaceholder" class="compare-placeholder">
       <div class="placeholder-icon" style="width:60px;height:60px;border-radius:50%;background:rgba(30,90,246,.1);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><span style="font-size:24px;color:var(--primary);font-weight:800;">?</span></div>
       <div class="placeholder-title">Select a Vehicle to Begin</div>
@@ -1845,7 +1907,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="modal-close" onclick="closeModal('csvImportModal')">×</button>
     <div class="modal-title"><i data-lucide="upload" class="ico-lg"></i>Import Inventory CSV</div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);">
-      Expected columns: <strong style="color:var(--amber);">stock, year, make, model, mileage, price, condition, carfax, type</strong><br>
+      Expected columns: <strong style="color:var(--amber);">stock, year, make, model, mileage, price, condition, carfax, type, book_value</strong><br>
       Any column order is fine. Headers must be in row 1.
     </div>
     <div class="fgroup"><label>Paste CSV Content</label><textarea id="csvText" rows="12" placeholder="stock,year,make,model,mileage,price,condition,carfax,type&#10;AM24036,2023,JEEP,COMPASS,69200,35980,Average,0,4x4" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:monospace;font-size:11px;resize:vertical;"></textarea></div>
