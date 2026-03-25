@@ -285,6 +285,9 @@
     window.DEMO_MODE = false;
     const banner = document.getElementById('demo-banner');
     if (banner) banner.style.display = 'none';
+    // Kill watermark if it was showing from a demo session
+    const wm = document.getElementById('demo-watermark');
+    if (wm) wm.style.display = 'none';
     // Strip ?demo=1 from URL so next page load doesn't re-trigger demo mode
     if (new URLSearchParams(location.search).get('demo') === '1') {
       const clean = location.pathname;
