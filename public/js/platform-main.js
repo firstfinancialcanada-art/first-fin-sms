@@ -3917,6 +3917,141 @@ function buildLenderRateEditor(){
       </button>` : ''}
     </div>`;
   });
+  // ── Extra lenders (uploaded by this tenant, not in hardcoded list) ──
+  const extra = window._extraLenders || {};
+  Object.entries(extra).forEach(([lid, lenderData]) => {
+    const tiers    = lenderData.tiers || [];
+    const dispName = lenderData.name || lid.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const tierRows = tiers.map(t =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(6,182,212,.1);">
+         <span style="font-size:11px;color:var(--text);font-weight:600;">${t.tier}</span>
+         <span style="font-size:11px;color:#06b6d4;font-weight:800;">${t.rate}%
+           <span style="color:var(--muted);font-weight:400;"> · ${t.minFico === 0 ? 'No Min' : t.minFico}–${t.maxFico >= 9999 ? '∞' : t.maxFico} · ${t.maxLTV}% LTV</span>
+         </span>
+       </div>`
+    ).join('');
+
+    grid.innerHTML += `
+    <div id="lre-card-extra-${lid}" style="
+      background:var(--surface);
+      border:1px solid rgba(6,182,212,.3);
+      border-top:3px solid #06b6d4;
+      border-radius:10px;
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    ">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#06b6d4;">${dispName}</div>
+        <span style="font-size:9px;background:rgba(6,182,212,.12);color:#06b6d4;border:1px solid rgba(6,182,212,.3);border-radius:20px;padding:3px 9px;font-weight:700;letter-spacing:.5px;">
+          ★ CUSTOM — ${tiers.length} TIERS
+        </span>
+      </div>
+
+      <!-- Current tiers -->
+      ${tiers.length ? `
+      <div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.18);border-radius:7px;padding:10px;">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;margin-bottom:7px;">Active Rate Tiers</div>
+        ${tierRows}
+      </div>` : ''}
+
+      <!-- PDF Re-upload -->
+      <div style="background:var(--surface2);border:1px dashed var(--border);border-radius:7px;padding:12px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Upload Updated Rate Sheet</div>
+        <input type="file" id="pdf-extra-${lid}" accept=".pdf" style="display:none;" onchange="updateExtraFileLabel('${lid}')">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <div onclick="document.getElementById('pdf-extra-${lid}').click()"
+            style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px;"
+            onmouseover="this.style.borderColor='#06b6d4'" onmouseout="this.style.borderColor='var(--border)'">
+            <i data-lucide="paperclip" class="ico-sm"></i>
+            <span id="pdf-extra-label-${lid}">Choose PDF file...</span>
+          </div>
+          <button onclick="uploadExtraRateSheet('${lid}')"
+            style="padding:7px 14px;background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.4);border-radius:6px;color:#06b6d4;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;">
+            Upload PDF
+          </button>
+        </div>
+        <div id="upload-status-extra-${lid}" style="font-size:11px;min-height:18px;"></div>
+      </div>
+
+      <!-- Manual tier entry -->
+      <div>
+        <button onclick="toggleExtraManual('${lid}')"
+          style="width:100%;padding:8px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:6px;color:#06b6d4;font-weight:700;font-size:11px;cursor:pointer;margin-bottom:6px;">
+          ✏ Edit / Add Tiers Manually
+        </button>
+        <div id="extra-manual-${lid}" style="display:none;">
+          <div id="extra-manual-tiers-${lid}"></div>
+          <button onclick="addExtraManualTier('${lid}')"
+            style="width:100%;padding:6px;background:transparent;border:1px dashed var(--border);border-radius:5px;color:var(--muted);font-size:11px;cursor:pointer;margin-top:4px;">
+            + Add Tier
+          </button>
+          <button onclick="saveExtraManualRates('${lid}')"
+            style="width:100%;padding:8px;background:rgba(6,182,212,.15);border:1px solid rgba(6,182,212,.4);border-radius:6px;color:#06b6d4;font-weight:700;font-size:11px;cursor:pointer;margin-top:6px;">
+            Save Tiers
+          </button>
+        </div>
+      </div>
+
+      <!-- Delete this lender -->
+      <button onclick="deleteExtraLender('${lid}','${dispName}')"
+        style="width:100%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:var(--red);font-size:11px;padding:7px;border-radius:6px;cursor:pointer;font-weight:700;">
+        <i data-lucide="trash-2" class="ico-sm"></i> Remove Lender
+      </button>
+    </div>`;
+  });
+
+  // Add an "Add New Lender" card at the end
+  grid.innerHTML += `
+  <div style="
+    background:var(--surface2);
+    border:2px dashed var(--border);
+    border-radius:10px;
+    padding:24px 16px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    min-height:200px;
+  ">
+    <i data-lucide="plus-circle" style="width:32px;height:32px;color:var(--muted);"></i>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);">Add New Lender</div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;">Upload a PDF rate sheet or enter tiers manually for any lender not listed above</div>
+    <input type="text" id="newLenderNameInput" placeholder="Lender name (e.g. ABC Finance)"
+      style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:12px;font-family:'Outfit',sans-serif;text-align:center;">
+    <div style="display:flex;gap:8px;width:100%;">
+      <div onclick="document.getElementById('newLenderPdfInput').click()"
+        style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--muted);cursor:pointer;text-align:center;"
+        onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+        📎 Choose PDF
+      </div>
+      <button onclick="uploadNewLender()"
+        style="padding:7px 14px;background:rgba(30,90,246,.15);border:1px solid rgba(30,90,246,.4);border-radius:6px;color:var(--primary);font-weight:700;font-size:11px;cursor:pointer;">
+        Upload
+      </button>
+    </div>
+    <input type="file" id="newLenderPdfInput" accept=".pdf" style="display:none;" onchange="document.querySelector('#newLenderNameInput').placeholder=this.files[0]?.name||'Lender name'">
+    <div id="newLenderStatus" style="font-size:11px;min-height:16px;"></div>
+    <button onclick="showNewLenderManual()"
+      style="font-size:11px;color:var(--muted);background:transparent;border:none;cursor:pointer;text-decoration:underline;">
+      or enter tiers manually instead
+    </button>
+    <div id="newLenderManual" style="display:none;width:100%;">
+      <div id="newLenderManualTiers"></div>
+      <button onclick="addNewLenderManualTier()"
+        style="width:100%;padding:6px;background:transparent;border:1px dashed var(--border);border-radius:5px;color:var(--muted);font-size:11px;cursor:pointer;margin-top:4px;">
+        + Add Tier
+      </button>
+      <button onclick="saveNewLenderManual()"
+        style="width:100%;margin-top:6px;padding:8px;background:rgba(30,90,246,.15);border:1px solid rgba(30,90,246,.4);border-radius:6px;color:var(--primary);font-weight:700;font-size:11px;cursor:pointer;">
+        Save New Lender
+      </button>
+    </div>
+  </div>`;
+
   setTimeout(refreshIcons, 50);
 }
 
@@ -3924,6 +4059,200 @@ function updateFileLabel(lid){
   const file = document.getElementById('pdf-'+lid)?.files[0];
   const label = document.getElementById('pdf-label-'+lid);
   if(label && file) label.textContent = file.name;
+}
+
+// ── Extra lender helper functions ─────────────────────────────────
+
+function updateExtraFileLabel(lid){
+  const file = document.getElementById(`pdf-extra-${lid}`)?.files[0];
+  const label = document.getElementById(`pdf-extra-label-${lid}`);
+  if(label && file) label.textContent = file.name;
+}
+
+async function uploadExtraRateSheet(lid){
+  const fileInput = document.getElementById(`pdf-extra-${lid}`);
+  const statusEl  = document.getElementById(`upload-status-extra-${lid}`);
+  if(!fileInput?.files.length){ toast('Select a PDF first'); return; }
+  const formData = new FormData();
+  formData.append('sheet', fileInput.files[0]);
+  formData.append('lenderName', lid);
+  statusEl.innerHTML = '<span style="color:var(--muted);">⏳ Parsing PDF...</span>';
+  try {
+    const res  = await FF.apiFetch('/api/lenders/upload-sheet', { method:'POST', body: formData });
+    const data = await res.json();
+    if(data.success){
+      statusEl.innerHTML = `<span style="color:var(--green);">✅ ${data.count} tiers updated</span>`;
+      await loadTenantRates();
+      buildLenderRateEditor();
+      toast(`✅ ${lid.toUpperCase()} rates updated`);
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">✗ ${data.error}</span>`;
+    }
+  } catch(e){
+    statusEl.innerHTML = `<span style="color:var(--red);">✗ Upload failed</span>`;
+  }
+}
+
+function toggleExtraManual(lid){
+  const el = document.getElementById(`extra-manual-${lid}`);
+  if(!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  if(!visible && !document.getElementById(`extra-manual-tiers-${lid}`)?.children.length){
+    addExtraManualTier(lid);
+  }
+}
+
+let _extraManualCounts = {};
+function addExtraManualTier(lid){
+  const container = document.getElementById(`extra-manual-tiers-${lid}`);
+  if(!container) return;
+  if(!_extraManualCounts[lid]) _extraManualCounts[lid] = 0;
+  const n = ++_extraManualCounts[lid];
+  container.innerHTML += `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:6px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;font-size:11px;">
+        <div><label style="color:var(--muted);">Tier Name</label><input type="text" id="em-tier-${lid}-${n}" placeholder="Tier 1" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Rate %</label><input type="number" id="em-rate-${lid}-${n}" step="0.01" placeholder="13.49" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Min FICO</label><input type="number" id="em-minfico-${lid}-${n}" placeholder="620" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Max FICO</label><input type="number" id="em-maxfico-${lid}-${n}" placeholder="679" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Max LTV%</label><input type="number" id="em-ltv-${lid}-${n}" placeholder="140" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+      </div>
+    </div>`;
+}
+
+async function saveExtraManualRates(lid){
+  const count = _extraManualCounts[lid] || 0;
+  if(!count){ toast('Add at least one tier'); return; }
+  const tiers = [];
+  for(let i=1; i<=count; i++){
+    const tier    = document.getElementById(`em-tier-${lid}-${i}`)?.value;
+    const rate    = parseFloat(document.getElementById(`em-rate-${lid}-${i}`)?.value);
+    const minFico = parseInt(document.getElementById(`em-minfico-${lid}-${i}`)?.value) || 0;
+    const maxFico = parseInt(document.getElementById(`em-maxfico-${lid}-${i}`)?.value) || 9999;
+    const maxLTV  = parseInt(document.getElementById(`em-ltv-${lid}-${i}`)?.value)   || 140;
+    if(!tier || isNaN(rate)) continue;
+    tiers.push({ tier, rate, minFico, maxFico, maxLTV });
+  }
+  if(!tiers.length){ toast('Fill in at least one complete tier'); return; }
+  try {
+    const res  = await FF.apiFetch('/api/lenders/manual-rates', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ lenderName: lid, tiers })
+    });
+    const data = await res.json();
+    if(data.success){
+      await loadTenantRates();
+      buildLenderRateEditor();
+      toast(`✅ ${lid.toUpperCase()} — ${tiers.length} tiers saved`);
+    } else { toast('Save failed: ' + data.error); }
+  } catch(e){ toast('Save failed'); }
+}
+
+async function deleteExtraLender(lid, name){
+  if(!confirm(`Remove ${name} from your lender list? This cannot be undone.`)) return;
+  try {
+    const res  = await FF.apiFetch(`/api/lenders/rates/${encodeURIComponent(lid)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if(data.success){
+      await loadTenantRates();
+      buildLenderRateEditor();
+      initExtraLenderPanels();
+      toast(`${name} removed`);
+    } else { toast('Remove failed'); }
+  } catch(e){ toast('Remove failed'); }
+}
+
+// ── Add New Lender functions ──────────────────────────────────────
+
+async function uploadNewLender(){
+  const nameEl   = document.getElementById('newLenderNameInput');
+  const fileInput = document.getElementById('newLenderPdfInput');
+  const statusEl  = document.getElementById('newLenderStatus');
+  const name = (nameEl?.value || '').trim();
+  if(!name){ toast('Enter a lender name first'); nameEl?.focus(); return; }
+  if(!fileInput?.files.length){ toast('Select a PDF file'); return; }
+  const lid = name.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const formData = new FormData();
+  formData.append('sheet', fileInput.files[0]);
+  formData.append('lenderName', lid);
+  statusEl.innerHTML = '<span style="color:var(--muted);">⏳ Parsing PDF...</span>';
+  try {
+    const res  = await FF.apiFetch('/api/lenders/upload-sheet', { method:'POST', body: formData });
+    const data = await res.json();
+    if(data.success){
+      statusEl.innerHTML = `<span style="color:var(--green);">✅ ${data.count} tiers loaded for ${name}</span>`;
+      nameEl.value = '';
+      fileInput.value = '';
+      await loadTenantRates();
+      buildLenderRateEditor();
+      initExtraLenderPanels();
+      toast(`✅ ${name} added — ${data.count} tiers`);
+    } else if(data.fallback){
+      statusEl.innerHTML = `<span style="color:var(--amber);">⚠ Couldn't auto-parse — enter tiers manually</span>`;
+      showNewLenderManual();
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">✗ ${data.error}</span>`;
+    }
+  } catch(e){
+    statusEl.innerHTML = `<span style="color:var(--red);">✗ Upload failed</span>`;
+  }
+}
+
+let _newLenderManualCount = 0;
+function showNewLenderManual(){
+  const el = document.getElementById('newLenderManual');
+  if(el) el.style.display = 'block';
+  if(!_newLenderManualCount) addNewLenderManualTier();
+}
+
+function addNewLenderManualTier(){
+  const container = document.getElementById('newLenderManualTiers');
+  if(!container) return;
+  const n = ++_newLenderManualCount;
+  container.innerHTML += `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:6px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;font-size:11px;">
+        <div><label style="color:var(--muted);">Tier Name</label><input type="text" id="nl-tier-${n}" placeholder="Tier 1" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Rate %</label><input type="number" id="nl-rate-${n}" step="0.01" placeholder="13.49" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Min FICO</label><input type="number" id="nl-minfico-${n}" placeholder="620" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Max FICO</label><input type="number" id="nl-maxfico-${n}" placeholder="679" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+        <div><label style="color:var(--muted);">Max LTV%</label><input type="number" id="nl-ltv-${n}" placeholder="140" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px;"></div>
+      </div>
+    </div>`;
+}
+
+async function saveNewLenderManual(){
+  const nameEl = document.getElementById('newLenderNameInput');
+  const name   = (nameEl?.value || '').trim();
+  if(!name){ toast('Enter a lender name'); nameEl?.focus(); return; }
+  const lid = name.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const tiers = [];
+  for(let i=1; i<=_newLenderManualCount; i++){
+    const tier    = document.getElementById(`nl-tier-${i}`)?.value;
+    const rate    = parseFloat(document.getElementById(`nl-rate-${i}`)?.value);
+    const minFico = parseInt(document.getElementById(`nl-minfico-${i}`)?.value) || 0;
+    const maxFico = parseInt(document.getElementById(`nl-maxfico-${i}`)?.value) || 9999;
+    const maxLTV  = parseInt(document.getElementById(`nl-ltv-${i}`)?.value)   || 140;
+    if(!tier || isNaN(rate)) continue;
+    tiers.push({ tier, rate, minFico, maxFico, maxLTV });
+  }
+  if(!tiers.length){ toast('Add at least one complete tier'); return; }
+  try {
+    const res  = await FF.apiFetch('/api/lenders/manual-rates', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ lenderName: lid, tiers })
+    });
+    const data = await res.json();
+    if(data.success){
+      nameEl.value = '';
+      _newLenderManualCount = 0;
+      await loadTenantRates();
+      buildLenderRateEditor();
+      initExtraLenderPanels();
+      toast(`✅ ${name} added — ${tiers.length} tiers`);
+    } else { toast('Save failed: ' + data.error); }
+  } catch(e){ toast('Save failed'); }
 }
 
 async function uploadRateSheet(lid){
