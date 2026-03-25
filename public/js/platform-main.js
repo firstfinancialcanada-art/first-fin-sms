@@ -376,6 +376,51 @@ function refreshLenderCheckerDropdowns(){
 }
 window.refreshLenderCheckerDropdowns = refreshLenderCheckerDropdowns;
 
+// ── CONDITION INLINE EDIT ────────────────────────────────────────
+async function editCondition(stock, currentVal, event) {
+  event.stopPropagation();
+  const cell = event.currentTarget;
+  const oldHTML = cell.innerHTML;
+  const CONDITIONS = ['Extra Clean', 'Clean', 'Average', 'Rough', 'Very Rough'];
+
+  const select = document.createElement('select');
+  select.style.cssText = 'background:var(--surface);border:1px solid var(--amber);border-radius:4px;color:var(--text);padding:4px 6px;font-size:11px;font-family:Outfit,sans-serif;cursor:pointer;';
+  CONDITIONS.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    if(c.toLowerCase() === (currentVal||'average').toLowerCase()) opt.selected = true;
+    select.appendChild(opt);
+  });
+  cell.innerHTML = '';
+  cell.appendChild(select);
+  select.focus();
+
+  async function save() {
+    const newVal = select.value;
+    try {
+      const res = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}/condition`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condition: newVal })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const inv = window.ffInventory || window.inventory || [];
+        const v = inv.find(x => x.stock === stock);
+        if (v) v.condition = newVal;
+        const cls = newVal.toLowerCase().replace(' ','-');
+        cell.innerHTML = `<span class="badge badge-${cls}" style="cursor:pointer;" title="Click to change condition">${newVal}</span>`;
+        toast(`Condition updated: ${stock}`);
+      } else { cell.innerHTML = oldHTML; }
+    } catch(e) { cell.innerHTML = oldHTML; }
+  }
+
+  select.addEventListener('change', () => save());
+  select.addEventListener('blur',   () => { setTimeout(() => { if(cell.contains(select)) cell.innerHTML = oldHTML; }, 200); });
+  select.addEventListener('keydown', e => { if(e.key === 'Escape') cell.innerHTML = oldHTML; });
+}
+
 // ── BOOK VALUE INLINE EDIT ────────────────────────────────────────
 async function editBookValue(stock, currentVal, event) {
   event.stopPropagation();
@@ -445,7 +490,10 @@ function renderInventory(list){
           : `<span style="color:var(--muted);">—</span>`}
         <span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>
       </td>
-      <td><span class="badge badge-${String(v.condition).toLowerCase()}">${v.condition}</span></td>
+      <td onclick="editCondition('${v.stock}','${v.condition||'Average'}',event)" style="cursor:pointer;" title="Click to change condition">
+        <span class="badge badge-${String(v.condition||'average').toLowerCase()}">${v.condition||'Average'}</span>
+        <span style="font-size:9px;color:var(--muted);margin-left:2px;">✏</span>
+      </td>
       <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
     </tr>`).join('');
 }
