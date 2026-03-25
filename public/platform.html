@@ -1043,7 +1043,7 @@ select option{background:#0d1526;color:var(--text);}
     <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
     <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
-    <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><i data-lucide="facebook" class="ico"></i>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
+    <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -1070,7 +1070,7 @@ select option{background:#0d1526;color:var(--text);}
   <button class="mobile-nav-btn" onclick="mobileNav('compare')"><i data-lucide="zap" class="ico-sm"></i> Compare All</button>
   <button class="mobile-nav-btn" onclick="mobileNav('analytics')"><i data-lucide="bar-chart-3" class="ico-sm"></i> Analytics</button>
   <button class="mobile-nav-btn" onclick="mobileNav('dtsync')"><i data-lucide="refresh-cw" class="ico-sm"></i> DT Sync <span style="font-size:8px;background:rgba(16,185,129,.2);color:#10b981;border-radius:3px;padding:1px 4px;margin-left:2px;">BETA</span></button>
-  <button class="mobile-nav-btn" onclick="mobileNav('fbposter')"><i data-lucide="facebook" class="ico-sm"></i> FB Poster <span style="font-size:8px;background:rgba(59,130,246,.2);color:#3b82f6;border-radius:3px;padding:1px 4px;margin-left:2px;">BETA</span></button>
+  <button class="mobile-nav-btn" onclick="mobileNav('fbposter')"><svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg> FB Poster <span style="font-size:8px;background:rgba(59,130,246,.2);color:#3b82f6;border-radius:3px;padding:1px 4px;margin-left:2px;">BETA</span></button>
   <div class="mobile-menu-divider"></div>
   <div class="mobile-menu-section">Actions</div>
   <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()"><i data-lucide="presentation" class="ico-sm"></i> Customer Presentation</button>
@@ -2647,7 +2647,7 @@ async function startLoginBuy() {
     <!-- Header -->
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
       <div style="width:48px;height:48px;background:linear-gradient(135deg,rgba(59,130,246,.2),rgba(30,90,246,.15));border:1px solid rgba(59,130,246,.3);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-        <i data-lucide="facebook" style="width:24px;height:24px;color:#3b82f6;"></i>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
       </div>
       <div>
         <div style="display:flex;align-items:center;gap:8px;">
