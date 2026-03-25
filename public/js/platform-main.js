@@ -376,6 +376,54 @@ function refreshLenderCheckerDropdowns(){
 }
 window.refreshLenderCheckerDropdowns = refreshLenderCheckerDropdowns;
 
+// ── BOOK VALUE INLINE EDIT ────────────────────────────────────────
+async function editBookValue(stock, currentVal, event) {
+  event.stopPropagation();
+  const cell = event.currentTarget;
+  const oldText = cell.innerHTML;
+
+  // Replace cell content with input
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = currentVal || '';
+  input.placeholder = 'e.g. 28000';
+  input.style.cssText = 'width:90px;background:var(--surface);border:1px solid var(--amber);border-radius:4px;color:var(--text);padding:4px 6px;font-size:11px;font-family:Outfit,sans-serif;';
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const newVal = parseFloat(input.value);
+    if (isNaN(newVal) || newVal < 0) { cell.innerHTML = oldText; return; }
+    try {
+      const res = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}/book-value`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_value: newVal })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update local inventory array
+        const inv = window.ffInventory || window.inventory || [];
+        const v = inv.find(x => x.stock === stock);
+        if (v) v.book_value = newVal;
+        cell.innerHTML = newVal > 0 ? `<span style="cursor:pointer;color:var(--green);" title="Click to edit book value">$${newVal.toLocaleString()}</span>` : `<span style="cursor:pointer;color:var(--muted);" title="Click to edit book value">—</span>`;
+        toast(`Book value updated: ${stock}`);
+      } else {
+        cell.innerHTML = oldText;
+        toast('Update failed');
+      }
+    } catch(e) { cell.innerHTML = oldText; toast('Update failed'); }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { cell.innerHTML = oldText; }
+  });
+}
+
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
@@ -391,7 +439,12 @@ function renderInventory(list){
       <td style="color:var(--muted);">${v.type || ''}</td>
       <td>${Number(v.mileage).toLocaleString()} km</td>
       <td><strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong></td>
-      <td style="color:var(--muted);font-size:11px;">${v.book_value&&v.book_value>0?'$'+Number(v.book_value).toLocaleString():'—'}</td>
+      <td style="cursor:pointer;font-size:11px;" onclick="editBookValue('${v.stock}',${v.book_value||0},event)" title="Click to edit book value">
+        ${v.book_value&&v.book_value>0
+          ? `<span style="color:var(--green);">$${Number(v.book_value).toLocaleString()}</span>`
+          : `<span style="color:var(--muted);">—</span>`}
+        <span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>
+      </td>
       <td><span class="badge badge-${String(v.condition).toLowerCase()}">${v.condition}</span></td>
       <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
     </tr>`).join('');
