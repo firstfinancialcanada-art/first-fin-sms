@@ -2655,80 +2655,563 @@ async function startLoginBuy() {
 
 <!-- ═══ FACEBOOK POSTER ═══ -->
 <section id="section-fbposter" class="section">
-  <div style="max-width:680px;margin:0 auto;padding:20px 0;">
+<style>
+/* ── FB POSTER EMBEDDED STYLES ── */
+.fbp-wrap{display:flex;flex-direction:column;height:calc(100vh - 140px);min-height:500px;background:var(--bg);border-radius:10px;overflow:hidden;border:1px solid var(--border2);}
+.fbp-topbar{display:flex;align-items:center;gap:12px;padding:0 16px;height:46px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border2);position:relative;}
+.fbp-topbar::after{content:'';position:absolute;bottom:0;left:0;width:160px;height:2px;background:linear-gradient(90deg,var(--primary),transparent);}
+.fbp-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.fbp-logo{width:26px;height:26px;object-fit:contain;border-radius:3px;}
+.fbp-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#fff 30%,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;}
+.fbp-sub{font-size:8px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.fbp-sep{width:1px;height:22px;background:var(--border2);flex-shrink:0;}
+.fbp-dealer{display:none;background:rgba(30,90,246,.12);border:1px solid var(--border2);border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;color:#93c5fd;white-space:nowrap;}
+.fbp-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap;}
+.fbp-pill.ok{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.3);}
+.fbp-pill.err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+.fbp-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:pulse 2s infinite;}
+.fbp-sorts{display:flex;gap:3px;}
+.fbp-sort{padding:3px 9px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:600;cursor:pointer;transition:all .14s;}
+.fbp-sort.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.fbp-stats{display:flex;gap:18px;margin-left:auto;flex-shrink:0;}
+.fbp-stat{text-align:center;}
+.fbp-stat-v{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--blue2);line-height:1;}
+.fbp-stat-l{font-size:7px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.fbp-main{display:flex;flex:1;overflow:hidden;}
+.fbp-q{width:260px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border2);}
+.fbp-qhead{padding:9px 12px 7px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.fbp-qhead-lbl{font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:6px;}
+.fbp-repost{display:none;margin:6px 9px 2px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:5px;padding:6px 9px;font-size:10px;color:var(--amber);font-weight:600;cursor:pointer;}
+.fbp-qlist{flex:1;overflow-y:auto;padding:6px;}
+.fbp-qlist::-webkit-scrollbar{width:3px;}
+.fbp-qlist::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px;}
+.fbp-qi{border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;cursor:pointer;background:var(--s2);transition:all .13s;position:relative;overflow:hidden;}
+.fbp-qi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--primary);opacity:0;transition:opacity .13s;}
+.fbp-qi:hover{border-color:rgba(30,90,246,.35);}
+.fbp-qi.active{border-color:var(--primary);background:rgba(30,90,246,.1);}
+.fbp-qi.active::before{opacity:1;}
+.fbp-qi-n{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:2px;}
+.fbp-qi-name{font-weight:700;font-size:11.5px;line-height:1.3;margin-bottom:3px;}
+.fbp-qi-row{display:flex;align-items:center;gap:6px;}
+.fbp-qi-price{font-family:'DM Mono',monospace;font-size:10px;color:var(--green);}
+.fbp-qi-ph{font-size:9px;color:var(--muted);}
+.fbp-qfoot{padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+.fbp-qfoot b{color:var(--text);}
+.fbp-right{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.fbp-ph{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:30px;text-align:center;}
+.fbp-ph-icon{font-size:44px;opacity:.2;}
+.fbp-ph-text{font-size:14px;font-weight:700;color:var(--muted);}
+.fbp-ph-sub{font-size:11px;color:var(--dim);}
+.fbp-berr{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:9px;padding:20px 24px;max-width:400px;text-align:center;line-height:1.7;font-size:12px;color:var(--muted);}
+.fbp-berr strong{color:var(--red);display:block;margin-bottom:8px;font-size:13px;}
+.fbp-berr code{background:rgba(255,255,255,.06);border-radius:3px;padding:1px 6px;font-family:'DM Mono',monospace;font-size:10px;color:#93c5fd;}
+#fbpvc{flex:1;display:none;flex-direction:column;overflow:hidden;}
+.fbp-vh{padding:10px 16px 9px;border-bottom:1px solid var(--border);flex-shrink:0;background:linear-gradient(180deg,rgba(30,90,246,.04),transparent);}
+.fbp-vh-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;line-height:1;margin-bottom:7px;}
+.fbp-vh-meta{display:flex;flex-wrap:wrap;gap:5px;}
+.fbp-chip{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;}
+.fbp-chip.price{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+.fbp-chip.km{background:rgba(30,90,246,.1);color:#93c5fd;border:1px solid var(--border2);}
+.fbp-chip.stk{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+.fbp-chip.ph{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.fbp-photo-row{display:flex;align-items:center;gap:9px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.fbp-pstrip{display:flex;gap:5px;flex:1;overflow-x:auto;}
+.fbp-pstrip::-webkit-scrollbar{height:3px;}
+.fbp-pstrip::-webkit-scrollbar-thumb{background:var(--dim);}
+.fbp-thumb{width:60px;height:45px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;transition:all .13s;}
+.fbp-thumb:hover{border-color:var(--primary);transform:scale(1.06);}
+.fbp-btn-folder{flex-shrink:0;padding:7px 12px;border-radius:6px;background:var(--surface2);border:1px solid var(--border2);color:#93c5fd;font-family:'Outfit',sans-serif;font-weight:700;font-size:10px;cursor:pointer;white-space:nowrap;transition:all .13s;}
+.fbp-btn-folder:hover{background:rgba(30,90,246,.14);border-color:var(--primary);}
+.fbp-abar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.fbp-btn{padding:7px 14px;border-radius:6px;border:none;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:700;font-size:11px;transition:all .13s;display:inline-flex;align-items:center;gap:5px;}
+.fbp-btn.autofill{background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;font-size:12px;padding:8px 18px;box-shadow:0 3px 10px rgba(30,90,246,.4);}
+.fbp-btn.autofill:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(30,90,246,.5);}
+.fbp-btn.posted{background:linear-gradient(135deg,var(--green),#059669);color:#000;font-weight:800;}
+.fbp-btn.repost{background:var(--surface2);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
+.fbp-btn.skip{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+.fbp-btn.fbopen{background:var(--surface2);color:#93c5fd;border:1px solid var(--border2);}
+.fbp-flash{margin-left:auto;font-size:11px;font-weight:600;color:var(--green);opacity:0;transition:opacity .3s;white-space:nowrap;}
+.fbp-flash.show{opacity:1;}
+.fbp-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+.fbp-body::-webkit-scrollbar{width:4px;}
+.fbp-body::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px;}
+.fbp-steps-wrap{padding:10px 16px;}
+.fbp-steps-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.fbp-steps-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.fbp-steps-prog{font-family:'DM Mono',monospace;font-size:9px;color:var(--primary);font-weight:600;}
+.fbp-srow{display:grid;grid-template-columns:28px minmax(120px,1fr) 1fr auto;align-items:center;gap:7px;padding:4px 7px;border-radius:5px;margin-bottom:2px;border:1px solid transparent;transition:background .13s;}
+.fbp-srow:hover{background:rgba(255,255,255,.02);}
+.fbp-srow.done{opacity:.4;}
+.fbp-snum{font-family:'DM Mono',monospace;font-size:9px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:2px 0;text-align:center;color:var(--muted);transition:all .2s;}
+.fbp-snum.ok{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.3);color:var(--green);}
+.fbp-sfld{font-size:10px;font-weight:700;color:var(--text);}
+.fbp-sfld.dd::after{content:'▾';font-size:8px;margin-left:4px;background:rgba(30,90,246,.15);color:var(--blue2);padding:0 3px;border-radius:2px;}
+.fbp-sfld.ph::after{content:'DRAG';font-size:7px;font-weight:800;margin-left:4px;background:rgba(245,158,11,.15);color:var(--amber);padding:0 4px;border-radius:2px;letter-spacing:.5px;}
+.fbp-sval{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.fbp-sval.dd-v{color:#93c5fd;}
+.fbp-sval.no-v{color:var(--dim);font-style:italic;}
+.fbp-sval.ph-v{color:var(--amber);}
+.fbp-sbtn{padding:2px 8px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;white-space:nowrap;}
+.fbp-sbtn:hover{border-color:var(--primary);color:#93c5fd;}
+.fbp-sbtn.ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green);}
+.fbp-desc-wrap{padding:9px 16px 14px;border-top:1px solid var(--border);}
+.fbp-desc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.fbp-desc-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.fbp-desc-copy{padding:2px 9px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;}
+.fbp-desc-copy:hover{border-color:var(--primary);color:#93c5fd;}
+.fbp-desc-copy.ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green);}
+.fbp-desc-body{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.75;white-space:pre-wrap;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;max-height:130px;overflow-y:auto;}
+.fbp-desc-body::-webkit-scrollbar{width:3px;}
+.fbp-desc-body::-webkit-scrollbar-thumb{background:var(--dim);}
+/* Not-activated state */
+.fbp-inactive{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;text-align:center;}
+.fbp-inactive-icon{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(30,90,246,.06));border:1px solid rgba(59,130,246,.25);}
+.fbp-inactive-title{font-size:17px;font-weight:800;color:var(--text);}
+.fbp-inactive-sub{font-size:13px;color:var(--muted);max-width:420px;line-height:1.65;}
+.fbp-contact-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.fbp-contact-btn{padding:10px 20px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;transition:all .15s;}
+.fbp-contact-btn.primary{background:linear-gradient(135deg,var(--primary),#2563eb);color:#fff;}
+.fbp-contact-btn.secondary{background:var(--surface2);border:1px solid var(--border);color:var(--text);}
+</style>
 
-    <!-- Header -->
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
-      <div style="width:48px;height:48px;background:linear-gradient(135deg,rgba(59,130,246,.2),rgba(30,90,246,.15));border:1px solid rgba(59,130,246,.3);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-      </div>
+<div class="fbp-wrap" id="fbp-wrap">
+
+  <!-- Top bar -->
+  <div class="fbp-topbar">
+    <div class="fbp-brand">
+      <img src="data:image/jpeg;base64,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" class="fbp-logo" alt="FF">
       <div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;font-weight:900;color:var(--text);">Facebook Marketplace Poster</span>
-          <span style="font-size:10px;background:rgba(59,130,246,.2);color:#3b82f6;border:1px solid rgba(59,130,246,.35);border-radius:4px;padding:2px 7px;font-weight:800;letter-spacing:.8px;">BETA</span>
-        </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">We build a custom poster for your inventory — you post to Facebook Marketplace one vehicle at a time, faster and with zero copy-pasting</div>
+        <div class="fbp-title">FIRST&#8209;FIN</div>
+        <div class="fbp-sub">Marketplace Poster</div>
       </div>
     </div>
-
-    <!-- Feature preview cards -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px;">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-        <i data-lucide="zap" style="width:22px;height:22px;color:var(--primary);margin-bottom:8px;"></i>
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">Auto-Fill Form</div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.4;">Year, make, model, price, color, and description fill automatically</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-        <i data-lucide="image" style="width:22px;height:22px;color:var(--green);margin-bottom:8px;"></i>
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">Photos Staged</div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.4;">Vehicle photos pulled from your inventory and ready to drag into Facebook</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-        <i data-lucide="check-square" style="width:22px;height:22px;color:var(--amber);margin-bottom:8px;"></i>
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">Progress Tracking</div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.4;">Tracks what's posted, what's pending, and flags listings that need reposting</div>
-      </div>
+    <div class="fbp-sep"></div>
+    <div class="fbp-dealer" id="fbp-dealer"></div>
+    <div class="fbp-pill err" id="fbp-status"><span class="fbp-dot"></span>Connecting...</div>
+    <div class="fbp-sep"></div>
+    <div class="fbp-sorts">
+      <button class="fbp-sort active" onclick="fbpSort('cheapest',this)">Cheapest</button>
+      <button class="fbp-sort" onclick="fbpSort('newest',this)">Newest</button>
+      <button class="fbp-sort" onclick="fbpSort('default',this)">Listed</button>
     </div>
-
-    <!-- Waitlist / contact card -->
-    <div style="background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(30,90,246,.05));border:1px solid rgba(59,130,246,.25);border-radius:14px;padding:28px;">
-      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px;">Get Early Access</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">
-        Facebook Poster is currently in closed beta. We build a custom poster for your specific inventory — just send us your inventory website URL and we handle the rest.<br><br>
-        Contact us to get started — we'll have your inventory live on Marketplace the same day.<br><br>
-        <span style="font-size:11px;color:var(--muted);">Facebook continuously updates its Marketplace algorithms and interface. Occasional updates to your custom tool may be required for continued smooth operation — First-Fin monitors for changes and keeps your tool current.</span>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <a href="/cdn-cgi/l/email-protection#dd9bb4afaea99d9bb4afaea99bb4b3bcb3beb4bcb19ebcb3bcb9bcf3beb2b0e2aea8bfb7b8bea9e09bbcbeb8bfb2b2b6f8efed8db2aea9b8aff8efed9fb8a9bcf8efed9cbebeb8aeaefbbfb2b9a4e095b4f8ef9ef8efed94f8efeab9f8efedb1b4b6b8f8efeda9b2f8efedbab8a9f8efedaeb8a9f8efeda8adf8efedaab4a9b5f8efeda9b5b8f8efed9bbcbeb8bfb2b2b6f8efed8db2aea9b8aff8efedbfb8a9bcf3f8efed90a4f8efedb9b8bcb1b8afaeb5b4adf8efedb4aef8ee9cf8efed" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px;text-decoration:none;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-          <i data-lucide="mail" style="width:16px;height:16px;"></i>
-          Request Beta Access — <span class="__cf_email__" data-cfemail="f8be918a8b8cb8be918a8b8cbe919699969b919994bb9996999c99d69b9795">[email&#160;protected]</span>
-        </a>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <a href="tel:+15873066133"
-            style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;"
-            onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
-            <i data-lucide="phone" style="width:14px;height:14px;color:var(--primary);"></i>
-            587-306-6133
-          </a>
-          <a href="sms:+15873066133"
-            style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;"
-            onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <i data-lucide="message-circle" style="width:14px;height:14px;color:var(--green);"></i>
-            Text Us
-          </a>
-        </div>
-      </div>
+    <div class="fbp-stats">
+      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-total">—</div><div class="fbp-stat-l">Total</div></div>
+      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-posted">—</div><div class="fbp-stat-l">Posted</div></div>
+      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-today" style="color:var(--green)">—</div><div class="fbp-stat-l">Today</div></div>
+      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-queue" style="color:var(--amber)">—</div><div class="fbp-stat-l">Queue</div></div>
     </div>
-
-    <!-- Disclaimer -->
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--muted);line-height:1.5;">
-      All you need is your inventory website URL and a Facebook account you're logged into.<br>
-      First-Fin builds your custom poster — setup takes about 15 minutes with our team.
-    </div>
-
   </div>
+
+  <!-- Main area — switches between inactive/active states -->
+  <div class="fbp-main" id="fbp-main">
+
+    <!-- NOT ACTIVATED — shown when bridge is offline -->
+    <div class="fbp-inactive" id="fbp-inactive">
+      <div class="fbp-inactive-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+      </div>
+      <div class="fbp-inactive-title">Facebook Marketplace Poster</div>
+      <div class="fbp-inactive-sub" id="fbp-inactive-msg">
+        To use FB Poster, run <strong>start.bat</strong> or <strong>post.bat</strong> from your First-Fin poster folder on this computer, then reload this tab.<br><br>
+        Don't have your folder yet? Contact First-Fin to get set up — we build it for you in about 15 minutes.
+      </div>
+      <div class="fbp-contact-row">
+        <a href="tel:+15873066133" class="fbp-contact-btn secondary">📞 587-306-6133</a>
+        <a href="mailto:First@FirstFinancialCanada.com" class="fbp-contact-btn primary">Get Set Up →</a>
+      </div>
+    </div>
+
+    <!-- ACTIVE — shown when bridge is online -->
+    <div style="display:none;flex:1;flex-direction:column;overflow:hidden;" id="fbp-active-wrap">
+      <div style="display:flex;flex:1;overflow:hidden;">
+
+        <!-- Queue panel -->
+        <div class="fbp-q">
+          <div class="fbp-qhead">
+            <div class="fbp-qhead-lbl">Today's Queue</div>
+            <div class="fbp-sorts" style="gap:3px;">
+              <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:9px;padding:3px 7px;">Cheapest</button>
+              <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:9px;padding:3px 7px;">Newest</button>
+              <button class="fbp-sort" onclick="fbpSort('default',this)" style="font-size:9px;padding:3px 7px;">Listed</button>
+            </div>
+          </div>
+          <div class="fbp-repost" id="fbp-repost-bar" onclick="fbpShowReposts()"></div>
+          <div class="fbp-qlist" id="fbp-qlist"></div>
+          <div class="fbp-qfoot">
+            <div>Today: <b id="fbp-ft-today">0</b>/10</div>
+            <div>Total: <b id="fbp-ft-total">0</b></div>
+          </div>
+        </div>
+
+        <!-- Right panel -->
+        <div class="fbp-right">
+          <!-- Placeholder -->
+          <div class="fbp-ph" id="fbp-ph">
+            <div class="fbp-ph-icon">🚗</div>
+            <div class="fbp-ph-text">Select a vehicle</div>
+            <div class="fbp-ph-sub" id="fbp-ph-sub">Loading inventory...</div>
+          </div>
+          <!-- Vehicle content -->
+          <div id="fbpvc">
+            <div class="fbp-vh">
+              <div class="fbp-vh-title" id="fbp-v-title">—</div>
+              <div class="fbp-vh-meta" id="fbp-v-meta"></div>
+            </div>
+            <div class="fbp-photo-row">
+              <div class="fbp-pstrip" id="fbp-pstrip"></div>
+              <button class="fbp-btn-folder" onclick="fbpOpenPhotos()">📂 Open Photos Folder</button>
+            </div>
+            <div class="fbp-abar">
+              <button class="fbp-btn autofill" onclick="fbpAutofill()">⚡ Auto-Fill Facebook</button>
+              <button class="fbp-btn fbopen"   onclick="fbpOpenFb()">🌐 Open Marketplace</button>
+              <button class="fbp-btn posted"   onclick="fbpMark('posted')">✅ Mark Posted</button>
+              <button class="fbp-btn repost"   onclick="fbpMark('reposted')">🔁 Repost</button>
+              <button class="fbp-btn skip"     onclick="fbpMark('skipped')">⏭ Skip</button>
+              <span class="fbp-flash" id="fbp-flash"></span>
+            </div>
+            <div class="fbp-body">
+              <div class="fbp-steps-wrap">
+                <div class="fbp-steps-hd">
+                  <div class="fbp-steps-lbl">Facebook Form — Step by Step</div>
+                  <div class="fbp-steps-prog" id="fbp-sprog">0 / 14</div>
+                </div>
+                <div id="fbp-scon"></div>
+              </div>
+              <div class="fbp-desc-wrap">
+                <div class="fbp-desc-hd">
+                  <div class="fbp-desc-lbl">Listing Description</div>
+                  <button class="fbp-desc-copy" id="fbp-cdesc" onclick="fbpCopyDesc()">Copy All</button>
+                </div>
+                <div class="fbp-desc-body" id="fbp-desc-body"></div>
+              </div>
+            </div>
+          </div><!-- /fbpvc -->
+        </div><!-- /fbp-right -->
+      </div>
+    </div><!-- /fbp-active-wrap -->
+  </div><!-- /fbp-main -->
+</div><!-- /fbp-wrap -->
+
+<script>
+// ── FB POSTER — embedded in platform ─────────────────────────────────────────
+(function() {
+  const FB_URL    = 'https://www.facebook.com/marketplace/create/vehicle';
+  const DAILY_LIM = 10;
+
+  let FBP_BRIDGE = '', fbpAllV = [], fbpQueue = [],
+      fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
+      fbpDone = {}, fbpOk = false, fbpTimer = null;
+
+  // Auto-detect bridge port
+  async function fbpDetect() {
+    for (let port = 5800; port <= 5810; port++) {
+      try {
+        const r = await fetch(`http://localhost:${port}/api/status`,
+          { signal: AbortSignal.timeout(600) });
+        const d = await r.json();
+        if (d.ok) { FBP_BRIDGE = `http://localhost:${port}`; return true; }
+      } catch(e) {}
+    }
+    return false;
+  }
+
+  // Init — called when FB Poster tab opens
+  window.initFbPoster = async function() {
+    if (fbpTimer) return; // already running
+    const found = await fbpDetect();
+    if (!found) { fbpShowInactive(); return; }
+    await fbpCheckBridge();
+    if (fbpOk) { await fbpLoadConfig(); await fbpLoadInventory(); }
+    fbpTimer = setInterval(fbpCheckBridge, 15000);
+  };
+
+  async function fbpCheckBridge() {
+    try {
+      const r = await fetch(`${FBP_BRIDGE}/api/status`, { signal: AbortSignal.timeout(3000) });
+      const d = await r.json();
+      fbpOk = d.ok;
+      const el = document.getElementById('fbp-status');
+      if (el) { el.className = 'fbp-pill ok'; el.innerHTML = `<span class="fbp-dot"></span>${d.dealer||''} · ${d.vehicles}v · ${d.posted_today} today`; }
+      fbpShowActive();
+      const sub = document.getElementById('fbp-ph-sub');
+      if (sub) sub.textContent = `${d.vehicles} vehicles loaded`;
+    } catch {
+      fbpOk = false;
+      const el = document.getElementById('fbp-status');
+      if (el) { el.className = 'fbp-pill err'; el.innerHTML = `<span class="fbp-dot"></span>Bridge offline`; }
+      fbpShowInactive();
+    }
+  }
+
+  async function fbpLoadConfig() {
+    try {
+      const r = await fetch(`${FBP_BRIDGE}/api/config`);
+      const d = await r.json();
+      if (d.dealer_name) {
+        const chip = document.getElementById('fbp-dealer');
+        if (chip) { chip.textContent = d.dealer_name.toUpperCase(); chip.style.display = 'block'; }
+      }
+    } catch(e) {}
+  }
+
+  function fbpShowInactive(msg) {
+    const inactive = document.getElementById('fbp-inactive');
+    const active   = document.getElementById('fbp-active-wrap');
+    if (inactive) inactive.style.display = 'flex';
+    if (active)   active.style.display   = 'none';
+    if (msg) {
+      const el = document.getElementById('fbp-inactive-msg');
+      if (el) el.innerHTML = msg;
+    }
+  }
+
+  function fbpShowActive() {
+    const inactive = document.getElementById('fbp-inactive');
+    const active   = document.getElementById('fbp-active-wrap');
+    if (inactive) inactive.style.display = 'none';
+    if (active)   active.style.display   = 'flex';
+  }
+
+  // Inventory
+  async function fbpLoadInventory() {
+    try {
+      const r   = await fetch(`${FBP_BRIDGE}/api/inventory`);
+      const raw = await r.json();
+      fbpAllV   = (Array.isArray(raw) ? raw : (raw.vehicles||[])).map(fbpNorm);
+      fbpBuildQueue();
+    } catch(e) { console.error('FBP inventory load:', e); }
+  }
+
+  function fbpNorm(v) {
+    const f = v.fields || {};
+    return {
+      title: f.title || `${f.year||''} ${f.make||''} ${f.model||''}`.trim() || 'Unknown',
+      year: f.year||'', make: f.make||'', model: f.model||'',
+      mileage: f.mileage||'', mileage_display: f.mileage_display||f.mileage||'',
+      price: f.price||'', price_display: f.price_display||'',
+      body_style: f.body_style||'', ext_color: f.ext_color||'', int_color: f.int_color||'',
+      fuel: f.fuel||'', transmission: f.transmission||'',
+      description: f.description||'', stock: f.stock||'',
+      photos: v.photos||[], photo_count: v.photo_count||0,
+      detail_url: v.detail_url||'', vehicle_id: v.vehicle_id||'',
+      is_posted: v.is_posted||false, is_skipped: v.is_skipped||false,
+      posted_date: v.posted_date||null, needs_repost: v.needs_repost||false,
+      raw: v,
+    };
+  }
+
+  function fbpBuildQueue() {
+    const today   = new Date().toISOString().split('T')[0];
+    const ptToday = fbpAllV.filter(v => v.is_posted && v.posted_date === today).length;
+    const slots   = Math.max(0, DAILY_LIM - ptToday);
+    let unposted  = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
+    if (fbpSort_ === 'cheapest') unposted.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+    else if (fbpSort_ === 'newest') unposted.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
+    fbpQueue = unposted.slice(0, slots);
+    const reposts = fbpAllV.filter(v => v.needs_repost);
+    const bar = document.getElementById('fbp-repost-bar');
+    if (bar) { bar.style.display = reposts.length ? 'block':'none'; if(reposts.length) bar.textContent=`🔁 ${reposts.length} need reposting`; }
+    fbpRenderQueue();
+    const totalP = fbpAllV.filter(v => v.is_posted).length;
+    const ids = {
+      'fbp-st-total': fbpAllV.length, 'fbp-st-posted': totalP,
+      'fbp-st-today': ptToday, 'fbp-st-queue': fbpQueue.length,
+      'fbp-ft-today': ptToday, 'fbp-ft-total': totalP,
+    };
+    Object.entries(ids).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.textContent=val; });
+  }
+
+  function fbpRenderQueue() {
+    const list = document.getElementById('fbp-qlist');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!fbpQueue.length) {
+      const empty = fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? '✅ All posted!' : 'Daily limit reached';
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">${empty}</div>`;
+      return;
+    }
+    fbpQueue.forEach((v,i) => {
+      const d = document.createElement('div');
+      d.className = 'fbp-qi' + (v.needs_repost?' repost':'');
+      d.onclick = () => fbpSelect(i);
+      d.innerHTML = `<div class="fbp-qi-n">#${String(i+1).padStart(2,'0')}${v.stock?' · '+v.stock:''}</div>
+        <div class="fbp-qi-name">${v.title}</div>
+        <div class="fbp-qi-row">
+          ${v.price_display?`<span class="fbp-qi-price">${v.price_display}</span>`:''}
+          ${v.photo_count?`<span class="fbp-qi-ph">📸 ${v.photo_count}</span>`:''}
+        </div>`;
+      list.appendChild(d);
+    });
+    if (fbpIdx === -1 && fbpQueue.length) fbpSelect(0);
+  }
+
+  window.fbpSort = function(mode, btn) {
+    fbpSort_ = mode; fbpIdx = -1;
+    document.querySelectorAll('.fbp-sort').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${mode}'`));
+    });
+    fbpBuildQueue();
+  };
+
+  window.fbpShowReposts = function() {
+    fbpQueue = fbpAllV.filter(v => v.needs_repost);
+    fbpIdx = -1; fbpRenderQueue();
+  };
+
+  function fbpSelect(idx) {
+    if (idx >= fbpQueue.length) return;
+    fbpIdx = idx; fbpV = fbpQueue[idx]; fbpDone = {};
+    document.querySelectorAll('.fbp-qi').forEach((el,i) => el.classList.toggle('active', i===idx));
+    fbpShowVehicle(fbpV);
+  }
+
+  function fbpShowVehicle(v) {
+    const ph = document.getElementById('fbp-ph');
+    const vc = document.getElementById('fbpvc');
+    if (ph) ph.style.display = 'none';
+    if (vc) { vc.style.display = 'flex'; vc.style.flexDirection = 'column'; }
+
+    const t = document.getElementById('fbp-v-title'); if(t) t.textContent = v.title;
+
+    const meta = document.getElementById('fbp-v-meta');
+    if (meta) meta.innerHTML =
+      (v.price_display?`<span class="fbp-chip price">💰 ${v.price_display}</span>`:'') +
+      (v.mileage_display?`<span class="fbp-chip km">📍 ${v.mileage_display}</span>`:'') +
+      (v.stock?`<span class="fbp-chip stk">Stock #${v.stock}</span>`:'') +
+      (v.photo_count?`<span class="fbp-chip ph">📸 ${v.photo_count}</span>`:'');
+
+    const strip = document.getElementById('fbp-pstrip');
+    if (strip) {
+      strip.innerHTML = '';
+      (v.photos||[]).forEach((p,i) => {
+        const img = document.createElement('img');
+        img.className='fbp-thumb';
+        img.src=`${FBP_BRIDGE}/api/photo?path=${encodeURIComponent(p)}`;
+        img.title=`Photo ${i+1}`;
+        img.onerror=()=>img.style.display='none';
+        strip.appendChild(img);
+      });
+    }
+
+    const db = document.getElementById('fbp-desc-body');
+    if (db) db.textContent = v.description||'';
+    const cb = document.getElementById('fbp-cdesc');
+    if (cb) cb.className = 'fbp-desc-copy';
+
+    fbpBuildSteps(v);
+  }
+
+  function fbpBuildSteps(v) {
+    const con = document.getElementById('fbp-scon');
+    if (!con) return;
+    con.innerHTML = ''; fbpDone = {};
+    const steps = [
+      {n:1, e:'📸', lbl:'Photos',       t:'ph', val:null},
+      {n:2, e:'🚗', lbl:'Vehicle Type', t:'dd', val:'Car/Truck'},
+      {n:3, e:'📅', lbl:'Year',         t:'dd', val:v.year},
+      {n:4, e:'🏭', lbl:'Make',         t:'dd', val:v.make},
+      {n:5, e:'🚘', lbl:'Model',        t:'tx', val:v.model},
+      {n:6, e:'📍', lbl:'Mileage',      t:'tx', val:v.mileage},
+      {n:7, e:'💰', lbl:'Price',        t:'tx', val:v.price},
+      {n:8, e:'🚙', lbl:'Body Style',   t:'dd', val:v.body_style},
+      {n:9, e:'🎨', lbl:'Ext. Color',   t:'dd', val:v.ext_color||'—'},
+      {n:10,e:'🪑', lbl:'Int. Color',   t:'dd', val:v.int_color||'—'},
+      {n:11,e:'✅', lbl:'Condition',    t:'dd', val:'Good'},
+      {n:12,e:'⛽', lbl:'Fuel Type',    t:'dd', val:v.fuel},
+      {n:13,e:'⚙️',lbl:'Transmission', t:'dd', val:v.transmission},
+      {n:14,e:'📝', lbl:'Description',  t:'ds', val:v.description},
+    ];
+    steps.forEach(s => {
+      const row = document.createElement('div');
+      row.className='fbp-srow'; row.id=`fbpsr${s.n}`;
+      const num=document.createElement('div'); num.className='fbp-snum'; num.id=`fbpsn${s.n}`; num.textContent=String(s.n).padStart(2,'0');
+      const fld=document.createElement('div'); fld.className=`fbp-sfld${s.t==='dd'?' dd':s.t==='ph'?' ph':''}`; fld.textContent=`${s.e} ${s.lbl}`;
+      const val=document.createElement('div');
+      if (!s.val||s.val==='—') { val.className='fbp-sval no-v'; val.textContent='— skip'; }
+      else if (s.t==='ph') { val.className='fbp-sval ph-v'; val.textContent=`${v.photo_count} photos ready`; }
+      else if (s.t==='ds') { val.className='fbp-sval no-v'; val.textContent='← use Copy All above'; }
+      else if (s.t==='dd') { val.className='fbp-sval dd-v'; val.textContent=s.val; }
+      else { val.className='fbp-sval'; val.textContent=s.val; }
+      const act=document.createElement('div');
+      const btn=document.createElement('button'); btn.className='fbp-sbtn';
+      if (s.t==='ph') { btn.textContent='📂 Open'; btn.onclick=()=>{fbpOpenPhotos();fbpTick(s.n,btn);}; }
+      else if (s.t==='ds') { btn.textContent='✓ Done'; btn.onclick=()=>fbpTick(s.n,btn); }
+      else if (s.val&&s.val!=='—') {
+        btn.textContent=s.t==='dd'?'✓ Done':'Copy';
+        btn.onclick=()=>{ if(s.t!=='dd') navigator.clipboard.writeText(String(s.val)).catch(()=>{}); fbpTick(s.n,btn); };
+      } else { btn.textContent='✓ Skip'; btn.onclick=()=>fbpTick(s.n,btn); }
+      act.appendChild(btn);
+      row.appendChild(num); row.appendChild(fld); row.appendChild(val); row.appendChild(act);
+      con.appendChild(row);
+    });
+    fbpUpdProg();
+  }
+
+  function fbpTick(n, btn) {
+    fbpDone[n]=true;
+    const el=document.getElementById(`fbpsn${n}`); if(el){el.textContent='✓';el.classList.add('ok');}
+    if(btn) btn.classList.add('ok');
+    document.getElementById(`fbpsr${n}`)?.classList.add('done');
+    fbpUpdProg(); fbpFlash('✓ Step done');
+  }
+  function fbpUpdProg() {
+    const el=document.getElementById('fbp-sprog'); if(el) el.textContent=`${Object.keys(fbpDone).length} / 14`;
+  }
+
+  window.fbpCopyDesc = function() {
+    const txt=document.getElementById('fbp-desc-body')?.textContent||'';
+    navigator.clipboard.writeText(txt).then(()=>{
+      const b=document.getElementById('fbp-cdesc'); if(b){b.textContent='✓ Copied!';b.className='fbp-desc-copy ok';}
+      fbpFlash('📋 Description copied!'); fbpTick(14);
+      setTimeout(()=>{const b=document.getElementById('fbp-cdesc');if(b){b.textContent='Copy All';b.className='fbp-desc-copy';}},2500);
+    }).catch(()=>fbpFlash('⚠ Clipboard unavailable'));
+  };
+
+  window.fbpOpenPhotos = async function() {
+    if (!fbpV) return;
+    try {
+      const r=await fetch(`${FBP_BRIDGE}/api/prep-photos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photos:fbpV.photos})});
+      const d=await r.json();
+      fbpFlash(d.ok?`📂 ${d.copied} photos staged — folder opened`:'⚠ Could not open folder');
+    } catch { fbpFlash('⚠ Bridge error'); }
+  };
+
+  window.fbpAutofill = async function() {
+    if (!fbpV) { fbpFlash('⚠ Select a vehicle first'); return; }
+    fbpFlash('⚡ Auto-filling form...');
+    try {
+      const r=await fetch(`${FBP_BRIDGE}/api/autofill`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fbpV.raw?.fields||{},photos:fbpV.photos})});
+      const d=await r.json();
+      fbpFlash(d.ok?'⚡ Filling form — check Chrome!':`⚠ ${d.error||'Error'}`);
+    } catch { fbpFlash('⚠ Bridge offline'); }
+  };
+
+  window.fbpOpenFb = function() { window.open(FB_URL,'_blank'); fbpFlash('🌐 Facebook opened'); };
+
+  window.fbpMark = async function(action) {
+    if (!fbpV) return;
+    const label=action.charAt(0).toUpperCase()+action.slice(1);
+    if (!confirm(`Mark as ${label.toUpperCase()}?
+
+${fbpV.title}`)) return;
+    try {
+      const ep=action==='skipped'?'/api/mark-skipped':'/api/mark-posted';
+      await fetch(`${FBP_BRIDGE}${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:fbpV.detail_url||'',stock:fbpV.stock||'',vehicle_id:fbpV.vehicle_id||'',action})});
+      fbpFlash(`✅ ${label}: ${fbpV.title}`);
+      await fbpLoadInventory();
+      if (fbpQueue.length) { const nxt=Math.min(fbpIdx,fbpQueue.length-1); fbpIdx=-1; fbpSelect(Math.max(0,nxt)); }
+      else { const ph=document.getElementById('fbp-ph'); const vc=document.getElementById('fbpvc'); if(ph)ph.style.display='flex'; if(vc)vc.style.display='none'; }
+    } catch { fbpFlash('⚠ Could not save'); }
+  };
+
+  function fbpFlash(msg) {
+    const el=document.getElementById('fbp-flash'); if(!el) return;
+    el.textContent=msg; el.classList.add('show');
+    clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),3000);
+  }
+
+})(); // end IIFE
+</script>
 </section>
 
 
