@@ -572,6 +572,31 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ── PATCH book value on a single vehicle ────────────────────────
+  app.patch('/api/desk/inventory/:stock/book-value', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const bookValue = parseFloat(req.body.book_value);
+      if (isNaN(bookValue) || bookValue < 0) {
+        return res.status(400).json({ success: false, error: 'Invalid book value' });
+      }
+      const result = await client.query(
+        `UPDATE desk_inventory SET book_value = $1, updated_at = NOW()
+         WHERE stock = $2 AND user_id = $3 RETURNING stock, book_value`,
+        [bookValue, req.params.stock, req.user.userId]
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ success: false, error: 'Vehicle not found' });
+      }
+      // Update in-memory inventory on next load — no cache to clear
+      res.json({ success: true, stock: result.rows[0].stock, book_value: result.rows[0].book_value });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
   app.delete('/api/desk/inventory/:stock', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
