@@ -63,8 +63,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .platform-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;background:linear-gradient(90deg,var(--primary),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;flex-shrink:0;}
 .platform-logo span{color:var(--amber);-webkit-text-fill-color:var(--amber);}
 .logo-sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:500;margin-top:-6px;}
-.main-nav{display:flex;gap:2px;flex:1;min-width:0;margin-left:8px;flex-shrink:1;}
-.nav-btn{padding:6px 10px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:1;}
+.main-nav{display:flex;gap:4px;flex:1;min-width:0;margin-left:8px;overflow-x:auto;scrollbar-width:none;}
+.nav-btn{padding:4px 8px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s;text-transform:uppercase;white-space:nowrap;flex-shrink:0;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:65px;height:52px;}
 .nav-btn:hover{background:rgba(30,90,246,0.08);color:var(--text);border-color:var(--border);}
 .nav-btn.active{background:rgba(30,90,246,0.12);color:var(--primary);border-color:var(--primary);box-shadow:0 0 8px rgba(30,90,246,.15);}
 .nav-btn.compare-btn{background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(30,90,246,0.15));color:var(--amber);border-color:rgba(245,158,11,0.3);}
@@ -84,7 +84,7 @@ body.light-mode .hbtn.theme-toggle:hover{background:var(--primary);color:white;}
 /* ── CARDS ── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
 /* Lucide icon helpers */
-.ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:5px;stroke-width:2.2;}
+.ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;margin-right:5px;stroke-width:2.2;}.nav-btn .ico{margin-right:0;vertical-align:0;}
 .ico-sm{width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;stroke-width:2;}
 .ico-lg{width:20px;height:20px;display:inline-block;vertical-align:-3px;margin-right:6px;stroke-width:2;}
 .card-title .ico,.wiz-section-title .ico-lg{opacity:.85;}
@@ -2385,7 +2385,7 @@ async function startLoginBuy() {
   <div id="tour-body" style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:18px;"></div>
   <div id="tour-differentiator" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f59e0b;margin-bottom:10px;font-weight:600;"></div>
   <div id="tour-contact" style="display:none;text-align:center;margin-bottom:16px;">
-    <a href="mailto:First@FirstFinancialCanada.com" style="color:#60a5fa;font-size:13px;font-weight:700;text-decoration:none;">📧 First@FirstFinancialCanada.com</a>
+    <a href="/cdn-cgi/l/email-protection#cb8da2b9b8bf8b8da2b9b8bf8da2a5aaa5a8a2aaa788aaa5aaafaae5a8a4a6" style="color:#60a5fa;font-size:13px;font-weight:700;text-decoration:none;">📧 <span class="__cf_email__" data-cfemail="a5e3ccd7d6d1e5e3ccd7d6d1e3cccbc4cbc6ccc4c9e6c4cbc4c1c48bc6cac8">[email&#160;protected]</span></a>
   </div>
   <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;pointer-events:all;">
     <button onclick="tourPrev()" id="tour-prev" style="padding:8px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#94a3b8;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif;">← Back</button>
@@ -2437,7 +2437,7 @@ async function startLoginBuy() {
   </div>
 </div>
 
-<script src="js/inquiry.js"></script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="js/inquiry.js"></script>
 
 <!-- ═══ SARAH SETUP WIZARD ═══ -->
 <div id="sarah-wizard" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(5,11,24,0.97);backdrop-filter:blur(8px);overflow-y:auto;">
@@ -2686,11 +2686,9 @@ async function startLoginBuy() {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:12px;">
-        <a href="mailto:First@FirstFinancialCanada.com?subject=Facebook%20Poster%20Beta%20Access&body=Hi%2C%20I%27d%20like%20to%20get%20set%20up%20with%20the%20Facebook%20Poster%20beta.%20My%20dealership%20is%3A%20"
-          style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px;text-decoration:none;transition:opacity .2s;"
-          onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <a href="/cdn-cgi/l/email-protection#dd9bb4afaea99d9bb4afaea99bb4b3bcb3beb4bcb19ebcb3bcb9bcf3beb2b0e2aea8bfb7b8bea9e09bbcbeb8bfb2b2b6f8efed8db2aea9b8aff8efed9fb8a9bcf8efed9cbebeb8aeaefbbfb2b9a4e095b4f8ef9ef8efed94f8efeab9f8efedb1b4b6b8f8efeda9b2f8efedbab8a9f8efedaeb8a9f8efeda8adf8efedaab4a9b5f8efeda9b5b8f8efed9bbcbeb8bfb2b2b6f8efed8db2aea9b8aff8efedbfb8a9bcf3f8efed90a4f8efedb9b8bcb1b8afaeb5b4adf8efedb4aef8ee9cf8efed" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px;text-decoration:none;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
           <i data-lucide="mail" style="width:16px;height:16px;"></i>
-          Request Beta Access — First@FirstFinancialCanada.com
+          Request Beta Access — <span class="__cf_email__" data-cfemail="f8be918a8b8cb8be918a8b8cbe919699969b919994bb9996999c99d69b9795">[email&#160;protected]</span>
         </a>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -2702,22 +2700,4 @@ async function startLoginBuy() {
           </a>
           <a href="sms:+15873066133"
             style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;"
-            onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <i data-lucide="message-circle" style="width:14px;height:14px;color:var(--green);"></i>
-            Text Us
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Disclaimer -->
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--muted);line-height:1.5;">
-      Facebook Marketplace integration requires a configured Facebook Business account.<br>
-      Setup takes approximately 15 minutes with our team.
-    </div>
-
-  </div>
-</section>
-
-</body>
-</html>
+            onmouseover="this.style.borderColor='var(--g
