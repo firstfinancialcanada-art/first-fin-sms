@@ -482,6 +482,8 @@ async function api(path, opts = {}) {
 // ── LOAD ALL ─────────────────────────────────────────────────────
 async function loadAll() {
   await Promise.all([loadStats(), loadUsers(), loadInquiries(), loadSystemStatus()]);
+
+  loadFbLicenses().catch(() => {});
   // Pre-load tenant health in background
   loadTenantHealth().catch(() => {});
   loadOutcomeData();
@@ -960,6 +962,49 @@ function startClock() {
   </div>
 </div>
 
+
+
+<!-- ── FB POSTER LICENSES ── -->
+<div style="margin-top:28px;">
+  <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <span>📘 FB POSTER LICENSES</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">Control which dealers can run the FB Poster tool</span>
+  </div>
+
+  <!-- Create new -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;">Create New License</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">DEALER NAME</div>
+        <input id="fb-lic-name" type="text" placeholder="National Car & Truck Sales" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">INVENTORY URL</div>
+        <input id="fb-lic-url" type="text" placeholder="nationalcarsales.ca/used-inventory" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">NOTES (optional)</div>
+        <input id="fb-lic-note" type="text" placeholder="e.g. 1 URL included" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <button onclick="createFbLicense()" style="padding:8px 18px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:7px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;height:36px;">+ Create</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);">After creating, copy the key and add it to the dealer's <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-size:10px;">config.json</code> as <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-size:10px;">"license_key"</code>. The bridge checks this on every startup.</div>
+  </div>
+
+  <!-- Status legend -->
+  <div style="display:flex;gap:16px;margin-bottom:14px;font-size:11px;color:var(--muted);">
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span>Active — bridge runs normally</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>Suspended — bridge shows message, won't start</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span>Revoked — permanent denial</span>
+  </div>
+
+  <!-- License list -->
+  <div id="fb-lic-list">
+    <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Loading...</div>
+  </div>
+</div>
+
 <script>
 // ── OUTCOME INTELLIGENCE FUNCTIONS ──
 async function loadOutcomeStats() {
@@ -1040,6 +1085,193 @@ async function submitLogOutcome() {
 }
 
 function loadOutcomeData() { loadOutcomeStats(); loadPendingOutcomes(); loadLenderPerformance(); }
+
+
+// ── FB POSTER LICENSES ────────────────────────────────────────────────────────
+
+let fbLicenses = [];
+
+async function loadFbLicenses() {
+  try {
+    const r = await fetch('/api/fb-license/admin/list', {
+      headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }
+    });
+    const d = await r.json();
+    fbLicenses = d.licenses || [];
+    renderFbLicenses(fbLicenses);
+  } catch(e) { console.error('FB licenses load failed:', e); }
+}
+
+function renderFbLicenses(licenses) {
+  const wrap = document.getElementById('fb-lic-list');
+  if (!wrap) return;
+
+  if (!licenses.length) {
+    wrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No licenses yet — create one above.</div>';
+    return;
+  }
+
+  wrap.innerHTML = licenses.map(l => {
+    const statusColor = l.status === 'active' ? '#10b981' : l.status === 'suspended' ? '#f59e0b' : '#ef4444';
+    const lastSeen = l.last_seen
+      ? new Date(l.last_seen).toLocaleString('en-CA', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Never';
+    const created = new Date(l.created_at).toLocaleDateString('en-CA', {month:'short',day:'numeric',year:'numeric'});
+    const bullets = Array.isArray(l.description_bullets) ? l.description_bullets : [];
+    const bulletsText = bullets.join('\n');
+
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;">
+
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:200px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;box-shadow:0 0 6px ${statusColor};"></div>
+          <div>
+            <span style="font-weight:800;font-size:14px;">${l.dealer_name}</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(30,90,246,.15);color:#93c5fd;font-weight:700;text-transform:uppercase;margin-left:8px;">${l.status}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="text-align:right;font-size:10px;color:var(--muted);">
+            Last seen: ${lastSeen} · Checks: ${l.check_count||0}${l.last_ip ? ' · '+l.last_ip : ''}
+          </div>
+          ${l.status !== 'active'  ? `<button onclick="setLicStatus(${l.id},'active')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(16,185,129,.4);background:rgba(16,185,129,.1);color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">▶ Activate</button>` : ''}
+          ${l.status === 'active'  ? `<button onclick="setLicStatus(${l.id},'suspended')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#f59e0b;font-size:10px;font-weight:700;cursor:pointer;">⏸ Suspend</button>` : ''}
+          ${l.status !== 'revoked' ? `<button onclick="setLicStatus(${l.id},'revoked')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.1);color:#ef4444;font-size:10px;font-weight:700;cursor:pointer;">✕ Revoke</button>` : ''}
+        </div>
+      </div>
+
+      <!-- License key row -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.15);">
+        <span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;flex-shrink:0;">KEY</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#93c5fd;flex:1;">${l.license_key}</span>
+        <button onclick="copyKey('${l.license_key}')" style="padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:10px;font-weight:700;cursor:pointer;">📋 Copy</button>
+        <button onclick="deleteLic(${l.id},'${l.dealer_name}')" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(239,68,68,.2);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">🗑</button>
+      </div>
+
+      <!-- Editable settings -->
+      <div style="padding:14px 18px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Dealer Name</div>
+            <input id="lic-name-${l.id}" value="${l.dealer_name}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">City</div>
+            <input id="lic-city-${l.id}" value="${l.dealer_city||'Calgary, AB'}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Phone</div>
+            <input id="lic-phone-${l.id}" value="${l.dealer_phone||''}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="optional">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Inventory URL</div>
+            <input id="lic-url-${l.id}" value="${l.allowed_url}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Price Field</div>
+            <input id="lic-pf-${l.id}" value="${l.price_field||'Price'}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="e.g. Internet Price">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Price Markup ($)</div>
+            <input id="lic-markup-${l.id}" type="number" value="${l.price_markup||0}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Description Bullets (one per line)</div>
+          <textarea id="lic-bullets-${l.id}" rows="4" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'DM Mono',monospace;resize:vertical;">${bulletsText}</textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Notes</div>
+          <input id="lic-notes-${l.id}" value="${l.notes||''}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="Internal notes">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <div style="font-size:10px;color:var(--muted);align-self:center;">Created ${created} · Changes apply on dealer's next bridge restart</div>
+          <button onclick="saveLicSettings(${l.id})" style="padding:7px 18px;border-radius:6px;background:linear-gradient(135deg,var(--primary),#2563eb);border:none;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">💾 Save Settings</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function createFbLicense() {
+  const name = document.getElementById('fb-lic-name').value.trim();
+  const url  = document.getElementById('fb-lic-url').value.trim();
+  const note = document.getElementById('fb-lic-note').value.trim();
+  if (!name || !url) { alert('Dealer name and inventory URL required'); return; }
+  try {
+    const r = await fetch('/api/fb-license/admin/create', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+      body: JSON.stringify({ dealer_name: name, allowed_url: url, notes: note })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('fb-lic-name').value = '';
+      document.getElementById('fb-lic-url').value  = '';
+      document.getElementById('fb-lic-note').value = '';
+      await loadFbLicenses();
+      // Show the key immediately
+      alert(`License created!\n\nKey: ${d.license.license_key}\n\nAdd this to the dealer's config.json as "license_key".`);
+    } else { alert('Error: ' + (d.error || 'Unknown')); }
+  } catch(e) { alert('Network error'); }
+}
+
+async function setLicStatus(id, status) {
+  const label = {active:'Activate', suspended:'Suspend', revoked:'Revoke'}[status];
+  if (!confirm(`${label} this license?`)) return;
+  await fetch(`/api/fb-license/admin/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+    body: JSON.stringify({ status })
+  });
+  loadFbLicenses();
+}
+
+async function deleteLic(id, name) {
+  if (!confirm(`Permanently delete license for ${name}?`)) return;
+  await fetch(`/api/fb-license/admin/${id}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }
+  });
+  loadFbLicenses();
+}
+
+function copyKey(key) {
+  navigator.clipboard.writeText(key).then(() => alert('Key copied to clipboard!\n\nAdd this to the dealer\'s config.json as "license_key".'));
+}
+
+async function saveLicSettings(id) {
+  const get = (suffix) => document.getElementById(`lic-${suffix}-${id}`)?.value?.trim() || null;
+  const bulletsRaw = document.getElementById(`lic-bullets-${id}`)?.value || '';
+  const bullets = bulletsRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+  try {
+    const r = await fetch(`/api/fb-license/admin/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+      body: JSON.stringify({
+        dealer_name:         get('name'),
+        dealer_city:         get('city'),
+        dealer_phone:        get('phone'),
+        allowed_url:         get('url'),
+        price_field:         get('pf'),
+        price_markup:        parseInt(document.getElementById(`lic-markup-${id}`)?.value) || 0,
+        description_bullets: bullets,
+        notes:               get('notes'),
+      })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const btn = event.target;
+      btn.textContent = '✅ Saved!'; btn.style.background = 'rgba(16,185,129,.8)';
+      setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; loadFbLicenses(); }, 1500);
+    } else {
+      alert('Save failed: ' + (d.error||'Unknown'));
+    }
+  } catch(e) { alert('Network error'); }
+}
+
 </script>
 </body>
 </html>
