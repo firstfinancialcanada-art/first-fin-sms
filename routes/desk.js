@@ -572,6 +572,31 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ── PATCH condition on a single vehicle ─────────────────────────
+  app.patch('/api/desk/inventory/:stock/condition', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const VALID = ['Extra Clean', 'Clean', 'Average', 'Rough', 'Very Rough'];
+      const condition = req.body.condition;
+      if (!VALID.includes(condition)) {
+        return res.status(400).json({ success: false, error: 'Invalid condition value' });
+      }
+      const result = await client.query(
+        `UPDATE desk_inventory SET condition = $1, updated_at = NOW()
+         WHERE stock = $2 AND user_id = $3 RETURNING stock, condition`,
+        [condition, req.params.stock, req.user.userId]
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ success: false, error: 'Vehicle not found' });
+      }
+      res.json({ success: true, stock: result.rows[0].stock, condition: result.rows[0].condition });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
   // ── PATCH book value on a single vehicle ────────────────────────
   app.patch('/api/desk/inventory/:stock/book-value', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
