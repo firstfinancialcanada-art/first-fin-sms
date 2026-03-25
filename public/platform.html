@@ -886,13 +886,26 @@ select option{background:#0d1526;color:var(--text);}
   </div>
 </div>
 
-<div class="dt-setup" id="dt-setup-box">
-  <strong>One-time setup:</strong><br>
-  1. Install: <code>pip install playwright flask flask-cors &amp;&amp; python -m playwright install chromium</code><br>
-  2. Open Chrome: <code>chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\chrome-dt-session"</code><br>
-  3. Log into Dealertrack &rarr; go to <strong>Status</strong> page<br>
-  4. In a second terminal: <code>python dealertrack_scraper.py</code><br>
-  5. Click <strong>Start Scraper</strong> below
+<div id="dt-setup-box" style="background:linear-gradient(135deg,rgba(16,185,129,.07),rgba(30,90,246,.05));border:1px solid rgba(16,185,129,.22);border-radius:14px;padding:22px 26px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:200px;">
+    <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:5px;">DT Sync Setup</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;">
+      DT Sync connects directly to your Dealertrack account and pulls contacts and deal data automatically into your CRM.<br>
+      Setup takes about <strong style="color:var(--text);">15 minutes</strong> with our team — reach out and we'll get you live.
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;min-width:160px;">
+    <a href="tel:+15873066133"
+      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
+      onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+      <i data-lucide="phone" style="width:13px;height:13px;color:var(--green);"></i>587-306-6133
+    </a>
+    <a href="sms:+15873066133"
+      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
+      onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+      <i data-lucide="message-circle" style="width:13px;height:13px;color:var(--primary);"></i>Text Us
+    </a>
+  </div>
 </div>
 
 <div class="dt-bridge-row">
