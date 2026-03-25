@@ -963,28 +963,95 @@ function initLenderPanels(){
     container.innerHTML += html;
   });
 
-  // Quick Ref panel
-  container.innerHTML += `
-  <div id="lq-quickref" class="lcontent">
+  // Quick Ref panel — built dynamically from lenders object + extraLenders
+  buildQuickRef();
+}
+
+function buildQuickRef(){
+  const panel = document.getElementById('lq-quickref');
+  if(!panel) return;
+
+  // Best-for descriptions for hardcoded lenders
+  const bestFor = {
+    autocapital: 'Subprime/Bad Credit',
+    cibc:        'Prime/Good Credit',
+    edenpark:    'Flexible/Subprime',
+    iceberg:     'Deep Subprime',
+    northlake:   'No FICO Min',
+    prefera:     'Standard Credit',
+    rbc:         'Prime/Excellent',
+    santander:   'Mid-range Credit',
+    sda:         'Deep Subprime',
+    servus:      'Local/Member',
+    wsleasing:   'Lease Program',
+    iauto:       'Full Spectrum',
+  };
+
+  // Build rows from hardcoded lenders
+  const hardcodedRows = Object.entries(lenders).map(([lid, l]) => {
+    // Use custom uploaded rates if available, otherwise hardcoded defaults
+    const hasCustom = window._tenantRates && window._tenantRates[lid]?.length;
+    const customTiers = hasCustom ? window._tenantRates[lid] : null;
+    const rateRange = customTiers
+      ? (() => {
+          const rates = customTiers.map(t => parseFloat(t.buy_rate)).filter(r => r > 0).sort((a,b) => a-b);
+          return rates.length ? (rates.length > 1 ? `${rates[0]}%–${rates[rates.length-1]}%` : `${rates[0]}%`) : '—';
+        })()
+      : l.programs.map(p => p.rate).join(' / ');
+    const maxLTV    = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_ltv)||0)) : l.maxLTV;
+    const minYear   = customTiers ? Math.min(...customTiers.map(t=>parseInt(t.min_year)||2099)) : l.minYear;
+    const maxMile   = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_mileage)||0)) : l.maxMileage;
+    const maxCfx    = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_carfax)||0))  : l.maxCarfax;
+    const customBadge = hasCustom ? ' <span style="font-size:9px;background:rgba(16,185,129,.15);color:var(--green);border-radius:3px;padding:1px 5px;border:1px solid rgba(16,185,129,.3);font-weight:700;">★</span>' : '';
+
+    return `<tr>
+      <td><strong>${l.name}</strong>${customBadge}</td>
+      <td>${bestFor[lid] || '—'}</td>
+      <td>${minYear || '—'}</td>
+      <td>${maxMile ? maxMile.toLocaleString()+' km' : 'Credit-based'}</td>
+      <td>${maxCfx  ? '$'+maxCfx.toLocaleString() : 'Credit-based'}</td>
+      <td>${maxLTV}%</td>
+      <td>${rateRange}</td>
+      <td>${l.phone || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Extra lender rows from DB
+  const extra = window._extraLenders || {};
+  const extraRows = Object.entries(extra).map(([lid, ldata]) => {
+    const tiers = ldata.tiers || [];
+    const rates = tiers.map(t=>t.rate).filter(r=>r>0).sort((a,b)=>a-b);
+    const rateRange = rates.length > 1 ? `${rates[0]}%–${rates[rates.length-1]}%` : rates.length ? `${rates[0]}%` : '—';
+    const maxLTV  = tiers.length ? Math.max(...tiers.map(t=>t.maxLTV||0))   : '—';
+    const minYear = tiers.length ? Math.min(...tiers.map(t=>t.minYear||2099)): '—';
+    const maxMile = tiers.length ? Math.max(...tiers.map(t=>t.maxMileage||0)): null;
+    const maxCfx  = tiers.length ? Math.max(...tiers.map(t=>t.maxCarfax||0)) : null;
+
+    return `<tr style="background:rgba(6,182,212,.04);">
+      <td><strong>${ldata.name}</strong> <span style="font-size:9px;background:rgba(6,182,212,.15);color:#06b6d4;border-radius:3px;padding:1px 5px;border:1px solid rgba(6,182,212,.3);font-weight:700;">CUSTOM</span></td>
+      <td>Custom Lender</td>
+      <td>${minYear !== 2099 ? minYear : '—'}</td>
+      <td>${maxMile ? maxMile.toLocaleString()+' km' : '—'}</td>
+      <td>${maxCfx  ? '$'+maxCfx.toLocaleString() : '—'}</td>
+      <td>${maxLTV}%</td>
+      <td>${rateRange}</td>
+      <td>—</td>
+    </tr>`;
+  }).join('');
+
+  const hasExtra = Object.keys(extra).length > 0;
+
+  panel.innerHTML = `
     <div class="card-title" style="margin-bottom:16px;"><i data-lucide="book-open" class="ico"></i>Quick Reference — All Lenders</div>
-    <div class="warning-box">CIBC & RBC use rate-based programs without hard mileage/Carfax limits. WS Leasing is a lease program. Data verified January 2026.</div>
+    <div class="warning-box">CIBC & RBC use rate-based programs without hard mileage/Carfax limits. WS Leasing is a lease program. ★ = custom rate sheet uploaded. Data auto-updates when rate sheets are uploaded.</div>
     <div class="table-wrap"><table class="qr-table">
       <thead><tr><th>Lender</th><th>Best For</th><th>Min Year</th><th>Max Mileage</th><th>Max Carfax</th><th>Max LTV</th><th>Rate Range</th><th>Phone</th></tr></thead>
       <tbody>
-        <tr><td><strong>AutoCapital</strong></td><td>Subprime/Bad Credit</td><td>2015</td><td>195,000 km</td><td>$7,500</td><td>175%</td><td>13.49%–23.49%</td><td>855-646-0534</td></tr>
-        <tr><td><strong>CIBC</strong></td><td>Prime/Good Credit</td><td>2015</td><td>Credit-based</td><td>Credit-based</td><td>96%</td><td>6.36%–9.49%</td><td>1-855-598-1856</td></tr>
-        <tr><td><strong>EdenPark</strong></td><td>Flexible/Subprime</td><td>2015</td><td>180,000 km</td><td>$7,500</td><td>140%</td><td>11.99%–23.99%</td><td>1-855-366-8667</td></tr>
-        <tr><td><strong>Iceberg</strong></td><td>Deep Subprime</td><td>2012</td><td>180,000 km</td><td>$6,500</td><td>140%</td><td>12.99%–31.99%</td><td>855-694-0960</td></tr>
-        <tr><td><strong>NorthLake</strong></td><td>No FICO Min</td><td>2003</td><td>300,000 km</td><td>$7,500</td><td>140%</td><td>10.99%–22.99%</td><td>1-888-652-5320</td></tr>
-        <tr><td><strong>Prefera</strong></td><td>Standard Credit</td><td>2015</td><td>200,000 km</td><td>$5,000</td><td>170%</td><td>16.95%–30.95%</td><td>1-844-734-3577</td></tr>
-        <tr><td><strong>RBC</strong></td><td>Prime/Excellent</td><td>2015</td><td>Credit-based</td><td>Credit-based</td><td>96%</td><td>5.79%–9.99%</td><td>1-888-529-6999</td></tr>
-        <tr><td><strong>Santander</strong></td><td>Mid-range Credit</td><td>2015</td><td>160,000 km</td><td>$6,000</td><td>150%</td><td>9.99%–29.99%</td><td>1-888-222-4227</td></tr>
-        <tr><td><strong>SDA</strong></td><td>Deep Subprime</td><td>2012</td><td>250,000 km</td><td>$8,000</td><td>135%</td><td>15.99%–24.99%</td><td>1-800-731-2345</td></tr>
-        <tr><td><strong>Servus CU</strong></td><td>Local/Member</td><td>2015</td><td>180,000 km</td><td>$5,000</td><td>100%</td><td>6.50%–14.99%</td><td>1-877-378-8728</td></tr>
-        <tr><td><strong>WS Leasing</strong></td><td>Lease Program</td><td>2018</td><td>120,000 km</td><td>$3,000</td><td>100%</td><td>7.99%–16.99%</td><td>1-888-975-3273</td></tr>
+        ${hardcodedRows}
+        ${hasExtra ? `<tr><td colspan="8" style="padding:6px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#06b6d4;background:rgba(6,182,212,.06);">Custom Lenders</td></tr>${extraRows}` : ''}
       </tbody>
-    </table></div>
-  </div>`;
+    </table></div>`;
+  if(typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ── DYNAMIC EXTRA LENDER PANELS ──────────────────────────────────
@@ -1242,6 +1309,7 @@ async function loadTenantRates(){
     }
     // Build dynamic panels now that _extraLenders is ready
     if(typeof initExtraLenderPanels === 'function') initExtraLenderPanels();
+    if(typeof buildQuickRef === 'function') buildQuickRef();
   } catch(e){
     window._extraLenders = {};
     /* silently fall back to hardcoded */
