@@ -968,8 +968,16 @@ function initLenderPanels(){
 }
 
 function buildQuickRef(){
-  const panel = document.getElementById('lq-quickref');
-  if(!panel) return;
+  let panel = document.getElementById('lq-quickref');
+  // Create the panel if it doesn't exist yet
+  if(!panel){
+    const container = document.getElementById('lender-panels');
+    if(!container) return;
+    panel = document.createElement('div');
+    panel.id = 'lq-quickref';
+    panel.className = 'lcontent';
+    container.appendChild(panel);
+  }
 
   // Best-for descriptions for hardcoded lenders
   const bestFor = {
