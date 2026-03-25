@@ -285,6 +285,11 @@
     window.DEMO_MODE = false;
     const banner = document.getElementById('demo-banner');
     if (banner) banner.style.display = 'none';
+    // Strip ?demo=1 from URL so next page load doesn't re-trigger demo mode
+    if (new URLSearchParams(location.search).get('demo') === '1') {
+      const clean = location.pathname;
+      window.history.replaceState({}, document.title, clean);
+    }
   }
   function _showLoginError(msg) {
     const el = document.getElementById('ff-login-error');
