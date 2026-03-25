@@ -294,6 +294,10 @@ function showSection(id, btn){
     setTimeout(() => restoreCompareSession(), 60);
     setTimeout(() => syncCompareFromDeal(false), 120); // false = don't overwrite restored values
   }
+  // Init FB Poster when tab opens — detects local bridge
+  if(id==='fbposter') {
+    if (typeof window.initFbPoster === 'function') setTimeout(window.initFbPoster, 100);
+  }
   setTimeout(refreshIcons, 50);
 }
 
