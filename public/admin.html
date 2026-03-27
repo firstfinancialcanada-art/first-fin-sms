@@ -284,7 +284,9 @@ tr:hover td{background:rgba(30,90,246,.03);}
                 <option value="high">🟠 High Risk</option>
                 <option value="medium">🟡 Medium Risk</option>
                 <option value="low">🟢 Active</option>
-              </select>
+                            <option value="active">Active</option>
+              <option value="never">Never Logged In</option>
+            </select>
               <button class="act" onclick="document.getElementById('healthCard').style.display='none'">✕ Close</button>
             </div>
           </div>
@@ -328,7 +330,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
             <div class="ctrl-grid">
               <button class="ctrl-btn red-btn" onclick="sysAction('stop-bulk')">🛑 Stop Bulk</button>
               <button class="ctrl-btn red-btn" onclick="sysAction('wipe-bulk')">🗑 Wipe Queue</button>
-              <button class="ctrl-btn amber-btn full-width" onclick="sysAction('fintest-reset')">↺ Reset Fintest Account</button>
+              <button class="ctrl-btn amber-btn full-width" onclick="sysAction('fintest-reset')" title="Clears all data for fintest@fintest.com only — does not affect any real dealer accounts">↺ Reset Test Account (<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b8ded1d6ccddcbccf8ded1d6ccddcbcc96dbd7d5">[email&#160;protected]</a> only)</button>
             </div>
           </div>
         </div>
@@ -433,7 +435,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
 
 <div id="toast"></div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 const TOKEN_KEY = 'ff_admin_token';
 let adminToken  = '';
 let allUsers    = [];
@@ -511,7 +513,11 @@ async function loadTenantHealth() {
 }
 
 function filterHealth(risk) {
-  const filtered = risk === 'all' ? allHealthData : allHealthData.filter(t => t.churnRisk === risk);
+  let filtered;
+  if (risk === 'all')    filtered = allHealthData;
+  else if (risk === 'never')  filtered = allHealthData.filter(t => t.daysInactive === null);
+  else if (risk === 'active') filtered = allHealthData.filter(t => t.churnRisk === 'active' || t.churnRisk === 'low');
+  else                        filtered = allHealthData.filter(t => t.churnRisk === risk);
   renderHealth(filtered);
 }
 
@@ -521,8 +527,8 @@ function renderHealth(tenants) {
     return;
   }
 
-  const riskColor = { low:'#10b981', medium:'#f59e0b', high:'#ef4444', critical:'#dc2626' };
-  const riskLabel = { low:'ACTIVE', medium:'MEDIUM', high:'HIGH RISK', critical:'CRITICAL' };
+  const riskColor = { active:'#10b981', low:'#10b981', medium:'#f59e0b', high:'#ef4444', critical:'#dc2626' };
+  const riskLabel = { active:'ACTIVE', low:'ACTIVE', medium:'WATCH', high:'HIGH RISK', critical:'CRITICAL' };
 
   document.getElementById('healthGrid').innerHTML = tenants.map(t => {
     const rc    = riskColor[t.churnRisk] || '#666';
@@ -843,7 +849,7 @@ async function createTenant() {
 }
 
 async function sysAction(action) {
-  const confirmActions = { 'wipe-bulk': 'Wipe ALL pending bulk messages?', 'fintest-reset': 'Reset fintest account — delete all its data?' };
+  const confirmActions = { 'wipe-bulk': 'Wipe ALL pending bulk messages?', 'fintest-reset': 'Reset fintest@fintest.com test account?\n\nThis deletes all inventory, deals, CRM, and conversations for that account only.\n\nReal dealer accounts are NOT affected.' };
   if (confirmActions[action] && !confirm(confirmActions[action])) return;
   const endpoints = {
     'resume-bulk':    ['/api/bulk-sms/resume', 'GET'],
@@ -1265,13 +1271,4 @@ async function saveLicSettings(id) {
     if (d.ok) {
       const btn = event.target;
       btn.textContent = '✅ Saved!'; btn.style.background = 'rgba(16,185,129,.8)';
-      setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; loadFbLicenses(); }, 1500);
-    } else {
-      alert('Save failed: ' + (d.error||'Unknown'));
-    }
-  } catch(e) { alert('Network error'); }
-}
-
-</script>
-</body>
-</html>
+      setTimeout(() => { btn.tex
