@@ -265,9 +265,10 @@ function toggleBiweekly(el){
   if (fiBwEl) fiBwEl.checked = window._biweekly;
   calculate();
   updateRateComparison();
-  // If presentation overlay is open, re-render payment cards immediately
-  const overlay = document.getElementById('presentationOverlay');
-  if(overlay && overlay.classList.contains('open')) refreshPresentationCards();
+  // Always refresh presentation cards — refreshPresentationCards() returns early
+  // if the presentation has never been opened, so this is always safe to call.
+  // Avoids a race where overlay.classList.contains('open') fails mid-event.
+  refreshPresentationCards();
 }
 // BPMT: calculates payment based on current mode (monthly or bi-weekly)
 function BPMT(apr, months, fin){
@@ -4791,11 +4792,11 @@ function refreshPresentationCards(){
 
   const { apr, finance, finalDown, featured_term } = ctx;
 
-  // Re-render the toggle (keeps checked state in sync with _biweekly)
-  const presToggleWrap = document.getElementById('bw-toggle-wrap-pres');
-  if(presToggleWrap){
-    presToggleWrap.innerHTML = `<div style="display:flex;justify-content:center;margin-bottom:20px;">${_biweeklyToggleHTML('bw-toggle-pres')}</div>`;
-  }
+  // Sync the toggle checkbox state without re-rendering it
+  // (re-rendering innerHTML destroys the element mid-event and is unnecessary
+  //  because toggleBiweekly already syncs all .bw-toggle checked states)
+  const presToggleEl = document.getElementById('bw-toggle-pres');
+  if(presToggleEl) presToggleEl.checked = window._biweekly;
 
   let cardsHTML = '';
   [48, 60, 72, 84].forEach(term => {
