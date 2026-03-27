@@ -307,6 +307,26 @@ select option{background:#0d1526;color:var(--text);}
 
 
 /* ── PRESENTATION MODE ── */
+/* ── Demo upgrade popup ── */
+#demo-upgrade-popup{
+  display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:linear-gradient(135deg,#0d1526,#0a0f1a);
+  border:1px solid rgba(245,158,11,.45);border-radius:10px;
+  padding:13px 22px;z-index:99999;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  text-align:center;min-width:280px;max-width:360px;
+  transition:opacity .25s,transform .25s;opacity:0;
+}
+#demo-upgrade-popup.show{display:block;opacity:1;transform:translateX(-50%) translateY(0);}
+#demo-upgrade-popup .dup-icon{font-size:20px;margin-bottom:4px;}
+#demo-upgrade-popup .dup-title{font-size:13px;font-weight:800;color:var(--amber);margin-bottom:3px;}
+#demo-upgrade-popup .dup-body{font-size:11px;color:rgba(255,255,255,.6);line-height:1.5;}
+#demo-upgrade-popup .dup-btn{
+  display:inline-block;margin-top:8px;padding:6px 16px;
+  background:linear-gradient(135deg,var(--primary),#2563eb);
+  border-radius:6px;color:#fff;font-size:11px;font-weight:700;
+  text-decoration:none;cursor:pointer;border:none;
+}
 #presentationOverlay{display:none;position:fixed;inset:0;background:linear-gradient(135deg,#020812 0%,#050f28 50%,#020812 100%);z-index:9000;flex-direction:column;align-items:center;justify-content:center;padding:40px;}
 #presentationOverlay.open{display:flex;}
 .pres-dealership{font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;letter-spacing:4px;color:rgba(245,158,11,.7);text-transform:uppercase;margin-bottom:20px;}
@@ -580,6 +600,9 @@ select option{background:#0d1526;color:var(--text);}
   .otd-amount{font-size:26px;}
 
   /* F&I products */
+  .fi-term-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;cursor:pointer;transition:all .13s;}
+  .fi-term-btn.active-term{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .fi-term-btn:hover:not(.active-term){border-color:rgba(30,90,246,.4);color:#93c5fd;}
   .product-box{padding:10px;margin-bottom:8px;}
   .product-header{flex-wrap:wrap;gap:4px;}
 
@@ -1296,8 +1319,23 @@ select option{background:#0d1526;color:var(--text);}
       <div class="card" style="margin-top:16px;">
         <div class="wiz-section-title"><i data-lucide="shield-check" class="ico-lg" style="color:var(--green)"></i><span class="wiz-accent green">F&I</span> Protection Package</div>
 
+        <!-- Payment breakdown summary -->
         <div style="background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(30,90,246,.06));border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:16px;margin-bottom:16px;">
-          <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Monthly Payment @ 72 Months</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;" id="fi-pay-header">Payment @ 72 Months</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
+                <input type="checkbox" id="fi-biweekly-toggle" onchange="fiBiweeklyToggle(this)" style="width:13px;height:13px;cursor:pointer;accent-color:var(--primary);">
+                <span style="letter-spacing:.5px;text-transform:uppercase;">Bi-Weekly</span>
+              </label>
+              <div style="display:flex;gap:3px;">
+                <button class="fi-term-btn" data-term="48" onclick="setFiTerm(48,this)">48</button>
+                <button class="fi-term-btn" data-term="60" onclick="setFiTerm(60,this)">60</button>
+                <button class="fi-term-btn active-term" data-term="72" onclick="setFiTerm(72,this)">72</button>
+                <button class="fi-term-btn" data-term="84" onclick="setFiTerm(84,this)">84</button>
+              </div>
+            </div>
+          </div>
           <div class="comp-row"><span class="comp-label">Vehicle Only</span><span class="comp-value" id="basePayment72">$0.00</span></div>
           <div class="comp-row"><span class="comp-label">+ GAP Insurance</span><span class="comp-value" id="withGap">$0.00</span></div>
           <div class="comp-row"><span class="comp-label">+ GAP + Warranty</span><span class="comp-value" id="withGapVsc">$0.00</span></div>
@@ -1308,21 +1346,71 @@ select option{background:#0d1526;color:var(--text);}
           </div>
         </div>
 
-        <div class="product-box">
-          <div class="product-header"><span class="product-name">Vehicle Service Contract (VSC)</span><span class="product-impact" id="vscImpact" style="color:var(--green);">+$0.00/mo</span></div>
+        <!-- Product price inputs with sold checkboxes -->
+        <div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Products Offered — Check to Confirm Sold</div>
+
+        <div class="product-box" id="pb-vsc">
+          <div class="product-header">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;">
+              <input type="checkbox" id="vscSold" onchange="updateFiSection()" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer;">
+              <span class="product-name">Vehicle Service Contract (VSC)</span>
+            </label>
+            <span class="product-impact" id="vscImpact" style="color:var(--green);">+$0.00/mo</span>
+          </div>
           <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="vscPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
-        <div class="product-box">
-          <div class="product-header"><span class="product-name">GAP Insurance</span><span class="product-impact" id="gapImpact" style="color:var(--green);">+$0.00/mo</span></div>
+        <div class="product-box" id="pb-gap">
+          <div class="product-header">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;">
+              <input type="checkbox" id="gapSold" onchange="updateFiSection()" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer;">
+              <span class="product-name">GAP Insurance</span>
+            </label>
+            <span class="product-impact" id="gapImpact" style="color:var(--green);">+$0.00/mo</span>
+          </div>
           <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="gapPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
-        <div class="product-box">
-          <div class="product-header"><span class="product-name">Tire & Wheel Protection</span><span class="product-impact" id="twImpact" style="color:var(--green);">+$0.00/mo</span></div>
+        <div class="product-box" id="pb-tw">
+          <div class="product-header">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;">
+              <input type="checkbox" id="twSold" onchange="updateFiSection()" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer;">
+              <span class="product-name">Tire &amp; Wheel Protection</span>
+            </label>
+            <span class="product-impact" id="twImpact" style="color:var(--green);">+$0.00/mo</span>
+          </div>
           <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="twPrice" value="0" oninput="calculate()" style="width:100%;"></div>
         </div>
-        <div class="product-box">
-          <div class="product-header"><span class="product-name">Wear Appearance (WA)</span><span class="product-impact" id="waImpact" style="color:var(--green);">+$0.00/mo</span></div>
+        <div class="product-box" id="pb-wa">
+          <div class="product-header">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;flex:1;">
+              <input type="checkbox" id="waSold" onchange="updateFiSection()" style="width:14px;height:14px;accent-color:var(--green);cursor:pointer;">
+              <span class="product-name">Walk Away Insurance (WA)</span>
+            </label>
+            <span class="product-impact" id="waImpact" style="color:var(--green);">+$0.00/mo</span>
+          </div>
           <div class="fgroup" style="margin:0;"><label>Customer Price ($)</label><input type="number" class="product-price" id="waPrice" value="0" oninput="calculate()" style="width:100%;"></div>
+        </div>
+
+        <!-- Confirmed deal summary — updates based on checked products only -->
+        <div id="fi-confirmed-box" style="margin-top:14px;background:linear-gradient(135deg,rgba(30,90,246,.1),rgba(245,158,11,.06));border:2px solid rgba(245,158,11,.4);border-radius:10px;padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;">✓ Confirmed Deal</div>
+            <div style="font-size:10px;color:var(--muted);" id="fi-confirmed-products">No products selected</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+            <div style="background:rgba(0,0,0,.2);border-radius:6px;padding:10px;text-align:center;">
+              <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Total Financed</div>
+              <div style="font-size:18px;font-weight:900;color:var(--primary);" id="fi-confirmed-financed">$0</div>
+            </div>
+            <div style="background:rgba(0,0,0,.2);border-radius:6px;padding:10px;text-align:center;">
+              <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">F&I Added</div>
+              <div style="font-size:18px;font-weight:900;color:var(--green);" id="fi-confirmed-products-total">$0</div>
+            </div>
+          </div>
+          <!-- Payment breakdown at selected term for confirmed products -->
+          <div id="fi-confirmed-rows" style="margin-bottom:12px;"></div>
+          <button class="btn btn-primary" style="width:100%;font-size:13px;padding:10px;" onclick="openPresentation()">
+            <i data-lucide="monitor" class="ico-sm"></i> Present to Customer
+          </button>
         </div>
       </div>
 
@@ -2062,7 +2150,7 @@ select option{background:#0d1526;color:var(--text);}
           <div class="fgroup"><label>Campaign Name</label><input type="text" id="campaignName" placeholder="March Follow-Up 2025"></div>
           <div class="fgroup">
             <label>Message Template <span style="color:var(--muted);font-size:10px;">— must include {name}</span></label>
-            <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! This is Sarah from First Financial. We have some great vehicles in stock — are you still looking? (Reply STOP to opt out)</textarea>
+            <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)</textarea>
             <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px;"><span id="charCount">0</span> characters</div>
           </div>
           <button class="btn btn-primary btn-full" onclick="launchBulkCampaign()">Launch Campaign</button>
@@ -2096,11 +2184,7 @@ select option{background:#0d1526;color:var(--text);}
 
   <!-- ── Voice Tab ── -->
   <div id="stab-voice" class="mgr-content">
-    <div style="background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.2);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#06b6d4;">
-      <strong>One-time Twilio setup for inbound calls:</strong><br>
-      Twilio console → Phone Numbers → your number → Voice → A call comes in → Webhook<br>
-      Set to: <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px;font-size:11px;">POST https://firstfin.up.railway.app/api/voice/inbound</code>
-    </div>
+
     <div class="two-col" style="align-items:start;">
       <div class="card">
         <div class="card-title"><i data-lucide="voicemail" class="ico"></i>Single Voicemail Drop</div>
@@ -2110,7 +2194,7 @@ select option{background:#0d1526;color:var(--text);}
         </div>
         <div class="fgroup">
           <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name} for customer's name)</span></label>
-          <textarea id="vd_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from First Financial. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!</textarea>
+          <textarea id="vd_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from {dealer}. We have some great vehicles in stock right now — give us a call back or reply here by text. Talk soon!</textarea>
         </div>
         <button class="btn btn-primary btn-full" onclick="sendVoiceDrop()">Send Voicemail Drop</button>
         <div id="voiceDropResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
@@ -2120,7 +2204,7 @@ select option{background:#0d1526;color:var(--text);}
         <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">Pulls from CRM. Each call spaced 10 seconds apart to avoid carrier flags. Customer can press 1 to connect live.</div>
         <div class="fgroup">
           <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name})</span></label>
-          <textarea id="vc_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from First Financial with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!</textarea>
+          <textarea id="vc_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is {dealer} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!</textarea>
         </div>
         <div class="fgroup">
           <label>Target CRM Status</label>
@@ -2244,7 +2328,7 @@ select option{background:#0d1526;color:var(--text);}
       <div class="pw-row"><span>Vehicle Service Contract</span><strong id="pw-vsc">—</strong></div>
       <div class="pw-row"><span>GAP Insurance</span><strong id="pw-gap">—</strong></div>
       <div class="pw-row"><span>Tire & Wheel</span><strong id="pw-tw">—</strong></div>
-      <div class="pw-row"><span>Wear Appearance</span><strong id="pw-wa">—</strong></div>
+      <div class="pw-row"><span>Walk Away Insurance</span><strong id="pw-wa">—</strong></div>
     </div>
   </div>
   <div class="pw-sig">
@@ -2791,6 +2875,7 @@ async function startLoginBuy() {
     <div class="fbp-sep"></div>
     <div class="fbp-sorts">
       <button class="fbp-sort active" onclick="fbpSort('cheapest',this)">Cheapest</button>
+      <button class="fbp-sort" onclick="fbpSort('premium',this)">Premium</button>
       <button class="fbp-sort" onclick="fbpSort('newest',this)">Newest</button>
       <button class="fbp-sort" onclick="fbpSort('default',this)">Listed</button>
     </div>
@@ -2831,6 +2916,7 @@ async function startLoginBuy() {
             <div class="fbp-qhead-lbl">Today's Queue</div>
             <div class="fbp-sorts" style="gap:3px;">
               <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:9px;padding:3px 7px;">Cheapest</button>
+              <button class="fbp-sort" onclick="fbpSort('premium',this)" style="font-size:9px;padding:3px 7px;">Premium</button>
               <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:9px;padding:3px 7px;">Newest</button>
               <button class="fbp-sort" onclick="fbpSort('default',this)" style="font-size:9px;padding:3px 7px;">Listed</button>
             </div>
@@ -2862,11 +2948,11 @@ async function startLoginBuy() {
               <button class="fbp-btn-folder" onclick="fbpOpenPhotos()">📂 Open Photos Folder</button>
             </div>
             <div class="fbp-abar">
-              <button class="fbp-btn autofill" onclick="fbpAutofill()">⚡ Auto-Fill Facebook</button>
-              <button class="fbp-btn fbopen"   onclick="fbpOpenFb()">🌐 Open Marketplace</button>
+              <button class="fbp-btn autofill" onclick="fbpAutofill()" title="Opens Facebook Marketplace and fills the entire form automatically">⚡ Post to Facebook</button>
               <button class="fbp-btn posted"   onclick="fbpMark('posted')">✅ Mark Posted</button>
               <button class="fbp-btn repost"   onclick="fbpMark('reposted')">🔁 Repost</button>
               <button class="fbp-btn skip"     onclick="fbpMark('skipped')">⏭ Skip</button>
+              <button class="fbp-btn fbopen"   onclick="fbpOpenFb()" title="Manually open Facebook Marketplace (fallback if Auto-Fill doesn't launch)" style="opacity:.55;font-size:10px;padding:5px 10px;">↗ FB</button>
               <span class="fbp-flash" id="fbp-flash"></span>
             </div>
             <div class="fbp-body">
@@ -3006,6 +3092,7 @@ async function startLoginBuy() {
     const slots   = Math.max(0, DAILY_LIM - ptToday);
     let unposted  = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
     if (fbpSort_ === 'cheapest') unposted.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+    else if (fbpSort_ === 'premium') unposted.sort((a,b) => (parseInt(b.price)||0)-(parseInt(a.price)||0));
     else if (fbpSort_ === 'newest') unposted.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
     fbpQueue = unposted.slice(0, slots);
     const reposts = fbpAllV.filter(v => v.needs_repost);
@@ -3046,11 +3133,20 @@ async function startLoginBuy() {
   }
 
   window.fbpSort = function(mode, btn) {
+    // Remember which vehicle is currently selected so we can find it in new order
+    const prevPostKey = fbpV ? (fbpV.post_key || fbpV.detail_url || fbpV.stock) : null;
     fbpSort_ = mode; fbpIdx = -1;
     document.querySelectorAll('.fbp-sort').forEach(b => {
       b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${mode}'`));
     });
     fbpBuildQueue();
+    // After rebuild, try to re-select the same vehicle if still in queue
+    if (prevPostKey && fbpQueue.length) {
+      const newIdx = fbpQueue.findIndex(v =>
+        (v.post_key || v.detail_url || v.stock) === prevPostKey
+      );
+      if (newIdx >= 0) { fbpIdx = -1; fbpSelect(newIdx); return; }
+    }
   };
 
   window.fbpShowReposts = function() {
@@ -3182,11 +3278,11 @@ async function startLoginBuy() {
     try {
       const r=await fetch(`${FBP_BRIDGE}/api/autofill`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fbpV.raw?.fields||{},photos:fbpV.photos})});
       const d=await r.json();
-      fbpFlash(d.ok?'⚡ Filling form — check Chrome!':`⚠ ${d.error||'Error'}`);
+      fbpFlash(d.ok?'⚡ Opening Facebook & filling form — check Chrome!':`⚠ ${d.error||'Error'}`);
     } catch { fbpFlash('⚠ Bridge offline'); }
   };
 
-  window.fbpOpenFb = function() { window.open(FB_URL,'_blank'); fbpFlash('🌐 Facebook opened'); };
+  window.fbpOpenFb = function() { window.open(FB_URL,'_blank'); fbpFlash('↗ Facebook Marketplace opened manually'); };
 
   window.fbpMark = async function(action) {
     if (!fbpV) return;
@@ -3216,6 +3312,14 @@ ${fbpV.title}`)) return;
 
 
 <!-- ═══ DEMO WATERMARK ═══ -->
+<!-- Demo upgrade popup -->
+<div id="demo-upgrade-popup">
+  <div class="dup-icon">🔒</div>
+  <div class="dup-title">Feature Limited in Demo Mode</div>
+  <div class="dup-body">Some features and adjustments are only available for paid members. Unlock everything with a First-Fin subscription.</div>
+  <a href="mailto:First@FirstFinancialCanada.com" class="dup-btn">Get Full Access</a>
+</div>
+
 <div id="demo-watermark" style="display:none;pointer-events:none;position:fixed;inset:0;z-index:99990;overflow:hidden;">
   <!-- Repeating diagonal tile pattern -->
   <svg id="demo-wm-svg" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:0;width:100%;height:100%;"></svg>
