@@ -90,9 +90,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           cu.name as customer_name,
           c.stage, c.status, c.vehicle_type, c.budget,
           c.started_at, c.updated_at,
-          (SELECT COUNT(*) FROM messages m 
-           JOIN conversations cx ON m.conversation_id = cx.id 
-           WHERE cx.customer_phone = c.customer_phone AND cx.user_id = $1) as message_count
+          (SELECT COUNT(*) FROM messages m
+           JOIN conversations cx ON m.conversation_id = cx.id
+           WHERE cx.customer_phone = c.customer_phone AND cx.user_id = $1) as message_count,
+          (SELECT m2.content FROM messages m2
+           JOIN conversations cx2 ON m2.conversation_id = cx2.id
+           WHERE cx2.customer_phone = c.customer_phone AND cx2.user_id = $1
+           ORDER BY m2.created_at DESC LIMIT 1) as last_message
         FROM conversations c
         LEFT JOIN customers cu ON c.customer_phone = cu.phone AND cu.user_id = $1
         WHERE c.user_id = $1
@@ -191,6 +195,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     try {
       const { phone, message } = req.body;
       if (!phone || !message) return res.json({ success: false, error: 'Phone and message required' });
+      // CASL: block replies to opted-out customers
+      const stoppedCheck = await pool.query(
+        `SELECT status FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1`,
+        [phone, req.user.userId]
+      );
+      if (stoppedCheck.rows[0]?.status === 'stopped') {
+        return res.json({
+          success: false,
+          error: 'This customer has opted out (replied STOP). They must reply START before you can contact them.'
+        });
+      }
       const conversation = await getOrCreateConversation(phone, req.user.userId);
       await saveMessage(conversation.id, phone, 'assistant', message, req.user.userId);
       await logAnalytics('manual_reply_sent', phone, { message }, req.user.userId);
@@ -228,7 +243,23 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           error: 'This customer already has an active conversation. Check "Recent Conversations" below to continue their conversation.'
         });
       }
-      const tenantName = TENANT_DEALER_NAME || 'the dealership';
+      // CASL: block if customer has previously opted out
+      const stoppedCheck = await pool.query(
+        `SELECT status FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1`,
+        [normalizedPhone, req.user.userId]
+      );
+      if (stoppedCheck.rows[0]?.status === 'stopped') {
+        return res.json({
+          success: false,
+          error: 'This number has opted out (replied STOP). You cannot contact them unless they reply START.'
+        });
+      }
+      // Resolve dealer name from tenant settings (TENANT_DEALER_NAME is only scoped to the webhook handler)
+      let tenantName = 'the dealership';
+      try {
+        const ts = await getTenantSettings(req.user.userId);
+        if (ts?.dealerName) tenantName = ts.dealerName;
+      } catch(e) {}
       const messageBody = message || `Hi! 👋 I'm Sarah from ${tenantName}. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)`;
       const uid = req.user.userId;
       await getOrCreateCustomer(normalizedPhone, uid);
@@ -404,17 +435,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           const custName  = conversation.customer_name || 'Unknown';
           const custPhone = formatPretty(phone);
           const preview   = message.length > 100 ? message.substring(0, 100) + '...' : message;
-          if (TENANT_NOTIFY_PHONE) {
+          // Only notify dealer on first contact (new lead) — stage-change events
+          // (appt booked, callback) send their own dedicated alerts already.
+          // Notifying on every reply is too noisy for active conversations.
+          const isFirstContact = conversation.stage === 'greeting' ||
+            (await pool.query(
+              'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = $1',
+              [conversation.id]
+            )).rows[0]?.cnt <= 2;
+          if (TENANT_NOTIFY_PHONE && isFirstContact) {
             twilioClient.messages.create({
               body: `💬 New lead from ${custName}\n📞 ${custPhone}\n\n"${preview}"\n\nReply via: app.firstfinancialcanada.com`,
               from: TENANT_FROM_NUMBER,
               to: TENANT_NOTIFY_PHONE
             }).then(() => {
-              console.log(`✅ Notify sent to ${TENANT_NOTIFY_PHONE} from ${TENANT_FROM_NUMBER}`);
+              console.log(`✅ New lead notify sent to ${TENANT_NOTIFY_PHONE}`);
             }).catch(err => {
-              console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE} from ${TENANT_FROM_NUMBER}: ${err.message} (code ${err.code})`);
+              console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE}: ${err.message} (code ${err.code})`);
             });
-          } else {
+          } else if (!TENANT_NOTIFY_PHONE) {
             console.warn('⚠️ No notify phone configured — skipping lead alert');
           }
 
