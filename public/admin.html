@@ -330,7 +330,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
             <div class="ctrl-grid">
               <button class="ctrl-btn red-btn" onclick="sysAction('stop-bulk')">🛑 Stop Bulk</button>
               <button class="ctrl-btn red-btn" onclick="sysAction('wipe-bulk')">🗑 Wipe Queue</button>
-              <button class="ctrl-btn amber-btn full-width" onclick="sysAction('fintest-reset')" title="Clears all data for fintest@fintest.com only — does not affect any real dealer accounts">↺ Reset Test Account (<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b8ded1d6ccddcbccf8ded1d6ccddcbcc96dbd7d5">[email&#160;protected]</a> only)</button>
+              <button class="ctrl-btn amber-btn full-width" onclick="sysAction('fintest-reset')" title="Clears all data for fintest@fintest.com only — does not affect any real dealer accounts">↺ Reset Test Account (fintest@fintest.com only)</button>
             </div>
           </div>
         </div>
@@ -435,7 +435,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
 
 <div id="toast"></div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 const TOKEN_KEY = 'ff_admin_token';
 let adminToken  = '';
 let allUsers    = [];
@@ -1271,4 +1271,13 @@ async function saveLicSettings(id) {
     if (d.ok) {
       const btn = event.target;
       btn.textContent = '✅ Saved!'; btn.style.background = 'rgba(16,185,129,.8)';
-      setTimeout(() => { btn.tex
+      setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; loadFbLicenses(); }, 1500);
+    } else {
+      alert('Save failed: ' + (d.error||'Unknown'));
+    }
+  } catch(e) { alert('Network error'); }
+}
+
+</script>
+</body>
+</html>
