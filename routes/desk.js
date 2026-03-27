@@ -293,7 +293,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── GET ME ───────────────────────────────────────────────
-  app.get('/api/desk/me', requireAuth, async (req, res) => {
+  app.get('/api/desk/me', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(
@@ -377,7 +377,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // SETTINGS
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/settings', requireAuth, async (req, res) => {
+  app.get('/api/desk/settings', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]);
@@ -509,7 +509,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // INVENTORY
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/inventory', requireAuth, async (req, res) => {
+  app.get('/api/desk/inventory', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(
@@ -637,7 +637,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // CRM
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/crm', requireAuth, async (req, res) => {
+  app.get('/api/desk/crm', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(
