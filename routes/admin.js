@@ -1,173 +1,1274 @@
-// routes/admin.js
-const { pool } = require('../lib/db');
-const { state } = require('../lib/bulk');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIRST-FIN — Operator Command</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #050b18;
+  --bg2:     #080f20;
+  --surface: #0d1526;
+  --surf2:   #111d36;
+  --blue:    #1e5af6;
+  --blue2:   #4a7fff;
+  --amber:   #f59e0b;
+  --green:   #10b981;
+  --red:     #ef4444;
+  --cyan:    #06b6d4;
+  --text:    #e2e8f0;
+  --muted:   #64748b;
+  --border:  rgba(30,90,246,0.18);
+  --border2: rgba(30,90,246,0.3);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-// ── Error sanitizer — never leak DB internals to client ──────────
-function sanitizeError(e) {
-  console.error('Route error:', e);
-  return 'An unexpected error occurred. Please try again.';
+/* ── NOISE ── */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:0.35;}
+
+/* ── LOGIN ── */
+#login-screen{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+.login-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:48px 40px;width:360px;text-align:center;}
+.login-logo{margin-bottom:28px;}
+.login-title{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:5px;background:linear-gradient(135deg,#1e5af6,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px;}
+.login-sub{font-size:12px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:28px;font-family:'DM Mono',monospace;}
+.login-box input{width:100%;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;margin-bottom:12px;transition:border-color .2s;}
+.login-box input:focus{border-color:var(--blue2);}
+.login-box button{width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.8px;cursor:pointer;transition:all .2s;}
+.login-box button:hover{box-shadow:0 6px 24px rgba(30,90,246,.4);transform:translateY(-1px);}
+.login-err{color:var(--red);font-size:12px;margin-top:8px;display:none;}
+
+/* ── MAIN LAYOUT ── */
+#app{display:none;position:relative;z-index:1;}
+header{position:sticky;top:0;z-index:100;height:60px;background:rgba(5,11,24,0.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;}
+.h-left{display:flex;align-items:center;gap:16px;}
+.h-logo{display:flex;align-items:center;gap:10px;}
+.h-wordmark{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:5px;background:linear-gradient(135deg,#1e5af6,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.h-tag{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(30,90,246,.25);border-radius:4px;padding:2px 8px;}
+.h-right{display:flex;align-items:center;gap:16px;}
+.status-dot{display:flex;align-items:center;gap:6px;font-size:12px;font-family:'DM Mono',monospace;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+.dot.red{background:var(--red);animation:none;}
+.dot.amber{background:var(--amber);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.h-btn{padding:7px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.5px;}
+.h-btn:hover{border-color:var(--blue2);color:var(--text);}
+.h-btn.danger{border-color:rgba(239,68,68,.3);color:var(--red);}
+.h-btn.danger:hover{background:rgba(239,68,68,.1);}
+
+/* ── MAIN ── */
+main{max-width:1400px;margin:0 auto;padding:32px;}
+
+/* ── STAT CARDS ── */
+.stat-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:12px;margin-bottom:32px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;transition:border-color .2s;}
+.stat-card:hover{border-color:var(--border2);}
+.stat-num{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;color:var(--text);line-height:1;}
+.stat-num.blue{color:var(--blue2);}
+.stat-num.green{color:var(--green);}
+.stat-num.amber{color:var(--amber);}
+.stat-num.red{color:var(--red);}
+.stat-num.cyan{color:var(--cyan);}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:6px;font-family:'DM Mono',monospace;}
+
+/* ── SECTION LAYOUT ── */
+.section-grid{display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start;}
+.section-grid.full{grid-template-columns:1fr;}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--text);}
+.card-title span{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);font-weight:400;letter-spacing:1px;margin-left:10px;}
+.card-body{padding:20px;}
+
+/* ── SYSTEM CONTROLS ── */
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ctrl-btn{padding:11px 14px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;border:1px solid;transition:all .2s;text-align:center;}
+.ctrl-btn.green-btn{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.3);color:var(--green);}
+.ctrl-btn.green-btn:hover{background:rgba(16,185,129,.15);}
+.ctrl-btn.red-btn{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--red);}
+.ctrl-btn.red-btn:hover{background:rgba(239,68,68,.15);}
+.ctrl-btn.amber-btn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);color:var(--amber);}
+.ctrl-btn.amber-btn:hover{background:rgba(245,158,11,.15);}
+.ctrl-btn.blue-btn{background:rgba(30,90,246,.08);border-color:rgba(30,90,246,.3);color:var(--blue2);}
+.ctrl-btn.blue-btn:hover{background:rgba(30,90,246,.15);}
+.ctrl-btn.full-width{grid-column:1/-1;}
+
+/* ── SYS INFO ── */
+.sys-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+.sys-row:last-child{border-bottom:none;}
+.sys-key{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;}
+.sys-val{font-size:12px;color:var(--text);font-family:'DM Mono',monospace;font-weight:500;}
+.sys-val.on{color:var(--green);}
+.sys-val.off{color:var(--red);}
+.sys-val.warn{color:var(--amber);}
+
+/* ── FORM ── */
+.fgroup{margin-bottom:12px;}
+.fgroup label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;}
+.fgroup input,.fgroup select{width:100%;padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;outline:none;transition:border-color .2s;}
+.fgroup input:focus,.fgroup select:focus{border-color:var(--blue2);}
+.btn-submit{width:100%;padding:11px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s;margin-top:4px;}
+.btn-submit:hover{box-shadow:0 4px 20px rgba(30,90,246,.4);}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed;}
+
+/* ── USERS TABLE ── */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:10px 14px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:12px 14px;border-bottom:1px solid rgba(30,90,246,.07);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(30,90,246,.03);}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.badge.active{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+.badge.trial{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.22);}
+.badge.lapsed{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.22);}
+.badge.past_due{background:rgba(245,158,11,.15);color:#f97316;border:1px solid rgba(245,158,11,.35);}
+.badge.cancelled{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid rgba(100,116,139,.2);}
+.badge.twilio-ok{background:rgba(6,182,212,.1);color:var(--cyan);border:1px solid rgba(6,182,212,.25);}
+.badge.twilio-none{background:rgba(100,116,139,.08);color:var(--muted);border:1px solid rgba(100,116,139,.15);}
+.badge.suspended{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+.action-row{display:flex;gap:6px;flex-wrap:wrap;}
+.act{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid;transition:all .15s;font-family:'Outfit',sans-serif;}
+.act.blue{background:rgba(30,90,246,.08);border-color:rgba(30,90,246,.25);color:var(--blue2);}
+.act.blue:hover{background:rgba(30,90,246,.18);}
+.act.green{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.25);color:var(--green);}
+.act.green:hover{background:rgba(16,185,129,.18);}
+.act.amber{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);color:var(--amber);}
+.act.amber:hover{background:rgba(245,158,11,.18);}
+.act.red{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);color:var(--red);}
+.act.red:hover{background:rgba(239,68,68,.18);}
+.user-info{display:flex;flex-direction:column;}
+.user-name{font-weight:600;color:var(--text);}
+.user-email{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;}
+.twilio-cell{font-family:'DM Mono',monospace;font-size:11px;color:var(--cyan);}
+.meta-cell{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;}
+
+/* ── INQUIRIES ── */
+.inq-item{padding:14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
+.inq-item:last-child{margin-bottom:0;}
+.inq-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.inq-name{font-weight:700;font-size:14px;}
+.inq-dealer{font-size:12px;color:var(--muted);margin-top:2px;}
+.inq-contact{font-family:'DM Mono',monospace;font-size:11px;color:var(--cyan);margin-top:4px;}
+.inq-time{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;}
+.inq-actions{display:flex;gap:6px;margin-top:10px;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;color:var(--text);z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+#toast.show{opacity:1;}
+#toast.ok{border-color:rgba(16,185,129,.4);color:var(--green);}
+#toast.err{border-color:rgba(239,68,68,.4);color:var(--red);}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(5,11,24,.8);backdrop-filter:blur(6px);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px;width:400px;max-width:92vw;position:relative;}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;margin-bottom:20px;color:var(--text);}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;}
+.modal-close:hover{color:var(--text);}
+
+/* ── SECTION LABELS ── */
+.section-label{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--blue2);margin-bottom:14px;font-family:'DM Mono',monospace;}
+
+/* ── TABS ── */
+.tab-row{display:flex;gap:4px;margin-bottom:20px;}
+.tab{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .2s;letter-spacing:.3px;}
+.tab.active{background:rgba(30,90,246,.15);border-color:var(--border2);color:var(--blue2);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+@media(max-width:1100px){
+  .stat-grid{grid-template-columns:repeat(4,1fr);}
+  .section-grid{grid-template-columns:1fr;}
+}
+@media(max-width:600px){
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  main{padding:16px;}
+  header{padding:0 16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <img src="/images/logo.png" alt="FIRST-FIN" width="80" height="80" style="object-fit:contain;">
+    </div>
+    <div class="login-title">FIRST-FIN</div>
+    <div class="login-sub">Operator Command</div>
+    <input type="password" id="adminToken" placeholder="Admin token" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Authenticate</button>
+    <div class="login-err" id="loginErr">Invalid token</div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <header>
+    <div class="h-left">
+      <div class="h-logo">
+        <img src="/images/logo.png" alt="FIRST-FIN" width="36" height="36" style="object-fit:contain;">
+        <span class="h-wordmark">FIRST-FIN</span>
+      </div>
+      <span class="h-tag">OPERATOR</span>
+    </div>
+    <div class="h-right">
+      <div class="status-dot"><div class="dot" id="sys-dot"></div><span id="sys-label" style="color:var(--muted);font-size:11px;">checking...</span></div>
+      <div id="clock" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;"></div>
+      <button class="h-btn" onclick="loadAll()">↺ Refresh</button>
+      <button class="h-btn danger" onclick="nukeClear()">⚠ Nuclear Clear</button>
+      <button class="h-btn" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- STATS ROW -->
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-num blue" id="st-users">—</div><div class="stat-label">Tenants</div></div>
+      <div class="stat-card"><div class="stat-num green" id="st-active">—</div><div class="stat-label">Active</div></div>
+      <div class="stat-card"><div class="stat-num amber" id="st-inquiries">—</div><div class="stat-label">Inquiries</div></div>
+      <div class="stat-card"><div class="stat-num cyan" id="st-convs">—</div><div class="stat-label">Conversations</div></div>
+      <div class="stat-card"><div class="stat-num green" id="st-appts">—</div><div class="stat-label">Appointments</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-deals">—</div><div class="stat-label">Deals</div></div>
+      <div class="stat-card"><div class="stat-num" id="st-inventory">—</div><div class="stat-label">Inventory</div></div>
+      <div class="stat-card"><div class="stat-num amber" id="st-bulk">—</div><div class="stat-label">Bulk Queue</div></div>
+    </div>
+
+    <div class="section-grid">
+      <!-- LEFT: TENANTS + INQUIRIES -->
+      <div>
+        <!-- TENANTS TABLE -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">TENANTS <span id="tenant-count"></span></div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="act" style="background:rgba(16,185,129,.15);color:#10b981;border-color:rgba(16,185,129,.3);" onclick="loadTenantHealth()">📊 Health</button>
+              <button class="act blue" onclick="document.getElementById('createModal').classList.add('open')">+ New Tenant</button>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Status</th>
+                  <th>Twilio</th>
+                  <th>SARAH</th>
+                  <th>Inventory</th>
+                  <th>Last Login</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-family:'DM Mono',monospace;font-size:12px;">Loading tenants...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TENANT HEALTH PANEL -->
+        <div class="card" id="healthCard" style="display:none;">
+          <div class="card-header">
+            <div class="card-title">TENANT HEALTH <span id="health-summary" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);font-weight:400;margin-left:10px;"></span></div>
+            <div style="display:flex;gap:8px;">
+              <select id="healthFilter" onchange="filterHealth(this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 10px;font-size:12px;">
+                <option value="all">All Tenants</option>
+                <option value="critical">🔴 Critical</option>
+                <option value="high">🟠 High Risk</option>
+                <option value="medium">🟡 Medium Risk</option>
+                <option value="low">🟢 Active</option>
+                            <option value="active">Active</option>
+              <option value="never">Never Logged In</option>
+            </select>
+              <button class="act" onclick="document.getElementById('healthCard').style.display='none'">✕ Close</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div id="healthGrid" style="padding:16px;"></div>
+          </div>
+        </div>
+
+        <!-- INQUIRIES -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">INQUIRIES <span id="inq-count"></span></div>
+            <div style="display:flex;gap:6px;">
+              <button class="act blue" onclick="filterInq('pending')">Pending</button>
+              <button class="act green" onclick="filterInq('all')">All</button>
+            </div>
+          </div>
+          <div class="card-body" id="inq-body" style="max-height:400px;overflow-y:auto;">
+            <div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:'DM Mono',monospace;">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDEBAR -->
+      <div>
+        <!-- SYSTEM CONTROLS -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">SYSTEM CONTROLS</div></div>
+          <div class="card-body">
+            <div class="section-label">Bulk SMS Processor</div>
+            <div class="ctrl-grid" style="margin-bottom:16px;">
+              <button class="ctrl-btn green-btn" onclick="sysAction('resume-bulk')">▶ Resume Bulk</button>
+              <button class="ctrl-btn amber-btn" onclick="sysAction('pause-bulk')">⏸ Pause Bulk</button>
+            </div>
+            <div class="section-label">AI Responder (SARAH)</div>
+            <div class="ctrl-grid" style="margin-bottom:16px;">
+              <button class="ctrl-btn green-btn" onclick="sysAction('resume-ai')">▶ Resume AI</button>
+              <button class="ctrl-btn amber-btn" onclick="sysAction('pause-ai')">⏸ Pause AI</button>
+            </div>
+            <div class="section-label">Emergency</div>
+            <div class="ctrl-grid">
+              <button class="ctrl-btn red-btn" onclick="sysAction('stop-bulk')">🛑 Stop Bulk</button>
+              <button class="ctrl-btn red-btn" onclick="sysAction('wipe-bulk')">🗑 Wipe Queue</button>
+              <button class="ctrl-btn amber-btn full-width" onclick="sysAction('fintest-reset')" title="Clears all data for fintest@fintest.com only — does not affect any real dealer accounts">↺ Reset Test Account (<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b8ded1d6ccddcbccf8ded1d6ccddcbcc96dbd7d5">[email&#160;protected]</a> only)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SYSTEM STATUS -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">SYSTEM STATUS</div></div>
+          <div class="card-body" id="sys-body">
+            <div style="text-align:center;color:var(--muted);font-size:12px;padding:16px;font-family:'DM Mono',monospace;">Loading...</div>
+          </div>
+        </div>
+
+        <!-- SUBSCRIPTION BREAKDOWN -->
+        <div class="card">
+          <div class="card-header"><div class="card-title">SUBSCRIPTIONS</div></div>
+          <div class="card-body" id="sub-breakdown">
+            <div style="text-align:center;color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;">Loading...</div>
+          </div>
+        </div>
+
+        <!-- APPROVAL INTELLIGENCE -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">APPROVAL INTELLIGENCE</div>
+            <button class="act blue" onclick="openLogOutcomeModal()">+ Log Outcome</button>
+          </div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+              <div style="background:var(--bg2);padding:12px;border-radius:8px;text-align:center;">
+                <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--green);" id="oi-total">—</div>
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Total Logged</div>
+              </div>
+              <div style="background:var(--bg2);padding:12px;border-radius:8px;text-align:center;">
+                <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--amber);" id="oi-pending">—</div>
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Pending</div>
+              </div>
+              <div style="background:var(--bg2);padding:12px;border-radius:8px;text-align:center;">
+                <div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--cyan);" id="oi-rate">—</div>
+                <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Approval %</div>
+              </div>
+            </div>
+            <div class="section-label">PENDING RESPONSES</div>
+            <div id="pending-outcomes-list" style="max-height:200px;overflow-y:auto;margin-bottom:16px;">
+              <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px;">Loading...</div>
+            </div>
+            <div class="section-label">LENDER PERFORMANCE</div>
+            <div id="lender-performance" style="max-height:200px;overflow-y:auto;">
+              <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px;">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ── CREATE TENANT MODAL ── -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('createModal').classList.remove('open')">×</button>
+    <div class="modal-title">NEW TENANT</div>
+    <div class="fgroup"><label>Full Name</label><input type="text" id="new-name" placeholder="John Smith"></div>
+    <div class="fgroup"><label>Dealership Name</label><input type="text" id="new-dealer" placeholder="Smith Auto Group"></div>
+    <div class="fgroup"><label>Email</label><input type="email" id="new-email" placeholder="john@smithauto.com"></div>
+    <div class="fgroup"><label>Password</label><input type="password" id="new-pass" placeholder="Minimum 6 characters"></div>
+    <div id="create-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none;"></div>
+    <button class="btn-submit" id="create-btn" onclick="createTenant()">Create Tenant Account</button>
+  </div>
+</div>
+
+<!-- ── SUB OVERRIDE MODAL ── -->
+<div class="modal-overlay" id="subModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('subModal').classList.remove('open')">×</button>
+    <div class="modal-title">SUBSCRIPTION OVERRIDE</div>
+    <div id="sub-user-label" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></div>
+    <div class="fgroup">
+      <label>Set Status</label>
+      <select id="sub-status">
+        <option value="active">Active</option>
+        <option value="trial">Trial</option>
+        <option value="lapsed">Lapsed</option>
+        <option value="past_due">Past Due</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+    </div>
+    <button class="btn-submit" onclick="submitSubOverride()">Apply Override</button>
+  </div>
+</div>
+
+<!-- ── RESET PASSWORD MODAL ── -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('pwModal').classList.remove('open')">×</button>
+    <div class="modal-title">RESET PASSWORD</div>
+    <div id="pw-user-label" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></div>
+    <div class="fgroup"><label>New Password</label><input type="password" id="new-pw" placeholder="Minimum 6 characters"></div>
+    <div id="pw-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none;"></div>
+    <button class="btn-submit" onclick="submitPwReset()">Reset Password</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+const TOKEN_KEY = 'ff_admin_token';
+let adminToken  = '';
+let allUsers    = [];
+let allInquiries = [];
+let currentSubUserId = null;
+let currentPwUserId  = null;
+
+// ── AUTH ─────────────────────────────────────────────────────────
+function doLogin() {
+  const t = document.getElementById('adminToken').value.trim();
+  if (!t) return;
+  adminToken = t;
+  // Validate token by hitting stats before showing app
+  api('/api/admin/stats').then(d => {
+    if (d.success !== false) {
+      sessionStorage.setItem(TOKEN_KEY, t);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('loginErr').style.display = 'none';
+      loadAll();
+      startClock();
+      setInterval(loadSystemStatus, 30000);
+    } else {
+      adminToken = '';
+      document.getElementById('loginErr').style.display = 'block';
+    }
+  }).catch(() => {
+    adminToken = '';
+    document.getElementById('loginErr').style.display = 'block';
+  });
+}
+function logout() {
+  sessionStorage.removeItem(TOKEN_KEY);
+  adminToken = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('adminToken').value = '';
+}
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'x-admin-token': adminToken, ...(opts.headers || {}) };
+  const res = await fetch(path, { ...opts, headers });
+  if (res.status === 403) { toast('⛔ Forbidden — check token'); throw new Error('Forbidden'); }
+  return res.json();
 }
 
-module.exports = function adminRoutes(app, { twilioClient }) {
+// ── LOAD ALL ─────────────────────────────────────────────────────
+async function loadAll() {
+  await Promise.all([loadStats(), loadUsers(), loadInquiries(), loadSystemStatus()]);
 
-  // 🚨 EMERGENCY STOP +12899688778
-  app.get('/api/stop-12899688778', async (req, res) => {
-    if (req.query.token !== process.env.ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
+  loadFbLicenses().catch(() => {});
+  // Pre-load tenant health in background
+  loadTenantHealth().catch(() => {});
+  loadOutcomeData();
+}
+
+// ── TENANT HEALTH ────────────────────────────────────────────────
+let allHealthData = [];
+
+async function loadTenantHealth() {
+  document.getElementById('healthCard').style.display = 'block';
+  document.getElementById('healthGrid').innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px;">Loading health data...</div>';
+  try {
+    const d = await api('/api/admin/tenant-health');
+    if (!d.success) throw new Error(d.error);
+    allHealthData = d.tenants;
+
+    const s = d.summary;
+    document.getElementById('health-summary').textContent =
+      `${s.total} tenants · ${s.active30d} active 30d · ${s.riskHigh} high risk · ${s.noPhone} no Twilio`;
+
+    renderHealth(allHealthData);
+  } catch(e) {
+    document.getElementById('healthGrid').innerHTML = `<div style="color:var(--red);padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+function filterHealth(risk) {
+  let filtered;
+  if (risk === 'all')    filtered = allHealthData;
+  else if (risk === 'never')  filtered = allHealthData.filter(t => t.daysInactive === null);
+  else if (risk === 'active') filtered = allHealthData.filter(t => t.churnRisk === 'active' || t.churnRisk === 'low');
+  else                        filtered = allHealthData.filter(t => t.churnRisk === risk);
+  renderHealth(filtered);
+}
+
+function renderHealth(tenants) {
+  if (!tenants.length) {
+    document.getElementById('healthGrid').innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);">No tenants match filter</div>';
+    return;
+  }
+
+  const riskColor = { active:'#10b981', low:'#10b981', medium:'#f59e0b', high:'#ef4444', critical:'#dc2626' };
+  const riskLabel = { active:'ACTIVE', low:'ACTIVE', medium:'WATCH', high:'HIGH RISK', critical:'CRITICAL' };
+
+  document.getElementById('healthGrid').innerHTML = tenants.map(t => {
+    const rc    = riskColor[t.churnRisk] || '#666';
+    const rl    = riskLabel[t.churnRisk] || t.churnRisk;
+    const lastA = t.lastActive
+      ? new Date(t.lastActive).toLocaleDateString('en-CA',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Never';
+    const dayStr = t.daysInactive !== null ? `${t.daysInactive}d ago` : 'Never logged in';
+
+    const featureBar = (label, count, max, color) => {
+      const pct = Math.min(100, max > 0 ? Math.round((count/max)*100) : (count > 0 ? 100 : 0));
+      return `<div style="margin-bottom:5px;">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:2px;">
+          <span>${label}</span><span style="color:${count>0?'var(--text)':'var(--muted)'};">${count}</span>
+        </div>
+        <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;">
+          <div style="height:3px;width:${pct}%;background:${color};border-radius:2px;transition:width .3s;"></div>
+        </div>
+      </div>`;
+    };
+
+    const maxDeals = Math.max(...tenants.map(x=>x.usage.deals), 1);
+    const maxConvs = Math.max(...tenants.map(x=>x.sarah.conversations), 1);
+
+    return `<div style="border:1px solid rgba(255,255,255,.08);border-left:3px solid ${rc};border-radius:8px;padding:14px;margin-bottom:10px;background:var(--surface);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:800;font-size:13px;">${esc(t.dealerName !== '—' ? t.dealerName : t.name)}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(t.email)} · ${esc(t.dealerCity)}</div>
+          <div style="font-size:10px;margin-top:3px;color:${t.daysInactive > 14 ? '#f59e0b' : 'var(--muted)'};">
+            Last active: ${lastA} (${dayStr})
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="padding:3px 10px;border-radius:4px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};border:1px solid ${rc}44;">${rl}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">${t.status?.replace('_',' ').toUpperCase() || 'TRIAL'}</div>
+          ${!t.hasPhone ? '<div style="font-size:9px;color:#f59e0b;margin-top:2px;">⚠ No Twilio #</div>' : ''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Platform Usage (30d)</div>
+          ${featureBar('Deals Logged', t.usage.deals, maxDeals, '#f59e0b')}
+          ${featureBar('Inventory Uploads', t.usage.inventory, 5, '#10b981')}
+          ${featureBar('CRM Entries', t.usage.crm, 10, '#3b82f6')}
+          ${featureBar('Lender PDFs', t.usage.lenderPdfs, 5, '#8b5cf6')}
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">SARAH Performance</div>
+          ${featureBar('Conversations', t.sarah.conversations, maxConvs, '#06b6d4')}
+          ${featureBar('Conversions', t.sarah.conversions, Math.max(...tenants.map(x=>x.sarah.conversions),1), '#10b981')}
+          <div style="margin-top:8px;font-size:10px;color:var(--muted);">
+            Conv. rate: <strong style="color:var(--text);">${t.sarah.conversations > 0 ? ((t.sarah.conversions/t.sarah.conversations)*100).toFixed(1)+'%' : '—'}</strong>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadStats() {
+  try {
+    const d = await api('/api/admin/stats');
+    if (!d.success) return;
+    const s = d.stats;
+    document.getElementById('st-users').textContent     = s.totalUsers;
+    document.getElementById('st-active').textContent    = s.activeUsers;
+    document.getElementById('st-inquiries').textContent = s.pendingInquiries;
+    document.getElementById('st-convs').textContent     = s.totalConversations;
+    document.getElementById('st-appts').textContent     = s.totalAppointments;
+    document.getElementById('st-deals').textContent     = s.totalDeals;
+    document.getElementById('st-inventory').textContent = s.totalInventory;
+    document.getElementById('st-bulk').textContent      = s.pendingBulk;
+    // Sub breakdown
+    if (s.subBreakdown) renderSubBreakdown(s.subBreakdown);
+  } catch(e) { console.error('Stats error', e); }
+}
+
+function renderSubBreakdown(rows) {
+  const el = document.getElementById('sub-breakdown');
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;font-family:DM Mono,monospace;text-align:center;">No data</div>'; return; }
+  const colors = { active:'var(--green)', trial:'var(--amber)', lapsed:'var(--red)', past_due:'#f97316', cancelled:'var(--muted)' };
+  el.innerHTML = rows.map(r => `
+    <div class="sys-row">
+      <span class="sys-key">${r.subscription_status}</span>
+      <span class="sys-val" style="color:${colors[r.subscription_status]||'var(--text)'};">${r.count} tenant${r.count!=1?'s':''}</span>
+    </div>`).join('');
+}
+
+async function loadSystemStatus() {
+  try {
+    const d = await api('/api/admin/system-status');
+    if (!d.success) return;
+    const dot = document.getElementById('sys-dot');
+    const label = document.getElementById('sys-label');
+    const isHealthy = !d.bulkPaused && !d.aiPaused;
+    dot.className = 'dot' + (isHealthy ? '' : ' amber');
+    label.textContent = isHealthy ? 'All systems nominal' : 'Systems paused';
+    label.style.color = isHealthy ? 'var(--green)' : 'var(--amber)';
+
+    const upH = Math.floor(d.uptime / 3600);
+    const upM = Math.floor((d.uptime % 3600) / 60);
+    document.getElementById('sys-body').innerHTML = `
+      <div class="sys-row"><span class="sys-key">Uptime</span><span class="sys-val">${upH}h ${upM}m</span></div>
+      <div class="sys-row"><span class="sys-key">Memory</span><span class="sys-val">${d.memoryMB} MB</span></div>
+      <div class="sys-row"><span class="sys-key">Node</span><span class="sys-val">${d.nodeVersion}</span></div>
+      <div class="sys-row"><span class="sys-key">Bulk Processor</span><span class="sys-val ${d.bulkProcessorRunning?'on':'off'}">${d.bulkProcessorRunning?'Running':'Stopped'}</span></div>
+      <div class="sys-row"><span class="sys-key">Bulk Paused</span><span class="sys-val ${d.bulkPaused?'warn':'on'}">${d.bulkPaused?'Yes':'No'}</span></div>
+      <div class="sys-row"><span class="sys-key">AI Responder</span><span class="sys-val ${d.aiPaused?'warn':'on'}">${d.aiPaused?'Paused':'Active'}</span></div>
+    `;
+  } catch(e) { console.error('System status error', e); }
+}
+
+async function loadUsers() {
+  try {
+    const d = await api('/api/admin/users');
+    if (!d.success) return;
+    allUsers = d.users;
+    document.getElementById('tenant-count').textContent = `(${allUsers.length})`;
+    renderUsers(allUsers);
+  } catch(e) { console.error('Users error', e); }
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('users-tbody');
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-family:DM Mono,monospace;font-size:12px;">No tenants yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const sub = u.subscription_status || 'trial';
+    const suspended = u.suspended;
+    const twilioOk = !!u.twilio_number;
+    const s = parseSettings(u.settings_json);
+    const lastLogin = u.last_login ? new Date(u.last_login).toLocaleDateString('en-CA', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const created = u.created_at ? new Date(u.created_at).toLocaleDateString('en-CA', {month:'short',day:'numeric',year:'numeric'}) : '—';
+    const statusBadge = suspended
+      ? '<span class="badge suspended">SUSPENDED</span>'
+      : `<span class="badge ${sub}">${sub.replace('_',' ').toUpperCase()}</span>`;
+    return `<tr>
+      <td>
+        <div class="user-info">
+          <span class="user-name">${esc(u.display_name || '—')}</span>
+          <span class="user-email">${esc(u.email)}</span>
+          ${s.dealerName ? `<span style="font-size:10px;color:var(--muted);margin-top:1px;">${esc(s.dealerName)}</span>` : ''}
+        </div>
+      </td>
+      <td>${statusBadge}</td>
+      <td>
+        ${twilioOk
+          ? `<span class="badge twilio-ok">✓ SET</span><div class="twilio-cell" style="margin-top:4px;">${esc(u.twilio_number)}</div><button class="act red" style="margin-top:6px;font-size:9px;padding:2px 7px;" onclick="releaseNumber(${u.id},'${esc(u.email)}','${esc(u.twilio_number)}')">Release #</button>`
+          : '<span class="badge twilio-none">NOT SET</span>'}
+      </td>
+      <td>
+        <div class="meta-cell">${u.conversation_count||0} conv</div>
+        <div class="meta-cell">${u.appointment_count||0} appt</div>
+      </td>
+      <td><span class="meta-cell">${u.inventory_count||0} vehicles</span></td>
+      <td><span class="meta-cell">${lastLogin}</span></td>
+      <td>
+        <div class="action-row">
+          <button class="act blue" onclick="openSubModal(${u.id},'${esc(u.email)}','${sub}')">Sub</button>
+          <button class="act amber" onclick="openPwModal(${u.id},'${esc(u.email)}')">PW</button>
+          ${suspended
+            ? `<button class="act green" onclick="userAction(${u.id},'unsuspend')">Restore</button>`
+            : `<button class="act amber" onclick="userAction(${u.id},'suspend')">Suspend</button>`}
+          <button class="act red" onclick="deleteUser(${u.id},'${esc(u.email)}')">Del</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function parseSettings(raw) {
+  if (!raw) return {};
+  try { return typeof raw === 'string' ? JSON.parse(raw) : raw; }
+  catch(e) { return {}; }
+}
+
+async function loadInquiries() {
+  try {
+    const d = await api('/api/admin/inquiries');
+    if (!d.success) return;
+    allInquiries = d.inquiries;
+    document.getElementById('inq-count').textContent = `(${allInquiries.filter(i=>i.status==='pending').length} pending)`;
+    filterInq('pending');
+  } catch(e) { console.error('Inquiries error', e); }
+}
+
+function filterInq(filter) {
+  const list = filter === 'pending' ? allInquiries.filter(i => i.status === 'pending') : allInquiries;
+  const el = document.getElementById('inq-body');
+  if (!list.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:DM Mono,monospace;">No inquiries</div>';
+    return;
+  }
+  el.innerHTML = list.map(inq => {
+    const t = new Date(inq.created_at).toLocaleDateString('en-CA', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const statusColors = { pending:'amber', approved:'active', contacted:'active', rejected:'cancelled' };
+    const sc = statusColors[inq.status] || 'trial';
+    return `<div class="inq-item">
+      <div class="inq-top">
+        <div>
+          <div class="inq-name">${esc(inq.name)}</div>
+          <div class="inq-dealer">${esc(inq.dealership||'—')}</div>
+          <div class="inq-contact">${esc(inq.phone)}${inq.email?` · ${esc(inq.email)}`:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span class="inq-time">${t}</span>
+          <span class="badge ${sc}">${inq.status.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="inq-actions">
+        ${inq.status !== 'approved' ? `<button class="act green" onclick="updateInquiry(${inq.id},'approved')">✓ Approve</button>` : ''}
+        ${inq.status !== 'contacted' ? `<button class="act blue" onclick="updateInquiry(${inq.id},'contacted')">📞 Contacted</button>` : ''}
+        ${inq.status !== 'rejected' ? `<button class="act red" onclick="updateInquiry(${inq.id},'rejected')">✕ Reject</button>` : ''}
+        ${inq.status !== 'pending' ? `<button class="act amber" onclick="updateInquiry(${inq.id},'pending')">↺ Reset</button>` : ''}
+        <button class="act blue" onclick="copyToClipboard('${esc(inq.phone)}')">Copy #</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ACTIONS ──────────────────────────────────────────────────────
+async function userAction(id, action) {
+  try {
+    const d = await api(`/api/admin/users/${id}/${action}`, { method: 'POST' });
+    if (d.success) { toast(`✓ User ${action}ed`); loadUsers(); }
+    else toast('Error: ' + d.error);
+  } catch(e) {}
+}
+
+async function deleteUser(id, email) {
+  if (!confirm(`Delete ${email}? This cannot be undone.`)) return;
+  try {
+    const d = await api(`/api/admin/users/${id}`, { method: 'DELETE' });
+    if (d.success) { toast('✓ User deleted'); loadUsers(); loadStats(); }
+    else toast('Error: ' + d.error);
+  } catch(e) {}
+}
+
+async function releaseNumber(id, email, number) {
+  if (!confirm(`Release ${number} from ${email}?\n\nThis will:\n• Delete the number from your Twilio account (billing stops)\n• Clear it from their platform account\n• Reset their SARAH wizard so they can claim a new number\n\nThis cannot be undone.`)) return;
+  try {
+    const d = await api(`/api/admin/users/${id}/release-number`, { method: 'POST' });
+    if (d.success) {
+      toast(`✓ ${d.releasedNumber} released — Twilio billing stopped`);
+      loadUsers();
+    } else {
+      toast('Error: ' + d.error);
     }
-    const BLOCKED_NUMBERS = ['+12899688778', '12899688778', '2899688778'];
-    const client = await pool.connect();
-    try {
-      let totalBulkDeleted = 0, totalConvStopped = 0, totalApptDeleted = 0, totalCallDeleted = 0;
-      for (const num of BLOCKED_NUMBERS) {
-        const bulkResult = await client.query('DELETE FROM bulk_messages WHERE recipient_phone LIKE $1', ['%' + num + '%']);
-        totalBulkDeleted += bulkResult.rowCount;
-        const convResult = await client.query("UPDATE conversations SET status = 'stopped' WHERE customer_phone LIKE $1", ['%' + num + '%']);
-        totalConvStopped += convResult.rowCount;
-        const apptResult = await client.query('DELETE FROM appointments WHERE customer_phone LIKE $1', ['%' + num + '%']);
-        totalApptDeleted += apptResult.rowCount;
-        const callResult = await client.query('DELETE FROM callbacks WHERE customer_phone LIKE $1', ['%' + num + '%']);
-        totalCallDeleted += callResult.rowCount;
-      }
-      res.json({
-        success: true, blocked: '+12899688778',
-        bulkDeleted: totalBulkDeleted, conversationsStopped: totalConvStopped,
-        appointmentsDeleted: totalApptDeleted, callbacksDeleted: totalCallDeleted,
-        message: 'PERMANENTLY STOPPED & BLOCKED'
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    } finally {
-      client.release();
+  } catch(e) { toast('Request failed'); }
+}
+
+async function updateInquiry(id, status) {
+  try {
+    const d = await api(`/api/admin/inquiries/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+    if (d.success) { toast('✓ Inquiry updated'); loadInquiries(); loadStats(); }
+  } catch(e) {}
+}
+
+function openSubModal(id, email, currentStatus) {
+  currentSubUserId = id;
+  document.getElementById('sub-user-label').textContent = email;
+  document.getElementById('sub-status').value = currentStatus;
+  document.getElementById('subModal').classList.add('open');
+}
+async function submitSubOverride() {
+  const status = document.getElementById('sub-status').value;
+  try {
+    const d = await api(`/api/admin/users/${currentSubUserId}/subscription`, { method: 'POST', body: JSON.stringify({ status }) });
+    if (d.success) { toast(`✓ Subscription set to ${status}`); document.getElementById('subModal').classList.remove('open'); loadUsers(); }
+    else toast('Error: ' + d.error);
+  } catch(e) {}
+}
+
+function openPwModal(id, email) {
+  currentPwUserId = id;
+  document.getElementById('pw-user-label').textContent = email;
+  document.getElementById('new-pw').value = '';
+  document.getElementById('pw-err').style.display = 'none';
+  document.getElementById('pwModal').classList.add('open');
+}
+async function submitPwReset() {
+  const pw = document.getElementById('new-pw').value;
+  const errEl = document.getElementById('pw-err');
+  if (pw.length < 6) { errEl.textContent = 'Min 6 characters'; errEl.style.display = 'block'; return; }
+  try {
+    const d = await api(`/api/admin/users/${currentPwUserId}/reset-password`, { method: 'POST', body: JSON.stringify({ password: pw }) });
+    if (d.success) { toast('✓ Password reset'); document.getElementById('pwModal').classList.remove('open'); }
+    else { errEl.textContent = d.error; errEl.style.display = 'block'; }
+  } catch(e) {}
+}
+
+async function createTenant() {
+  const name = document.getElementById('new-name').value.trim();
+  const dealer = document.getElementById('new-dealer').value.trim();
+  const email = document.getElementById('new-email').value.trim();
+  const pass = document.getElementById('new-pass').value;
+  const errEl = document.getElementById('create-err');
+  const btn = document.getElementById('create-btn');
+  errEl.style.display = 'none';
+  if (!name || !email || !pass) { errEl.textContent = 'Name, email and password required'; errEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const d = await api('/api/admin/users/create', { method: 'POST', body: JSON.stringify({ name, dealerName: dealer, email, password: pass }) });
+    if (d.success) {
+      toast(`✓ Tenant created — ${email}`);
+      document.getElementById('createModal').classList.remove('open');
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-dealer').value = '';
+      document.getElementById('new-email').value = '';
+      document.getElementById('new-pass').value = '';
+      loadUsers(); loadStats();
+    } else { errEl.textContent = d.error; errEl.style.display = 'block'; }
+  } catch(e) { errEl.textContent = 'Network error'; errEl.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Create Tenant Account'; }
+}
+
+async function sysAction(action) {
+  const confirmActions = { 'wipe-bulk': 'Wipe ALL pending bulk messages?', 'fintest-reset': 'Reset fintest@fintest.com test account?\n\nThis deletes all inventory, deals, CRM, and conversations for that account only.\n\nReal dealer accounts are NOT affected.' };
+  if (confirmActions[action] && !confirm(confirmActions[action])) return;
+  const endpoints = {
+    'resume-bulk':    ['/api/bulk-sms/resume', 'GET'],
+    'pause-bulk':     ['/api/bulk-sms/pause', 'GET'],
+    'resume-ai':      ['/api/ai-responder/resume', 'GET'],
+    'pause-ai':       ['/api/ai-responder/pause', 'GET'],
+    'stop-bulk':      ['/api/stop-bulk', 'GET'],
+    'wipe-bulk':      ['/api/wipe-bulk', 'GET'],
+    'fintest-reset':  ['/api/admin/fintest/reset', 'POST']
+  };
+  const [path, method] = endpoints[action] || [];
+  if (!path) return;
+  try {
+    const url = path.includes('?') ? path : path + '?token=' + encodeURIComponent(adminToken);
+    const opts = method === 'POST' ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken }, body: '{}' } : {};
+    const res = await fetch(url, opts);
+    const d = await res.json();
+    if (d.success !== false) { toast('✓ ' + (d.message || action + ' done')); loadSystemStatus(); loadStats(); }
+    else toast('Error: ' + d.error);
+  } catch(e) { toast('Network error'); }
+}
+
+async function nukeClear() {
+  if (!confirm('⚠ Nuclear clear — cancel ALL queued Twilio messages and bulk queue. Continue?')) return;
+  try {
+    const res = await fetch(`/api/nuclear-clear?token=${encodeURIComponent(adminToken)}`);
+    const d = await res.json();
+    toast(`Nuclear clear: ${d.bulkCancelled||0} bulk, ${(d.twilioQueued||0)+(d.twilioSending||0)} Twilio msgs cancelled`);
+    loadStats(); loadSystemStatus();
+  } catch(e) { toast('Error'); }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => toast('Copied!'));
+}
+
+// ── UTILS ────────────────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+(function init() {
+  // URL token auto-login (e.g. /admin?token=xxx for bookmarking)
+  const urlToken = new URLSearchParams(window.location.search).get('token');
+  const saved = urlToken || sessionStorage.getItem(TOKEN_KEY);
+  if (saved) {
+    adminToken = saved;
+    sessionStorage.setItem(TOKEN_KEY, saved);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadAll();
+    startClock();
+    setInterval(loadSystemStatus, 30000);
+  }
+})();
+
+function startClock() {
+  function tick() {
+    const now = new Date();
+    const el = document.getElementById('clock');
+    if (el) el.textContent = now.toLocaleTimeString('en-CA', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+</script>
+
+<!-- LOG OUTCOME MODAL -->
+<div class="modal-overlay" id="logOutcomeModal">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" onclick="closeLogOutcomeModal()">×</button>
+    <div class="modal-title">LOG DEAL OUTCOME</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="fgroup">
+        <label>Lender</label>
+        <select id="log-lender">
+          <option value="">Select...</option>
+          <option value="autocapital">AUTOCAPITAL</option>
+          <option value="cibc">CIBC</option>
+          <option value="edenpark">EDENPARK</option>
+          <option value="iceberg">ICEBERG</option>
+          <option value="northlake">NORTHLAKE</option>
+          <option value="prefera">PREFERA</option>
+          <option value="rbc">RBC</option>
+          <option value="santander">SANTANDER</option>
+          <option value="sda">SDA</option>
+        </select>
+      </div>
+      <div class="fgroup">
+        <label>Outcome</label>
+        <select id="log-outcome">
+          <option value="">Select...</option>
+          <option value="approved">✓ Approved</option>
+          <option value="conditional">⚡ Conditional</option>
+          <option value="declined">✗ Declined</option>
+        </select>
+      </div>
+      <div class="fgroup"><label>Beacon</label><input type="number" id="log-beacon" placeholder="620"></div>
+      <div class="fgroup"><label>LTV %</label><input type="number" id="log-ltv" placeholder="135"></div>
+      <div class="fgroup"><label>Amount Financed</label><input type="number" id="log-atf" placeholder="22000"></div>
+      <div class="fgroup"><label>Approved Rate</label><input type="number" id="log-rate" placeholder="15.99" step="0.01"></div>
+      <div class="fgroup" style="grid-column:1/-1;"><label>Stipulations</label><input type="text" id="log-stips" placeholder="POI, POR, Bank statements"></div>
+    </div>
+    <button class="btn-submit" onclick="submitLogOutcome()">Log Outcome</button>
+  </div>
+</div>
+
+
+
+<!-- ── FB POSTER LICENSES ── -->
+<div style="margin-top:28px;">
+  <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <span>📘 FB POSTER LICENSES</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">Control which dealers can run the FB Poster tool</span>
+  </div>
+
+  <!-- Create new -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px;">Create New License</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">DEALER NAME</div>
+        <input id="fb-lic-name" type="text" placeholder="National Car & Truck Sales" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">INVENTORY URL</div>
+        <input id="fb-lic-url" type="text" placeholder="nationalcarsales.ca/used-inventory" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;">NOTES (optional)</div>
+        <input id="fb-lic-note" type="text" placeholder="e.g. 1 URL included" style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;">
+      </div>
+      <button onclick="createFbLicense()" style="padding:8px 18px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:7px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;height:36px;">+ Create</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);">After creating, copy the key and add it to the dealer's <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-size:10px;">config.json</code> as <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-size:10px;">"license_key"</code>. The bridge checks this on every startup.</div>
+  </div>
+
+  <!-- Status legend -->
+  <div style="display:flex;gap:16px;margin-bottom:14px;font-size:11px;color:var(--muted);">
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span>Active — bridge runs normally</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>Suspended — bridge shows message, won't start</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span>Revoked — permanent denial</span>
+  </div>
+
+  <!-- License list -->
+  <div id="fb-lic-list">
+    <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Loading...</div>
+  </div>
+</div>
+
+<script>
+// ── OUTCOME INTELLIGENCE FUNCTIONS ──
+async function loadOutcomeStats() {
+  try {
+    const res = await fetch('/api/admin/outcome-stats', { headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }});
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('oi-total').textContent = data.stats.total || 0;
+      document.getElementById('oi-pending').textContent = data.stats.pending || 0;
+      document.getElementById('oi-rate').textContent = data.stats.approvalRate ? data.stats.approvalRate + '%' : '—';
     }
+  } catch (e) { console.warn('Outcome stats error:', e); }
+}
+
+async function loadPendingOutcomes() {
+  const el = document.getElementById('pending-outcomes-list');
+  try {
+    const res = await fetch('/api/admin/pending-outcomes', { headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }});
+    const data = await res.json();
+    if (!data.success || data.pending.length === 0) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:16px;">No pending</div>'; return; }
+    el.innerHTML = data.pending.map(p => `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="display:flex;gap:8px;margin-bottom:6px;"><span style="background:var(--amber);color:#000;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;">${(p.lender_key||'').toUpperCase()}</span><span style="font-size:12px;">${p.customer_name||p.stock||'Unknown'}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Beacon ${p.beacon||'?'} · LTV ${p.ltv_pct?Math.round(p.ltv_pct)+'%':'?'}</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="updateOutcome(${p.id},'approved')" style="flex:1;padding:6px;font-size:10px;font-weight:700;border-radius:4px;border:none;cursor:pointer;background:rgba(16,185,129,.15);color:var(--green);">✓ Approved</button>
+          <button onclick="updateOutcome(${p.id},'conditional')" style="flex:1;padding:6px;font-size:10px;font-weight:700;border-radius:4px;border:none;cursor:pointer;background:rgba(245,158,11,.15);color:var(--amber);">⚡ Cond.</button>
+          <button onclick="updateOutcome(${p.id},'declined')" style="flex:1;padding:6px;font-size:10px;font-weight:700;border-radius:4px;border:none;cursor:pointer;background:rgba(239,68,68,.15);color:var(--red);">✗ Declined</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px;">Error</div>'; }
+}
+
+async function loadLenderPerformance() {
+  const el = document.getElementById('lender-performance');
+  try {
+    const res = await fetch('/api/admin/lender-stats', { headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }});
+    const data = await res.json();
+    if (!data.success || data.stats.length === 0) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px;">No data yet</div>'; return; }
+    el.innerHTML = data.stats.map(s => {
+      const rate = s.approval_rate || 0;
+      const color = rate >= 70 ? 'var(--green)' : rate >= 50 ? 'var(--amber)' : 'var(--red)';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="width:80px;font-size:11px;font-weight:600;">${(s.lender_key||'').toUpperCase()}</span>
+        <div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${rate}%;background:${color};border-radius:3px;"></div></div>
+        <span style="width:40px;text-align:right;font-size:12px;font-weight:700;color:${color};">${rate}%</span>
+        <span style="width:30px;text-align:right;font-size:10px;color:var(--muted);">${s.total_deals}</span>
+      </div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px;">Error</div>'; }
+}
+
+async function updateOutcome(id, outcome) {
+  const res = await fetch('/api/admin/update-outcome', { method:'POST', headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('adminToken')}, body:JSON.stringify({outcomeId:id,outcome}) });
+  if ((await res.json()).success) { loadOutcomeData(); }
+}
+
+function openLogOutcomeModal() { document.getElementById('logOutcomeModal').classList.add('open'); }
+function closeLogOutcomeModal() { document.getElementById('logOutcomeModal').classList.remove('open'); }
+
+async function submitLogOutcome() {
+  const payload = {
+    lenderKey: document.getElementById('log-lender').value,
+    outcome: document.getElementById('log-outcome').value,
+    beacon: parseFloat(document.getElementById('log-beacon').value) || null,
+    ltvPct: parseFloat(document.getElementById('log-ltv').value) || null,
+    amountToFinance: parseFloat(document.getElementById('log-atf').value) || null,
+    approvedRate: parseFloat(document.getElementById('log-rate').value) || null
+  };
+  const stips = document.getElementById('log-stips').value;
+  if (stips) payload.stipulations = stips.split(',').map(s=>s.trim());
+  
+  if (!payload.lenderKey || !payload.outcome) { alert('Select lender and outcome'); return; }
+  
+  const res = await fetch('/api/admin/log-outcome', { method:'POST', headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('adminToken')}, body:JSON.stringify(payload) });
+  if ((await res.json()).success) { closeLogOutcomeModal(); loadOutcomeData(); }
+}
+
+function loadOutcomeData() { loadOutcomeStats(); loadPendingOutcomes(); loadLenderPerformance(); }
+
+
+// ── FB POSTER LICENSES ────────────────────────────────────────────────────────
+
+let fbLicenses = [];
+
+async function loadFbLicenses() {
+  try {
+    const r = await fetch('/api/fb-license/admin/list', {
+      headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }
+    });
+    const d = await r.json();
+    fbLicenses = d.licenses || [];
+    renderFbLicenses(fbLicenses);
+  } catch(e) { console.error('FB licenses load failed:', e); }
+}
+
+function renderFbLicenses(licenses) {
+  const wrap = document.getElementById('fb-lic-list');
+  if (!wrap) return;
+
+  if (!licenses.length) {
+    wrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No licenses yet — create one above.</div>';
+    return;
+  }
+
+  wrap.innerHTML = licenses.map(l => {
+    const statusColor = l.status === 'active' ? '#10b981' : l.status === 'suspended' ? '#f59e0b' : '#ef4444';
+    const lastSeen = l.last_seen
+      ? new Date(l.last_seen).toLocaleString('en-CA', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Never';
+    const created = new Date(l.created_at).toLocaleDateString('en-CA', {month:'short',day:'numeric',year:'numeric'});
+    const bullets = Array.isArray(l.description_bullets) ? l.description_bullets : [];
+    const bulletsText = bullets.join('\n');
+
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;">
+
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:200px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;box-shadow:0 0 6px ${statusColor};"></div>
+          <div>
+            <span style="font-weight:800;font-size:14px;">${l.dealer_name}</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(30,90,246,.15);color:#93c5fd;font-weight:700;text-transform:uppercase;margin-left:8px;">${l.status}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="text-align:right;font-size:10px;color:var(--muted);">
+            Last seen: ${lastSeen} · Checks: ${l.check_count||0}${l.last_ip ? ' · '+l.last_ip : ''}
+          </div>
+          ${l.status !== 'active'  ? `<button onclick="setLicStatus(${l.id},'active')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(16,185,129,.4);background:rgba(16,185,129,.1);color:#10b981;font-size:10px;font-weight:700;cursor:pointer;">▶ Activate</button>` : ''}
+          ${l.status === 'active'  ? `<button onclick="setLicStatus(${l.id},'suspended')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#f59e0b;font-size:10px;font-weight:700;cursor:pointer;">⏸ Suspend</button>` : ''}
+          ${l.status !== 'revoked' ? `<button onclick="setLicStatus(${l.id},'revoked')" style="padding:4px 11px;border-radius:4px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.1);color:#ef4444;font-size:10px;font-weight:700;cursor:pointer;">✕ Revoke</button>` : ''}
+        </div>
+      </div>
+
+      <!-- License key row -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.15);">
+        <span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;flex-shrink:0;">KEY</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#93c5fd;flex:1;">${l.license_key}</span>
+        <button onclick="copyKey('${l.license_key}')" style="padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:10px;font-weight:700;cursor:pointer;">📋 Copy</button>
+        <button onclick="deleteLic(${l.id},'${l.dealer_name}')" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(239,68,68,.2);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">🗑</button>
+      </div>
+
+      <!-- Editable settings -->
+      <div style="padding:14px 18px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Dealer Name</div>
+            <input id="lic-name-${l.id}" value="${l.dealer_name}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">City</div>
+            <input id="lic-city-${l.id}" value="${l.dealer_city||'Calgary, AB'}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Phone</div>
+            <input id="lic-phone-${l.id}" value="${l.dealer_phone||''}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="optional">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Inventory URL</div>
+            <input id="lic-url-${l.id}" value="${l.allowed_url}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Price Field</div>
+            <input id="lic-pf-${l.id}" value="${l.price_field||'Price'}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="e.g. Internet Price">
+          </div>
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Price Markup ($)</div>
+            <input id="lic-markup-${l.id}" type="number" value="${l.price_markup||0}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;">
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Description Bullets (one per line)</div>
+          <textarea id="lic-bullets-${l.id}" rows="4" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'DM Mono',monospace;resize:vertical;">${bulletsText}</textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Notes</div>
+          <input id="lic-notes-${l.id}" value="${l.notes||''}" style="width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:'Outfit',sans-serif;" placeholder="Internal notes">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <div style="font-size:10px;color:var(--muted);align-self:center;">Created ${created} · Changes apply on dealer's next bridge restart</div>
+          <button onclick="saveLicSettings(${l.id})" style="padding:7px 18px;border-radius:6px;background:linear-gradient(135deg,var(--primary),#2563eb);border:none;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">💾 Save Settings</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function createFbLicense() {
+  const name = document.getElementById('fb-lic-name').value.trim();
+  const url  = document.getElementById('fb-lic-url').value.trim();
+  const note = document.getElementById('fb-lic-note').value.trim();
+  if (!name || !url) { alert('Dealer name and inventory URL required'); return; }
+  try {
+    const r = await fetch('/api/fb-license/admin/create', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+      body: JSON.stringify({ dealer_name: name, allowed_url: url, notes: note })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('fb-lic-name').value = '';
+      document.getElementById('fb-lic-url').value  = '';
+      document.getElementById('fb-lic-note').value = '';
+      await loadFbLicenses();
+      // Show the key immediately
+      alert(`License created!\n\nKey: ${d.license.license_key}\n\nAdd this to the dealer's config.json as "license_key".`);
+    } else { alert('Error: ' + (d.error || 'Unknown')); }
+  } catch(e) { alert('Network error'); }
+}
+
+async function setLicStatus(id, status) {
+  const label = {active:'Activate', suspended:'Suspend', revoked:'Revoke'}[status];
+  if (!confirm(`${label} this license?`)) return;
+  await fetch(`/api/fb-license/admin/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+    body: JSON.stringify({ status })
   });
+  loadFbLicenses();
+}
 
-  // WIPE ALL BULK MESSAGES
-  app.post('/api/wipe-bulk', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
-    }
-    const client = await pool.connect();
-    try {
-      const result = await client.query('DELETE FROM bulk_messages');
-      res.json({ success: true, wiped: result.rowCount, message: 'Bulk table cleared! Ready for fresh upload.' });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    } finally {
-      client.release();
-    }
+async function deleteLic(id, name) {
+  if (!confirm(`Permanently delete license for ${name}?`)) return;
+  await fetch(`/api/fb-license/admin/${id}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Token': sessionStorage.getItem('adminToken') }
   });
+  loadFbLicenses();
+}
 
-  // Pause / resume bulk SMS processor
-  app.post('/api/bulk-sms/pause', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
-    }
-    state.bulkSmsProcessorPaused = true;
-    res.json({ success: true, paused: true });
-  });
+function copyKey(key) {
+  navigator.clipboard.writeText(key).then(() => alert('Key copied to clipboard!\n\nAdd this to the dealer\'s config.json as "license_key".'));
+}
 
-  app.post('/api/bulk-sms/resume', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
-    }
-    state.bulkSmsProcessorPaused = false;
-    res.json({ success: true, paused: false });
-  });
-
-  // Pause / resume AI responder
-  app.post('/api/ai-responder/pause', (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
-    state.aiResponderPaused = true;
-    res.json({ success: true, paused: true });
-  });
-
-  app.post('/api/ai-responder/resume', (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
-    state.aiResponderPaused = false;
-    res.json({ success: true, paused: false });
-  });
-
-  // Nuclear clear
-  app.post('/api/nuclear-clear', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
-    const results = { twilioQueued: 0, twilioSending: 0, bulkCancelled: 0, errors: [] };
-    state.bulkSmsProcessorPaused = true;
-    state.aiResponderPaused = true;
-    try {
-      const queued = await twilioClient.messages.list({ status: 'queued', limit: 200 });
-      for (const m of queued) {
-        try { await twilioClient.messages(m.sid).update({ status: 'canceled' }); results.twilioQueued++; }
-        catch(e) { results.errors.push(e.message); }
-      }
-    } catch(e) { results.errors.push('list-queued:'+e.message); }
-    try {
-      const sending = await twilioClient.messages.list({ status: 'sending', limit: 200 });
-      for (const m of sending) {
-        try { await twilioClient.messages(m.sid).update({ status: 'canceled' }); results.twilioSending++; }
-        catch(e) { results.errors.push(e.message); }
-      }
-    } catch(e) { results.errors.push('list-sending:'+e.message); }
-    const client = await pool.connect();
-    try {
-      const r = await client.query("UPDATE bulk_messages SET status='cancelled', error_message='Nuclear clear' WHERE status='pending'");
-      results.bulkCancelled = r.rowCount;
-    } catch(e) { results.errors.push('bulk:'+e.message); } finally { client.release(); }
-    state.bulkSmsProcessorPaused = false;
-    state.aiResponderPaused = false;
-    res.json({ success: true, message: 'Flush complete. All systems resumed.', ...results });
-  });
-
-  // EMERGENCY STOP - ALL BULK MESSAGES
-  app.post('/api/stop-bulk', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
-    }
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `UPDATE bulk_messages SET status = 'cancelled', error_message = 'Emergency stop by user' WHERE status = 'pending'`
-      );
-      res.json({ success: true, cancelled: result.rowCount, message: `Emergency stop: ${result.rowCount} pending messages cancelled` });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    } finally {
-      client.release();
-    }
-  });
-
-  // POST /api/request-access
-  app.post('/api/request-access', async (req, res) => {
-    const { name, dealership, phone, email } = req.body;
-    if (!name || !phone) {
-      return res.status(400).json({ success: false, error: 'Name and phone are required' });
-    }
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `INSERT INTO platform_inquiries (name, dealership, phone, email) VALUES ($1, $2, $3, $4)`,
-        [name, dealership || null, phone, email || null]
-      );
-      const ownerPhone = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
-      if (ownerPhone && twilioClient) {
-        try {
-          await twilioClient.messages.create({
-            body: `New platform inquiry — ${dealership || 'Unknown Dealership'}, ${name}, ${phone}`,
-            from: process.env.TWILIO_PHONE_NUMBER,
-            to: ownerPhone
-          });
-        } catch(e) { console.error('Notify error:', e.message); }
-      }
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Request access error:', error);
-      res.status(500).json({ success: false, error: error.message });
-    } finally {
-      client.release();
-    }
-  });
-
-  // Redirect old dashboard URL
-  app.get('/dashboard', (req, res) => res.redirect('/'));
-
-};
+async function saveLicSettings(id) {
+  const get = (suffix) => document.getElementById(`lic-${suffix}-${id}`)?.value?.trim() || null;
+  const bulletsRaw = document.getElementById(`lic-bullets-${id}`)?.value || '';
+  const bullets = bulletsRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+  try {
+    const r = await fetch(`/api/fb-license/admin/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'X-Admin-Token': sessionStorage.getItem('adminToken') },
+      body: JSON.stringify({
+        dealer_name:         get('name'),
+        dealer_city:         get('city'),
+        dealer_phone:        get('phone'),
+        allowed_url:         get('url'),
+        price_field:         get('pf'),
+        price_markup:        parseInt(document.getElementById(`lic-markup-${id}`)?.value) || 0,
+        description_bullets: bullets,
+        notes:               get('notes'),
+      })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const btn = event.target;
+      btn.textContent = '✅ Saved!'; btn.style.background = 'rgba(16,185,129,.8)';
+      setTimeout(() => { btn.tex
