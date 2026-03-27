@@ -434,20 +434,34 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           GROUP BY user_id
         ) cv ON cv.user_id = u.id
         WHERE u.role != 'admin'
+        AND u.email NOT IN ('fintest@fintest.com', 'kevlarkarz@gmail.com')
         ORDER BY u.last_active DESC NULLS LAST
       `);
 
       // Churn risk scoring
       const tenants = rows.map(t => {
-        const daysInactive = t.days_inactive || 999;
-        const hasActivity  = t.deals_last_30d > 0 || t.crm_entries_last_30d > 0 || t.inventory_uploads_last_30d > 0;
-        const isTrial      = t.subscription_status === 'trial';
-        const trialExpired = isTrial && t.trial_ends_at && new Date(t.trial_ends_at) < new Date();
+        const daysInactive   = t.days_inactive ?? null;     // null = never logged in
+        const neverLoggedIn  = daysInactive === null;
+        const hasActivity    = t.deals_last_30d > 0 || t.crm_entries_last_30d > 0 || t.inventory_uploads_last_30d > 0;
+        const isTrial        = t.subscription_status === 'trial';
+        const trialExpired   = isTrial && t.trial_ends_at && new Date(t.trial_ends_at) < new Date();
+        // How old is the account in days?
+        const accountAgeDays = t.joined_at
+          ? Math.floor((Date.now() - new Date(t.joined_at)) / 86400000) : 0;
 
-        let churnRisk = 'low';
-        if (trialExpired)                          churnRisk = 'critical';
-        else if (daysInactive > 21 && !hasActivity) churnRisk = 'high';
-        else if (daysInactive > 14 || !hasActivity) churnRisk = 'medium';
+        let churnRisk = 'active';
+        if (trialExpired) {
+          churnRisk = 'critical';
+        } else if (neverLoggedIn && accountAgeDays > 3) {
+          // Signed up but hasn't used it yet — not inactive, just not started
+          churnRisk = 'medium';
+        } else if (!neverLoggedIn && daysInactive > 21 && !hasActivity) {
+          churnRisk = 'high';
+        } else if (!neverLoggedIn && (daysInactive > 14 || (!hasActivity && accountAgeDays > 7))) {
+          churnRisk = 'medium';
+        } else {
+          churnRisk = 'active';
+        }
 
         const settings = typeof t.settings_json === 'string'
           ? JSON.parse(t.settings_json || '{}') : (t.settings_json || {});
@@ -461,7 +475,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           status:          t.subscription_status,
           joinedAt:        t.joined_at,
           lastActive:      t.last_active,
-          daysInactive:    daysInactive < 999 ? daysInactive : null,
+          daysInactive:    daysInactive,
           hasPhone:        !!t.twilio_number,
           churnRisk,
           usage: {
@@ -485,6 +499,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
         active30d:   tenants.filter(t => t.daysInactive !== null && t.daysInactive <= 30).length,
         riskHigh:    tenants.filter(t => t.churnRisk === 'high' || t.churnRisk === 'critical').length,
         riskMedium:  tenants.filter(t => t.churnRisk === 'medium').length,
+        neverLoggedIn: tenants.filter(t => t.daysInactive === null).length,
         noPhone:     tenants.filter(t => !t.hasPhone).length,
         trials:      tenants.filter(t => t.status === 'trial').length,
       };
