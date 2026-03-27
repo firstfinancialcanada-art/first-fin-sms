@@ -862,123 +862,6 @@ select option{background:#0d1526;color:var(--text);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <!-- ═══ DT SYNC ═══ -->
-<section id="section-dtsync" class="section">
-<style>
-.dt-stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;}
-.dt-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;}
-.dt-stat .val{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--primary);line-height:1;}
-.dt-stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;}
-.dt-progress-bg{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:10px 0 6px;}
-.dt-progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--green));border-radius:4px;transition:width .4s;}
-.dt-feed{height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
-.dt-feed-row{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px;animation:dtFade .3s ease;}
-.dt-feed-row:last-child{border-bottom:none;}
-@keyframes dtFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-.dt-feed-name{font-weight:600;}
-.dt-feed-detail{color:var(--muted);font-size:11px;}
-.dt-badge-src{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,.15);color:var(--green);font-weight:700;white-space:nowrap;}
-.dt-badge-co{background:rgba(139,92,246,.15);color:#8b5cf6;}
-.dt-log{height:260px;overflow-y:auto;background:#040810;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Courier New',monospace;font-size:11px;}
-.dt-log-line{color:#7dd3fc;line-height:1.7;white-space:pre-wrap;}
-.dt-log-line.ok{color:#86efac;}
-.dt-log-line.err{color:#fca5a5;}
-.dt-setup{background:rgba(30,90,246,.07);border:1px solid rgba(30,90,246,.25);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;line-height:1.8;}
-.dt-setup strong{color:#93c5fd;}
-.dt-setup code{background:rgba(30,90,246,.15);padding:1px 7px;border-radius:4px;font-size:11px;color:#c4b5fd;}
-.dt-bridge-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;}
-.dt-dot{width:10px;height:10px;border-radius:50%;background:#374151;flex-shrink:0;}
-.dt-dot.green{background:#10b981;box-shadow:0 0 8px #10b981;}
-.dt-dot.red{background:#ef4444;box-shadow:0 0 8px #ef4444;}
-.dt-dot.yellow{background:#f59e0b;box-shadow:0 0 8px #f59e0b;}
-.dt-bridge-label{display:flex;align-items:center;gap:10px;font-size:13px;}
-.dt-ctrl-row{display:flex;gap:8px;flex-wrap:wrap;}
-.dt-btn{padding:8px 18px;border-radius:7px;border:none;cursor:pointer;font-weight:700;font-size:12px;font-family:'Outfit',sans-serif;transition:opacity .15s;}
-.dt-btn:disabled{opacity:.35;cursor:not-allowed;}
-.dt-btn.start{background:var(--green);color:#000;}
-.dt-btn.stop{background:var(--red);color:#fff;}
-.dt-btn.crm{background:var(--primary);color:#fff;}
-.dt-btn.export{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
-.dt-btn.clear{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
-.dt-crm-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#000;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;z-index:9999;display:none;}
-</style>
-
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-  <div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;background:linear-gradient(90deg,#10b981,#1e5af6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">DT SYNC</div>
-    <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Dealertrack Auto-Scraper &middot; Pushes directly to CRM</div>
-  </div>
-</div>
-
-<div id="dt-setup-box" style="background:linear-gradient(135deg,rgba(16,185,129,.07),rgba(30,90,246,.05));border:1px solid rgba(16,185,129,.22);border-radius:14px;padding:22px 26px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
-  <div style="flex:1;min-width:200px;">
-    <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:5px;">DT Sync Setup</div>
-    <div style="font-size:12px;color:var(--muted);line-height:1.6;">
-      DT Sync connects directly to your Dealertrack account and pulls contacts and deal data automatically into your CRM.<br>
-      Setup takes about <strong style="color:var(--text);">15 minutes</strong> with our team — reach out and we'll get you live.
-    </div>
-  </div>
-  <div style="display:flex;flex-direction:column;gap:8px;min-width:160px;">
-    <a href="tel:+15873066133"
-      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
-      onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
-      <i data-lucide="phone" style="width:13px;height:13px;color:var(--green);"></i>587-306-6133
-    </a>
-    <a href="sms:+15873066133"
-      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
-      onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
-      <i data-lucide="message-circle" style="width:13px;height:13px;color:var(--primary);"></i>Text Us
-    </a>
-  </div>
-</div>
-
-<div class="dt-bridge-row">
-  <div class="dt-bridge-label">
-    <div class="dt-dot" id="dt-dot"></div>
-    <span id="dt-bridge-label">Checking bridge on localhost:5001...</span>
-  </div>
-  <div class="dt-ctrl-row">
-    <button class="dt-btn start" id="dt-btn-start" onclick="dtStart()" disabled><i data-lucide="play" class="ico-sm"></i> Start</button>
-    <button class="dt-btn" id="dt-btn-resume" onclick="dtResume()" disabled style="background:var(--amber);color:#000;"><i data-lucide="skip-forward" class="ico-sm"></i> Resume</button>
-    <button class="dt-btn stop"  id="dt-btn-stop"  onclick="dtStop()"  disabled><i data-lucide="square" class="ico-sm"></i> Stop</button>
-    <button class="dt-btn crm"   id="dt-btn-crm"   onclick="dtPushCRM()" disabled><i data-lucide="users" class="ico-sm"></i> Push to CRM</button>
-    <button class="dt-btn export" onclick="dtExportCSV()"><i data-lucide="download" class="ico-sm"></i> CSV</button>
-    <button class="dt-btn clear"  onclick="dtClear()"><i data-lucide="trash-2" class="ico-sm"></i> Clear</button>
-  </div>
-</div>
-
-<div class="card" style="padding:16px 20px;margin-bottom:16px;">
-  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
-    <span id="dt-prog-label">Waiting to start...</span>
-    <span id="dt-prog-pct" style="font-weight:700;color:var(--primary);">0%</span>
-  </div>
-  <div class="dt-progress-bg"><div class="dt-progress-fill" id="dt-prog-fill" style="width:0%"></div></div>
-  <div style="font-size:11px;color:var(--muted);" id="dt-prog-msg">&mdash;</div>
-</div>
-
-<div class="dt-stat-row">
-  <div class="dt-stat"><div class="val" id="dt-s-total">0</div><div class="lbl">Contacts Captured</div></div>
-  <div class="dt-stat"><div class="val" id="dt-s-deals">0</div><div class="lbl">Deals Processed</div></div>
-  <div class="dt-stat"><div class="val" id="dt-s-skipped" style="color:var(--amber);">0</div><div class="lbl">Skipped (No Data)</div></div>
-  <div class="dt-stat"><div class="val" id="dt-s-remain">&mdash;</div><div class="lbl">Deals Remaining</div></div>
-  <div class="dt-stat"><div class="val" id="dt-s-crm" style="color:var(--green);">0</div><div class="lbl">Pushed to CRM</div></div>
-</div>
-
-<div class="two-col" style="margin-bottom:16px;">
-  <div>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Captured Contacts</div>
-    <div class="dt-feed" id="dt-feed">
-      <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;" id="dt-feed-empty">No contacts yet</div>
-    </div>
-  </div>
-  <div>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Live Log</div>
-    <div class="dt-log" id="dt-log"><div class="dt-log-line">Waiting for bridge on localhost:5001...</div></div>
-  </div>
-</div>
-
-<div class="dt-crm-toast" id="dt-crm-toast"></div>
-</section>
-
 <script>
   if(typeof pdfjsLib !== 'undefined'){
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1292,31 +1175,8 @@ select option{background:#0d1526;color:var(--text);}
         <div class="wiz-live-pill green"><div class="wlp-label">72mo Pay</div><div class="wlp-value" id="wizPay72">$0</div></div>
       </div>
 
-      <!-- Payment Grid -->
-      <div class="card">
-        <div class="wiz-section-title"><i data-lucide="calculator" class="ico-lg"></i><span class="wiz-accent">Payment</span> Grid</div>
-        <div class="payment-wrap">
-          <table class="payment-table">
-            <thead><tr><th>Down Payment</th><th>48 Months</th><th>60 Months</th><th>72 Months</th><th>84 Months</th></tr></thead>
-            <tbody id="paymentGrid"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">Enter deal details to calculate payments</td></tr></tbody>
-          </table>
-        </div>
-        <div class="rate-compare-card">
-          <div class="rc-title" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--primary);margin-bottom:10px;">Rate Comparison — Same Deal, 3 Rates</div>
-          <div class="rc-rate-inputs">
-            <div class="fgroup" style="margin:0;"><label>Buy Rate (%)</label><input type="number" id="rc_buy" value="6.50" step="0.01" oninput="updateRateComparison()"></div>
-            <div class="fgroup" style="margin:0;"><label>Contract Rate (%)</label><input type="number" id="rc_contract" value="8.99" step="0.01" oninput="updateRateComparison()"></div>
-            <div class="fgroup" style="margin:0;"><label>Max Rate (%)</label><input type="number" id="rc_max" value="12.99" step="0.01" oninput="updateRateComparison()"></div>
-          </div>
-          <table class="rate-compare-table">
-            <thead><tr><th>Term</th><th class="rc-buy">Buy Rate</th><th class="rc-contract">Contract</th><th class="rc-max">Max Rate</th><th style="color:var(--muted);">Reserve/mo</th></tr></thead>
-            <tbody id="rateCompareBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;">Enter deal details above</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
       <!-- F&I Products -->
-      <div class="card" style="margin-top:16px;">
+      <div class="card">
         <div class="wiz-section-title"><i data-lucide="shield-check" class="ico-lg" style="color:var(--green)"></i><span class="wiz-accent green">F&I</span> Protection Package</div>
 
         <!-- Payment breakdown summary -->
@@ -1414,6 +1274,30 @@ select option{background:#0d1526;color:var(--text);}
         </div>
       </div>
 
+      
+<!-- Payment Grid -->
+      <div class="card" style="margin-top:16px;">
+        <div class="wiz-section-title"><i data-lucide="calculator" class="ico-lg"></i><span class="wiz-accent">Payment</span> Grid</div>
+        <div class="payment-wrap">
+          <table class="payment-table">
+            <thead><tr><th>Down Payment</th><th>48 Months</th><th>60 Months</th><th>72 Months</th><th>84 Months</th></tr></thead>
+            <tbody id="paymentGrid"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;">Enter deal details to calculate payments</td></tr></tbody>
+          </table>
+        </div>
+        <div class="rate-compare-card">
+          <div class="rc-title" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--primary);margin-bottom:10px;">Rate Comparison — Same Deal, 3 Rates</div>
+          <div class="rc-rate-inputs">
+            <div class="fgroup" style="margin:0;"><label>Buy Rate (%)</label><input type="number" id="rc_buy" value="6.50" step="0.01" oninput="updateRateComparison()"></div>
+            <div class="fgroup" style="margin:0;"><label>Contract Rate (%)</label><input type="number" id="rc_contract" value="8.99" step="0.01" oninput="updateRateComparison()"></div>
+            <div class="fgroup" style="margin:0;"><label>Max Rate (%)</label><input type="number" id="rc_max" value="12.99" step="0.01" oninput="updateRateComparison()"></div>
+          </div>
+          <table class="rate-compare-table">
+            <thead><tr><th>Term</th><th class="rc-buy">Buy Rate</th><th class="rc-contract">Contract</th><th class="rc-max">Max Rate</th></tr></thead>
+            <tbody id="rateCompareBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px;">Enter deal details above</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="wiz-nav">
         <button class="btn btn-ghost" onclick="goWizStep(2)">← Structure</button>
         <button class="btn btn-primary" onclick="goWizStep(4)">Review & Close →</button>
@@ -1424,6 +1308,7 @@ select option{background:#0d1526;color:var(--text);}
     <div class="wiz-step" id="wizStep4">
 
       <!-- Live Deal Banner -->
+<!-- Live Deal Banner -->
       <div class="wiz-live-banner">
         <div class="wiz-live-pill"><div class="wlp-label">OTD Price</div><div class="wlp-value" id="wizOtd2">$0</div></div>
         <div class="wiz-live-pill amber"><div class="wlp-label">Down</div><div class="wlp-value" id="wizDown2">$0</div></div>
@@ -1431,7 +1316,69 @@ select option{background:#0d1526;color:var(--text);}
         <div class="wiz-live-pill green"><div class="wlp-label">72mo Pay</div><div class="wlp-value" id="wizPay72_2">$0</div></div>
       </div>
 
-      <!-- Manager View -->
+      
+      <!-- ═══ CLIENT SUMMARY ═══ -->
+      <div class="card" style="border:1px solid rgba(16,185,129,.3);border-top:3px solid var(--green);">
+        <div class="wiz-section-title"><i data-lucide="check-circle" class="ico-lg" style="color:var(--green);"></i><span class="wiz-accent green">Deal</span> Summary</div>
+
+        <!-- Vehicle + Customer row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Vehicle</div>
+            <div style="font-weight:800;font-size:15px;color:var(--text);" id="sum-vehicle">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;" id="sum-stock">—</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Customer</div>
+            <div style="font-weight:800;font-size:15px;color:var(--text);" id="sum-customer">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;" id="sum-phone">—</div>
+          </div>
+        </div>
+
+        <!-- Payment highlight -->
+        <div style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(30,90,246,.08));border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:18px 20px;margin-bottom:16px;text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Your Payment</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:48px;line-height:1;color:var(--green);" id="sum-payment">$0</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;" id="sum-term-label">per month</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="sum-rate-label">—</div>
+        </div>
+
+        <!-- Deal details grid -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">OTD Price</div>
+            <div style="font-weight:800;color:var(--text);" id="sum-otd">$0</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Down Payment</div>
+            <div style="font-weight:800;color:var(--amber);" id="sum-down">$0</div>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Amount Financed</div>
+            <div style="font-weight:800;color:var(--primary);" id="sum-financed">$0</div>
+          </div>
+        </div>
+
+        <!-- F&I Products confirmed -->
+        <div id="sum-fi-section" style="display:none;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">✓ Protection Package Included</div>
+          <div id="sum-fi-products" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+
+        <!-- Present button -->
+        <button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;font-weight:800;" onclick="openPresentation()">
+          <i data-lucide="presentation" class="ico-sm"></i> Open Full Presentation
+        </button>
+      </div>
+
+      <!-- ═══ MANAGER SECTION (dealer only — below client view) ═══ -->
+      <div style="margin-top:24px;border-top:2px dashed var(--border);padding-top:20px;">
+        <button onclick="toggleMgrSection(this)" style="width:100%;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:12px 16px;color:var(--amber);font-weight:700;font-size:13px;font-family:'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:0;" id="mgr-toggle-btn">
+          <span><i data-lucide="lock" style="width:14px;height:14px;margin-right:6px;vertical-align:middle;"></i> Manager View</span>
+          <span id="mgr-toggle-arrow">▼</span>
+        </button>
+        <div id="mgr-section-body" style="display:none;margin-top:12px;">
+          <!-- Manager View -->
       <div class="card">
         <div class="wiz-section-title"><i data-lucide="lock" class="ico-lg" style="color:var(--amber)"></i><span class="wiz-accent amber">Manager</span> View</div>
         <div class="mgr-tabs">
@@ -1492,12 +1439,20 @@ select option{background:#0d1526;color:var(--text);}
             <div class="fgroup"><label>Advance ($)</label><input type="number" id="subAdvance" value="0" oninput="calculateSubprime()"></div>
             <div class="fgroup"><label>NADA Book ($)</label><input type="number" id="subNada" value="0" oninput="calculateSubprime()"></div>
           </div>
+          <div style="font-size:11px;color:var(--muted);margin:-6px 0 12px;display:flex;align-items:flex-start;gap:5px;">
+            <span style="color:var(--amber);">💡</span>
+            <span>These fields are independent of the deal desk. Update Advance from your financed amount and NADA Book from your book value each time the deal changes.</span>
+          </div>
           <div class="fgroup"><label>PTI Limit (%)</label><input type="number" id="ptiLimit" value="20" step="0.1" oninput="calculatePTI()"></div>
           <div class="cline"><span class="cl-label">Deal LTV</span><span class="cl-value" id="dealLTV">0%</span></div>
           <div class="cline"><span class="cl-label">PTI</span><span class="cl-value" id="ptiResult">0%</span></div>
+          <div style="font-size:10px;color:var(--muted);margin:-4px 0 4px 0;display:flex;align-items:flex-start;gap:4px;">
+            <span style="color:var(--amber);">💡</span>
+            <span>PTI &amp; TDSR use the term set in the Reserve tab.</span>
+          </div>
           <div class="cline"><span class="cl-label">PTI Status</span><span class="cl-value" id="ptiStatus">—</span></div>
-          <div class="cline"><span class="cl-label">DTI</span><span class="cl-value" id="dtiResult">0%</span></div>
-          <div class="cline"><span class="cl-label">DTI Status</span><span class="cl-value" id="dtiStatus">—</span></div>
+          <div class="cline"><span class="cl-label">TDSR</span><span class="cl-value" id="dtiResult">0%</span></div>
+          <div class="cline"><span class="cl-label">TDSR Status</span><span class="cl-value" id="dtiStatus">—</span></div>
           <div class="cline"><span class="cl-label">Beacon Risk</span><span class="cl-value" id="refiRisk">—</span></div>
           <div class="cline"><span class="cl-label">Reserve Status</span><span class="cl-value" id="reserveStatus">—</span></div>
         </div>
@@ -1571,17 +1526,27 @@ select option{background:#0d1526;color:var(--text);}
         </div>
       </div>
 
-      <!-- Log Deal + Actions -->
+      
+          <!-- Log Deal + Actions -->
       <div style="display:flex;gap:10px;margin:16px 0;">
         <button class="btn btn-success" style="flex:1;padding:14px;font-size:14px;" onclick="logDeal()"><i data-lucide="check-circle" class="ico-sm"></i>LOG THIS DEAL</button>
         <button class="btn btn-ghost" style="flex:1;padding:14px;" onclick="openModal('lenderParserModal')"><i data-lucide="clipboard-paste" class="ico-sm"></i>PASTE LENDER APPROVAL</button>
         <button class="btn btn-primary" style="padding:14px 16px;" onclick="printWorksheet()" title="Print Deal Worksheet"><i data-lucide="printer" class="ico-sm"></i>Print</button>
       </div>
 
+      
+        </div>
+      </div>
+
       <div class="wiz-nav">
         <button class="btn btn-ghost" onclick="goWizStep(3)">← F&I & Payments</button>
         <button class="btn btn-success" onclick="logDeal()"><i data-lucide="check-circle" class="ico-sm"></i>Log >Log & Close Deal</button> Close Deal</button>
       </div>
+    </div>
+
+  </div><!-- /.wiz-container -->
+
+  
     </div>
 
   </div><!-- /.wiz-container -->
@@ -1870,6 +1835,125 @@ select option{background:#0d1526;color:var(--text);}
   </div>
 </section>
 
+<section id="section-dtsync" class="section">
+<style>
+.dt-stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;}
+.dt-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center;}
+.dt-stat .val{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--primary);line-height:1;}
+.dt-stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;}
+.dt-progress-bg{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:10px 0 6px;}
+.dt-progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--green));border-radius:4px;transition:width .4s;}
+.dt-feed{height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+.dt-feed-row{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px;animation:dtFade .3s ease;}
+.dt-feed-row:last-child{border-bottom:none;}
+@keyframes dtFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.dt-feed-name{font-weight:600;}
+.dt-feed-detail{color:var(--muted);font-size:11px;}
+.dt-badge-src{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,.15);color:var(--green);font-weight:700;white-space:nowrap;}
+.dt-badge-co{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.dt-log{height:260px;overflow-y:auto;background:#040810;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Courier New',monospace;font-size:11px;}
+.dt-log-line{color:#7dd3fc;line-height:1.7;white-space:pre-wrap;}
+.dt-log-line.ok{color:#86efac;}
+.dt-log-line.err{color:#fca5a5;}
+.dt-setup{background:rgba(30,90,246,.07);border:1px solid rgba(30,90,246,.25);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;line-height:1.8;}
+.dt-setup strong{color:#93c5fd;}
+.dt-setup code{background:rgba(30,90,246,.15);padding:1px 7px;border-radius:4px;font-size:11px;color:#c4b5fd;}
+.dt-bridge-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:20px;}
+.dt-dot{width:10px;height:10px;border-radius:50%;background:#374151;flex-shrink:0;}
+.dt-dot.green{background:#10b981;box-shadow:0 0 8px #10b981;}
+.dt-dot.red{background:#ef4444;box-shadow:0 0 8px #ef4444;}
+.dt-dot.yellow{background:#f59e0b;box-shadow:0 0 8px #f59e0b;}
+.dt-bridge-label{display:flex;align-items:center;gap:10px;font-size:13px;}
+.dt-ctrl-row{display:flex;gap:8px;flex-wrap:wrap;}
+.dt-btn{padding:8px 18px;border-radius:7px;border:none;cursor:pointer;font-weight:700;font-size:12px;font-family:'Outfit',sans-serif;transition:opacity .15s;}
+.dt-btn:disabled{opacity:.35;cursor:not-allowed;}
+.dt-btn.start{background:var(--green);color:#000;}
+.dt-btn.stop{background:var(--red);color:#fff;}
+.dt-btn.crm{background:var(--primary);color:#fff;}
+.dt-btn.export{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.dt-btn.clear{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+.dt-crm-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:#000;font-weight:700;font-size:13px;padding:10px 20px;border-radius:10px;z-index:9999;display:none;}
+</style>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;background:linear-gradient(90deg,#10b981,#1e5af6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">DT SYNC</div>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Dealertrack Auto-Scraper &middot; Pushes directly to CRM</div>
+  </div>
+</div>
+
+<div id="dt-setup-box" style="background:linear-gradient(135deg,rgba(16,185,129,.07),rgba(30,90,246,.05));border:1px solid rgba(16,185,129,.22);border-radius:14px;padding:22px 26px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:200px;">
+    <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:5px;">DT Sync Setup</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;">
+      DT Sync connects directly to your Dealertrack account and pulls contacts and deal data automatically into your CRM.<br>
+      Setup takes about <strong style="color:var(--text);">15 minutes</strong> with our team — reach out and we'll get you live.
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;min-width:160px;">
+    <a href="tel:+15873066133"
+      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
+      onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+      <i data-lucide="phone" style="width:13px;height:13px;color:var(--green);"></i>587-306-6133
+    </a>
+    <a href="sms:+15873066133"
+      style="display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:700;font-size:12px;text-decoration:none;transition:border-color .2s;"
+      onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+      <i data-lucide="message-circle" style="width:13px;height:13px;color:var(--primary);"></i>Text Us
+    </a>
+  </div>
+</div>
+
+<div class="dt-bridge-row">
+  <div class="dt-bridge-label">
+    <div class="dt-dot" id="dt-dot"></div>
+    <span id="dt-bridge-label">Checking bridge on localhost:5001...</span>
+  </div>
+  <div class="dt-ctrl-row">
+    <button class="dt-btn start" id="dt-btn-start" onclick="dtStart()" disabled><i data-lucide="play" class="ico-sm"></i> Start</button>
+    <button class="dt-btn" id="dt-btn-resume" onclick="dtResume()" disabled style="background:var(--amber);color:#000;"><i data-lucide="skip-forward" class="ico-sm"></i> Resume</button>
+    <button class="dt-btn stop"  id="dt-btn-stop"  onclick="dtStop()"  disabled><i data-lucide="square" class="ico-sm"></i> Stop</button>
+    <button class="dt-btn crm"   id="dt-btn-crm"   onclick="dtPushCRM()" disabled><i data-lucide="users" class="ico-sm"></i> Push to CRM</button>
+    <button class="dt-btn export" onclick="dtExportCSV()"><i data-lucide="download" class="ico-sm"></i> CSV</button>
+    <button class="dt-btn clear"  onclick="dtClear()"><i data-lucide="trash-2" class="ico-sm"></i> Clear</button>
+  </div>
+</div>
+
+<div class="card" style="padding:16px 20px;margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+    <span id="dt-prog-label">Waiting to start...</span>
+    <span id="dt-prog-pct" style="font-weight:700;color:var(--primary);">0%</span>
+  </div>
+  <div class="dt-progress-bg"><div class="dt-progress-fill" id="dt-prog-fill" style="width:0%"></div></div>
+  <div style="font-size:11px;color:var(--muted);" id="dt-prog-msg">&mdash;</div>
+</div>
+
+<div class="dt-stat-row">
+  <div class="dt-stat"><div class="val" id="dt-s-total">0</div><div class="lbl">Contacts Captured</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-deals">0</div><div class="lbl">Deals Processed</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-skipped" style="color:var(--amber);">0</div><div class="lbl">Skipped (No Data)</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-remain">&mdash;</div><div class="lbl">Deals Remaining</div></div>
+  <div class="dt-stat"><div class="val" id="dt-s-crm" style="color:var(--green);">0</div><div class="lbl">Pushed to CRM</div></div>
+</div>
+
+<div class="two-col" style="margin-bottom:16px;">
+  <div>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Captured Contacts</div>
+    <div class="dt-feed" id="dt-feed">
+      <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;" id="dt-feed-empty">No contacts yet</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Live Log</div>
+    <div class="dt-log" id="dt-log"><div class="dt-log-line">Waiting for bridge on localhost:5001...</div></div>
+  </div>
+</div>
+
+<div class="dt-crm-toast" id="dt-crm-toast"></div>
+</section>
+
+
+
 <!-- ═══ MODALS ═══ -->
 
 <!-- Email Modal -->
@@ -2107,6 +2191,7 @@ select option{background:#0d1526;color:var(--text);}
       <div class="fgroup">
         <label>Opening Message</label>
         <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">💡 Dealer name auto-fills when settings are loaded. You can edit this message freely.</div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="launchCharCount">0 characters</div>
       <button class="btn btn-primary btn-full" id="launchSendBtn" onclick="sendLaunchSMS()">Send Message</button>
