@@ -256,12 +256,18 @@ function PV(rate,nper,pmt){if(rate===0)return pmt*nper;return pmt*((1-Math.pow(1
 
 // ── BI-WEEKLY MODE ────────────────────────────────────────────────
 window._biweekly = false;
+window._fiTerm   = 72;   // F&I section active term (48/60/72/84)
 function toggleBiweekly(el){
   window._biweekly = el.checked;
-  // Sync all toggles
+  // Sync all toggles (grid + F&I) to same state
   document.querySelectorAll('.bw-toggle').forEach(t=>{ t.checked = window._biweekly; });
+  const fiBwEl = document.getElementById('fi-biweekly-toggle');
+  if (fiBwEl) fiBwEl.checked = window._biweekly;
   calculate();
   updateRateComparison();
+  // If presentation overlay is open, re-render payment cards immediately
+  const overlay = document.getElementById('presentationOverlay');
+  if(overlay && overlay.classList.contains('open')) refreshPresentationCards();
 }
 // BPMT: calculates payment based on current mode (monthly or bi-weekly)
 function BPMT(apr, months, fin){
@@ -273,6 +279,155 @@ function BPMT(apr, months, fin){
   return PMT(apr/100/12, months, fin);
 }
 function _pmtLabel(){ return window._biweekly ? '/bi-wk' : '/mo'; }
+
+// ── F&I section term selector ────────────────────────────────────────────────
+function setFiTerm(term, btn) {
+  window._fiTerm = term;
+  // Update button styles
+  document.querySelectorAll('.fi-term-btn').forEach(b => b.classList.remove('active-term'));
+  if (btn) btn.classList.add('active-term');
+  // Keep the main biweekly grid toggle in sync (F&I biweekly mirrors global)
+  updateFiSection();
+}
+
+function fiBiweeklyToggle(el) {
+  // Sync F&I biweekly toggle with the global toggle
+  window._biweekly = el.checked;
+  document.querySelectorAll('.bw-toggle').forEach(t => { if (t !== el) t.checked = el.checked; });
+  calculate(); // recalculates everything including F&I
+}
+
+// Helper: get confirmed (sold + price > 0) product total
+function getFiConfirmedProducts() {
+  const products = [
+    { id: 'vsc', name: 'VSC',   priceId: 'vscPrice', soldId: 'vscSold' },
+    { id: 'gap', name: 'GAP',   priceId: 'gapPrice', soldId: 'gapSold' },
+    { id: 'tw',  name: 'T&W',   priceId: 'twPrice',  soldId: 'twSold'  },
+    { id: 'wa',  name: 'WA',    priceId: 'waPrice',  soldId: 'waSold'  },
+  ];
+  let confirmed = [];
+  let total = 0;
+  products.forEach(p => {
+    const price = parseFloat(document.getElementById(p.priceId)?.value) || 0;
+    const sold  = document.getElementById(p.soldId)?.checked;
+    if (sold && price > 0) {
+      confirmed.push({ ...p, price });
+      total += price;
+    }
+  });
+  return { confirmed, total };
+}
+
+function updateFiSection() {
+  // ── Deal base numbers ─────────────────────────────────────────────────────
+  const apr      = parseFloat(document.getElementById('apr')?.value) || 0;
+  const price    = parseFloat(document.getElementById('sellingPrice')?.value) || 0;
+  const doc      = parseFloat(document.getElementById('docFee')?.value) || 0;
+  const tAllow   = parseFloat(document.getElementById('tradeAllow')?.value) || 0;
+  const tPayoff  = parseFloat(document.getElementById('tradePayoff')?.value) || 0;
+  const gst      = parseFloat(document.getElementById('gstRate')?.value) || 5;
+  const finalDown= parseFloat(document.getElementById('finalDown')?.value) || 0;
+
+  const netTrade = tAllow - tPayoff;
+  const gstAmt   = (price + doc - netTrade) * (gst / 100);
+  const otd      = price + doc - netTrade + gstAmt;
+  const finAmt   = Math.max(0, otd - finalDown);
+
+  const term    = window._fiTerm || 72;
+  const bw      = window._biweekly;
+  const periods = bw ? Math.round(term * 26 / 12) : term;
+  const lbl     = bw ? '/bi-wk' : '/mo';
+  const baseP   = BPMT(apr, term, finAmt);
+
+  const vsc = parseFloat(document.getElementById('vscPrice')?.value) || 0;
+  const gap = parseFloat(document.getElementById('gapPrice')?.value) || 0;
+  const tw  = parseFloat(document.getElementById('twPrice')?.value)  || 0;
+  const wa  = parseFloat(document.getElementById('waPrice')?.value)  || 0;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  // ── Payment breakdown (all offered products) ─────────────────────────────
+  set('basePayment72',     $f(baseP));
+  set('withGap',           $f(baseP + gap / periods));
+  set('withGapVsc',        $f(baseP + gap / periods + vsc / periods));
+  set('withAllProtection', $f(baseP + gap / periods + vsc / periods + tw / periods));
+  set('fullProtection',    $f(baseP + gap / periods + vsc / periods + tw / periods + wa / periods));
+
+  set('vscImpact', '+' + $f(vsc / periods) + lbl);
+  set('gapImpact', '+' + $f(gap / periods) + lbl);
+  set('twImpact',  '+' + $f(tw  / periods) + lbl);
+  set('waImpact',  '+' + $f(wa  / periods) + lbl);
+
+  // ── Visual: strike/dim unchecked boxes ───────────────────────────────────
+  [['vsc','pb-vsc'],['gap','pb-gap'],['tw','pb-tw'],['wa','pb-wa']].forEach(([id, boxId]) => {
+    const sold = document.getElementById(id + 'Sold')?.checked;
+    const priceVal = parseFloat(document.getElementById(id + 'Price')?.value) || 0;
+    const box = document.getElementById(boxId);
+    if (box) {
+      box.style.opacity  = (!sold || priceVal === 0) ? '0.45' : '1';
+      box.style.filter   = (!sold || priceVal === 0) ? 'grayscale(0.3)' : '';
+    }
+    // Auto-uncheck if price cleared to 0
+    if (priceVal === 0) {
+      const cb = document.getElementById(id + 'Sold');
+      if (cb) cb.checked = false;
+    }
+  });
+
+  // ── Header label ─────────────────────────────────────────────────────────
+  const hdr = document.getElementById('fi-pay-header');
+  if (hdr) {
+    const termLabel = bw ? `${periods} Bi-Wkly Periods` : `${term} Months`;
+    hdr.textContent = `Payment @ ${termLabel}`;
+  }
+
+  // ── Sync biweekly checkbox + term buttons ─────────────────────────────────
+  const fiBwEl = document.getElementById('fi-biweekly-toggle');
+  if (fiBwEl) fiBwEl.checked = bw;
+  document.querySelectorAll('.fi-term-btn').forEach(b => {
+    b.classList.toggle('active-term', parseInt(b.dataset.term) === term);
+  });
+
+  // ── Confirmed deal box ────────────────────────────────────────────────────
+  const { confirmed, total: confirmedTotal } = getFiConfirmedProducts();
+  const confirmedFinanced = finAmt + confirmedTotal;
+  const confirmedBaseP    = BPMT(apr, term, confirmedFinanced);
+
+  // Products label
+  const prodLabel = document.getElementById('fi-confirmed-products');
+  if (prodLabel) {
+    prodLabel.textContent = confirmed.length
+      ? confirmed.map(p => p.name + ' ' + $i(p.price)).join(' · ')
+      : 'Vehicle only — no products confirmed';
+  }
+
+  set('fi-confirmed-financed',       $i(confirmedFinanced));
+  set('fi-confirmed-products-total', confirmedTotal > 0 ? '+' + $i(confirmedTotal) : '$0');
+
+  // Confirmed payment rows at each term
+  const rowsEl = document.getElementById('fi-confirmed-rows');
+  if (rowsEl) {
+    if (confirmed.length === 0) {
+      rowsEl.innerHTML = '';
+    } else {
+      const terms = [48, 60, 72, 84];
+      let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">';
+      terms.forEach(t => {
+        const periods_t = bw ? Math.round(t * 26 / 12) : t;
+        const pmt = BPMT(apr, t, confirmedFinanced);
+        const isActive = t === term;
+        const termLbl = bw ? `${periods_t}×` : `${t}mo`;
+        html += `<div style="text-align:center;background:${isActive?'rgba(245,158,11,.12)':'rgba(0,0,0,.15)'};border:1px solid ${isActive?'rgba(245,158,11,.4)':'rgba(255,255,255,.06)'};border-radius:6px;padding:8px 4px;">
+          <div style="font-size:9px;font-weight:700;color:${isActive?'var(--amber)':'var(--muted)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">${termLbl}</div>
+          <div style="font-size:14px;font-weight:900;color:${isActive?'var(--amber)':'white'};">${$f(pmt)}</div>
+          <div style="font-size:9px;color:var(--muted);">${lbl}</div>
+        </div>`;
+      });
+      html += '</div>';
+      rowsEl.innerHTML = html;
+    }
+  }
+}
 function _biweeklyToggleHTML(id){
   return `<label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
     <input type="checkbox" class="bw-toggle" id="${id}" onchange="toggleBiweekly(this)" ${window._biweekly?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary);">
@@ -758,29 +913,8 @@ function calculate(){
   </tr>`;
   document.getElementById('paymentGrid').innerHTML = html;
 
-  const vsc = parseFloat(document.getElementById('vscPrice').value)||0;
-  const gap = parseFloat(document.getElementById('gapPrice').value)||0;
-  const tw  = parseFloat(document.getElementById('twPrice').value)||0;
-  const wa  = parseFloat(document.getElementById('waPrice').value)||0;
-
-  const b72 = BPMT(apr,72,otd);
-  const bwPeriods = window._biweekly ? Math.round(72*26/12) : 72;
-  const lbl = _pmtLabel();
-  document.getElementById('basePayment72').textContent = $f(b72);
-  document.getElementById('withGap').textContent = $f(b72+(gap/bwPeriods));
-  document.getElementById('withGapVsc').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods));
-  document.getElementById('withAllProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods));
-  document.getElementById('fullProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods)+(wa/bwPeriods));
-
-  document.getElementById('vscImpact').textContent = '+'+$f(vsc/bwPeriods)+lbl;
-  document.getElementById('gapImpact').textContent = '+'+$f(gap/bwPeriods)+lbl;
-  document.getElementById('twImpact').textContent  = '+'+$f(tw/bwPeriods)+lbl;
-  document.getElementById('waImpact').textContent  = '+'+$f(wa/bwPeriods)+lbl;
-
-  // Update F&I section label to show current payment mode
-  const fi72Label = document.querySelector('#wizStep3 .wiz-section-title + div .insight-label, #wizStep3 [style*="Monthly Payment"]');
-  const fi72Header = document.querySelector('#wizStep3 div[style*="72 Months"]');
-  if(fi72Header) fi72Header.textContent = `Payment @ 72 ${window._biweekly?'Bi-Weekly':'Months'}`;
+  // ── F&I payment summary — delegated to updateFiSection() ───────────────────
+  updateFiSection();
 
   calculateProfit();
   calculateReserve();
@@ -788,7 +922,10 @@ function calculate(){
   calculatePTI();
 
   // Update wizard live banners (steps 4 & 5)
-  updateWizBanners(otd, finalDown, finAmt, BPMT(apr,72,finAmt));
+  // Wizard banner shows confirmed-product finance amount (what dealer actually presents)
+  const { total: wizFiTotal } = getFiConfirmedProducts();
+  const wizFinAmt = finAmt + wizFiTotal;
+  updateWizBanners(otd, finalDown, wizFinAmt, BPMT(apr, window._fiTerm||72, wizFinAmt));
 }
 
 function calcCustom(){
@@ -1442,6 +1579,26 @@ function getQualifyingProgram(lid, beacon){
       }
     }
   }
+  // Credit-based lenders (hard:false — CIBC, RBC, etc.) don't use FICO tiers.
+  // They underwrite on full credit profile outside the platform.
+  // Return a synthetic pass so Compare All shows them; LTV/income gates filter.
+  const lenderObj = lenders[lid];
+  if (lenderObj && !lenderObj.hard) {
+    const firstRate = lenderObj.programs?.length
+      ? parseFloat(String(lenderObj.programs[0].rate).split('–')[0].replace('%','')) || 7.99
+      : 7.99;
+    return {
+      tier: 'Credit Profile',
+      rate: isNaN(firstRate) ? 7.99 : firstRate,
+      maxLTV: lenderObj.maxLTV || 96,
+      minYear: lenderObj.minYear || 2015,
+      maxMileage: lenderObj.maxMileage || 999999,
+      maxCarfax: lenderObj.maxCarfax || 999999,
+      fee: 0,
+      isCreditBased: true,
+    };
+  }
+
   return null;
 }
 
@@ -2025,7 +2182,7 @@ Total Out-the-Door:   ${$f(otd)}
 
 PROTECTION PACKAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${vsc>0?`Vehicle Service Contract: ${$f(vsc)}\n`:''}${gap>0?`GAP Insurance:            ${$f(gap)}\n`:''}${tw>0?`Tire & Wheel Protection:  ${$f(tw)}\n`:''}${wa>0?`Wear Appearance:          ${$f(wa)}\n`:''}
+${vsc>0?`Vehicle Service Contract: ${$f(vsc)}\n`:''}${gap>0?`GAP Insurance:            ${$f(gap)}\n`:''}${tw>0?`Tire & Wheel Protection:  ${$f(tw)}\n`:''}${wa>0?`Walk Away Insurance:          ${$f(wa)}\n`:''}
 ESTIMATED PAYMENTS @ ${apr}% APR
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 72 Month:   ${pmt72} / month
@@ -2436,6 +2593,8 @@ async function saveSettings(){
   document.getElementById('targetInput').value = settings.target;
   updateHeaderDealer();
   calculate();
+  // Refresh voice templates if dealer name updated
+  if(typeof populateVoiceTemplates === 'function') populateVoiceTemplates();
 
   // 3. Save to Postgres directly — not via the debounced localStorage interceptor.
   //    Without this, a page refresh within 1500ms of clicking Save silently loses changes.
@@ -2879,6 +3038,8 @@ function toggleDarkMode(){
   btn.textContent = isLight ? 'Dark' : 'Light';
   localStorage.setItem('ffTheme', isLight ? 'light' : 'dark');
   toast(isLight ? 'Switched to Light Mode' : 'Switched to Dark Mode');
+  // Rebuild watermark so ink colour matches new background
+  if (window.DEMO_MODE && typeof _buildWatermarkSVG === 'function') _buildWatermarkSVG();
 }
 
 // ── TOAST ─────────────────────────────────────────────
@@ -2930,6 +3091,20 @@ function showSarahTab(id, btn){
   document.querySelectorAll('#section-sarah .mgr-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('stab-'+id).classList.add('active');
   if(btn) btn.classList.add('active');
+  if(id === 'voice') populateVoiceTemplates();
+}
+
+function populateVoiceTemplates(){
+  const dealer = settings.dealerName || getVal('dealerName') || 'First Financial';
+  const vd = document.getElementById('vd_message');
+  const vc = document.getElementById('vc_message');
+  // Only replace if still contains the default placeholder name
+  if(vd && (vd.value.includes('First Financial') || vd.value.trim() === '')){
+    vd.value = `Hi {name}, this is calling from ${dealer}. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!`;
+  }
+  if(vc && (vc.value.includes('First Financial') || vc.value.trim() === '')){
+    vc.value = `Hi {name}, this is calling from ${dealer} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!`;
+  }
 }
 
 // ── Load all dashboard data ───────────────────────────────────────
@@ -4533,18 +4708,28 @@ function openPresentation(){
   const tAllow   = parseFloat(getVal('tradeAllow'))||0;
   const tPayoff  = parseFloat(getVal('tradePayoff'))||0;
   const gst      = parseFloat(getVal('gstRate'))||5;
-  const vsc      = parseFloat(getVal('vscPrice'))||0;
-  const gap      = parseFloat(getVal('gapPrice'))||0;
-  const tw       = parseFloat(getVal('twPrice'))||0;
-  const wa       = parseFloat(getVal('waPrice'))||0;
   const netTrade = tAllow - tPayoff;
   const gstAmt   = (price + doc - netTrade) * (gst/100);
   const otd      = price + doc - netTrade + gstAmt;
-  const products = vsc + gap + tw + wa;
-  const finance  = otd + products;
+
+  // Use CONFIRMED (checked + price > 0) products only — not everything offered
+  const { confirmed: confirmedProds, total: confirmedProdTotal } = getFiConfirmedProducts();
+  const finance  = otd + confirmedProdTotal;
   const mr       = apr / 100 / 12;
 
+  // Build F&I line for footer display
+  const fiLine = confirmedProds.length
+    ? 'Includes: ' + confirmedProds.map(p => p.name).join(', ')
+    : null;
+
   document.getElementById('presDealer').textContent = dealer.toUpperCase();
+  // Show confirmed F&I products in footer if any selected
+  const footerEl = document.getElementById('presFooter');
+  if (footerEl && fiLine) {
+    footerEl.textContent = 'All payments include applicable taxes. OAC — Subject to credit approval. ' + fiLine + '.';
+  } else if (footerEl) {
+    footerEl.textContent = 'All payments include applicable taxes. OAC — Subject to credit approval.';
+  }
   document.getElementById('presVehicle').textContent = desc.toUpperCase();
   const subParts = [];
   if(stock) subParts.push('Stock #' + stock);
@@ -4564,8 +4749,7 @@ function openPresentation(){
   let cardsHTML = '';
   const featured_term = 72;
 
-  // Biweekly toggle for presentation
-  const presToggleBar = `<div style="display:flex;justify-content:center;margin-bottom:20px;">${_biweeklyToggleHTML('bw-toggle-pres')}</div>`;
+  // Inject toggle wrapper if not already in DOM (refreshPresentationCards handles rendering)
   let presToggleWrap = document.getElementById('bw-toggle-wrap-pres');
   if(!presToggleWrap){
     presToggleWrap = document.createElement('div');
@@ -4573,14 +4757,42 @@ function openPresentation(){
     const ladder = document.getElementById('presPaymentLadder');
     if(ladder) ladder.parentNode.insertBefore(presToggleWrap, ladder);
   }
-  presToggleWrap.innerHTML = presToggleBar;
 
-  [60, 72, 84].forEach(term => {
+  // Store current deal context for refreshPresentationCards to use
+  window._presCtx = { apr, finance, finalDown, featured_term: 72 };
+
+  refreshPresentationCards();
+  document.getElementById('presentationOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePresentation(){
+  document.getElementById('presentationOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Renders/re-renders the presentation payment cards using current _biweekly state.
+// Called by: openPresentation() on open, toggleBiweekly() if overlay is open.
+// Reads deal context from window._presCtx (set by openPresentation).
+function refreshPresentationCards(){
+  const ctx = window._presCtx;
+  if(!ctx) return; // presentation not opened yet
+
+  const { apr, finance, finalDown, featured_term } = ctx;
+
+  // Re-render the toggle (keeps checked state in sync with _biweekly)
+  const presToggleWrap = document.getElementById('bw-toggle-wrap-pres');
+  if(presToggleWrap){
+    presToggleWrap.innerHTML = `<div style="display:flex;justify-content:center;margin-bottom:20px;">${_biweeklyToggleHTML('bw-toggle-pres')}</div>`;
+  }
+
+  let cardsHTML = '';
+  [48, 60, 72, 84].forEach(term => {
     const fin = Math.max(0, finance - finalDown);
     const pmt = BPMT(apr, term, fin);
     const featured = term === featured_term;
     const termLabel = window._biweekly ? `${Math.round(term*26/12)} BI-WEEKLY` : `${term} MONTHS`;
-    const pmtFreq = window._biweekly ? '/bi-weekly' : '/month';
+    const pmtFreq   = window._biweekly ? '/bi-weekly' : '/month';
     cardsHTML += `
     <div class="pres-pmt-card ${featured?'featured':''}">
       <div class="pres-term">${termLabel}</div>
@@ -4590,14 +4802,8 @@ function openPresentation(){
     </div>`;
   });
 
-  document.getElementById('presPaymentLadder').innerHTML = cardsHTML;
-  document.getElementById('presentationOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closePresentation(){
-  document.getElementById('presentationOverlay').classList.remove('open');
-  document.body.style.overflow = '';
+  const ladder = document.getElementById('presPaymentLadder');
+  if(ladder) ladder.innerHTML = cardsHTML;
 }
 
 // ESC to close presentation
@@ -4620,26 +4826,56 @@ function runBeaconMatch(){
   row.style.display = 'block';
   badges.innerHTML = '';
 
+  // Profile ranges: beacon scores where each lender is genuinely the RIGHT fit.
+  // Green = right lender for this client's profile.
+  // Amber = can approve but not ideal fit (prime lender for subprime or vice versa).
+  // Red   = won't approve based on beacon.
+  const profileMin = {
+    cibc: 680, rbc: 700, servus: 640, wsleasing: 680,
+    santander: 600, iauto: 500, autocapital: 540,
+    prefera: 520, northlake: 0, edenpark: 500, iceberg: 500, sda: 0,
+  };
+  const profileMax = {
+    cibc: 850, rbc: 850, servus: 850, wsleasing: 850,
+    santander: 719, iauto: 850, autocapital: 719,
+    prefera: 679, northlake: 699, edenpark: 679, iceberg: 679, sda: 659,
+  };
+
   Object.entries(lenders).forEach(([lid, l]) => {
     const prog = getQualifyingProgram(lid, beacon);
-    let label, cls;
     const shortName = l.name.split(' ')[0];
+    const pMin = profileMin[lid] ?? 0;
+    const pMax = profileMax[lid] ?? 850;
+    const inProfile = beacon >= pMin && beacon <= pMax;
+    let label, cls;
 
-    if(!l.hard){
-      // Credit-based — just show if beacon is in reasonable range
-      if(beacon >= 700)     { label = shortName + ' ✓'; cls = 'bln-green'; }
-      else if(beacon >= 650){ label = shortName + ' ~'; cls = 'bln-amber'; }
-      else                  { label = shortName + ' ✕'; cls = 'bln-red'; }
+    if (!l.hard) {
+      // Credit-based lenders (CIBC, RBC) — use actual FICO floors, not flat thresholds
+      // hardFloor = their ideal entry point; softFloor = they can still approve below ideal
+      const hardFloor = lid === 'rbc' ? 700 : 680; // RBC needs 700+, CIBC 680+
+      const softFloor = lid === 'rbc' ? 650 : 620; // can still quote below hardFloor
+      if (beacon >= hardFloor)      { label = shortName + ' ✓'; cls = inProfile ? 'bln-green' : 'bln-amber'; }
+      else if (beacon >= softFloor) { label = shortName + ' ~'; cls = 'bln-amber'; }
+      else                          { label = shortName + ' ✕'; cls = 'bln-red'; }
     } else {
       const vehicleOk = v && (v.year >= l.minYear) &&
         (l.maxMileage ? (v.mileage||0) <= l.maxMileage : true) &&
         (l.maxCarfax  ? (v.carfax||0)  <= l.maxCarfax  : true);
-      if(!vehicleOk){ label = shortName + ' ✕ Vehicle'; cls = 'bln-red'; }
-      else if(!prog){ label = shortName + ' ✕ Score'; cls = 'bln-red'; }
-      else {
+
+      if (!vehicleOk) {
+        label = shortName + ' ✕ Vehicle'; cls = 'bln-red';
+      } else if (!prog) {
+        label = shortName + ' ✕ Score'; cls = 'bln-red';
+      } else {
         const rate = prog.rate;
-        label = `${shortName} ✓ ${rate}%${prog.isCustom ? '★' : ''}`;
-        cls   = rate < 15 ? 'bln-green' : rate < 22 ? 'bln-amber' : 'bln-red';
+        if (inProfile) {
+          label = `${shortName} ✓ ${rate}%${prog.isCustom ? '★' : ''}`;
+          cls   = rate < 15 ? 'bln-green' : rate < 22 ? 'bln-amber' : 'bln-red';
+        } else {
+          // Can approve but not the ideal lender for this beacon range
+          label = `${shortName} ~ ${rate}%`;
+          cls   = 'bln-amber';
+        }
       }
     }
     badges.innerHTML += `<span class="bln-badge ${cls}" title="${l.name}">${label}</span>`;
