@@ -427,6 +427,10 @@ function updateFiSection() {
       rowsEl.innerHTML = html;
     }
   }
+  // Keep step 4 client summary current when F&I products change
+  if (document.getElementById('wizStep4')?.classList.contains('active')) {
+    updateWizSummary();
+  }
 }
 function _biweeklyToggleHTML(id){
   return `<label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
@@ -785,6 +789,13 @@ function goWizStep(n) {
 
   // Recalculate when entering payment/review steps
   if (n >= 3) calculate();
+  // Populate client summary when entering review step
+  if (n === 4) {
+    setTimeout(() => {
+      if (typeof updateWizSummary === 'function') updateWizSummary();
+      lucide.createIcons();
+    }, 50);
+  }
 }
 
 function updateWizBanners(otd, down, finance, pay72) {
@@ -1016,7 +1027,7 @@ function calculatePTI(){
   const ptiStatus = pti <= ptiLimit ? 'PASS' : 'EXCEEDS LIMIT';
   document.getElementById('ptiStatus').textContent = ptiStatus;
   document.getElementById('ptiStatus').style.color = pti <= ptiLimit ? 'var(--green)' : 'var(--red)';
-  // DTI display (if element exists)
+  // TDSR display (Total Debt Service Ratio — Canadian lender term for DTI)
   const dtiEl = document.getElementById('dtiResult');
   if(dtiEl){ dtiEl.textContent = dti.toFixed(1)+'%'; dtiEl.style.color = dti<=44 ? 'var(--green)':'var(--red)'; }
   const dtiStatusEl = document.getElementById('dtiStatus');
@@ -1806,7 +1817,7 @@ function runComparison(){
           ? targetDtiPmt * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
           : targetDtiPmt * optimalTerm;
         const downForDti = Math.ceil(atf - maxAtfForDti);
-        if (downForDti > 0) structureTips.push(`Add $${downForDti.toLocaleString()} down → DTI within ${lMaxDti}%`);
+        if (downForDti > 0) structureTips.push(`Add $${downForDti.toLocaleString()} down → TDSR within ${lMaxDti}%`);
       }
     }
 
@@ -1938,8 +1949,8 @@ function runComparison(){
     ? `<div class="sum-pill sum-blue">Beacon: ${beacon}</div>`
     : `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">⚠ Enter Beacon for exact tiers</div>`;
   const incNote = income > 0
-    ? `<div class="sum-pill sum-blue">PTI/DTI Active</div>`
-    : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/DTI check</div>`;
+    ? `<div class="sum-pill sum-blue">PTI/TDSR Active</div>`
+    : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/TDSR check</div>`;
   const taxBase = v.price + fees - trade;
   const atfVal  = taxBase * (1 + gstRate/100) - down;
 
@@ -1985,7 +1996,7 @@ function buildLenderCard(r, v, isIneligible){
     if(!r.beaconPass)   reasons.push(`Beacon ${r.beacon} — no qualifying tier`);
     if(!r.ltvOk)        reasons.push(`LTV ${r.ltvPct.toFixed(1)}% exceeds ${r.maxLTV}% max — need $${(r.downNeeded||0).toLocaleString()} more down`);
     if(r.ptiOk===false) reasons.push(`PTI ${r.ptiPct.toFixed(1)}% exceeds ${r.lMaxPti}% limit`);
-    if(r.dtiOk===false) reasons.push(`DTI ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
+    if(r.dtiOk===false) reasons.push(`TDSR ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
     if(r.payOk===false) reasons.push(`Payment ${$f(r.payment)} exceeds max ${$f(r.lMaxPay)} for this lender`);
     if(r.incomeOk===false) reasons.push(`Income $${(r.income||0).toLocaleString()} below min $${(r.lMinIncome||0).toLocaleString()}/mo`);
     const rateRange = l.programs ? l.programs.map(p=>p.rate).join(' / ') : '—';
@@ -2062,10 +2073,10 @@ function buildLenderCard(r, v, isIneligible){
     ? `<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.25);border-radius:5px;padding:6px 10px;font-size:11px;color:#06b6d4;font-weight:600;margin-bottom:6px;">ℹ️ ${r.coAppTip}</div>` : '';
   const ptiRow = r.income > 0
     ? `${coAppBadge}${coAppTipRow}<div class="lc-row"><span class="lc-lbl">PTI (max ${r.lMaxPti}%)</span><span class="lc-val ${r.ptiOk?'green':'red'}">${r.ptiPct.toFixed(1)}% ${r.ptiOk?'✓ PASS':'✗ HIGH'}</span></div>
-       <div class="lc-row"><span class="lc-lbl">DTI (max ${r.lMaxDti}%)</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>
+       <div class="lc-row"><span class="lc-lbl">TDSR (max ${r.lMaxDti}%)</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>
        ${r.lMinIncome>0?`<div class="lc-row"><span class="lc-lbl">Min Income</span><span class="lc-val ${r.incomeOk?'green':'red'}">$${(r.income||0).toLocaleString()} ${r.incomeOk?'✓':'✗ Need $'+r.lMinIncome.toLocaleString()}</span></div>`:''}
        ${r.lMaxPay?`<div class="lc-row"><span class="lc-lbl">Max Pay Call</span><span class="lc-val ${r.payOk?'green':'red'}">${$f(r.payment)} ${r.payOk?'✓':'✗ Limit '+$f(r.lMaxPay)}</span></div>`:''}`
-    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/DTI/Income</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
+    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/TDSR/Income</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
   const ageRow = ageWarn
     ? `<div class="lc-row" style="background:rgba(245,158,11,.08);border-radius:4px;padding:4px 6px;"><span class="lc-lbl" style="color:var(--amber);">⚠ Age at Payoff</span><span class="lc-val" style="color:var(--amber);">${r.vehicleAgeAtPayoff.toFixed(1)} yrs</span></div>` : '';
   const feeRow = r.lenderFee > 0
@@ -5084,20 +5095,104 @@ function updateRateComparison(){
     const pBuy = BPMT(buyRate, t, otd);
     const pCon = BPMT(conRate, t, otd);
     const pMax = BPMT(maxRate, t, otd);
-    const reservePerPeriod = pCon - pBuy;
     const tLabel = window._biweekly ? `${Math.round(t*26/12)} bi-wk` : `${t} mo`;
     html += `<tr>
       <td><strong>${tLabel}</strong></td>
       <td class="rc-buy">${$f(pBuy)}</td>
       <td class="rc-contract">${$f(pCon)}</td>
       <td class="rc-max">${$f(pMax)}</td>
-      <td style="color:var(--green);">+${$f(reservePerPeriod)}</td>
     </tr>`;
   });
   tbody.innerHTML = html;
 }
 
 // ── COMMISSION CALCULATOR ─────────────────────────────────────
+function toggleMgrSection(btn){
+  const body  = document.getElementById('mgr-section-body');
+  const arrow = document.getElementById('mgr-toggle-arrow');
+  if(!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display  = open ? 'none' : 'block';
+  if(arrow) arrow.textContent = open ? '▼' : '▲';
+  if(!open) { lucide.createIcons(); }
+}
+
+// ── Populate wizard step 4 client summary ────────────────────────────────────
+function updateWizSummary(){
+  // Vehicle
+  const vDesc  = getVal('vehicleDesc') || '—';
+  const stock  = getVal('stockNum')    || '';
+  const vin    = getVal('vin')         || '';
+  const el_v   = document.getElementById('sum-vehicle');
+  const el_s   = document.getElementById('sum-stock');
+  if(el_v) el_v.textContent = vDesc;
+  if(el_s) el_s.textContent = [stock ? 'Stock: '+stock : '', vin ? 'VIN: '+vin : ''].filter(Boolean).join('  ·  ') || '—';
+
+  // Customer
+  const name  = getVal('custName')  || '—';
+  const phone = getVal('custPhone') || '';
+  const el_c  = document.getElementById('sum-customer');
+  const el_p  = document.getElementById('sum-phone');
+  if(el_c) el_c.textContent = name;
+  if(el_p) el_p.textContent = phone || '—';
+
+  // Payment — use current active fi term and deal structure
+  const price    = parseFloat(getVal('sellingPrice'))||0;
+  const doc      = parseFloat(getVal('docFee'))||0;
+  const tAllow   = parseFloat(getVal('tradeAllow'))||0;
+  const tPayoff  = parseFloat(getVal('tradePayoff'))||0;
+  const gst      = parseFloat(getVal('gstRate'))||5;
+  const apr      = parseFloat(getVal('apr'))||0;
+  const finalDown= parseFloat(getVal('finalDown'))||0;
+  const term     = window._fiTerm || 72;
+
+  const netTrade = tAllow - tPayoff;
+  const gstAmt   = (price + doc - netTrade) * (gst/100);
+  const otd      = price + doc - netTrade + gstAmt;
+  const { total: fiTotal } = typeof getFiConfirmedProducts === 'function'
+    ? getFiConfirmedProducts() : { total: 0 };
+  const financed = Math.max(0, otd - finalDown + fiTotal);
+  const pmt = financed > 0 && apr > 0
+    ? BPMT(apr, term, financed)
+    : (financed / (term || 72));
+
+  const pmtLabel = window._biweekly
+    ? `per bi-weekly payment · ${Math.round(term*26/12)} payments`
+    : `per month · ${term}-month term`;
+  const rateLabel = apr > 0 ? `${apr.toFixed(2)}% APR` : '';
+
+  const el_pay  = document.getElementById('sum-payment');
+  const el_term = document.getElementById('sum-term-label');
+  const el_rate = document.getElementById('sum-rate-label');
+  if(el_pay)  el_pay.textContent  = '$' + Math.round(pmt).toLocaleString();
+  if(el_term) el_term.textContent = pmtLabel;
+  if(el_rate) el_rate.textContent = rateLabel;
+
+  // Deal details
+  const el_otd  = document.getElementById('sum-otd');
+  const el_down = document.getElementById('sum-down');
+  const el_fin  = document.getElementById('sum-financed');
+  if(el_otd)  el_otd.textContent  = '$' + Math.round(otd).toLocaleString();
+  if(el_down) el_down.textContent = '$' + Math.round(finalDown).toLocaleString();
+  if(el_fin)  el_fin.textContent  = '$' + Math.round(financed).toLocaleString();
+
+  // F&I confirmed products
+  const fiSection  = document.getElementById('sum-fi-section');
+  const fiProducts = document.getElementById('sum-fi-products');
+  const confirmed  = typeof getFiConfirmedProducts === 'function'
+    ? getFiConfirmedProducts().products : [];
+  if(fiSection && fiProducts){
+    if(confirmed.length > 0){
+      fiSection.style.display = 'block';
+      fiProducts.innerHTML = confirmed.map(prod =>
+        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.label}</div>`
+      ).join('');
+    } else {
+      fiSection.style.display = 'none';
+    }
+  }
+}
+
 function calcCommission(){
   // Pull live profit values from the DOM output fields
   const frontText = document.getElementById('frontGross')?.textContent || '$0';
