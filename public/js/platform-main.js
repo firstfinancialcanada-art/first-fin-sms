@@ -177,7 +177,19 @@ function PV(rate,nper,pmt){if(rate===0)return pmt*nper;return pmt*((1-Math.pow(1
 
 // ── BI-WEEKLY MODE ────────────────────────────────────────────────
 window._biweekly = false;
-window._fiTerm   = 72;   // F&I section active term (48/60/72/84)
+window._fiTerm   = 72;
+
+// ── Hidden lenders Set (persisted to localStorage) ─────────────
+window._hiddenLenders = new Set(
+  JSON.parse(localStorage.getItem('ffHiddenLenders') || '[]')
+);
+function isLenderHidden(lid){ return window._hiddenLenders.has(lid); }
+function toggleHideLender(lid){
+  if(window._hiddenLenders.has(lid)) window._hiddenLenders.delete(lid);
+  else window._hiddenLenders.add(lid);
+  localStorage.setItem('ffHiddenLenders', JSON.stringify([...window._hiddenLenders]));
+  runComparison();
+}   // F&I section active term (48/60/72/84)
 function toggleBiweekly(el){
   window._biweekly = el.checked;
   // Sync all toggles (grid + F&I) to same state
@@ -379,7 +391,7 @@ function showSection(id, btn){
   if(id==='fbposter') {
     if (typeof window.initFbPoster === 'function') setTimeout(window.initFbPoster, 100);
   }
-  setTimeout(refreshIcons, 50);
+  setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 50);
 }
 
 // ── INVENTORY INIT (Cloud & Database Version) ─────────
@@ -1055,10 +1067,12 @@ function initLenderPanels(){
         </div>
       </div>
       ${warnNote}
-      <table class="programs-table">
-        <thead><tr><th>Program / Tier</th><th>Rate</th><th>Min FICO</th><th>Min Year</th><th>Max Mileage</th><th>Max Carfax</th><th>Max LTV</th></tr></thead>
-        <tbody>${l.programs.map(p=>`<tr><td><strong>${p.tier}</strong></td><td style="color:var(--amber);">${p.rate}</td><td>${p.fico}</td><td>${p.minYear}</td><td>${p.maxMile}</td><td>${p.maxCfx}</td><td>${p.maxLtv}</td></tr>`).join('')}</tbody>
-      </table>
+      <div id="lp-tiers-${lid}" style="margin-top:8px;">
+        <!-- Tier table populated from tenant custom rates if uploaded, otherwise shown in Compare All -->
+        <div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">
+          Rate tiers shown in Compare All engine · Upload custom rates below to override defaults
+        </div>
+      </div>
       <div class="checker-box">
         <div class="checker-title"><i data-lucide="search" class="ico"></i>Vehicle Approval Checker</div>
         <div class="fgroup">
@@ -1127,7 +1141,7 @@ function buildQuickRef(){
           const rates = customTiers.map(t => parseFloat(t.buy_rate)).filter(r => r > 0).sort((a,b) => a-b);
           return rates.length ? (rates.length > 1 ? `${rates[0]}%–${rates[rates.length-1]}%` : `${rates[0]}%`) : '—';
         })()
-      : l.programs.map(p => p.rate).join(' / ');
+      : '—'; // rates managed server-side
     const maxLTV    = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_ltv)||0)) : l.maxLTV;
     const minYear   = customTiers ? Math.min(...customTiers.map(t=>parseInt(t.min_year)||2099)) : l.minYear;
     const maxMile   = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_mileage)||0)) : l.maxMileage;
@@ -1493,7 +1507,7 @@ async function runComparison(){
     const coIncome     = parseFloat(document.getElementById('compareCoIncome')?.value) || 0;
     const hasBK        = document.getElementById('compareBK')?.checked || false;
     const condOverride = document.getElementById('compareCondition')?.value || '';
-    const hiddenLenders = [...window._hiddenLenders];
+    const hiddenLenders = window._hiddenLenders instanceof Set ? [...window._hiddenLenders] : [];
 
     const payload = {
       stock, down, trade, fees, beacon, income, term, existing,
@@ -1600,7 +1614,7 @@ function buildLenderCard(r, v, isIneligible){
     if(r.dtiOk===false) reasons.push(`TDSR ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
     if(r.payOk===false) reasons.push(`Payment ${$f(r.payment)} exceeds max ${$f(r.lMaxPay)} for this lender`);
     if(r.incomeOk===false) reasons.push(`Income $${(r.income||0).toLocaleString()} below min $${(r.lMinIncome||0).toLocaleString()}/mo`);
-    const rateRange = l.programs ? l.programs.map(p=>p.rate).join(' / ') : '—';
+    const rateRange = r.prog ? r.prog.rate+'%' : '—';
     // Show "what would it take" tip if only LTV fails
     const fixTip = (r.allStructureTips && r.allStructureTips.length)
       ? `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 10px;margin-top:8px;font-size:11px;color:var(--amber);font-weight:600;">
@@ -2767,7 +2781,7 @@ async function loadSarahDashboard(){
     renderCallbacks(stats.recentCallbacks || []);
 
     toast('Sarah data refreshed');
-    setTimeout(refreshIcons, 100);
+    setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 100);
   } catch(e){
     console.error('Sarah load error:', e);
     toast('Could not load Sarah data: ' + e.message);
@@ -3967,7 +3981,7 @@ function buildLenderRateEditor(){
     </div>
   </div>`;
 
-  setTimeout(refreshIcons, 50);
+  setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 50);
 }
 
 function updateFileLabel(lid){
@@ -4442,7 +4456,8 @@ async function runBeaconMatch(){
       body: JSON.stringify({ stock, beacon, income: parseFloat(getVal('monthlyIncome'))||0 })
     }).then(r => r.json());
 
-    if(!data.success){ toast(data.error || 'Beacon match failed'); return; }
+    if(!data || !data.success){ toast((data && data.error) || 'Beacon match failed'); return; }
+    if(!data.badges){ return; } // demo mode blocks API — nothing to render
 
     const clsMap = {
       'badge-green':  'background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);',
