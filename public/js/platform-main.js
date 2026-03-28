@@ -1522,7 +1522,8 @@ async function runComparison(){
       body: JSON.stringify(payload)
     }).then(r => r.json());
 
-    if (!data.success) { toast(data.error || 'Comparison failed'); return; }
+    if (!data || !data.success) { toast((data && data.error) || 'Comparison failed'); return; }
+    if (!data.vehicle) { toast('Vehicle data not returned — check stock selection'); return; }
 
     const v = data.vehicle;
     const eligible   = data.eligible;
@@ -4765,8 +4766,8 @@ function updateWizSummary(){
   // F&I confirmed products
   const fiSection  = document.getElementById('sum-fi-section');
   const fiProducts = document.getElementById('sum-fi-products');
-  const confirmed  = typeof getFiConfirmedProducts === 'function'
-    ? getFiConfirmedProducts().products : [];
+  const { confirmed = [] } = typeof getFiConfirmedProducts === 'function'
+    ? getFiConfirmedProducts() : { confirmed: [] };
   if(fiSection && fiProducts){
     if(confirmed.length > 0){
       fiSection.style.display = 'block';
