@@ -188,6 +188,9 @@ function toggleHideLender(lid){
   if(window._hiddenLenders.has(lid)) window._hiddenLenders.delete(lid);
   else window._hiddenLenders.add(lid);
   localStorage.setItem('ffHiddenLenders', JSON.stringify([...window._hiddenLenders]));
+  // Re-render rate editor so HIDE/SHOW button updates immediately
+  if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+  // Re-run comparison if results are already showing
   runComparison();
 }   // F&I section active term (48/60/72/84)
 function toggleBiweekly(el){
@@ -3773,8 +3776,14 @@ function buildLenderRateEditor(){
       transition:border-color .2s;
     ">
       <!-- Header -->
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${accentColor};">${l.name}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${accentColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${isLenderHidden(lid)?'opacity:.4;text-decoration:line-through;':''}">${l.name}</div>
+        </div>
+        <button onclick="toggleHideLender('${lid}')" title="${isLenderHidden(lid)?'Show in Compare All':'Hide from Compare All'}"
+          style="flex-shrink:0;padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;border:1px solid ${isLenderHidden(lid)?'rgba(16,185,129,.4)':'rgba(239,68,68,.35)'};background:${isLenderHidden(lid)?'rgba(16,185,129,.1)':'rgba(239,68,68,.08)'};color:${isLenderHidden(lid)?'var(--green)':'var(--red)'};font-family:'Outfit',sans-serif;">
+          ${isLenderHidden(lid)?'SHOW':'HIDE'}
+        </button>
         ${hasCustom
           ? `<span style="font-size:9px;background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:3px 9px;font-weight:700;letter-spacing:.5px;">★ CUSTOM — ${customTiers.length} TIERS</span>`
           : `<span style="font-size:9px;background:rgba(30,90,246,.1);color:var(--primary);border:1px solid rgba(30,90,246,.2);border-radius:20px;padding:3px 9px;font-weight:600;letter-spacing:.5px;">PLATFORM DEFAULTS</span>`}
