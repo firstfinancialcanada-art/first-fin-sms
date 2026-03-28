@@ -431,17 +431,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Build realistic demo lender results
         const demoLenders = [
-          { lid:'santander', lName:'SANTANDER CONSUMER', lPhone:'1-888-222-4227', lWeb:'santanderconsumerusa.com', lHard:true,
+          { lid:'santander', lName:'SANTANDER CONSUMER', lPhone:'1-888-222-4227', lWeb:'santanderconsumerusa.com', lHard:true, minYear:2015, maxMile:160000, maxCfx:6000,
             prog:{ tier:'Tier 1', rate:9.99, maxLTV:150, fee:595 }, maxLTV:150, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'northlake', lName:'NORTHLAKE FINANCIAL', lPhone:'1-888-652-5320', lWeb:'northlakefinancial.ca', lHard:true,
+          { lid:'northlake', lName:'NORTHLAKE FINANCIAL', lPhone:'1-888-652-5320', lWeb:'northlakefinancial.ca', lHard:true, minYear:2003, maxMile:300000, maxCfx:7500,
             prog:{ tier:'Standard', rate:10.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:17, lMaxDti:44, lMinIncome:1800, lMaxPay:930 },
-          { lid:'edenpark',  lName:'EDENPARK', lPhone:'1-855-366-8667', lWeb:'edenparkfinancial.ca', lHard:true,
+          { lid:'edenpark',  lName:'EDENPARK', lPhone:'1-855-366-8667', lWeb:'edenparkfinancial.ca', lHard:true, minYear:2015, maxMile:180000, maxCfx:7500,
             prog:{ tier:'Tier A', rate:11.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'iauto',     lName:'iA AUTO FINANCE', lPhone:'1-855-378-5626', lWeb:'ia.ca', lHard:true,
+          { lid:'iauto',     lName:'iA AUTO FINANCE', lPhone:'1-855-378-5626', lWeb:'ia.ca', lHard:true, minYear:2015, maxMile:180000, maxCfx:7500,
             prog:{ tier:'Tier 1', rate:12.49, maxLTV:140, fee:699 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:1000 },
-          { lid:'prefera',   lName:'PREFERA FINANCE', lPhone:'1-844-734-3577', lWeb:'preferafinance.ca', lHard:true,
+          { lid:'prefera',   lName:'PREFERA FINANCE', lPhone:'1-844-734-3577', lWeb:'preferafinance.ca', lHard:true, minYear:2015, maxMile:200000, maxCfx:5000,
             prog:{ tier:'Tier A', rate:16.95, maxLTV:170, fee:695 }, maxLTV:170, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'sda',       lName:'SDA FINANCE', lPhone:'1-800-731-2345', lWeb:'sdafinance.ca', lHard:true,
+          { lid:'sda',       lName:'SDA FINANCE', lPhone:'1-800-731-2345', lWeb:'sdafinance.ca', lHard:true, minYear:2012, maxMile:250000, maxCfx:8000,
             prog:{ tier:'Standard', rate:17.99, maxLTV:135, fee:995 }, maxLTV:135, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
         ];
         const demoIneligible = [
@@ -494,7 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
             primaryIncome:body.income||0, coIncome:body.coIncome||0, hasCoApp:false, existing,
             lenderFee:lFee, hasBK:false, vehicleAgeAtPayoff:(curYear-parseInt(v.year||2022))+term/12,
             cond:(v.condition||'clean').toLowerCase(),
-            structureTip:null, allStructureTips:[], coAppTip:null };
+            structureTip:null, allStructureTips:[], coAppTip:null,
+            minYear:l.minYear, maxMile:l.maxMile, maxCfx:l.maxCfx };
         });
 
         return Promise.resolve({ ok:true, json: () => Promise.resolve({
