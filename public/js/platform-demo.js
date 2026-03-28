@@ -448,13 +448,13 @@ document.addEventListener('DOMContentLoaded', () => {
           { lid:'autocapital', lName:'AUTOCAPITAL CANADA', lPhone:'855-646-0534', lWeb:'autocapitalcanada.ca', lHard:true,
             prog:null, yearOk:false, mileOk:true, cfxOk:true, ageOk:true, ltvOk:true, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
             minYear:2025, approved:false, vehiclePass:false, dealPass:true, beaconPass:true, type:'hard',
-            ltvPct:ltvPct.toFixed(1), maxLTV:175, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null,
+            ltvPct:ltvPct, maxLTV:175, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null,
             structureTip:null, allStructureTips:[], coAppTip:null,
             termResults:{}, passingTerms:[], term, bestTerm:term, optimalTerm:term, flatReserve:895, spreadReserve:0, totalGross:895 },
           { lid:'cibc', lName:'CIBC AUTO FINANCE', lPhone:'1-855-598-1856', lWeb:'cibc.com/auto', lHard:false,
             prog:null, yearOk:true, mileOk:true, cfxOk:true, ageOk:true, ltvOk:false, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
             minYear:2015, approved:false, vehiclePass:true, dealPass:false, beaconPass:true, type:'credit',
-            ltvPct:ltvPct.toFixed(1), maxLTV:96, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:null, lMaxDti:null, lMinIncome:null, lMaxPay:null,
+            ltvPct:ltvPct, maxLTV:96, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:null, lMaxDti:null, lMinIncome:null, lMaxPay:null,
             downNeeded:Math.ceil(atf - book*0.96),
             structureTip:`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`,
             allStructureTips:[`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`],
@@ -483,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const optTerm  = passingTerms.length ? passingTerms[passingTerms.length-1] : term;
           const bestTerm = passingTerms.length ? passingTerms[0] : term;
           const selRes   = termResults[term] || termResults[72];
-          return { ...l, atf:lAtf, ltvPct:(lAtf/book*100).toFixed(1), ltvOk, maxLoan:book*l.maxLTV/100,
+          return { ...l, atf:lAtf, ltvPct:(lAtf/book*100), ltvOk, maxLoan:book*l.maxLTV/100,
             bookVal:book, downNeeded:0, yearOk:true, mileOk:true, cfxOk:true, ageOk:true,
             payment:selRes.payment, ptiPct:selRes.ptiPct, dtiPct:selRes.dtiPct,
             ptiOk:selRes.ptiOk, dtiOk:selRes.dtiOk, payOk:selRes.payOk, incomeOk:true,
