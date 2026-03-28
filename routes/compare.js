@@ -120,7 +120,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
 
 
   // ── Proprietary tier-matching logic ────────────────────────────────────
-  function getQualifyingProgram(lid, beacon){
+  function getQualifyingProgram(lid, beacon, tenantRates){
   const defaultFee = LENDER_FEES[lid] || 0;
   
   // Try tenant custom rates first
@@ -396,13 +396,13 @@ module.exports = function compareRoutes(app, { requireAuth }) {
 
         // Fetch tenant custom rates
         const ratesRes = await client.query(
-          `SELECT lender_id, tier_name, min_fico, max_fico, buy_rate, max_ltv,
+          `SELECT lender_name, tier_name, min_fico, max_fico, buy_rate, max_ltv,
                   min_year, max_mileage, max_carfax, lender_fee
            FROM lender_rate_sheets WHERE user_id = $1`, [uid]
         );
         ratesRes.rows.forEach(r => {
-          if (!tenantRates[r.lender_id]) tenantRates[r.lender_id] = [];
-          tenantRates[r.lender_id].push(r);
+          if (!tenantRates[r.lender_name]) tenantRates[r.lender_name] = [];
+          tenantRates[r.lender_name].push(r);
         });
       } finally { client.release(); }
 
@@ -479,13 +479,13 @@ module.exports = function compareRoutes(app, { requireAuth }) {
         if (!vRes.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });
         v = vRes.rows[0];
         const ratesRes = await client.query(
-          `SELECT lender_id, tier_name, min_fico, max_fico, buy_rate, max_ltv,
+          `SELECT lender_name, tier_name, min_fico, max_fico, buy_rate, max_ltv,
                   min_year, max_mileage, max_carfax, lender_fee
            FROM lender_rate_sheets WHERE user_id = $1`, [uid]
         );
         ratesRes.rows.forEach(r => {
-          if (!tenantRates[r.lender_id]) tenantRates[r.lender_id] = [];
-          tenantRates[r.lender_id].push(r);
+          if (!tenantRates[r.lender_name]) tenantRates[r.lender_name] = [];
+          tenantRates[r.lender_name].push(r);
         });
       } finally { client.release(); }
 
@@ -551,13 +551,13 @@ module.exports = function compareRoutes(app, { requireAuth }) {
         if (!vRes.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });
         v = vRes.rows[0];
         const ratesRes = await client.query(
-          `SELECT lender_id, tier_name, min_fico, max_fico, buy_rate, max_ltv,
+          `SELECT lender_name, tier_name, min_fico, max_fico, buy_rate, max_ltv,
                   min_year, max_mileage, max_carfax, lender_fee
            FROM lender_rate_sheets WHERE user_id = $1`, [uid]
         );
         ratesRes.rows.forEach(r => {
-          if (!tenantRates[r.lender_id]) tenantRates[r.lender_id] = [];
-          tenantRates[r.lender_id].push(r);
+          if (!tenantRates[r.lender_name]) tenantRates[r.lender_name] = [];
+          tenantRates[r.lender_name].push(r);
         });
       } finally { client.release(); }
 
