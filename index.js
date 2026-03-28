@@ -136,6 +136,7 @@ const pool = require('./lib/db').pool;
 require('./routes/probability')(app, pool, requireAuth, requireBilling);  // User-facing: read-only probabilities
 require('./routes/outcomes-admin')(app, pool);                 // Admin: log/manage outcomes
 app.use('/api/fb-license', require('./routes/fb-license'));     // FB Poster license management
+require('./routes/compare')(app, { requireAuth });             // Compare All engine (server-side)
 
 // ── L1: Periodic refresh token cleanup (every 6 hours) ──────────
 setInterval(async () => {
