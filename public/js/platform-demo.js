@@ -407,7 +407,139 @@ document.addEventListener('DOMContentLoaded', () => {
     window.FF.apiFetch = function(path, opts) {
       if(!window.DEMO_MODE) return _real(path, opts);
 
-      // Block all writes
+      // ── Demo mock for Compare All engine ──────────────────────────────────────
+      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/compare-all') {
+        console.log('[DEMO] Mocking /api/compare-all response');
+        const body = JSON.parse(opts.body || '{}');
+        const inv  = window.ffInventory || window.DEMO_INVENTORY || [];
+        const v    = inv.find(x => x.stock === body.stock) || inv[0] || {};
+
+        const curYear = new Date().getFullYear();
+        const gst     = body.gstEnabled ? (body.gstRate || 5) : 0;
+        const taxable = (v.price||34500) + (body.fees||0) - (body.trade||0);
+        const atf     = taxable * (1 + gst/100) - (body.down||0);
+        const book    = v.book_value || v.price || 29325;
+        const ltvPct  = (atf / book) * 100;
+
+        function PMT(r,n,pv){ if(r===0) return Math.abs(pv/n); return Math.abs(pv*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1)); }
+        function BPMT(apr,mo,fin){ return PMT(apr/100/12,mo,fin); }
+
+        const term    = body.term || 72;
+        const income  = (body.income||0) + (body.coIncome||0);
+        const existing = body.existing || 0;
+        const beacon  = body.beacon || 0;
+
+        // Build realistic demo lender results
+        const demoLenders = [
+          { lid:'santander', lName:'SANTANDER CONSUMER', lPhone:'1-888-222-4227', lWeb:'santanderconsumerusa.com', lHard:true,
+            prog:{ tier:'Tier 1', rate:9.99, maxLTV:150, fee:595 }, maxLTV:150, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
+          { lid:'northlake', lName:'NORTHLAKE FINANCIAL', lPhone:'1-888-652-5320', lWeb:'northlakefinancial.ca', lHard:true,
+            prog:{ tier:'Standard', rate:10.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:17, lMaxDti:44, lMinIncome:1800, lMaxPay:930 },
+          { lid:'edenpark',  lName:'EDENPARK', lPhone:'1-855-366-8667', lWeb:'edenparkfinancial.ca', lHard:true,
+            prog:{ tier:'Tier A', rate:11.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
+          { lid:'iauto',     lName:'iA AUTO FINANCE', lPhone:'1-855-378-5626', lWeb:'ia.ca', lHard:true,
+            prog:{ tier:'Tier 1', rate:12.49, maxLTV:140, fee:699 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:1000 },
+          { lid:'prefera',   lName:'PREFERA FINANCE', lPhone:'1-844-734-3577', lWeb:'preferafinance.ca', lHard:true,
+            prog:{ tier:'Tier A', rate:16.95, maxLTV:170, fee:695 }, maxLTV:170, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
+          { lid:'sda',       lName:'SDA FINANCE', lPhone:'1-800-731-2345', lWeb:'sdafinance.ca', lHard:true,
+            prog:{ tier:'Standard', rate:17.99, maxLTV:135, fee:995 }, maxLTV:135, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
+        ];
+        const demoIneligible = [
+          { lid:'autocapital', lName:'AUTOCAPITAL CANADA', lPhone:'855-646-0534', lWeb:'autocapitalcanada.ca', lHard:true,
+            prog:null, yearOk:false, mileOk:true, cfxOk:true, ageOk:true, ltvOk:true, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
+            minYear:2025, approved:false, vehiclePass:false, dealPass:true, beaconPass:true, type:'hard',
+            ltvPct:ltvPct.toFixed(1), maxLTV:175, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null,
+            structureTip:null, allStructureTips:[], coAppTip:null,
+            termResults:{}, passingTerms:[], term, bestTerm:term, optimalTerm:term, flatReserve:895, spreadReserve:0, totalGross:895 },
+          { lid:'cibc', lName:'CIBC AUTO FINANCE', lPhone:'1-855-598-1856', lWeb:'cibc.com/auto', lHard:false,
+            prog:null, yearOk:true, mileOk:true, cfxOk:true, ageOk:true, ltvOk:false, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
+            minYear:2015, approved:false, vehiclePass:true, dealPass:false, beaconPass:true, type:'credit',
+            ltvPct:ltvPct.toFixed(1), maxLTV:96, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:null, lMaxDti:null, lMinIncome:null, lMaxPay:null,
+            downNeeded:Math.ceil(atf - book*0.96),
+            structureTip:`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`,
+            allStructureTips:[`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`],
+            coAppTip:null, termResults:{}, passingTerms:[], term, bestTerm:term, optimalTerm:term, flatReserve:0, spreadReserve:0, totalGross:0 },
+        ];
+
+        const eligible = demoLenders.map(l => {
+          const rate    = l.prog.rate;
+          const lFee    = l.prog.fee || 0;
+          const lAtf    = atf + lFee;
+          const ltvOk   = (lAtf / book) * 100 <= l.maxLTV;
+          const ALL_TERMS = [48,60,72,84];
+          const termResults = {};
+          let passingTerms = [];
+          ALL_TERMS.forEach(t => {
+            const pmt = BPMT(rate, t, lAtf);
+            const ageOk = (curYear - parseInt(v.year||2022)) + t/12 <= 14;
+            const ptiOk = income === 0 || (pmt/income*100) <= l.lMaxPti;
+            const dtiOk = income === 0 || ((pmt+existing)/income*100) <= l.lMaxDti;
+            const payOk = !l.lMaxPay || pmt <= l.lMaxPay;
+            const passes = ageOk && ltvOk && (income===0||(ptiOk&&dtiOk&&payOk));
+            if(passes) passingTerms.push(t);
+            termResults[t] = { term:t, payment:pmt, ageOk, ptiOk, dtiOk, payOk, passes,
+              ptiPct: income>0?pmt/income*100:0, dtiPct: income>0?(pmt+existing)/income*100:0 };
+          });
+          const optTerm  = passingTerms.length ? passingTerms[passingTerms.length-1] : term;
+          const bestTerm = passingTerms.length ? passingTerms[0] : term;
+          const selRes   = termResults[term] || termResults[72];
+          return { ...l, atf:lAtf, ltvPct:(lAtf/book*100).toFixed(1), ltvOk, maxLoan:book*l.maxLTV/100,
+            bookVal:book, downNeeded:0, yearOk:true, mileOk:true, cfxOk:true, ageOk:true,
+            payment:selRes.payment, ptiPct:selRes.ptiPct, dtiPct:selRes.dtiPct,
+            ptiOk:selRes.ptiOk, dtiOk:selRes.dtiOk, payOk:selRes.payOk, incomeOk:true,
+            approved:true, vehiclePass:true, dealPass:true, beaconPass:true, type:'hard',
+            term, bestTerm, optimalTerm:optTerm, termResults, passingTerms,
+            flatReserve:lFee, spreadReserve:0, totalGross:lFee,
+            contractRate:body.contractRate||0, buyRate:rate, beacon, income,
+            primaryIncome:body.income||0, coIncome:body.coIncome||0, hasCoApp:false, existing,
+            lenderFee:lFee, hasBK:false, vehicleAgeAtPayoff:(curYear-parseInt(v.year||2022))+term/12,
+            cond:(v.condition||'clean').toLowerCase(),
+            structureTip:null, allStructureTips:[], coAppTip:null };
+        });
+
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({
+          success:true, vehicle: v, eligible, ineligible: demoIneligible
+        })});
+      }
+
+      // ── Demo mock for beacon-match ────────────────────────────────────────
+      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/beacon-match') {
+        const body   = JSON.parse(opts.body || '{}');
+        const beacon = body.beacon || 0;
+        const badges = [
+          { lid:'santander',  label: beacon>=600  ? 'SANTANDER — 9.99%'  : 'SANTANDER ✗',  cls: beacon>=600  ? 'badge-green'  : 'badge-red'  },
+          { lid:'northlake',  label: beacon>=0    ? 'NORTHLAKE — 10.99%' : 'NORTHLAKE ✗',  cls: beacon>=0    ? 'badge-amber'  : 'badge-red'  },
+          { lid:'edenpark',   label: beacon>=500  ? 'EDENPARK — 11.99%'  : 'EDENPARK ✗',   cls: beacon>=500  ? 'badge-amber'  : 'badge-red'  },
+          { lid:'iauto',      label: beacon>=500  ? 'iA — 12.49%'        : 'iA ✗',          cls: beacon>=500  ? 'badge-amber'  : 'badge-red'  },
+          { lid:'cibc',       label: beacon>=680  ? 'CIBC ✓'             : 'CIBC ✗',        cls: beacon>=680  ? 'badge-green'  : 'badge-red'  },
+          { lid:'rbc',        label: beacon>=700  ? 'RBC ✓'              : 'RBC ✗',         cls: beacon>=700  ? 'badge-green'  : 'badge-red'  },
+          { lid:'prefera',    label: beacon>=520  ? 'PREFERA — 16.95%'   : 'PREFERA ✗',    cls: beacon>=520  ? 'badge-orange' : 'badge-red'  },
+          { lid:'sda',        label: 'SDA — 17.99%', cls: 'badge-orange' },
+        ];
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, badges }) });
+      }
+
+      // ── Demo mock for beacon-simulator ───────────────────────────────────
+      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/beacon-simulator') {
+        const rows = [
+          { label:'<500', approved:2, bestRate:17.99 },
+          { label:'500',  approved:4, bestRate:16.95 },
+          { label:'540',  approved:5, bestRate:12.49 },
+          { label:'560',  approved:5, bestRate:12.49 },
+          { label:'580',  approved:5, bestRate:12.49 },
+          { label:'600',  approved:6, bestRate:9.99  },
+          { label:'620',  approved:6, bestRate:9.99  },
+          { label:'640',  approved:6, bestRate:9.99  },
+          { label:'660',  approved:6, bestRate:9.99  },
+          { label:'680',  approved:8, bestRate:9.99  },
+          { label:'700',  approved:8, bestRate:9.99  },
+          { label:'720',  approved:8, bestRate:9.99  },
+          { label:'750+', approved:8, bestRate:9.99  },
+        ];
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, rows }) });
+      }
+
+      // Block all other writes
       if(opts && ['PUT','POST','DELETE'].includes((opts.method||'').toUpperCase())) {
         console.log('[DEMO] Blocked write to:', path);
         return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true}) });
