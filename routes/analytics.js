@@ -163,13 +163,84 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
       const weekConvertedCount = parseInt(weekConverted.rows[0].count);
       const topVehicles = await client.query("SELECT vehicle_type, COUNT(*) as count FROM conversations WHERE vehicle_type IS NOT NULL AND vehicle_type != '' AND user_id = $1 GROUP BY vehicle_type ORDER BY count DESC LIMIT 5", [uid]);
       const budgets     = await client.query("SELECT budget, COUNT(*) as count FROM conversations WHERE budget IS NOT NULL AND budget != '' AND user_id = $1 GROUP BY budget ORDER BY count DESC", [uid]);
+      // ── New: engaged count, stage funnel, weekly trend ─────────
+      const engaged = await client.query(
+        "SELECT COUNT(*) as count FROM conversations WHERE status = 'engaged' AND user_id = $1", [uid]);
+      const totalEngaged = parseInt(engaged.rows[0].count);
+
+      const stopped = await client.query(
+        "SELECT COUNT(*) as count FROM conversations WHERE status = 'stopped' AND user_id = $1", [uid]);
+      const totalStopped = parseInt(stopped.rows[0].count);
+
+      // Stage funnel
+      const funnel = await client.query(`
+        SELECT stage, COUNT(*) as count
+        FROM conversations WHERE user_id = $1 AND status NOT IN ('stopped')
+        GROUP BY stage ORDER BY count DESC`, [uid]);
+
+      // Weekly trend — conversations started per week for last 8 weeks
+      const weeklyTrend = await client.query(`
+        SELECT
+          DATE_TRUNC('week', started_at) as week_start,
+          COUNT(*) as conversations,
+          COUNT(*) FILTER (WHERE status = 'converted') as converted
+        FROM conversations WHERE user_id = $1
+          AND started_at >= NOW() - INTERVAL '8 weeks'
+        GROUP BY week_start ORDER BY week_start ASC`, [uid]);
+
+      // Deal desk analytics from desk_deal_log JSONB
+      const dealStats = await client.query(`
+        SELECT
+          COUNT(*) as total_deals,
+          COUNT(*) FILTER (WHERE (deal_data->'products'->>'vscPrice')::numeric > 0) as vsc_count,
+          COUNT(*) FILTER (WHERE (deal_data->'products'->>'gapPrice')::numeric > 0) as gap_count,
+          COUNT(*) FILTER (WHERE (deal_data->'products'->>'twPrice')::numeric > 0) as tw_count,
+          COUNT(*) FILTER (WHERE (deal_data->'products'->>'waPrice')::numeric > 0) as wa_count,
+          AVG(
+            COALESCE((deal_data->'products'->>'vscPrice')::numeric,0) +
+            COALESCE((deal_data->'products'->>'gapPrice')::numeric,0) +
+            COALESCE((deal_data->'products'->>'twPrice')::numeric,0) +
+            COALESCE((deal_data->'products'->>'waPrice')::numeric,0)
+          ) as avg_backend,
+          AVG(COALESCE((deal_data->>'pvr')::numeric,0)) as avg_pvr,
+          COUNT(*) FILTER (WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())) as month_deals,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as week_deals,
+          COUNT(*) FILTER (WHERE DATE_TRUNC('day', created_at) = DATE_TRUNC('day', NOW())) as today_deals
+        FROM desk_deal_log WHERE user_id = $1`, [uid]);
+
+      const ds = dealStats.rows[0];
+
+      // Vehicle type breakdown from deal log
+      const dealVehicleTypes = await client.query(`
+        SELECT deal_data->'vehicle'->>'type' as type, COUNT(*) as count
+        FROM desk_deal_log WHERE user_id = $1
+          AND deal_data->'vehicle'->>'type' IS NOT NULL
+          AND deal_data->'vehicle'->>'type' != ''
+        GROUP BY type ORDER BY count DESC LIMIT 6`, [uid]);
+
       res.json({
         conversionRate: totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0',
         totalConverted, totalConversations,
+        totalEngaged, totalStopped,
         responseRate: totalConversations > 0 ? ((totalResponded / totalConversations) * 100).toFixed(1) : '0.0',
         totalResponded, avgMessages: avgMessages.toFixed(1),
         weekConversations, weekConverted: weekConvertedCount,
-        topVehicles: topVehicles.rows, budgetDist: budgets.rows
+        topVehicles: topVehicles.rows, budgetDist: budgets.rows,
+        stageFunnel: funnel.rows,
+        weeklyTrend: weeklyTrend.rows,
+        dealStats: {
+          totalDeals:   parseInt(ds.total_deals  || 0),
+          monthDeals:   parseInt(ds.month_deals  || 0),
+          weekDeals:    parseInt(ds.week_deals   || 0),
+          todayDeals:   parseInt(ds.today_deals  || 0),
+          vscCount:     parseInt(ds.vsc_count    || 0),
+          gapCount:     parseInt(ds.gap_count    || 0),
+          twCount:      parseInt(ds.tw_count     || 0),
+          waCount:      parseInt(ds.wa_count     || 0),
+          avgBackend:   parseFloat(ds.avg_backend || 0).toFixed(0),
+          avgPvr:       parseFloat(ds.avg_pvr    || 0).toFixed(0),
+        },
+        dealVehicleTypes: dealVehicleTypes.rows
       });
     } catch (error) {
       console.error('❌ Analytics error:', error);
