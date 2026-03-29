@@ -1055,6 +1055,8 @@ function bridgeToCompare(){
 // ── LENDER SECTION INIT ───────────────────────────────
 function initLenderPanels(){
   const container = document.getElementById('lender-panels');
+  if (!container) return;
+  container.innerHTML = ''; // Clear before rebuild to prevent duplicates on re-call
   Object.entries(lenders).forEach(([lid,l])=>{
     const warnNote = !l.hard?`<div class="warning-box">ℹ️ ${l.name} uses a credit profile-based approval. Mileage and Carfax limits may vary based on full application review.</div>`:'';
     const html = `
@@ -1104,8 +1106,13 @@ function initLenderPanels(){
 
   // Quick Ref panel — built dynamically from lenders object + extraLenders
   buildQuickRef();
-  // Load tier display data from server
-  if (typeof loadLenderTiers === 'function') loadLenderTiers();
+  // Load tier display data — elements now exist so the render will work
+  // Use setTimeout to ensure DOM has fully updated before we populate
+  if (typeof loadLenderTiers === 'function') {
+    setTimeout(loadLenderTiers, 100);
+  } else {
+    setTimeout(() => { if (typeof renderAllLenderPanelTiers === 'function') renderAllLenderPanelTiers(); }, 100);
+  }
 }
 
 function buildQuickRef(){
@@ -1449,6 +1456,8 @@ async function loadTenantRates(){
       // Update checker panels with custom tiers
       updateLenderPanelTiers();
       if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+      // Render default tiers for lenders without custom rates
+      if(typeof renderAllLenderPanelTiers === 'function') renderAllLenderPanelTiers();
     }
     // Extra lenders: DB lenders not in the hardcoded lenders object
     // These get their own dynamic cards in Compare All
@@ -4317,6 +4326,7 @@ async function uploadExtraRateSheet(lid){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ ${data.count} tiers updated</span>`;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} rates updated`);
     } else {
       statusEl.innerHTML = `<span style="color:var(--red);">✗ ${data.error}</span>`;
@@ -4377,6 +4387,7 @@ async function saveExtraManualRates(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} — ${tiers.length} tiers saved`);
     } else { toast('Save failed: ' + data.error); }
   } catch(e){ toast('Save failed'); }
@@ -4390,6 +4401,7 @@ async function deleteExtraLender(lid, name){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`${name} removed`);
     } else { toast('Remove failed'); }
@@ -4419,6 +4431,7 @@ async function uploadNewLender(){
       fileInput.value = '';
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`✅ ${name} added — ${data.count} tiers`);
     } else if(data.fallback){
@@ -4482,6 +4495,7 @@ async function saveNewLenderManual(){
       _newLenderManualCount = 0;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`✅ ${name} added — ${tiers.length} tiers`);
     } else { toast('Save failed: ' + data.error); }
@@ -4503,6 +4517,7 @@ async function uploadRateSheet(lid){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ Parsed ${data.count} tiers for ${data.lender.toUpperCase()}</span>`;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${data.lender.toUpperCase()} rates updated — ${data.count} tiers loaded`);
     } else if(data.fallback){
       statusEl.innerHTML = `<span style="color:var(--amber);">⚠ ${data.error}</span>`;
@@ -4579,6 +4594,7 @@ async function saveManualRates(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} — ${tiers.length} manual tiers saved`);
     } else {
       toast('Save failed: ' + data.error);
@@ -4594,6 +4610,7 @@ async function resetLenderSheet(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`${lid.toUpperCase()} reset to platform defaults`);
     }
   } catch(e){ toast('Error: ' + e.message); }
