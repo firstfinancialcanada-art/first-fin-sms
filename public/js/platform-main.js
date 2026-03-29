@@ -1405,10 +1405,10 @@ function calcLTV(lid){
   const down = parseFloat(document.getElementById(`ltv-down-${lid}`).value)||0;
   const trade= parseFloat(document.getElementById(`ltv-trade-${lid}`).value)||0;
   const fees = parseFloat(document.getElementById(`ltv-fees-${lid}`).value)||0;
-  const price = v.price || 0;
+  const price   = parseFloat(v.price)   || 0;
+  const bookVal = parseFloat(v.book_value || v.bookValue || v.price) || price;
   const totalCost = price + fees;
   const finance   = totalCost - down - trade;
-  const bookVal   = v.bookValue || v.book_value || price; // Use book value for LTV, fallback to price
   const ltvPct    = bookVal > 0 ? (finance/bookVal)*100 : 0;
   const maxLoan   = (bookVal*l.maxLTV)/100;
   const ok        = ltvPct <= l.maxLTV;
@@ -1540,6 +1540,13 @@ function renderAllLenderPanelTiers() {
 // Merges tenant DB rates over hardcoded defaults
 async function runComparison(){
   const stock   = document.getElementById('compareStock').value;
+  if (!stock) { toast('Select a vehicle first'); return; }
+  // Quick client-side check — if vehicle not in local inventory, server will 404
+  const localInv = window.ffInventory || window.inventory || [];
+  if (localInv.length && !localInv.find(v => v.stock === stock)) {
+    toast('Vehicle not found in inventory — try re-importing or log out and back in');
+    return;
+  }
   const down    = parseFloat(document.getElementById('compareDown').value)||0;
   const trade   = parseFloat(document.getElementById('compareTrade').value)||0;
   const fees    = parseFloat(document.getElementById('compareFees').value)||0;
@@ -2890,6 +2897,11 @@ function importInventory() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ vehicles })
+    }).then(r => r.json()).then(d => {
+      if (!d.success) {
+        if (d.code === 'BILLING_REQUIRED') toast('⚠️ Subscription required to save inventory to cloud — upgrade to persist data');
+        else console.error('Inventory sync failed:', d.error);
+      }
     }).catch(e => console.error('Cloud sync failed:', e));
   }
 
