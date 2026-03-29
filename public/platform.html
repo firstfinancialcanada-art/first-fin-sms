@@ -468,7 +468,6 @@ select option{background:#0d1526;color:var(--text);}
 .conv-time{font-size:10px;color:var(--muted);}
 .conv-badge{padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;}
 .badge-active{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);}
-.badge-engaged{background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
 .badge-converted{background:rgba(30,90,246,.12);color:var(--primary);border:1px solid rgba(30,90,246,.2);}
 .badge-stopped{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);}
 
@@ -668,17 +667,8 @@ select option{background:#0d1526;color:var(--text);}
   .wiz-section-title{font-size:18px;letter-spacing:2px;}
   .wiz-section-title .ico-lg{width:16px;height:16px;}
   .wiz-nav{flex-direction:column;gap:6px;}
-  .wiz-nav .btn{width:100%;padding:14px;font-size:13px;text-align:center;}
+  .wiz-nav .btn{width:100%;padding:14px;font-size:13px;}
   .wiz-live-banner{gap:8px;padding:10px 12px;}
-  /* Step 3 stat row */
-  .wiz-stat-row{grid-template-columns:1fr 1fr !important;}
-  /* Step 4 summary — stack on mobile */
-  .wiz-summary-row{grid-template-columns:1fr !important;}
-  .wiz-deal-row{grid-template-columns:1fr 1fr !important;}
-  /* Big payment number — larger touch target */
-  #sum-payment{font-size:42px !important;}
-  /* Manager section toggle button */
-  #mgr-toggle-btn{width:100%;text-align:center;justify-content:center;}
 
   /* Presentation overlay */
   .pres-pmt-card{min-width:120px;padding:16px 14px;}
@@ -731,10 +721,6 @@ select option{background:#0d1526;color:var(--text);}
   /* Nav buttons stacked full width */
   .wiz-nav{gap:6px;}
   .wiz-nav .btn{font-size:12px;padding:12px;}
-  /* Step 4 deal row — full single col on tiny phones */
-  .wiz-deal-row{grid-template-columns:1fr !important;}
-  /* Step 4 summary payment */
-  #sum-payment{font-size:38px !important;}
 
   /* Payment table tighter */
   .payment-table{min-width:420px;}
@@ -881,6 +867,8 @@ select option{background:#0d1526;color:var(--text);}
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
+<!-- SheetJS for Excel import -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -941,7 +929,6 @@ select option{background:#0d1526;color:var(--text);}
       <input id="loginBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:14px;outline:none;">
-      <input id="loginBuyPhone" type="tel" placeholder="Phone number" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:14px;outline:none;">
       <div id="loginBuyErr" style="display:none;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#ef4444;margin-bottom:10px;"></div>
       <button onclick="startLoginBuy()" id="loginBuyBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">
         Proceed to Secure Payment →
@@ -1295,7 +1282,7 @@ select option{background:#0d1526;color:var(--text);}
             <div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;">✓ Confirmed Deal</div>
             <div style="font-size:10px;color:var(--muted);" id="fi-confirmed-products">No products selected</div>
           </div>
-          <div class="wiz-stat-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
             <div style="background:rgba(0,0,0,.2);border-radius:6px;padding:10px;text-align:center;">
               <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Total Financed</div>
               <div style="font-size:18px;font-weight:900;color:var(--primary);" id="fi-confirmed-financed">$0</div>
@@ -1338,7 +1325,7 @@ select option{background:#0d1526;color:var(--text);}
         <div class="wiz-section-title"><i data-lucide="check-circle" class="ico-lg" style="color:var(--green);"></i><span class="wiz-accent green">Deal</span> Summary</div>
 
         <!-- Vehicle + Customer row -->
-        <div class="wiz-summary-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Vehicle</div>
             <div style="font-weight:800;font-size:15px;color:var(--text);" id="sum-vehicle">—</div>
@@ -1360,7 +1347,7 @@ select option{background:#0d1526;color:var(--text);}
         </div>
 
         <!-- Deal details grid -->
-        <div class="wiz-deal-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">OTD Price</div>
             <div style="font-weight:800;color:var(--text);" id="sum-otd">$0</div>
@@ -1800,106 +1787,24 @@ select option{background:#0d1526;color:var(--text);}
 
   <!-- Stats -->
   <div id="atab-stats" class="mgr-content">
-
-    <!-- ── Deal Desk Stats (from DB) ── -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-title"><i data-lucide="file-text" class="ico"></i>Deal Desk</div>
-      <div id="sa-dealStats">
-        <div style="color:var(--muted);font-size:12px;padding:8px;">Loading...</div>
-      </div>
+    <div class="stat-hero">
+      <div class="stat-card"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Total Deals</div></div>
+      <div class="stat-card"><div class="stat-number" id="statMonth">0</div><div class="stat-label">This Month</div></div>
+      <div class="stat-card"><div class="stat-number" id="statWeek">0</div><div class="stat-label">This Week</div></div>
+      <div class="stat-card"><div class="stat-number" id="statToday">0</div><div class="stat-label">Today</div></div>
     </div>
-
-    <!-- ── Sarah Outreach Stats ── -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-title"><i data-lucide="message-circle" class="ico" style="color:var(--primary)"></i>Sarah Outreach</div>
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">
-        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:var(--primary);" id="sa-convRate">—</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Conversion Rate</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-convDetail">—</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:var(--green);" id="sa-respRate">—</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Response Rate</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-respDetail">—</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:var(--amber);" id="sa-avgMsg">—</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Avg Messages</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">per conversation</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#8b5cf6;" id="sa-weekConv">—</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">This Week</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-weekDetail">—</div>
-        </div>
-      </div>
-
-      <!-- Status breakdown -->
-      <div style="margin-bottom:12px;">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Conversation Status</div>
-        <div id="sa-statusBreakdown"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
-      </div>
-
-      <!-- Stage funnel + weekly trend side by side -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Stage Funnel</div>
-          <div id="sa-stageFunnel"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
-        </div>
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">8-Week Trend</div>
-          <div id="sa-weeklyTrend"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
-        </div>
-      </div>
-
-      <!-- Vehicle types + budget dist -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Top Vehicle Types</div>
-          <div id="sa-topVehicles" style="font-size:12px;color:var(--muted);">Loading...</div>
-        </div>
-        <div>
-          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Budget Distribution</div>
-          <div id="sa-budgetDist" style="font-size:12px;color:var(--muted);">Loading...</div>
-        </div>
-      </div>
+    <div class="card-title" style="margin-bottom:12px;"><i data-lucide="pie-chart" class="ico"></i>Product Penetration</div>
+    <div class="penetration-grid">
+      <div class="pen-card"><div class="pen-pct" id="penVSC">0%</div><div class="pen-label">VSC</div><div class="pen-sub" id="penVSCn">0 of 0</div></div>
+      <div class="pen-card"><div class="pen-pct" id="penGAP">0%</div><div class="pen-label">GAP</div><div class="pen-sub" id="penGAPn">0 of 0</div></div>
+      <div class="pen-card"><div class="pen-pct" id="penTW">0%</div><div class="pen-label">T&W</div><div class="pen-sub" id="penTWn">0 of 0</div></div>
+      <div class="pen-card"><div class="pen-pct" id="penWA">0%</div><div class="pen-label">WA</div><div class="pen-sub" id="penWAn">0 of 0</div></div>
     </div>
-
-    <!-- Hidden legacy IDs — kept for refreshAllAnalytics compatibility -->
-    <div style="display:none;" id="legacy-stats-card">
-      <div id="statTotal"></div><div id="statMonth"></div>
-      <div id="statWeek"></div><div id="statToday"></div>
-      <div id="penVSC"></div><div id="penVSCn"></div>
-      <div id="penGAP"></div><div id="penGAPn"></div>
-      <div id="penTW"></div><div id="penTWn"></div>
-      <div id="penWA"></div><div id="penWAn"></div>
-      <div id="avgPVR"></div><div id="totalBackend"></div>
-    </div>
-
-    <!-- Lender Submissions -->
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-title"><i data-lucide="send" class="ico" style="color:var(--primary)"></i>Lender Submissions
-        <span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px;" id="an-sub-total"></span>
-        <span style="font-size:11px;color:var(--green);font-weight:700;margin-left:8px;" id="an-approval-rate"></span>
+    <div class="two-col">
+      <div class="card"><div class="card-title"><i data-lucide="trending-up" class="ico"></i>Revenue</div>
+        <div class="cline"><span class="cl-label">Average PVR</span><span class="cl-value" id="avgPVR">$0</span></div>
+        <div class="cline"><span class="cl-label">Total Backend</span><span class="cl-value" id="totalBackend">$0</span></div>
       </div>
-      <div id="an-lender-outcomes"><div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No submissions logged yet — use LOG SUBMISSION in Compare All</div></div>
-    </div>
-
-    <!-- Monthly Target -->
-    <div class="card">
-      <div class="card-title"><i data-lucide="target" class="ico" style="color:var(--amber)"></i>Monthly Target</div>
-      <div class="two-col" style="margin-bottom:14px;">
-        <div class="fgroup"><label>Monthly Target (deals)</label><input type="number" id="targetInput" value="30" oninput="updateTarget()"></div>
-      </div>
-      <div class="stat-hero" style="margin-bottom:12px;">
-        <div class="stat-card"><div class="stat-number" id="tDeals">0</div><div class="stat-label">Deals This Month</div></div>
-        <div class="stat-card"><div class="stat-number" id="tTarget">30</div><div class="stat-label">Target</div></div>
-        <div class="stat-card"><div class="stat-number" id="tPct">0%</div><div class="stat-label">Progress</div></div>
-        <div class="stat-card"><div class="stat-number" id="tPace">—</div><div class="stat-label">Pace</div></div>
-      </div>
-      <div class="cline"><span class="cl-label">Days Left in Month</span><span class="cl-value" id="tDaysLeft">—</span></div>
-      <div class="cline"><span class="cl-label">Needed Per Day</span><span class="cl-value" id="tNeedPerDay">—</span></div>
     </div>
   </div>
 
@@ -2085,11 +1990,19 @@ select option{background:#0d1526;color:var(--text);}
       <div class="fgroup"><label>Monthly Deal Target</label><input type="number" id="setTarget" value="30"></div>
     </div>
     <div class="fgroup" style="margin-top:12px;">
-      <label>Logo URL <span style="color:var(--muted);font-size:11px;font-weight:400;">(paste image link, or leave blank for default)</span></label>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="url" id="setLogoUrl" placeholder="https://yoursite.com/logo.png" style="flex:1;" oninput="previewLogo(this.value)">
-        <img id="logo-preview" style="height:36px;width:36px;object-fit:contain;border-radius:4px;background:rgba(255,255,255,0.05);padding:4px;display:none;" alt="preview">
+      <label>Logo URL <span style="color:var(--muted);font-size:11px;font-weight:400;">PNG or JPG, square works best</span></label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div onclick="document.getElementById('logoFileInput').click()"
+          style="flex:1;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:border-color .2s;"
+          onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+          <i data-lucide="image" style="width:16px;height:16px;color:var(--primary);flex-shrink:0;"></i>
+          <span id="logo-upload-label" style="font-size:12px;color:var(--muted);">Click to upload logo (PNG / JPG)</span>
+        </div>
+        <img id="logo-preview" style="height:44px;width:44px;object-fit:contain;border-radius:6px;background:rgba(255,255,255,0.05);padding:4px;display:none;border:1px solid var(--border);" alt="preview">
+        <button id="logo-remove-btn" onclick="removeLogo()" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">Remove</button>
       </div>
+      <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml" style="display:none;" onchange="handleLogoUpload(event)">
+      <input type="hidden" id="setLogoUrl">
     </div>
     <!-- SARAH / Twilio config -->
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(6,182,212,0.2);">
@@ -2186,15 +2099,50 @@ select option{background:#0d1526;color:var(--text);}
 
 <!-- CSV Import Modal -->
 <div class="modal-overlay" id="csvImportModal" onclick="closeModalOutside(event,'csvImportModal')">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:560px;">
     <button class="modal-close" onclick="closeModal('csvImportModal')">×</button>
-    <div class="modal-title"><i data-lucide="upload" class="ico-lg"></i>Import Inventory CSV</div>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;font-size:12px;color:var(--muted);">
-      Expected columns: <strong style="color:var(--amber);">stock, year, make, model, mileage, price, condition, carfax, type, book_value</strong><br>
-      Any column order is fine. Headers must be in row 1.
+    <div class="modal-title"><i data-lucide="upload" class="ico-lg"></i>Import Inventory</div>
+
+    <!-- Column reference -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--muted);">
+      <strong style="color:var(--text);">Accepted columns:</strong>
+      <span style="color:var(--amber);font-family:monospace;"> stock, year, make, model, mileage, price, condition, carfax, type, book_value</span><br>
+      <span style="margin-top:4px;display:block;">Any column order · Row 1 must be headers · Accepts <strong style="color:var(--text);">.csv</strong> or <strong style="color:var(--text);">.xlsx / .xls</strong></span>
     </div>
-    <div class="fgroup"><label>Paste CSV Content</label><textarea id="csvText" rows="12" placeholder="stock,year,make,model,mileage,price,condition,carfax,type&#10;AM24036,2023,JEEP,COMPASS,69200,35980,Average,0,4x4" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:monospace;font-size:11px;resize:vertical;"></textarea></div>
-    <button class="btn btn-amber btn-full" onclick="importCSV()">Import & Replace Inventory</button>
+
+    <!-- File upload zone -->
+    <div id="inv-drop-zone" onclick="document.getElementById('invFileInput').click()"
+      style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;margin-bottom:14px;transition:border-color .2s;"
+      ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+      ondragleave="this.style.borderColor='var(--border)'"
+      ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleInvFileDrop(event)">
+      <i data-lucide="file-up" style="width:28px;height:28px;color:var(--primary);margin-bottom:8px;"></i>
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">Drop file here or click to browse</div>
+      <div style="font-size:11px;color:var(--muted);">.csv · .xlsx · .xls accepted</div>
+      <div id="inv-file-name" style="font-size:11px;color:var(--green);margin-top:6px;font-weight:700;"></div>
+    </div>
+    <input type="file" id="invFileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleInvFileSelect(event)">
+
+    <!-- OR divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:11px;color:var(--muted);">or paste CSV</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <div class="fgroup">
+      <textarea id="csvText" rows="7" placeholder="stock,year,make,model,mileage,price,condition,carfax,type&#10;AM24036,2023,JEEP,COMPASS,69200,35980,Average,0,4x4" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:monospace;font-size:11px;resize:vertical;width:100%;box-sizing:border-box;"></textarea>
+    </div>
+
+    <!-- Preview -->
+    <div id="inv-import-preview" style="display:none;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;">
+      <span id="inv-import-count" style="color:var(--green);font-weight:700;"></span>
+      <span id="inv-import-warn" style="color:var(--amber);margin-left:8px;"></span>
+    </div>
+
+    <button class="btn btn-amber btn-full" onclick="importInventory()" style="font-size:14px;padding:13px;">
+      <i data-lucide="check-circle" class="ico-sm"></i> Import &amp; Replace Inventory
+    </button>
   </div>
 </div>
 
@@ -2245,7 +2193,6 @@ select option{background:#0d1526;color:var(--text);}
       <select id="convStatusFilter" onchange="filterConversations()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;">
         <option value="all">All Status</option>
         <option value="active">Active</option>
-        <option value="engaged">Engaged</option>
         <option value="converted">Converted</option>
         <option value="stopped">Stopped</option>
       </select>
@@ -2289,7 +2236,7 @@ select option{background:#0d1526;color:var(--text);}
       </div>
       <div class="fgroup">
         <label>Opening Message</label>
-        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from First Financial. I noticed you might be looking for a vehicle — are you after a truck, SUV, car, or van? (Reply STOP to opt out)</textarea>
+        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
       <div style="font-size:10px;color:var(--muted);margin-top:4px;">💡 Dealer name auto-fills when settings are loaded. You can edit this message freely.</div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="launchCharCount">0 characters</div>
@@ -2576,8 +2523,6 @@ async function startDemoBuy() {
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
   if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
-  const phone = (document.getElementById('demoBuyPhone')?.value || '').trim();
-  if (!phone) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2586,7 +2531,7 @@ async function startDemoBuy() {
     const res  = await fetch('/api/billing/public-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email, name, dealership, phone })
+      body: JSON.stringify({ plan, email, name, dealership })
     });
     const data = await res.json();
     if (data.url) { window.location.href = data.url; }
@@ -2629,8 +2574,6 @@ async function startLoginBuy() {
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
   if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
-  const phone = (document.getElementById('loginBuyPhone')?.value || '').trim();
-  if (!phone) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2639,7 +2582,7 @@ async function startLoginBuy() {
     const res  = await fetch('/api/billing/public-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email, name, dealership, phone })
+      body: JSON.stringify({ plan, email, name, dealership })
     });
     const data = await res.json();
     if (data.url) { window.location.href = data.url; }
@@ -2709,7 +2652,6 @@ async function startLoginBuy() {
   <input id="demoBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:14px;outline:none;">
-  <input id="demoBuyPhone" type="tel" placeholder="Phone number" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:14px;outline:none;">
   <div id="demoBuyErr" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#ef4444;margin-bottom:10px;"></div>
   <button onclick="startDemoBuy()" id="demoBuyBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:6px;">
     Proceed to Secure Payment →
@@ -2727,78 +2669,124 @@ async function startLoginBuy() {
 
 <!-- ═══ SARAH SETUP WIZARD ═══ -->
 <div id="sarah-wizard" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(5,11,24,0.97);backdrop-filter:blur(8px);overflow-y:auto;">
-  <div style="max-width:560px;margin:60px auto;padding:0 24px 60px;">
+  <div style="max-width:580px;margin:48px auto;padding:0 24px 60px;">
+
     <!-- Header -->
-    <div style="text-align:center;margin-bottom:40px;">
+    <div style="text-align:center;margin-bottom:36px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:4px;color:#06b6d4;margin-bottom:10px;">FIRST-FIN SETUP</div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:6px;background:linear-gradient(135deg,#e2e8f0,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:12px;">WELCOME</div>
-      <div style="font-size:15px;color:#64748b;line-height:1.6;max-width:420px;margin:0 auto;">Let's get SARAH configured so you can start receiving leads. Takes about 2 minutes.</div>
+      <div style="font-size:14px;color:#64748b;line-height:1.6;max-width:440px;margin:0 auto;">Let's get your platform set up. Takes about 3 minutes — you can always update these in Settings later.</div>
     </div>
 
     <!-- Step indicators -->
-    <div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:40px;" id="wiz-steps">
-      <div class="ob-step active" id="wstep-1">1</div>
-      <div class="ob-line" id="wline-1"></div>
-      <div class="ob-step" id="wstep-2">2</div>
-      <div class="ob-line" id="wline-2"></div>
-      <div class="ob-step" id="wstep-3">3</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:36px;" id="wiz-steps">
+      <div class="ob-step active" id="wstep-1">1</div><div class="ob-line" id="wline-1"></div>
+      <div class="ob-step" id="wstep-2">2</div><div class="ob-line" id="wline-2"></div>
+      <div class="ob-step" id="wstep-3">3</div><div class="ob-line" id="wline-3"></div>
+      <div class="ob-step" id="wstep-4">4</div><div class="ob-line" id="wline-4"></div>
+      <div class="ob-step" id="wstep-5">5</div>
     </div>
 
-    <!-- Step 1: Confirm dealer info -->
+    <!-- ── STEP 1: Identity ── -->
     <div id="wiz-panel-1" class="ob-panel">
       <div style="background:#0d1526;border:1px solid rgba(30,90,246,0.2);border-radius:14px;padding:28px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:6px;">Confirm Your Info</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:22px;">This is how you'll appear to customers and on the platform.</div>
-        <div style="margin-bottom:14px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Salesperson Name</label><input type="text" id="wiz-salesName" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
-        <div style="margin-bottom:22px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Dealership Name</label><input type="text" id="wiz-dealerName" placeholder="Your dealership" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Your Dealership</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">This is how you appear to customers and inside the platform.</div>
+        <div style="margin-bottom:14px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Dealership Name</label><input type="text" id="wiz-dealerName" placeholder="e.g. Prairie Auto Group" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Your Name</label><input type="text" id="wiz-salesName" placeholder="e.g. Jake" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+          <div><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">City &amp; Province</label><input type="text" id="wiz-dealerCity" placeholder="e.g. Calgary, AB" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+        </div>
+        <div style="margin-bottom:20px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Notification Phone <span style="color:#475569;font-weight:400;text-transform:none;">(Sarah texts you here on new leads)</span></label><input type="tel" id="wiz-notifyPhone" placeholder="+14031234567" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'DM Mono',monospace;font-size:14px;letter-spacing:1px;outline:none;"></div>
+        <div id="wiz-step1-err" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;"></div>
         <button onclick="wizNext(1)" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Continue →</button>
         <div style="text-align:center;margin-top:12px;"><button onclick="wizSkip()" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip setup — I'll configure this later</button></div>
       </div>
     </div>
 
-    <!-- Step 2: Get Twilio number -->
+    <!-- ── STEP 2: SARAH Number ── -->
     <div id="wiz-panel-2" class="ob-panel" style="display:none;">
       <div style="background:#0d1526;border:1px solid rgba(30,90,246,0.2);border-radius:14px;padding:28px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:6px;">Get Your SARAH Number</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:22px;">This is the phone number SARAH will text from. Pick one in your local area code — it's included in your plan.</div>
-
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Sarah's Phone Number</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Sarah texts leads from this number. Pick one in your local area code — included in your plan.</div>
         <div style="display:flex;gap:8px;margin-bottom:16px;">
           <div style="flex:1;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Area Code</label><input type="text" id="wiz-areaCode" placeholder="403" maxlength="3" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'DM Mono',monospace;font-size:16px;letter-spacing:3px;outline:none;" oninput="this.value=this.value.replace(/\D/g,'')"></div>
           <div style="display:flex;align-items:flex-end;"><button onclick="wizSearchNumbers()" id="wiz-search-btn" style="padding:11px 18px;background:rgba(30,90,246,.15);border:1px solid rgba(30,90,246,.4);border-radius:8px;color:#4a7fff;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Search Numbers</button></div>
         </div>
-
         <div id="wiz-numbers-list" style="margin-bottom:16px;min-height:40px;"></div>
         <div id="wiz-selected-number" style="display:none;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:12px 16px;margin-bottom:16px;">
           <div style="font-size:11px;color:#10b981;font-family:'DM Mono',monospace;font-weight:700;letter-spacing:1px;margin-bottom:3px;">SELECTED</div>
           <div id="wiz-selected-display" style="font-family:'DM Mono',monospace;font-size:18px;color:#e2e8f0;letter-spacing:2px;"></div>
         </div>
-
-        <button onclick="wizProvisionNumber()" id="wiz-provision-btn" disabled style="width:100%;padding:13px;background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#475569;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:not-allowed;transition:all .2s;">Claim This Number →</button>
-        <div style="text-align:center;margin-top:12px;"><button onclick="wizSkip()" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip — I'll add my number manually in Settings</button></div>
+        <button onclick="wizProvisionNumber()" id="wiz-provision-btn" disabled style="width:100%;padding:13px;background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#475569;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:not-allowed;transition:all .2s;">Claim This Number →</button>
+        <div style="text-align:center;margin-top:10px;"><button onclick="wizGoTo(3)" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip — I'll add my number manually in Settings</button></div>
       </div>
     </div>
 
-    <!-- Step 3: Notify phone -->
+    <!-- ── STEP 3: Password ── -->
     <div id="wiz-panel-3" class="ob-panel" style="display:none;">
       <div style="background:#0d1526;border:1px solid rgba(30,90,246,0.2);border-radius:14px;padding:28px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:6px;">Alert Phone Number</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:22px;">When SARAH books an appointment or a customer requests a callback, we'll send you an instant text alert to this number.</div>
-        <div style="margin-bottom:22px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Your Cell Number</label><input type="tel" id="wiz-notifyPhone" placeholder="+14031234567" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'DM Mono',monospace;font-size:15px;letter-spacing:1px;outline:none;"></div>
-        <div id="wiz-step3-err" style="display:none;color:#ef4444;font-size:12px;margin-bottom:12px;"></div>
-        <button onclick="wizFinish()" id="wiz-finish-btn" style="width:100%;padding:13px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Finish Setup →</button>
-        <div style="text-align:center;margin-top:12px;"><button onclick="wizSkip()" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip for now</button></div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Set Your Password</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">You were given a temporary password. Set a permanent one now — minimum 8 characters.</div>
+        <div style="margin-bottom:14px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">New Password</label><input type="password" id="wiz-newPass" placeholder="Choose a strong password" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+        <div style="margin-bottom:20px;"><label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'DM Mono',monospace;">Confirm Password</label><input type="password" id="wiz-confirmPass" placeholder="Repeat your password" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#080f20;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;outline:none;"></div>
+        <div id="wiz-step3-err" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;"></div>
+        <button onclick="wizNext(3)" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">Set Password →</button>
+        <div style="text-align:center;margin-top:10px;"><button onclick="wizGoTo(4)" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip — I'll change my password in Settings</button></div>
       </div>
     </div>
 
-    <!-- Step 4: Done -->
-    <div id="wiz-panel-done" class="ob-panel" style="display:none;text-align:center;">
-      <div style="font-size:56px;margin-bottom:20px;">✅</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:4px;color:#10b981;margin-bottom:12px;">YOU'RE ALL SET</div>
-      <div style="font-size:14px;color:#94a3b8;line-height:1.7;margin-bottom:32px;">SARAH is configured and ready to go. Head to the SARAH tab to launch your first SMS campaign.</div>
-      <button onclick="wizClose()" style="padding:14px 40px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Enter Platform →</button>
+    <!-- ── STEP 4: Quick Start Guide ── -->
+    <div id="wiz-panel-4" class="ob-panel" style="display:none;">
+      <div style="background:#0d1526;border:1px solid rgba(30,90,246,0.2);border-radius:14px;padding:28px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Quick Start Guide</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Your platform is almost ready. Here's what to do next to get fully set up:</div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+          <div style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
+            <div style="font-size:22px;flex-shrink:0;">🚗</div>
+            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Your Inventory</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Inventory</strong> tab → Import CSV or add vehicles manually. Sarah uses your live inventory to answer customer questions.</div></div>
+          </div>
+          <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
+            <div style="font-size:22px;flex-shrink:0;">🏦</div>
+            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Lender Rate Sheets</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Lenders</strong> tab → Upload PDF rate sheets for each lender. This powers the Compare All engine with your actual rates.</div></div>
+          </div>
+          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
+            <div style="font-size:22px;flex-shrink:0;">👥</div>
+            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Import Your CRM Contacts</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Analytics → CRM</strong> tab → Import CSV with your existing customer list. Use Bulk SMS to re-engage them with Sarah.</div></div>
+          </div>
+          <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
+            <div style="font-size:22px;flex-shrink:0;">🖼</div>
+            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Your Logo</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Settings</strong> → upload your dealership logo. It appears on the customer-facing Deal Presentation.</div></div>
+          </div>
+          <div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
+            <div style="font-size:22px;flex-shrink:0;">📱</div>
+            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Launch Sarah — Send Your First Outreach</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Sarah AI → Launch SMS</strong>. Enter a customer's number and Sarah will start the conversation automatically.</div></div>
+          </div>
+        </div>
+
+        <button onclick="wizFinish()" id="wiz-finish-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer;">I'm Ready — Enter the Platform →</button>
+      </div>
     </div>
+
+    <!-- ── STEP 5: Password (skipped Twilio) ── -->
+    <div id="wiz-panel-5" class="ob-panel" style="display:none;">
+      <!-- This panel is unused — password is step 3. Kept for step counter alignment. -->
+    </div>
+
+    <!-- ── DONE ── -->
+    <div id="wiz-panel-done" class="ob-panel" style="display:none;">
+      <div style="background:#0d1526;border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:40px 28px;text-align:center;">
+        <div style="font-size:52px;margin-bottom:14px;">✅</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:#10b981;margin-bottom:10px;">You're All Set!</div>
+        <div style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:28px;max-width:380px;margin-left:auto;margin-right:auto;">Platform configured and ready. Start by uploading inventory, then run your first deal through the wizard.</div>
+        <button onclick="wizClose()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Enter Platform →</button>
+      </div>
+    </div>
+
   </div>
 </div>
+
 
 <!-- SARAH not configured banner (shows after skip until configured) -->
 <div id="sarah-setup-banner" style="display:none;background:rgba(245,158,11,0.1);border-bottom:1px solid rgba(245,158,11,0.3);padding:10px 24px;text-align:center;font-size:13px;color:#f59e0b;font-weight:600;z-index:100;position:relative;">
