@@ -50,7 +50,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ success: false, error: 'Billing not configured' });
 
-    const { plan, email, name, dealership } = req.body;
+    const { plan, email, name, dealership, phone = '' } = req.body;
 
     // ── ONBOARDING TEST BYPASS ─────────────────────────────────────────────
     // Set ONBOARDING_TEST_MODE=true in Railway env vars to skip real Stripe payment.
