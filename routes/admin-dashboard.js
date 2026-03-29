@@ -29,7 +29,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       const [users, inventory, deals, inquiries, conversations, appointments, bulk, sarahActive] = await Promise.all([
         client.query('SELECT COUNT(*) FROM desk_users'),
         client.query('SELECT COUNT(*) FROM desk_inventory').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query('SELECT COUNT(*) FROM desk_deals').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query('SELECT COUNT(*) FROM desk_deal_log').catch(() => ({ rows: [{ count: 0 }] })),
         client.query("SELECT COUNT(*) FROM platform_inquiries WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
         client.query('SELECT COUNT(*) FROM conversations').catch(() => ({ rows: [{ count: 0 }] })),
         client.query('SELECT COUNT(*) FROM appointments').catch(() => ({ rows: [{ count: 0 }] })),
@@ -180,7 +180,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('DELETE FROM desk_refresh_tokens   WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM desk_inventory        WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM desk_crm              WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_deals            WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_deal_log            WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM conversations         WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM appointments          WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM callbacks             WHERE user_id = $1', [uid]).catch(() => {});
@@ -366,7 +366,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       const uid = u.rows[0].id;
       await Promise.all([
         client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]),
-        client.query('DELETE FROM desk_deals WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM desk_deal_log WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {}),
