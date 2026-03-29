@@ -668,8 +668,17 @@ select option{background:#0d1526;color:var(--text);}
   .wiz-section-title{font-size:18px;letter-spacing:2px;}
   .wiz-section-title .ico-lg{width:16px;height:16px;}
   .wiz-nav{flex-direction:column;gap:6px;}
-  .wiz-nav .btn{width:100%;padding:14px;font-size:13px;}
+  .wiz-nav .btn{width:100%;padding:14px;font-size:13px;text-align:center;}
   .wiz-live-banner{gap:8px;padding:10px 12px;}
+  /* Step 3 stat row */
+  .wiz-stat-row{grid-template-columns:1fr 1fr !important;}
+  /* Step 4 summary — stack on mobile */
+  .wiz-summary-row{grid-template-columns:1fr !important;}
+  .wiz-deal-row{grid-template-columns:1fr 1fr !important;}
+  /* Big payment number — larger touch target */
+  #sum-payment{font-size:42px !important;}
+  /* Manager section toggle button */
+  #mgr-toggle-btn{width:100%;text-align:center;justify-content:center;}
 
   /* Presentation overlay */
   .pres-pmt-card{min-width:120px;padding:16px 14px;}
@@ -722,6 +731,10 @@ select option{background:#0d1526;color:var(--text);}
   /* Nav buttons stacked full width */
   .wiz-nav{gap:6px;}
   .wiz-nav .btn{font-size:12px;padding:12px;}
+  /* Step 4 deal row — full single col on tiny phones */
+  .wiz-deal-row{grid-template-columns:1fr !important;}
+  /* Step 4 summary payment */
+  #sum-payment{font-size:38px !important;}
 
   /* Payment table tighter */
   .payment-table{min-width:420px;}
@@ -1281,7 +1294,7 @@ select option{background:#0d1526;color:var(--text);}
             <div style="font-size:11px;font-weight:900;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;">✓ Confirmed Deal</div>
             <div style="font-size:10px;color:var(--muted);" id="fi-confirmed-products">No products selected</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div class="wiz-stat-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
             <div style="background:rgba(0,0,0,.2);border-radius:6px;padding:10px;text-align:center;">
               <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Total Financed</div>
               <div style="font-size:18px;font-weight:900;color:var(--primary);" id="fi-confirmed-financed">$0</div>
@@ -1324,7 +1337,7 @@ select option{background:#0d1526;color:var(--text);}
         <div class="wiz-section-title"><i data-lucide="check-circle" class="ico-lg" style="color:var(--green);"></i><span class="wiz-accent green">Deal</span> Summary</div>
 
         <!-- Vehicle + Customer row -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="wiz-summary-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Vehicle</div>
             <div style="font-weight:800;font-size:15px;color:var(--text);" id="sum-vehicle">—</div>
@@ -1346,7 +1359,7 @@ select option{background:#0d1526;color:var(--text);}
         </div>
 
         <!-- Deal details grid -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div class="wiz-deal-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
             <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">OTD Price</div>
             <div style="font-weight:800;color:var(--text);" id="sum-otd">$0</div>
