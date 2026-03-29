@@ -5440,17 +5440,7 @@ async function wizFinish() {
 }
 
 // ── Load lender tier display data from server ─────────────────────────────
-async function loadLenderTiers() {
-  if (!window.FF || !FF.isLoggedIn || window.DEMO_MODE) return;
-  try {
-    const data = await FF.apiFetch('/api/compare/lender-tiers').then(r => r.json());
-    if (!data.success || !data.tiers) return;
-    window._lenderTiers = data.tiers;
-    renderAllLenderPanelTiers();
-  } catch(e) {
-    console.warn('Could not load lender tiers:', e.message);
-  }
-}
+
 
 function renderAllLenderPanelTiers() {
   const tiers = window._lenderTiers;
