@@ -700,6 +700,15 @@ const WIZ_STEPS = 5;
 
 function goWizStep(n) {
   if (n < 0 || n >= WIZ_STEPS) return;
+  // Soft guard: warn if advancing from step 0 with no vehicle selected
+  if (n === 1) {
+    const stock = document.getElementById('stockNum')?.value;
+    const desc  = document.getElementById('vehicleDesc')?.value?.trim();
+    if (!stock && !desc) {
+      toast('Select or describe a vehicle first');
+      return;
+    }
+  }
 
   // Mark previous steps as done
   const dots = document.querySelectorAll('.wiz-dot-wrap');
@@ -726,6 +735,19 @@ function goWizStep(n) {
 
   // Recalculate when entering payment/review steps
   if (n >= 3) calculate();
+  // Auto-sync rate comparison fields from deal desk when entering step 3
+  if (n === 3) {
+    const apr = parseFloat(document.getElementById('apr')?.value) || 0;
+    const rcCon = document.getElementById('rc_contract');
+    const rcBuy = document.getElementById('rc_buy');
+    if (apr > 0 && rcCon && (parseFloat(rcCon.value) === 8.99 || !rcCon.value)) {
+      rcCon.value = apr.toFixed(2);
+    }
+    if (apr > 0 && rcBuy && (parseFloat(rcBuy.value) === 6.50 || !rcBuy.value)) {
+      // buy rate stays as-is (dealer sets it manually) — just trigger a re-render
+    }
+    updateRateComparison();
+  }
   // Populate client summary when entering review step
   if (n === 4) {
     setTimeout(() => {
@@ -783,6 +805,30 @@ function sendToDeal(stock){
   toast('Loaded: ' + v.year + ' ' + v.make + ' ' + v.model);
 }
 
+function autoMatchStock(){
+  const desc = (document.getElementById('vehicleDesc')?.value||'').toLowerCase().trim();
+  if(desc.length < 3) return;
+  const inv = window.ffInventory || window.inventory || [];
+  const match = inv.find(v =>
+    (`${v.year} ${v.make} ${v.model}`).toLowerCase().includes(desc) ||
+    (v.stock||'').toLowerCase().includes(desc)
+  );
+  if(match){
+    const sel = document.getElementById('stockNum');
+    if(sel){
+      for(let i=0;i<sel.options.length;i++){
+        if(sel.options[i].value === match.stock){ sel.selectedIndex=i; break; }
+      }
+    }
+    // Populate other fields without overwriting desc (user is typing)
+    document.getElementById('vehicleType').value = match.type || '';
+    document.getElementById('odometer').value    = match.mileage || '';
+    document.getElementById('condition').value   = match.condition || 'Average';
+    document.getElementById('vin').value         = match.vin || '';
+    document.getElementById('sellingPrice').value= match.price || '';
+    calculate();
+  }
+}
 function loadVehicleFromStock(){
   const stock = document.getElementById('stockNum').value;
   if(stock) sendToDeal(stock);
@@ -1071,9 +1117,8 @@ function initLenderPanels(){
       </div>
       ${warnNote}
       <div id="lp-tiers-${lid}" style="margin-top:8px;">
-        <!-- Tier table populated from tenant custom rates if uploaded, otherwise shown in Compare All -->
         <div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">
-          Rate tiers shown in Compare All engine · Upload custom rates below to override defaults
+          No custom rates uploaded — defaults used in Compare All
         </div>
       </div>
       <div class="checker-box">
@@ -1104,6 +1149,50 @@ function initLenderPanels(){
 
   // Quick Ref panel — built dynamically from lenders object + extraLenders
   buildQuickRef();
+  // Populate tier tables if rates already loaded
+  updateLenderPanelTiers();
+}
+
+// ── Update lender panel tier tables from window._tenantRates ─────────────────
+function updateLenderPanelTiers(){
+  if(!window._tenantRates) return;
+  Object.entries(lenders).forEach(([lid]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if(!el) return;
+    const tiers = window._tenantRates[lid];
+    if(!tiers || !tiers.length){
+      el.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">No custom rates uploaded — defaults used in Compare All</div>';
+      return;
+    }
+    // Sort tiers by min_fico descending (best beacon first)
+    const sorted = [...tiers].sort((a,b) => (b.min_fico||0) - (a.min_fico||0));
+    el.innerHTML = `
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <span style="width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block;"></span>
+        Custom Rates — ${tiers.length} Tier${tiers.length>1?'s':''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:4px 6px;color:var(--muted);font-weight:600;">Tier</th>
+            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Beacon</th>
+            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Buy Rate</th>
+            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Max LTV</th>
+            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map(t => `
+            <tr style="border-bottom:1px solid var(--border2);">
+              <td style="padding:5px 6px;font-weight:700;color:var(--text);">${t.tier_name||'—'}</td>
+              <td style="text-align:center;padding:5px 6px;color:var(--muted);">${t.min_fico||0}–${t.max_fico===9999||!t.max_fico?'∞':t.max_fico}</td>
+              <td style="text-align:center;padding:5px 6px;color:var(--green);font-weight:800;">${parseFloat(t.buy_rate||0).toFixed(2)}%</td>
+              <td style="text-align:center;padding:5px 6px;color:var(--amber);">${t.max_ltv||'—'}%</td>
+              <td style="text-align:center;padding:5px 6px;color:var(--muted);">$${parseFloat(t.lender_fee||0).toLocaleString()}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  });
 }
 
 function buildQuickRef(){
@@ -1444,6 +1533,8 @@ async function loadTenantRates(){
       });
       console.log('%cTenant rate sheets loaded','color:#f59e0b;font-size:11px;',
         Object.keys(window._tenantRates).map(k=>k+':'+window._tenantRates[k].length+'tiers').join(' | '));
+      // Refresh lender panel tier tables now that rates are loaded
+      updateLenderPanelTiers();
     }
     // Extra lenders: DB lenders not in the hardcoded lenders object
     // These get their own dynamic cards in Compare All
@@ -2558,6 +2649,97 @@ function refreshAllAnalytics(){
   document.getElementById('avgPVR').textContent=tot?$i(totPVR/tot):'$0';
   document.getElementById('totalBackend').textContent=$i(totPVR);
   updateTarget(mo);
+
+  // ── Lender Submission Outcomes ───────────────────────────────────────────
+  const subs = typeof getSubmissions === 'function' ? getSubmissions() : [];
+  const subApproved = subs.filter(s => s.status === 'Approved').length;
+  const subDeclined = subs.filter(s => s.status === 'Declined').length;
+  const subCounter  = subs.filter(s => s.status === 'Counter').length;
+  const subPending  = subs.filter(s => s.status === 'Pending').length;
+  const subTotal    = subs.length;
+  const approvalRate = subTotal > 0 ? ((subApproved / subTotal) * 100).toFixed(0) + '%' : '—';
+
+  const lenderEl = document.getElementById('an-lender-outcomes');
+  if(lenderEl && subTotal > 0){
+    // Tally by lender
+    const byLender = {};
+    subs.forEach(s => {
+      if(!byLender[s.lender]) byLender[s.lender] = {approved:0,declined:0,counter:0,pending:0,total:0};
+      byLender[s.lender][s.status.toLowerCase()] = (byLender[s.lender][s.status.toLowerCase()]||0) + 1;
+      byLender[s.lender].total++;
+    });
+    const sorted = Object.entries(byLender).sort((a,b) => b[1].total - a[1].total);
+    lenderEl.innerHTML = sorted.map(([name, d]) => {
+      const rate = d.total > 0 ? Math.round((d.approved/d.total)*100) : 0;
+      const barColor = rate >= 70 ? 'var(--green)' : rate >= 40 ? 'var(--amber)' : 'var(--red)';
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:11px;font-weight:700;">${name.split(' ')[0]}</span>
+          <span style="font-size:11px;color:${barColor};font-weight:800;">${d.approved}/${d.total} (${rate}%)</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+          <div style="width:${rate}%;height:100%;background:${barColor};border-radius:4px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:3px;font-size:9px;color:var(--muted);">
+          ${d.approved>0?`<span style="color:var(--green);">✓ ${d.approved} Approved</span>`:''}
+          ${d.counter>0?`<span style="color:var(--primary);">↔ ${d.counter} Counter</span>`:''}
+          ${d.declined>0?`<span style="color:var(--red);">✗ ${d.declined} Declined</span>`:''}
+          ${d.pending>0?`<span>⏳ ${d.pending} Pending</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
+    const el_rate = document.getElementById('an-approval-rate');
+    const el_total = document.getElementById('an-sub-total');
+    if(el_rate) el_rate.textContent = approvalRate;
+    if(el_total) el_total.textContent = subTotal + ' submissions';
+  } else if(lenderEl) {
+    lenderEl.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No submissions logged yet — use LOG SUBMISSION in Compare All</div>';
+  }
+
+  // ── Deal Funnel Stats ────────────────────────────────────────────────────
+  const vscPct  = tot ? ((vscN/tot)*100).toFixed(0)+'%' : '0%';
+  const gapPct  = tot ? ((gapN/tot)*100).toFixed(0)+'%' : '0%';
+  const bestPen = Math.max(vscN,gapN,twN,waN);
+  const bestPenLabel = bestPen === vscN ? 'VSC' : bestPen === gapN ? 'GAP' : bestPen === twN ? 'T&W' : 'WA';
+  const el_funnel = document.getElementById('an-deal-funnel');
+  if(el_funnel && tot > 0){
+    const moAvg = mo > 0 ? $i(totPVR / (mo || 1)) : '$0';
+    el_funnel.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:900;color:var(--green);">${tot}</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Total Deals</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:900;color:var(--amber);">${mo}</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">This Month</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:900;color:var(--primary);">${$i(tot?totPVR/tot:0)}</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Avg PVR</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
+          <div style="font-size:20px;font-weight:900;color:var(--green);">${bestPenLabel}</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Top Product</div>
+        </div>
+      </div>
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">F&I Penetration</div>
+      ${[['VSC',vscN],['GAP',gapN],['T&W',twN],['WA',waN]].map(([label,n])=>{
+        const pct = tot ? Math.round((n/tot)*100) : 0;
+        const clr = pct>=60?'var(--green)':pct>=30?'var(--amber)':'var(--red)';
+        return `<div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:11px;font-weight:700;">${label}</span>
+            <span style="font-size:11px;color:${clr};font-weight:800;">${pct}% <span style="color:var(--muted);font-weight:400;">(${n}/${tot})</span></span>
+          </div>
+          <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${clr};border-radius:4px;transition:width .4s;"></div>
+          </div>
+        </div>`;
+      }).join('')}`;
+  } else if(el_funnel){
+    el_funnel.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No deals logged yet — log deals from the Deal Desk</div>';
+  }
 }
 
 function showAnalyticsTab(id,btn){
@@ -4781,7 +4963,7 @@ function updateWizSummary(){
     if(confirmed.length > 0){
       fiSection.style.display = 'block';
       fiProducts.innerHTML = confirmed.map(prod =>
-        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.label}</div>`
+        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.name}</div>`
       ).join('');
     } else {
       fiSection.style.display = 'none';
