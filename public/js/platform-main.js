@@ -1533,6 +1533,9 @@ async function loadTenantRates(){
       });
       console.log('%cTenant rate sheets loaded','color:#f59e0b;font-size:11px;',
         Object.keys(window._tenantRates).map(k=>k+':'+window._tenantRates[k].length+'tiers').join(' | '));
+      // Refresh lender panels and rate editor with uploaded tiers
+      updateLenderPanelTiers();
+      if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
       // Refresh lender panel tier tables now that rates are loaded
       updateLenderPanelTiers();
     }
@@ -2953,6 +2956,102 @@ async function loadSarahDashboard(){
           ? an.budgetDist.map(b=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);"><span>${b.budget}</span><span style="color:var(--green);font-weight:700;">${b.count}</span></div>`).join('')
           : '<div style="padding:8px;color:var(--muted);">No data yet</div>';
         document.getElementById('sa-budgetDist').innerHTML = bdist;
+
+        // ── Status breakdown ──────────────────────────────────────────────────
+        const statusEl = document.getElementById('sa-statusBreakdown');
+        if(statusEl && an.totalConversations > 0){
+          const statuses = [
+            { label:'Engaged',   count: an.totalEngaged||0,                            color:'var(--amber)'   },
+            { label:'Converted', count: an.totalConverted||0,                          color:'var(--primary)' },
+            { label:'Active',    count: an.totalConversations - (an.totalEngaged||0) - (an.totalConverted||0) - (an.totalStopped||0), color:'var(--green)' },
+            { label:'Stopped',   count: an.totalStopped||0,                            color:'var(--red)'     },
+          ];
+          statusEl.innerHTML = statuses.map(s => {
+            const pct = ((s.count / an.totalConversations) * 100).toFixed(0);
+            return `<div style="margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                <span style="color:${s.color};font-weight:700;">${s.label}</span>
+                <span style="color:var(--text);">${s.count} <span style="color:var(--muted);">(${pct}%)</span></span>
+              </div>
+              <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+                <div style="width:${pct}%;height:100%;background:${s.color};border-radius:4px;transition:width .5s;"></div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+
+        // ── Stage funnel ──────────────────────────────────────────────────────
+        const funnelEl = document.getElementById('sa-stageFunnel');
+        if(funnelEl && an.stageFunnel && an.stageFunnel.length){
+          const stageColors = { greeting:'#8b5cf6', budget:'var(--amber)', appointment:'var(--primary)', name:'#06b6d4', datetime:'var(--green)', confirmed:'var(--green)' };
+          funnelEl.innerHTML = an.stageFunnel.map(s => `
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+              <span style="color:${stageColors[s.stage]||'var(--text)'};font-weight:600;text-transform:capitalize;">${s.stage||'greeting'}</span>
+              <span style="color:var(--text);font-weight:700;">${s.count}</span>
+            </div>`).join('');
+        }
+
+        // ── Weekly trend ──────────────────────────────────────────────────────
+        const trendEl = document.getElementById('sa-weeklyTrend');
+        if(trendEl && an.weeklyTrend && an.weeklyTrend.length){
+          const maxC = Math.max(...an.weeklyTrend.map(w => parseInt(w.conversations||0)), 1);
+          trendEl.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:80px;padding:0 4px;">
+            ${an.weeklyTrend.map(w => {
+              const conv = parseInt(w.conversations||0);
+              const cvt  = parseInt(w.converted||0);
+              const h    = Math.max(4, Math.round((conv/maxC)*80));
+              const dt   = new Date(w.week_start).toLocaleDateString('en-CA',{month:'short',day:'numeric'});
+              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <div style="font-size:9px;color:var(--muted);">${conv}</div>
+                <div style="width:100%;height:${h}px;background:var(--primary);border-radius:3px 3px 0 0;opacity:.8;position:relative;">
+                  ${cvt > 0 ? `<div style="position:absolute;bottom:0;width:100%;height:${Math.round((cvt/conv)*h)}px;background:var(--green);border-radius:3px 3px 0 0;"></div>` : ''}
+                </div>
+                <div style="font-size:8px;color:var(--muted);white-space:nowrap;">${dt}</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
+            <span><span style="display:inline-block;width:8px;height:8px;background:var(--primary);border-radius:2px;margin-right:4px;"></span>Started</span>
+            <span><span style="display:inline-block;width:8px;height:8px;background:var(--green);border-radius:2px;margin-right:4px;"></span>Converted</span>
+          </div>`;
+        }
+
+        // ── Deal desk stats ───────────────────────────────────────────────────
+        const ds = an.dealStats;
+        if(ds){
+          const dsEl = document.getElementById('sa-dealStats');
+          if(dsEl) dsEl.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+              ${[['Total Deals',ds.totalDeals,'var(--text)'],['This Month',ds.monthDeals,'var(--primary)'],['This Week',ds.weekDeals,'var(--amber)'],['Today',ds.todayDeals,'var(--green)']].map(([l,v,c])=>`
+              <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
+                <div style="font-size:22px;font-weight:800;color:${c};">${v}</div>
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">${l}</div>
+              </div>`).join('')}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="background:var(--surface2);border-radius:8px;padding:10px;">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">F&I Penetration</div>
+                ${[['VSC',ds.vscCount],['GAP',ds.gapCount],['T&W',ds.twCount],['WA',ds.waCount]].map(([name,count])=>{
+                  const pct = ds.totalDeals > 0 ? Math.round((count/ds.totalDeals)*100) : 0;
+                  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
+                    <span style="font-size:11px;color:var(--text);">${name}</span>
+                    <span style="font-size:11px;font-weight:700;color:${pct>=50?'var(--green)':'var(--amber)'};">${pct}% <span style="color:var(--muted);font-weight:400;">(${count})</span></span>
+                  </div>`;
+                }).join('')}
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:10px;">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Revenue</div>
+                <div style="margin-bottom:6px;">
+                  <div style="font-size:10px;color:var(--muted);">Avg Backend</div>
+                  <div style="font-size:18px;font-weight:800;color:var(--green);">$${parseInt(ds.avgBackend).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--muted);">Avg PVR</div>
+                  <div style="font-size:18px;font-weight:800;color:var(--primary);">$${parseInt(ds.avgPvr).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>`;
+        }
       }
     } catch(e){ console.warn('Analytics load error', e); }
 
@@ -3929,6 +4028,27 @@ console.log('%cInventory: pending cloud sync | Lenders: '+Object.keys(lenders).l
 
 // ── LENDER RATE EDITOR ───────────────────────────────────────
 // Load any locally-saved overrides on top of defaults
+
+// ── Update lender checker panel tiers from loaded tenant rates ───────────────
+function updateLenderPanelTiers(){
+  if(!window._tenantRates) return;
+  Object.entries(window._tenantRates).forEach(([lid, tiers]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if(!el || !tiers || !tiers.length) return;
+    el.innerHTML = tiers
+      .sort((a,b) => parseFloat(a.buy_rate) - parseFloat(b.buy_rate))
+      .map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span style="font-weight:600;color:var(--text);">${t.tier_name || '—'}</span>
+        <span style="color:var(--green);font-weight:800;">${t.buy_rate}%
+          <span style="color:var(--muted);font-weight:400;font-size:10px;">
+            · ${t.min_fico}–${t.max_fico===9999||t.max_fico>=9999?'∞':t.max_fico}
+            · ${t.max_ltv}% LTV
+          </span>
+        </span>
+      </div>`).join('');
+  });
+}
+
 function applyLenderRateOverrides(){
   const saved = JSON.parse(localStorage.getItem('ffLenderRates') || '{}');
   Object.entries(saved).forEach(([lid, overrides]) => {
