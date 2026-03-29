@@ -700,15 +700,6 @@ const WIZ_STEPS = 5;
 
 function goWizStep(n) {
   if (n < 0 || n >= WIZ_STEPS) return;
-  // Soft guard: warn if advancing from step 0 with no vehicle selected
-  if (n === 1) {
-    const stock = document.getElementById('stockNum')?.value;
-    const desc  = document.getElementById('vehicleDesc')?.value?.trim();
-    if (!stock && !desc) {
-      toast('Select or describe a vehicle first');
-      return;
-    }
-  }
 
   // Mark previous steps as done
   const dots = document.querySelectorAll('.wiz-dot-wrap');
@@ -735,19 +726,6 @@ function goWizStep(n) {
 
   // Recalculate when entering payment/review steps
   if (n >= 3) calculate();
-  // Auto-sync rate comparison fields from deal desk when entering step 3
-  if (n === 3) {
-    const apr = parseFloat(document.getElementById('apr')?.value) || 0;
-    const rcCon = document.getElementById('rc_contract');
-    const rcBuy = document.getElementById('rc_buy');
-    if (apr > 0 && rcCon && (parseFloat(rcCon.value) === 8.99 || !rcCon.value)) {
-      rcCon.value = apr.toFixed(2);
-    }
-    if (apr > 0 && rcBuy && (parseFloat(rcBuy.value) === 6.50 || !rcBuy.value)) {
-      // buy rate stays as-is (dealer sets it manually) — just trigger a re-render
-    }
-    updateRateComparison();
-  }
   // Populate client summary when entering review step
   if (n === 4) {
     setTimeout(() => {
@@ -805,30 +783,6 @@ function sendToDeal(stock){
   toast('Loaded: ' + v.year + ' ' + v.make + ' ' + v.model);
 }
 
-function autoMatchStock(){
-  const desc = (document.getElementById('vehicleDesc')?.value||'').toLowerCase().trim();
-  if(desc.length < 3) return;
-  const inv = window.ffInventory || window.inventory || [];
-  const match = inv.find(v =>
-    (`${v.year} ${v.make} ${v.model}`).toLowerCase().includes(desc) ||
-    (v.stock||'').toLowerCase().includes(desc)
-  );
-  if(match){
-    const sel = document.getElementById('stockNum');
-    if(sel){
-      for(let i=0;i<sel.options.length;i++){
-        if(sel.options[i].value === match.stock){ sel.selectedIndex=i; break; }
-      }
-    }
-    // Populate other fields without overwriting desc (user is typing)
-    document.getElementById('vehicleType').value = match.type || '';
-    document.getElementById('odometer').value    = match.mileage || '';
-    document.getElementById('condition').value   = match.condition || 'Average';
-    document.getElementById('vin').value         = match.vin || '';
-    document.getElementById('sellingPrice').value= match.price || '';
-    calculate();
-  }
-}
 function loadVehicleFromStock(){
   const stock = document.getElementById('stockNum').value;
   if(stock) sendToDeal(stock);
@@ -1117,8 +1071,9 @@ function initLenderPanels(){
       </div>
       ${warnNote}
       <div id="lp-tiers-${lid}" style="margin-top:8px;">
+        <!-- Tier table populated from tenant custom rates if uploaded, otherwise shown in Compare All -->
         <div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">
-          No custom rates uploaded — defaults used in Compare All
+          Rate tiers shown in Compare All engine · Upload custom rates below to override defaults
         </div>
       </div>
       <div class="checker-box">
@@ -1149,50 +1104,8 @@ function initLenderPanels(){
 
   // Quick Ref panel — built dynamically from lenders object + extraLenders
   buildQuickRef();
-  // Populate tier tables if rates already loaded
-  updateLenderPanelTiers();
-}
-
-// ── Update lender panel tier tables from window._tenantRates ─────────────────
-function updateLenderPanelTiers(){
-  if(!window._tenantRates) return;
-  Object.entries(lenders).forEach(([lid]) => {
-    const el = document.getElementById('lp-tiers-' + lid);
-    if(!el) return;
-    const tiers = window._tenantRates[lid];
-    if(!tiers || !tiers.length){
-      el.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">No custom rates uploaded — defaults used in Compare All</div>';
-      return;
-    }
-    // Sort tiers by min_fico descending (best beacon first)
-    const sorted = [...tiers].sort((a,b) => (b.min_fico||0) - (a.min_fico||0));
-    el.innerHTML = `
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-        <span style="width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block;"></span>
-        Custom Rates — ${tiers.length} Tier${tiers.length>1?'s':''}
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead>
-          <tr style="border-bottom:1px solid var(--border);">
-            <th style="text-align:left;padding:4px 6px;color:var(--muted);font-weight:600;">Tier</th>
-            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Beacon</th>
-            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Buy Rate</th>
-            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Max LTV</th>
-            <th style="text-align:center;padding:4px 6px;color:var(--muted);font-weight:600;">Fee</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sorted.map(t => `
-            <tr style="border-bottom:1px solid var(--border2);">
-              <td style="padding:5px 6px;font-weight:700;color:var(--text);">${t.tier_name||'—'}</td>
-              <td style="text-align:center;padding:5px 6px;color:var(--muted);">${t.min_fico||0}–${t.max_fico===9999||!t.max_fico?'∞':t.max_fico}</td>
-              <td style="text-align:center;padding:5px 6px;color:var(--green);font-weight:800;">${parseFloat(t.buy_rate||0).toFixed(2)}%</td>
-              <td style="text-align:center;padding:5px 6px;color:var(--amber);">${t.max_ltv||'—'}%</td>
-              <td style="text-align:center;padding:5px 6px;color:var(--muted);">$${parseFloat(t.lender_fee||0).toLocaleString()}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
-  });
+  // Load tier display data from server
+  if (typeof loadLenderTiers === 'function') loadLenderTiers();
 }
 
 function buildQuickRef(){
@@ -1533,11 +1446,9 @@ async function loadTenantRates(){
       });
       console.log('%cTenant rate sheets loaded','color:#f59e0b;font-size:11px;',
         Object.keys(window._tenantRates).map(k=>k+':'+window._tenantRates[k].length+'tiers').join(' | '));
-      // Refresh lender panels and rate editor with uploaded tiers
+      // Update checker panels with custom tiers
       updateLenderPanelTiers();
       if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
-      // Refresh lender panel tier tables now that rates are loaded
-      updateLenderPanelTiers();
     }
     // Extra lenders: DB lenders not in the hardcoded lenders object
     // These get their own dynamic cards in Compare All
@@ -1556,6 +1467,74 @@ async function loadTenantRates(){
     /* silently fall back to hardcoded */
   }
 }
+
+// ── Update lender checker panel tiers from loaded tenant rates ───────────────
+function updateLenderPanelTiers(){
+  if(!window._tenantRates) return;
+  Object.entries(window._tenantRates).forEach(([lid, tiers]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if(!el || !tiers || !tiers.length) return;
+    el.innerHTML = tiers
+      .sort((a,b) => parseFloat(a.buy_rate) - parseFloat(b.buy_rate))
+      .map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span style="font-weight:600;color:var(--text);">${t.tier_name || '—'}</span>
+        <span style="color:var(--green);font-weight:800;">${t.buy_rate}%
+          <span style="color:var(--muted);font-weight:400;font-size:10px;">
+            · ${t.min_fico}–${t.max_fico>=9999?'∞':t.max_fico}
+            · ${t.max_ltv}% LTV
+          </span>
+        </span>
+      </div>`).join('');
+  });
+}
+
+// ── Load default lender tier display from server (display-safe, no approval logic) ──
+async function loadLenderTiers() {
+  if (!window.FF || !FF.isLoggedIn || window.DEMO_MODE) return;
+  try {
+    const data = await FF.apiFetch('/api/compare/lender-tiers').then(r => r.json());
+    if (!data.success || !data.tiers) return;
+    window._lenderTiers = data.tiers;
+    renderAllLenderPanelTiers();
+  } catch(e) {
+    console.warn('Could not load lender tiers:', e.message);
+  }
+}
+
+function renderAllLenderPanelTiers() {
+  const tiers = window._lenderTiers;
+  if (!tiers) return;
+  Object.entries(tiers).forEach(([lid, l]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if (!el) return;
+    // Custom uploaded rates take priority
+    if (window._tenantRates && window._tenantRates[lid] && window._tenantRates[lid].length) return;
+    if (!l.programs || !l.programs.length) return;
+    el.innerHTML = `
+      <div>
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p, i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:7px 10px;font-size:11px;${i < l.programs.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv||'—'}</span>
+          </div>`).join('')}
+        </div>
+        ${l.maxMileage||l.maxCarfax||l.minYear ? `<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
+          ${l.minYear    ? `<span>Min Year: <strong style="color:var(--text);">${l.minYear}</strong></span>` : ''}
+          ${l.maxMileage ? `<span>Max KM: <strong style="color:var(--text);">${l.maxMileage.toLocaleString()}</strong></span>` : ''}
+          ${l.maxCarfax  ? `<span>Max Carfax: <strong style="color:var(--text);">$${l.maxCarfax.toLocaleString()}</strong></span>` : ''}
+        </div>` : ''}
+      </div>`;
+  });
+}
+
+
 
 // Returns the best qualifying program for a lender + beacon score
 // Merges tenant DB rates over hardcoded defaults
@@ -2264,7 +2243,7 @@ function openSettingsModal(){
   setVal('setGST',     settings.gst);
   setVal('setAPR',     settings.apr);
   setVal('setTarget',  settings.target);
-  if(settings.logoUrl){ const el=document.getElementById('logo-preview'); if(el){el.src=settings.logoUrl;el.style.display='block';} }
+  if(settings.logoUrl){ previewLogo(settings.logoUrl); }
   setVal('setDealerCity',   settings.dealerCity   || '');
   setVal('setTwilioNumber',   settings.twilioNumber   || '');
   setVal('setNotifyPhone',    settings.notifyPhone    || '');
@@ -2291,10 +2270,54 @@ function updateHeaderDealer(){
   }
 }
 function previewLogo(url){
-  const el = document.getElementById('logo-preview');
+  const el  = document.getElementById('logo-preview');
+  const lbl = document.getElementById('logo-upload-label');
+  const btn = document.getElementById('logo-remove-btn');
   if(!el) return;
-  if(url){ el.src=url; el.style.display='block'; }
-  else{ el.style.display='none'; }
+  if(url){
+    el.src = url; el.style.display = 'block';
+    if(lbl) lbl.textContent = 'Logo uploaded ✓ — click to replace';
+    if(btn) btn.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+    if(lbl) lbl.textContent = 'Click to upload logo (PNG / JPG)';
+    if(btn) btn.style.display = 'none';
+  }
+}
+
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  // Size check — keep under 200KB for settings storage
+  if (file.size > 200 * 1024) {
+    toast('Logo too large — please use an image under 200KB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const base64 = ev.target.result; // data:image/png;base64,...
+    // Store in hidden input so saveSettings() picks it up
+    const hiddenInput = document.getElementById('setLogoUrl');
+    if (hiddenInput) hiddenInput.value = base64;
+    // Update settings object immediately
+    settings.logoUrl = base64;
+    // Show preview + update header
+    previewLogo(base64);
+    if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
+    toast('Logo loaded — click Save Settings to apply');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  settings.logoUrl = '';
+  const hiddenInput = document.getElementById('setLogoUrl');
+  const fileInput   = document.getElementById('logoFileInput');
+  if (hiddenInput) hiddenInput.value = '';
+  if (fileInput)   fileInput.value   = '';
+  previewLogo('');
+  if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
+  toast('Logo removed — click Save Settings to apply');
 }
 async function saveSettings(){
   // 1. Read from form inputs
@@ -2652,97 +2675,6 @@ function refreshAllAnalytics(){
   document.getElementById('avgPVR').textContent=tot?$i(totPVR/tot):'$0';
   document.getElementById('totalBackend').textContent=$i(totPVR);
   updateTarget(mo);
-
-  // ── Lender Submission Outcomes ───────────────────────────────────────────
-  const subs = typeof getSubmissions === 'function' ? getSubmissions() : [];
-  const subApproved = subs.filter(s => s.status === 'Approved').length;
-  const subDeclined = subs.filter(s => s.status === 'Declined').length;
-  const subCounter  = subs.filter(s => s.status === 'Counter').length;
-  const subPending  = subs.filter(s => s.status === 'Pending').length;
-  const subTotal    = subs.length;
-  const approvalRate = subTotal > 0 ? ((subApproved / subTotal) * 100).toFixed(0) + '%' : '—';
-
-  const lenderEl = document.getElementById('an-lender-outcomes');
-  if(lenderEl && subTotal > 0){
-    // Tally by lender
-    const byLender = {};
-    subs.forEach(s => {
-      if(!byLender[s.lender]) byLender[s.lender] = {approved:0,declined:0,counter:0,pending:0,total:0};
-      byLender[s.lender][s.status.toLowerCase()] = (byLender[s.lender][s.status.toLowerCase()]||0) + 1;
-      byLender[s.lender].total++;
-    });
-    const sorted = Object.entries(byLender).sort((a,b) => b[1].total - a[1].total);
-    lenderEl.innerHTML = sorted.map(([name, d]) => {
-      const rate = d.total > 0 ? Math.round((d.approved/d.total)*100) : 0;
-      const barColor = rate >= 70 ? 'var(--green)' : rate >= 40 ? 'var(--amber)' : 'var(--red)';
-      return `<div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-          <span style="font-size:11px;font-weight:700;">${name.split(' ')[0]}</span>
-          <span style="font-size:11px;color:${barColor};font-weight:800;">${d.approved}/${d.total} (${rate}%)</span>
-        </div>
-        <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
-          <div style="width:${rate}%;height:100%;background:${barColor};border-radius:4px;"></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:3px;font-size:9px;color:var(--muted);">
-          ${d.approved>0?`<span style="color:var(--green);">✓ ${d.approved} Approved</span>`:''}
-          ${d.counter>0?`<span style="color:var(--primary);">↔ ${d.counter} Counter</span>`:''}
-          ${d.declined>0?`<span style="color:var(--red);">✗ ${d.declined} Declined</span>`:''}
-          ${d.pending>0?`<span>⏳ ${d.pending} Pending</span>`:''}
-        </div>
-      </div>`;
-    }).join('');
-    const el_rate = document.getElementById('an-approval-rate');
-    const el_total = document.getElementById('an-sub-total');
-    if(el_rate) el_rate.textContent = approvalRate;
-    if(el_total) el_total.textContent = subTotal + ' submissions';
-  } else if(lenderEl) {
-    lenderEl.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No submissions logged yet — use LOG SUBMISSION in Compare All</div>';
-  }
-
-  // ── Deal Funnel Stats ────────────────────────────────────────────────────
-  const vscPct  = tot ? ((vscN/tot)*100).toFixed(0)+'%' : '0%';
-  const gapPct  = tot ? ((gapN/tot)*100).toFixed(0)+'%' : '0%';
-  const bestPen = Math.max(vscN,gapN,twN,waN);
-  const bestPenLabel = bestPen === vscN ? 'VSC' : bestPen === gapN ? 'GAP' : bestPen === twN ? 'T&W' : 'WA';
-  const el_funnel = document.getElementById('an-deal-funnel');
-  if(el_funnel && tot > 0){
-    const moAvg = mo > 0 ? $i(totPVR / (mo || 1)) : '$0';
-    el_funnel.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
-          <div style="font-size:20px;font-weight:900;color:var(--green);">${tot}</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Total Deals</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
-          <div style="font-size:20px;font-weight:900;color:var(--amber);">${mo}</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">This Month</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
-          <div style="font-size:20px;font-weight:900;color:var(--primary);">${$i(tot?totPVR/tot:0)}</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Avg PVR</div>
-        </div>
-        <div style="background:var(--surface2);border-radius:7px;padding:10px;text-align:center;">
-          <div style="font-size:20px;font-weight:900;color:var(--green);">${bestPenLabel}</div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Top Product</div>
-        </div>
-      </div>
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;">F&I Penetration</div>
-      ${[['VSC',vscN],['GAP',gapN],['T&W',twN],['WA',waN]].map(([label,n])=>{
-        const pct = tot ? Math.round((n/tot)*100) : 0;
-        const clr = pct>=60?'var(--green)':pct>=30?'var(--amber)':'var(--red)';
-        return `<div style="margin-bottom:8px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-            <span style="font-size:11px;font-weight:700;">${label}</span>
-            <span style="font-size:11px;color:${clr};font-weight:800;">${pct}% <span style="color:var(--muted);font-weight:400;">(${n}/${tot})</span></span>
-          </div>
-          <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${clr};border-radius:4px;transition:width .4s;"></div>
-          </div>
-        </div>`;
-      }).join('')}`;
-  } else if(el_funnel){
-    el_funnel.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No deals logged yet — log deals from the Deal Desk</div>';
-  }
 }
 
 function showAnalyticsTab(id,btn){
@@ -2780,55 +2712,158 @@ function updateTarget(dealsThisMonth){
 }
 
 // ── CSV IMPORT (Updated for Cloud & Sync) ──────────────
-function importCSV(){
-  const txt=document.getElementById('csvText').value.trim();
-  if(!txt){toast('Paste CSV content first');return;}
-  const lines=txt.split('\n');
-  if(lines.length<2){toast('Need at least header + 1 data row');return;}
-  const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
-  const idx=k=>headers.indexOf(k);
-  const imported=[];
-  
-  for(let i=1;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    const cols=lines[i].split(',').map(c=>c.trim());
-    imported.push({
-      stock:cols[idx('stock')]||'',
-      year:parseInt(cols[idx('year')])||0,
-      make:cols[idx('make')]||'',
-      model:cols[idx('model')]||'',
-      mileage:parseInt(cols[idx('mileage')])||0,
-      price:parseFloat(cols[idx('price')])||0,
-      condition:cols[idx('condition')]||'Average',
-      carfax:parseFloat(cols[idx('carfax')])||0,
-      type:cols[idx('type')]||'',
-      book_value:parseFloat(cols[idx('book_value')]||cols[idx('book value')]||cols[idx('bookvalue')])||0
-    });
+// ── INVENTORY IMPORT — CSV / Excel / paste ────────────────────────
+// Proper CSV parser that handles quoted fields with commas inside
+function parseCSVText(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  const result = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const row = [];
+    let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        row.push(cur.trim()); cur = '';
+      } else { cur += ch; }
+    }
+    row.push(cur.trim());
+    result.push(row);
   }
-  
-  if(!imported.length){toast('No valid rows found');return;}
-
-  // 1. Update the new global variables
-  window.inventory = imported;
-  window.ffInventory = imported;
-
-  // 2. Immediately rebuild dropdowns and the inventory table
-  initInventory(); 
-
-  // 3. Sync imported inventory to the cloud (desk_inventory table)
-  if(window.FF && FF.isLoggedIn) {
-    FF.apiFetch('/api/desk/inventory/bulk',{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({vehicles:imported})
-    }).catch(e => console.error("Cloud sync failed:", e));
-  }
-  
-  closeModal('csvImportModal');
-  toast(` Imported ${imported.length} vehicles!`);
+  return result;
 }
 
-// ── EXPORT ────────────────────────────────────────────
+function rowsToVehicles(rows) {
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
+  const idx = k => headers.findIndex(h => h === k || h.startsWith(k));
+  const vehicles = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i];
+    if (!cols.some(c => c)) continue; // skip empty rows
+    const get = k => { const x = idx(k); return x >= 0 ? (cols[x]||'').trim() : ''; };
+    vehicles.push({
+      stock:      get('stock'),
+      year:       parseInt(get('year')) || 0,
+      make:       get('make'),
+      model:      get('model'),
+      mileage:    parseInt(get('mileage')) || 0,
+      price:      parseFloat(get('price')) || 0,
+      condition:  get('condition') || 'Average',
+      carfax:     parseFloat(get('carfax')) || 0,
+      type:       get('type'),
+      book_value: parseFloat(get('book_value') || get('bookvalue') || get('book value') || get('acv')) || 0,
+      vin:        get('vin'),
+      colour:     get('colour') || get('color'),
+      trim:       get('trim'),
+    });
+  }
+  return vehicles.filter(v => v.make || v.model || v.stock);
+}
+
+function showInvPreview(vehicles) {
+  const preview = document.getElementById('inv-import-preview');
+  const countEl = document.getElementById('inv-import-count');
+  const warnEl  = document.getElementById('inv-import-warn');
+  if (!preview) return;
+  const missing = vehicles.filter(v => !v.stock).length;
+  if (countEl) countEl.textContent = vehicles.length + ' vehicles ready to import';
+  if (warnEl)  warnEl.textContent  = missing ? missing + ' rows missing stock #' : '';
+  preview.style.display = 'block';
+}
+
+function handleInvFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processInvFile(file);
+}
+
+function handleInvFileDrop(e) {
+  const file = e.dataTransfer.files[0];
+  if (file) processInvFile(file);
+}
+
+function processInvFile(file) {
+  const nameEl = document.getElementById('inv-file-name');
+  if (nameEl) nameEl.textContent = '📄 ' + file.name;
+
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'xlsx' || ext === 'xls') {
+    // Excel — use SheetJS
+    if (typeof XLSX === 'undefined') {
+      toast('Excel library not loaded — refresh and try again');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb    = XLSX.read(e.target.result, { type: 'array' });
+        const ws    = wb.Sheets[wb.SheetNames[0]];
+        const rows  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        window._invImportRows = rows;
+        const vehicles = rowsToVehicles(rows);
+        showInvPreview(vehicles);
+        toast(vehicles.length + ' vehicles parsed from Excel');
+      } catch(err) {
+        toast('Could not parse Excel file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // CSV or text
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      document.getElementById('csvText').value = text;
+      window._invImportRows = parseCSVText(text);
+      const vehicles = rowsToVehicles(window._invImportRows);
+      showInvPreview(vehicles);
+      toast(vehicles.length + ' vehicles parsed from CSV');
+    };
+    reader.readAsText(file);
+  }
+}
+
+function importInventory() {
+  let vehicles;
+
+  // Priority: parsed from file → paste textarea
+  if (window._invImportRows && window._invImportRows.length > 1) {
+    vehicles = rowsToVehicles(window._invImportRows);
+  } else {
+    const txt = document.getElementById('csvText')?.value?.trim();
+    if (!txt) { toast('Upload a file or paste CSV content first'); return; }
+    window._invImportRows = parseCSVText(txt);
+    vehicles = rowsToVehicles(window._invImportRows);
+  }
+
+  if (!vehicles.length) { toast('No valid vehicles found — check column headers'); return; }
+
+  window.inventory   = vehicles;
+  window.ffInventory = vehicles;
+  window._invImportRows = null; // clear
+
+  initInventory();
+
+  if (window.FF && FF.isLoggedIn) {
+    FF.apiFetch('/api/desk/inventory/bulk', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicles })
+    }).catch(e => console.error('Cloud sync failed:', e));
+  }
+
+  closeModal('csvImportModal');
+  toast('✅ Imported ' + vehicles.length + ' vehicles!');
+}
+
+// Legacy wrapper — keep importCSV working if called anywhere
+function importCSV() { importInventory(); }
+
+
 function exportJSON(type){
   const data=type==='deals'?dealLog:crmData;
   const name=`firstfin-${type}-${new Date().toISOString().split('T')[0]}.json`;
@@ -2956,102 +2991,6 @@ async function loadSarahDashboard(){
           ? an.budgetDist.map(b=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);"><span>${b.budget}</span><span style="color:var(--green);font-weight:700;">${b.count}</span></div>`).join('')
           : '<div style="padding:8px;color:var(--muted);">No data yet</div>';
         document.getElementById('sa-budgetDist').innerHTML = bdist;
-
-        // ── Status breakdown ──────────────────────────────────────────────────
-        const statusEl = document.getElementById('sa-statusBreakdown');
-        if(statusEl && an.totalConversations > 0){
-          const statuses = [
-            { label:'Engaged',   count: an.totalEngaged||0,                            color:'var(--amber)'   },
-            { label:'Converted', count: an.totalConverted||0,                          color:'var(--primary)' },
-            { label:'Active',    count: an.totalConversations - (an.totalEngaged||0) - (an.totalConverted||0) - (an.totalStopped||0), color:'var(--green)' },
-            { label:'Stopped',   count: an.totalStopped||0,                            color:'var(--red)'     },
-          ];
-          statusEl.innerHTML = statuses.map(s => {
-            const pct = ((s.count / an.totalConversations) * 100).toFixed(0);
-            return `<div style="margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
-                <span style="color:${s.color};font-weight:700;">${s.label}</span>
-                <span style="color:var(--text);">${s.count} <span style="color:var(--muted);">(${pct}%)</span></span>
-              </div>
-              <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
-                <div style="width:${pct}%;height:100%;background:${s.color};border-radius:4px;transition:width .5s;"></div>
-              </div>
-            </div>`;
-          }).join('');
-        }
-
-        // ── Stage funnel ──────────────────────────────────────────────────────
-        const funnelEl = document.getElementById('sa-stageFunnel');
-        if(funnelEl && an.stageFunnel && an.stageFunnel.length){
-          const stageColors = { greeting:'#8b5cf6', budget:'var(--amber)', appointment:'var(--primary)', name:'#06b6d4', datetime:'var(--green)', confirmed:'var(--green)' };
-          funnelEl.innerHTML = an.stageFunnel.map(s => `
-            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
-              <span style="color:${stageColors[s.stage]||'var(--text)'};font-weight:600;text-transform:capitalize;">${s.stage||'greeting'}</span>
-              <span style="color:var(--text);font-weight:700;">${s.count}</span>
-            </div>`).join('');
-        }
-
-        // ── Weekly trend ──────────────────────────────────────────────────────
-        const trendEl = document.getElementById('sa-weeklyTrend');
-        if(trendEl && an.weeklyTrend && an.weeklyTrend.length){
-          const maxC = Math.max(...an.weeklyTrend.map(w => parseInt(w.conversations||0)), 1);
-          trendEl.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:80px;padding:0 4px;">
-            ${an.weeklyTrend.map(w => {
-              const conv = parseInt(w.conversations||0);
-              const cvt  = parseInt(w.converted||0);
-              const h    = Math.max(4, Math.round((conv/maxC)*80));
-              const dt   = new Date(w.week_start).toLocaleDateString('en-CA',{month:'short',day:'numeric'});
-              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-                <div style="font-size:9px;color:var(--muted);">${conv}</div>
-                <div style="width:100%;height:${h}px;background:var(--primary);border-radius:3px 3px 0 0;opacity:.8;position:relative;">
-                  ${cvt > 0 ? `<div style="position:absolute;bottom:0;width:100%;height:${Math.round((cvt/conv)*h)}px;background:var(--green);border-radius:3px 3px 0 0;"></div>` : ''}
-                </div>
-                <div style="font-size:8px;color:var(--muted);white-space:nowrap;">${dt}</div>
-              </div>`;
-            }).join('')}
-          </div>
-          <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
-            <span><span style="display:inline-block;width:8px;height:8px;background:var(--primary);border-radius:2px;margin-right:4px;"></span>Started</span>
-            <span><span style="display:inline-block;width:8px;height:8px;background:var(--green);border-radius:2px;margin-right:4px;"></span>Converted</span>
-          </div>`;
-        }
-
-        // ── Deal desk stats ───────────────────────────────────────────────────
-        const ds = an.dealStats;
-        if(ds){
-          const dsEl = document.getElementById('sa-dealStats');
-          if(dsEl) dsEl.innerHTML = `
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
-              ${[['Total Deals',ds.totalDeals,'var(--text)'],['This Month',ds.monthDeals,'var(--primary)'],['This Week',ds.weekDeals,'var(--amber)'],['Today',ds.todayDeals,'var(--green)']].map(([l,v,c])=>`
-              <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
-                <div style="font-size:22px;font-weight:800;color:${c};">${v}</div>
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">${l}</div>
-              </div>`).join('')}
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div style="background:var(--surface2);border-radius:8px;padding:10px;">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">F&I Penetration</div>
-                ${[['VSC',ds.vscCount],['GAP',ds.gapCount],['T&W',ds.twCount],['WA',ds.waCount]].map(([name,count])=>{
-                  const pct = ds.totalDeals > 0 ? Math.round((count/ds.totalDeals)*100) : 0;
-                  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;">
-                    <span style="font-size:11px;color:var(--text);">${name}</span>
-                    <span style="font-size:11px;font-weight:700;color:${pct>=50?'var(--green)':'var(--amber)'};">${pct}% <span style="color:var(--muted);font-weight:400;">(${count})</span></span>
-                  </div>`;
-                }).join('')}
-              </div>
-              <div style="background:var(--surface2);border-radius:8px;padding:10px;">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Revenue</div>
-                <div style="margin-bottom:6px;">
-                  <div style="font-size:10px;color:var(--muted);">Avg Backend</div>
-                  <div style="font-size:18px;font-weight:800;color:var(--green);">$${parseInt(ds.avgBackend).toLocaleString()}</div>
-                </div>
-                <div>
-                  <div style="font-size:10px;color:var(--muted);">Avg PVR</div>
-                  <div style="font-size:18px;font-weight:800;color:var(--primary);">$${parseInt(ds.avgPvr).toLocaleString()}</div>
-                </div>
-              </div>
-            </div>`;
-        }
       }
     } catch(e){ console.warn('Analytics load error', e); }
 
@@ -3805,7 +3744,7 @@ function checkBillingBanner(billing) {
   // Full access — ensure desk blur is cleared
   if (access === 'full' && reason === 'active') { _removeDeskBlur(); return; }
   if (access === 'full' && reason === 'exempt') { _removeDeskBlur(); return; }
-  if (access === 'full' && reason === 'trial')  { _removeDeskBlur(); return; }  // legacy — no free trials
+  if (access === 'full' && reason === 'trial')  { _removeDeskBlur(); }
 
   const banner = document.createElement('div');
   banner.id = 'billingBanner';
@@ -3815,10 +3754,8 @@ function checkBillingBanner(billing) {
     // Expired or lapsed — lock write operations
     banner.style.background = 'linear-gradient(90deg,#dc2626,#991b1b)';
     banner.style.color = '#fff';
-    const msg = reason === 'pending'
-      ? '⚠️ Subscription required — complete checkout to activate your account'
-      : reason === 'trial_expired'
-      ? '⚠️ Subscription required — complete checkout to activate your account'
+    const msg = reason === 'trial_expired'
+      ? '⚠️ Your free trial has ended — upgrade to continue using FIRST-FIN'
       : '⚠️ Your subscription is inactive — please renew to restore access';
     banner.innerHTML = `
       <span>${msg}</span>
@@ -3830,8 +3767,18 @@ function checkBillingBanner(billing) {
     _enforceReadonly();
     _applyDeskBlur();
 
-    }
-  // Note: no free trial banner — paid subscription required from day 1
+  } else if (access === 'full' && reason === 'trial' && daysLeft <= 3) {
+    // Trial ending soon — warning banner, no lockout
+    banner.style.background = 'linear-gradient(90deg,#d97706,#92400e)';
+    banner.style.color = '#fff';
+    banner.innerHTML = `
+      <span>⏳ Trial ends in <strong>${daysLeft} day${daysLeft === 1 ? '' : 's'}</strong> — upgrade to keep full access</span>
+      <button onclick="banner.remove ? banner.remove() : banner.parentNode.removeChild(banner)"
+        style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer;margin-left:16px;">
+        Dismiss
+      </button>`;
+    document.body.appendChild(banner);
+  }
 }
 
 function _applyDeskBlur() {
@@ -3858,37 +3805,14 @@ function _applyDeskBlur() {
         <div style="font-size:36px;margin-bottom:12px;">🔒</div>
         <div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">Deal Desk Locked</div>
         <div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;">
-          A subscription is required to access deal desking, payment grids, lender comparison, and all platform features.
+          Your trial has ended. Upgrade to unlock deal desking, payment grids, lender comparison, and all platform features.
         </div>
-        <button onclick="startAuthenticatedCheckout('monthly')"
-          style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 32px;font-weight:800;font-size:14px;cursor:pointer;width:100%;margin-bottom:8px;">
-          Subscribe Monthly — CA$225/mo →
-        </button>
-        <button onclick="startAuthenticatedCheckout('annual')"
-          style="background:transparent;color:var(--primary);border:1px solid var(--primary);border-radius:8px;padding:10px 32px;font-weight:700;font-size:13px;cursor:pointer;width:100%;">
-          Subscribe Annual — CA$2,426.99/yr (save 10%)
+        <button onclick="showSection('settings')"
+          style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 32px;font-weight:800;font-size:14px;cursor:pointer;width:100%;">
+          Upgrade Now →
         </button>
       </div>`;
     document.body.appendChild(overlay);
-  }
-}
-
-async function startAuthenticatedCheckout(plan = 'monthly') {
-  try {
-    const res = await FF.apiFetch('/api/billing/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan })
-    });
-    const data = await res.json();
-    if (data.success && data.url) {
-      window.location.href = data.url;
-    } else {
-      toast('Checkout error: ' + (data.error || 'Please try again'));
-    }
-  } catch(e) {
-    toast('Checkout failed — please try again');
-    console.error('Checkout error:', e);
   }
 }
 
@@ -4043,27 +3967,6 @@ console.log('%cInventory: pending cloud sync | Lenders: '+Object.keys(lenders).l
 
 // ── LENDER RATE EDITOR ───────────────────────────────────────
 // Load any locally-saved overrides on top of defaults
-
-// ── Update lender checker panel tiers from loaded tenant rates ───────────────
-function updateLenderPanelTiers(){
-  if(!window._tenantRates) return;
-  Object.entries(window._tenantRates).forEach(([lid, tiers]) => {
-    const el = document.getElementById('lp-tiers-' + lid);
-    if(!el || !tiers || !tiers.length) return;
-    el.innerHTML = tiers
-      .sort((a,b) => parseFloat(a.buy_rate) - parseFloat(b.buy_rate))
-      .map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
-        <span style="font-weight:600;color:var(--text);">${t.tier_name || '—'}</span>
-        <span style="color:var(--green);font-weight:800;">${t.buy_rate}%
-          <span style="color:var(--muted);font-weight:400;font-size:10px;">
-            · ${t.min_fico}–${t.max_fico===9999||t.max_fico>=9999?'∞':t.max_fico}
-            · ${t.max_ltv}% LTV
-          </span>
-        </span>
-      </div>`).join('');
-  });
-}
-
 function applyLenderRateOverrides(){
   const saved = JSON.parse(localStorage.getItem('ffLenderRates') || '{}');
   Object.entries(saved).forEach(([lid, overrides]) => {
@@ -5098,7 +5001,7 @@ function updateWizSummary(){
     if(confirmed.length > 0){
       fiSection.style.display = 'block';
       fiProducts.innerHTML = confirmed.map(prod =>
-        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.name}</div>`
+        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.label}</div>`
       ).join('');
     } else {
       fiSection.style.display = 'none';
@@ -5535,3 +5438,58 @@ async function wizFinish() {
     btn.disabled = false;
   }
 }
+
+// ── Load lender tier display data from server ─────────────────────────────
+async function loadLenderTiers() {
+  if (!window.FF || !FF.isLoggedIn || window.DEMO_MODE) return;
+  try {
+    const data = await FF.apiFetch('/api/compare/lender-tiers').then(r => r.json());
+    if (!data.success || !data.tiers) return;
+    window._lenderTiers = data.tiers;
+    renderAllLenderPanelTiers();
+  } catch(e) {
+    console.warn('Could not load lender tiers:', e.message);
+  }
+}
+
+function renderAllLenderPanelTiers() {
+  const tiers = window._lenderTiers;
+  if (!tiers) return;
+
+  Object.entries(tiers).forEach(([lid, l]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if (!el) return;
+
+    // If dealer has custom uploaded rates, those take priority — already handled by updateLenderPanelTiers()
+    if (window._tenantRates && window._tenantRates[lid] && window._tenantRates[lid].length) return;
+
+    if (!l.programs || !l.programs.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 0;font-style:italic;">No tier data available</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;background:var(--surface);padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p, i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;padding:7px 10px;font-size:11px;border-bottom:${i < l.programs.length-1 ? '1px solid var(--border)' : 'none'};">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv || '—'}</span>
+          </div>`).join('')}
+        </div>
+        ${l.maxMileage || l.maxCarfax || l.minYear ? `
+        <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
+          ${l.minYear   ? `<span>Min Year: <strong style="color:var(--text);">${l.minYear}</strong></span>` : ''}
+          ${l.maxMileage? `<span>Max KM: <strong style="color:var(--text);">${l.maxMileage.toLocaleString()}</strong></span>` : ''}
+          ${l.maxCarfax ? `<span>Max Carfax: <strong style="color:var(--text);">$${l.maxCarfax.toLocaleString()}</strong></span>` : ''}
+        </div>` : ''}
+      </div>`;
+  });
+}
+
