@@ -1257,6 +1257,9 @@
         <div style="margin-bottom:14px;">
           <input id="indexBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
         </div>
+        <div style="margin-bottom:14px;">
+          <input id="indexBuyPhone" type="tel" placeholder="Phone number" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
+        </div>
         <div id="indexBuyErr" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:10px 13px;font-size:12px;color:#ef4444;margin-bottom:14px;"></div>
         <button onclick="startIndexBuy()" id="indexBuyBtn" style="width:100%;padding:13px;background:linear-gradient(135deg, #1e5af6, #2d6cff);border:none;border-radius:8px;color:white;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;">
           Proceed to Secure Payment →
@@ -1312,7 +1315,8 @@ async function startIndexBuy() {
   const errEl = document.getElementById('indexBuyErr');
   const btn = document.getElementById('indexBuyBtn');
 
-  if (!name || !dealership || !email) {
+  const phone = document.getElementById('indexBuyPhone')?.value?.trim() || '';
+  if (!name || !dealership || !email || !phone) {
     errEl.textContent = 'Please fill in all fields.';
     errEl.style.display = 'block';
     return;
@@ -1326,7 +1330,7 @@ async function startIndexBuy() {
     const res = await fetch('/api/billing/public-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email, name, dealership })
+      body: JSON.stringify({ plan, email, name, dealership, phone: document.getElementById('indexBuyPhone')?.value?.trim() || '' })
     });
     const data = await res.json();
     
