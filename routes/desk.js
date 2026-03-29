@@ -342,6 +342,35 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── CHANGE PASSWORD ─────────────────────────────────────
+  // ── FIRST-LOGIN PASSWORD SET (onboarding only — no current password required) ──────────
+  app.post('/api/desk/set-password', requireAuth, async (req, res) => {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    const client = await pool.connect();
+    try {
+      // Only allow if onboardingPending is set in settings
+      const userRow = await client.query(
+        'SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]
+      );
+      const s = userRow.rows[0]?.settings_json || {};
+      const parsed = typeof s === 'string' ? JSON.parse(s) : s;
+      if (!parsed.onboardingPending) {
+        return res.status(403).json({ success: false, error: 'Use change-password instead' });
+      }
+      const hash = await bcrypt.hash(newPassword, 12);
+      await client.query(
+        'UPDATE desk_users SET password_hash = $1 WHERE id = $2',
+        [hash, req.user.userId]
+      );
+      console.log('✅ Onboarding password set for user', req.user.userId);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: e.message });
+    } finally { client.release(); }
+  });
+
   app.post('/api/desk/change-password', requireAuth, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
