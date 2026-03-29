@@ -1786,24 +1786,106 @@ select option{background:#0d1526;color:var(--text);}
 
   <!-- Stats -->
   <div id="atab-stats" class="mgr-content">
-    <div class="stat-hero">
-      <div class="stat-card"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Total Deals</div></div>
-      <div class="stat-card"><div class="stat-number" id="statMonth">0</div><div class="stat-label">This Month</div></div>
-      <div class="stat-card"><div class="stat-number" id="statWeek">0</div><div class="stat-label">This Week</div></div>
-      <div class="stat-card"><div class="stat-number" id="statToday">0</div><div class="stat-label">Today</div></div>
-    </div>
-    <div class="card-title" style="margin-bottom:12px;"><i data-lucide="pie-chart" class="ico"></i>Product Penetration</div>
-    <div class="penetration-grid">
-      <div class="pen-card"><div class="pen-pct" id="penVSC">0%</div><div class="pen-label">VSC</div><div class="pen-sub" id="penVSCn">0 of 0</div></div>
-      <div class="pen-card"><div class="pen-pct" id="penGAP">0%</div><div class="pen-label">GAP</div><div class="pen-sub" id="penGAPn">0 of 0</div></div>
-      <div class="pen-card"><div class="pen-pct" id="penTW">0%</div><div class="pen-label">T&W</div><div class="pen-sub" id="penTWn">0 of 0</div></div>
-      <div class="pen-card"><div class="pen-pct" id="penWA">0%</div><div class="pen-label">WA</div><div class="pen-sub" id="penWAn">0 of 0</div></div>
-    </div>
-    <div class="two-col">
-      <div class="card"><div class="card-title"><i data-lucide="trending-up" class="ico"></i>Revenue</div>
-        <div class="cline"><span class="cl-label">Average PVR</span><span class="cl-value" id="avgPVR">$0</span></div>
-        <div class="cline"><span class="cl-label">Total Backend</span><span class="cl-value" id="totalBackend">$0</span></div>
+
+    <!-- ── Deal Desk Stats (from DB) ── -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><i data-lucide="file-text" class="ico"></i>Deal Desk</div>
+      <div id="sa-dealStats">
+        <div style="color:var(--muted);font-size:12px;padding:8px;">Loading...</div>
       </div>
+    </div>
+
+    <!-- ── Sarah Outreach Stats ── -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><i data-lucide="message-circle" class="ico" style="color:var(--primary)"></i>Sarah Outreach</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">
+        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--primary);" id="sa-convRate">—</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Conversion Rate</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-convDetail">—</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--green);" id="sa-respRate">—</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Response Rate</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-respDetail">—</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:var(--amber);" id="sa-avgMsg">—</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Avg Messages</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">per conversation</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:#8b5cf6;" id="sa-weekConv">—</div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">This Week</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="sa-weekDetail">—</div>
+        </div>
+      </div>
+
+      <!-- Status breakdown -->
+      <div style="margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Conversation Status</div>
+        <div id="sa-statusBreakdown"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
+      </div>
+
+      <!-- Stage funnel + weekly trend side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Stage Funnel</div>
+          <div id="sa-stageFunnel"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">8-Week Trend</div>
+          <div id="sa-weeklyTrend"><div style="color:var(--muted);font-size:12px;">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- Vehicle types + budget dist -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Top Vehicle Types</div>
+          <div id="sa-topVehicles" style="font-size:12px;color:var(--muted);">Loading...</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Budget Distribution</div>
+          <div id="sa-budgetDist" style="font-size:12px;color:var(--muted);">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden legacy IDs — kept for refreshAllAnalytics compatibility -->
+    <div style="display:none;" id="legacy-stats-card">
+      <div id="statTotal"></div><div id="statMonth"></div>
+      <div id="statWeek"></div><div id="statToday"></div>
+      <div id="penVSC"></div><div id="penVSCn"></div>
+      <div id="penGAP"></div><div id="penGAPn"></div>
+      <div id="penTW"></div><div id="penTWn"></div>
+      <div id="penWA"></div><div id="penWAn"></div>
+      <div id="avgPVR"></div><div id="totalBackend"></div>
+    </div>
+
+    <!-- Lender Submissions -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><i data-lucide="send" class="ico" style="color:var(--primary)"></i>Lender Submissions
+        <span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px;" id="an-sub-total"></span>
+        <span style="font-size:11px;color:var(--green);font-weight:700;margin-left:8px;" id="an-approval-rate"></span>
+      </div>
+      <div id="an-lender-outcomes"><div style="font-size:11px;color:var(--muted);font-style:italic;padding:8px 0;">No submissions logged yet — use LOG SUBMISSION in Compare All</div></div>
+    </div>
+
+    <!-- Monthly Target -->
+    <div class="card">
+      <div class="card-title"><i data-lucide="target" class="ico" style="color:var(--amber)"></i>Monthly Target</div>
+      <div class="two-col" style="margin-bottom:14px;">
+        <div class="fgroup"><label>Monthly Target (deals)</label><input type="number" id="targetInput" value="30" oninput="updateTarget()"></div>
+      </div>
+      <div class="stat-hero" style="margin-bottom:12px;">
+        <div class="stat-card"><div class="stat-number" id="tDeals">0</div><div class="stat-label">Deals This Month</div></div>
+        <div class="stat-card"><div class="stat-number" id="tTarget">30</div><div class="stat-label">Target</div></div>
+        <div class="stat-card"><div class="stat-number" id="tPct">0%</div><div class="stat-label">Progress</div></div>
+        <div class="stat-card"><div class="stat-number" id="tPace">—</div><div class="stat-label">Pace</div></div>
+      </div>
+      <div class="cline"><span class="cl-label">Days Left in Month</span><span class="cl-value" id="tDaysLeft">—</span></div>
+      <div class="cline"><span class="cl-label">Needed Per Day</span><span class="cl-value" id="tNeedPerDay">—</span></div>
     </div>
   </div>
 
