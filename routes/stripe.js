@@ -90,13 +90,15 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
           name:        cleanName,
           dealership:  cleanDealership,
           plan:        plan,
+          phone:       (req.body.phone || '').toString().trim().substring(0, 20),
           source:      'public_modal'
         },
         subscription_data: {
           metadata: {
             email:      cleanEmail,
             name:       cleanName,
-            dealership: cleanDealership
+            dealership: cleanDealership,
+            phone:      (req.body.phone || '').toString().trim().substring(0, 20)
           }
         }
       });
@@ -283,9 +285,43 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               );
               console.log(`✅ Existing account activated via public checkout — ${buyerEmail}`);
             } else {
-              // Brand new buyer — no account yet. Log it so onboarding can create one.
-              // Account creation happens during manual 24hr onboarding call.
-              console.log(`✅ New public purchase pending onboarding — ${buyerEmail} (${dealership})`);
+              // Brand new buyer — create pending account + log inquiry
+              const buyerPhone = session.metadata?.phone || '';
+              const bcrypt = require('bcryptjs');
+              const crypto = require('crypto');
+
+              // Generate a temporary random password — dealer must reset
+              const tempPass = crypto.randomBytes(8).toString('hex');
+              const passHash = await bcrypt.hash(tempPass, 12);
+
+              const newUser = await client.query(
+                `INSERT INTO desk_users
+                   (email, password_hash, display_name, role, settings_json,
+                    subscription_status, stripe_customer_id)
+                 VALUES ($1, $2, $3, 'owner', $4, 'active', $5)
+                 ON CONFLICT (email) DO UPDATE
+                   SET subscription_status = 'active', stripe_customer_id = EXCLUDED.stripe_customer_id
+                 RETURNING id`,
+                [buyerEmail, passHash, buyerName,
+                 JSON.stringify({ dealerName: dealership, salesName: buyerName }),
+                 session.customer]
+              ).catch(e => { console.error('Create user error:', e.message); return { rows: [] }; });
+
+              const newUserId = newUser.rows[0]?.id;
+
+              // Write to platform_inquiries so it shows in admin panel
+              await client.query(
+                `INSERT INTO platform_inquiries
+                   (name, dealership, phone, email, status)
+                 VALUES ($1, $2, $3, $4, 'paid')
+                 ON CONFLICT DO NOTHING`,
+                [buyerName, dealership || '', buyerPhone, buyerEmail]
+              ).catch(e => console.error('Inquiry insert error:', e.message));
+
+              // Log temp password for admin reference
+              console.log('🔑 Temp password for ' + buyerEmail + ': ' + tempPass);
+
+              console.log('✅ New dealer account created — ' + buyerEmail + ' (user ' + newUserId + ')');
             }
           }
 
@@ -295,14 +331,16 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               process.env.TWILIO_ACCOUNT_SID,
               process.env.TWILIO_AUTH_TOKEN
             );
+            const buyerPhone = session.metadata?.phone || 'not provided';
             await twilio.messages.create({
               body: `💳 NEW FIRST-FIN PURCHASE!\n` +
                     `Name: ${buyerName}\n` +
                     `Dealership: ${dealership}\n` +
                     `Email: ${buyerEmail}\n` +
+                    `Phone: ${buyerPhone}\n` +
                     `Plan: ${plan}\n` +
-                    (source === 'public_modal' ? `Source: Landing page\n` : '') +
-                    `⚡ Contact within 24 hrs to onboard`,
+                    (source === 'public_modal' ? `✅ Account auto-created — check admin panel for temp password` : `✅ Existing account activated`) + `\n` +
+                    `🔗 ${process.env.BASE_URL}/admin`,
               from: process.env.TWILIO_PHONE_NUMBER,
               to:   process.env.FORWARD_PHONE
             });
