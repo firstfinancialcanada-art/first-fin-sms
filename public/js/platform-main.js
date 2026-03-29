@@ -2738,13 +2738,13 @@ function parseCSVText(text) {
 
 function rowsToVehicles(rows) {
   if (rows.length < 2) return [];
-  const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
+  const headers = rows[0].map(h => String(h ?? '').toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
   const idx = k => headers.findIndex(h => h === k || h.startsWith(k));
   const vehicles = [];
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
-    if (!cols.some(c => c)) continue; // skip empty rows
-    const get = k => { const x = idx(k); return x >= 0 ? (cols[x]||'').trim() : ''; };
+    if (!cols || !cols.some(c => c !== '' && c !== null && c !== undefined)) continue;
+    const get = k => { const x = idx(k); return x >= 0 ? String(cols[x] ?? '').trim() : ''; };
     vehicles.push({
       stock:      get('stock'),
       year:       parseInt(get('year')) || 0,
