@@ -941,6 +941,7 @@ select option{background:#0d1526;color:var(--text);}
       <input id="loginBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:14px;outline:none;">
+      <input id="loginBuyPhone" type="tel" placeholder="Phone number" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:14px;outline:none;">
       <div id="loginBuyErr" style="display:none;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#ef4444;margin-bottom:10px;"></div>
       <button onclick="startLoginBuy()" id="loginBuyBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;">
         Proceed to Secure Payment →
@@ -2575,6 +2576,8 @@ async function startDemoBuy() {
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
   if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
+  const phone = (document.getElementById('demoBuyPhone')?.value || '').trim();
+  if (!phone) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2583,7 +2586,7 @@ async function startDemoBuy() {
     const res  = await fetch('/api/billing/public-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email, name, dealership })
+      body: JSON.stringify({ plan, email, name, dealership, phone })
     });
     const data = await res.json();
     if (data.url) { window.location.href = data.url; }
@@ -2626,6 +2629,8 @@ async function startLoginBuy() {
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
   if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
+  const phone = (document.getElementById('loginBuyPhone')?.value || '').trim();
+  if (!phone) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2634,7 +2639,7 @@ async function startLoginBuy() {
     const res  = await fetch('/api/billing/public-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, email, name, dealership })
+      body: JSON.stringify({ plan, email, name, dealership, phone })
     });
     const data = await res.json();
     if (data.url) { window.location.href = data.url; }
@@ -2704,6 +2709,7 @@ async function startLoginBuy() {
   <input id="demoBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:14px;outline:none;">
+  <input id="demoBuyPhone" type="tel" placeholder="Phone number" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:14px;outline:none;">
   <div id="demoBuyErr" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#ef4444;margin-bottom:10px;"></div>
   <button onclick="startDemoBuy()" id="demoBuyBtn" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Outfit,sans-serif;margin-bottom:6px;">
     Proceed to Secure Payment →
