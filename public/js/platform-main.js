@@ -2893,6 +2893,29 @@ function importInventory() {
     }).catch(e => console.error('Cloud sync failed:', e));
   }
 
+  // Repopulate all stock dropdowns immediately — don't wait for re-login
+  const stockDd   = document.getElementById('stockNum');
+  const compareDd = document.getElementById('compareStock');
+  const makeOpt = v => `${v.stock} — ${v.year} ${v.make} ${v.model} ($${Number(v.price||0).toLocaleString()})`;
+
+  if (stockDd) {
+    stockDd.innerHTML = '<option value="">— Select Stock # —</option>';
+    vehicles.forEach(v => stockDd.add(new Option(makeOpt(v), v.stock)));
+  }
+  if (compareDd) {
+    compareDd.innerHTML = '<option value="">— Choose a vehicle —</option>';
+    vehicles.forEach(v => compareDd.add(new Option(makeOpt(v), v.stock)));
+  }
+  // Repopulate lender checker dropdowns
+  if (typeof lenders === 'object') {
+    Object.keys(lenders).forEach(lid => {
+      const sel = document.getElementById('chk-stock-' + lid);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— Select a vehicle —</option>';
+      vehicles.forEach(v => sel.add(new Option(makeOpt(v), v.stock)));
+    });
+  }
+
   closeModal('csvImportModal');
   toast('✅ Imported ' + vehicles.length + ' vehicles!');
 }
@@ -3043,6 +3066,8 @@ async function loadSarahDashboard(){
 
     toast('Sarah data refreshed');
     setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 100);
+    // Load lender tier display (needs auth — can't run at DOMContentLoaded)
+    if (typeof loadLenderTiers === 'function') setTimeout(loadLenderTiers, 200);
   } catch(e){
     console.error('Sarah load error:', e);
     toast('Could not load Sarah data: ' + e.message);
