@@ -3805,7 +3805,7 @@ function checkBillingBanner(billing) {
   // Full access — ensure desk blur is cleared
   if (access === 'full' && reason === 'active') { _removeDeskBlur(); return; }
   if (access === 'full' && reason === 'exempt') { _removeDeskBlur(); return; }
-  if (access === 'full' && reason === 'trial')  { _removeDeskBlur(); }
+  if (access === 'full' && reason === 'trial')  { _removeDeskBlur(); return; }  // legacy — no free trials
 
   const banner = document.createElement('div');
   banner.id = 'billingBanner';
@@ -3815,8 +3815,10 @@ function checkBillingBanner(billing) {
     // Expired or lapsed — lock write operations
     banner.style.background = 'linear-gradient(90deg,#dc2626,#991b1b)';
     banner.style.color = '#fff';
-    const msg = reason === 'trial_expired'
-      ? '⚠️ Your free trial has ended — upgrade to continue using FIRST-FIN'
+    const msg = reason === 'pending'
+      ? '⚠️ Subscription required — complete checkout to activate your account'
+      : reason === 'trial_expired'
+      ? '⚠️ Subscription required — complete checkout to activate your account'
       : '⚠️ Your subscription is inactive — please renew to restore access';
     banner.innerHTML = `
       <span>${msg}</span>
@@ -3828,18 +3830,8 @@ function checkBillingBanner(billing) {
     _enforceReadonly();
     _applyDeskBlur();
 
-  } else if (access === 'full' && reason === 'trial' && daysLeft <= 3) {
-    // Trial ending soon — warning banner, no lockout
-    banner.style.background = 'linear-gradient(90deg,#d97706,#92400e)';
-    banner.style.color = '#fff';
-    banner.innerHTML = `
-      <span>⏳ Trial ends in <strong>${daysLeft} day${daysLeft === 1 ? '' : 's'}</strong> — upgrade to keep full access</span>
-      <button onclick="banner.remove ? banner.remove() : banner.parentNode.removeChild(banner)"
-        style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer;margin-left:16px;">
-        Dismiss
-      </button>`;
-    document.body.appendChild(banner);
-  }
+    }
+  // Note: no free trial banner — paid subscription required from day 1
 }
 
 function _applyDeskBlur() {
