@@ -157,18 +157,82 @@ let crmData  = [];
 // ── LENDER DATA ─────────────────────────────────────────
 // ── Lender display info (name/phone/web only — approval criteria are server-side) ──
 const lenders = {
-  autocapital:{ name:"AUTOCAPITAL CANADA",    phone:"855-646-0534",  web:"autocapitalcanada.ca",  hard:true,  minYear:2015, maxMileage:195000, maxCarfax:7500,  maxLTV:175 },
-  cibc:       { name:"CIBC AUTO FINANCE",     phone:"1-855-598-1856",web:"cibc.com/auto",          hard:false, minYear:2015, maxMileage:null,   maxCarfax:null,  maxLTV:96  },
-  edenpark:   { name:"EDENPARK",              phone:"1-855-366-8667", web:"edenparkfinancial.ca",  hard:true,  minYear:2015, maxMileage:180000, maxCarfax:7500,  maxLTV:140 },
-  iceberg:    { name:"ICEBERG FINANCE",       phone:"855-694-0960",  web:"icebergfinance.ca",      hard:true,  minYear:2012, maxMileage:180000, maxCarfax:6500,  maxLTV:140 },
-  northlake:  { name:"NORTHLAKE FINANCIAL",   phone:"1-888-652-5320",web:"northlakefinancial.ca",  hard:true,  minYear:2003, maxMileage:300000, maxCarfax:7500,  maxLTV:140 },
-  prefera:    { name:"PREFERA FINANCE",       phone:"1-844-734-3577",web:"preferafinance.ca",      hard:true,  minYear:2015, maxMileage:200000, maxCarfax:5000,  maxLTV:170 },
-  rbc:        { name:"RBC AUTO FINANCE",      phone:"1-888-529-6999",web:"rbcautofinance.ca",      hard:false, minYear:2015, maxMileage:null,   maxCarfax:null,  maxLTV:96  },
-  santander:  { name:"SANTANDER CONSUMER",    phone:"1-888-222-4227",web:"santanderconsumerusa.com",hard:true, minYear:2015, maxMileage:160000, maxCarfax:6000,  maxLTV:150 },
-  sda:        { name:"SDA FINANCE",           phone:"1-800-731-2345",web:"sdafinance.ca",          hard:true,  minYear:2012, maxMileage:250000, maxCarfax:8000,  maxLTV:135 },
-  servus:     { name:"SERVUS CREDIT UNION",   phone:"1-877-378-8728",web:"servus.ca",              hard:true,  minYear:2015, maxMileage:180000, maxCarfax:5000,  maxLTV:100 },
-  iauto:      { name:"iA AUTO FINANCE",       phone:"1-855-378-5626",web:"ia.ca",                  hard:true,  minYear:2015, maxMileage:180000, maxCarfax:7500,  maxLTV:140 },
-  wsleasing:  { name:"WS LEASING",            phone:"1-888-975-3273",web:"wsleasing.ca",           hard:true,  minYear:2018, maxMileage:120000, maxCarfax:3000,  maxLTV:100 },
+  autocapital:{ name:"AUTOCAPITAL CANADA",  phone:"855-646-0534",   web:"autocapitalcanada.ca",   hard:true,  minYear:2015, maxMileage:195000, maxCarfax:7500, maxLTV:175,
+    programs:[
+      {tier:"Tier 1 — Prime",    rate:"13.49%", fico:"680+",    minYear:2025, maxMile:"Unlimited", maxCfx:"$0",     maxLtv:"175%"},
+      {tier:"Tier 2 — Standard", rate:"14.49%", fico:"620–679", minYear:2024, maxMile:"Unlimited", maxCfx:"$2,500", maxLtv:"175%"},
+      {tier:"Tier 3 — Good",     rate:"15.99%", fico:"590–619", minYear:2023, maxMile:"195,000",   maxCfx:"$5,000", maxLtv:"165%"},
+      {tier:"Tier 4 — Fair",     rate:"17.99%", fico:"560–589", minYear:2022, maxMile:"195,000",   maxCfx:"$5,000", maxLtv:"165%"},
+      {tier:"Tier 5 — Poor",     rate:"21.49%", fico:"540–559", minYear:2020, maxMile:"195,000",   maxCfx:"$7,500", maxLtv:"150%"},
+      {tier:"Tier 6 — Subprime", rate:"23.49%", fico:"<540",    minYear:2015, maxMile:"195,000",   maxCfx:"$7,500", maxLtv:"150%"},
+    ]},
+  cibc:{ name:"CIBC AUTO FINANCE", phone:"1-855-598-1856", web:"cibc.com/auto", hard:false, minYear:2015, maxMileage:null, maxCarfax:null, maxLTV:96,
+    programs:[
+      {tier:"Chequing Acct Program", rate:"6.36%",       fico:"N/A",        minYear:2019, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"2023–2026 Vehicles",    rate:"7.29%–9.49%", fico:"Various",    minYear:2023, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"2018–2022 Vehicles",    rate:"7.29%–9.49%", fico:"Various",    minYear:2018, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"84%"},
+      {tier:"Newcomers Program",     rate:"Varies",       fico:"No history", minYear:2015, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+    ]},
+  edenpark:{ name:"EDENPARK", phone:"1-855-366-8667", web:"edenparkfinancial.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:7500, maxLTV:140,
+    programs:[
+      {tier:"Tier A", rate:"11.99%", fico:"640+",    minYear:2020, maxMile:"180,000", maxCfx:"$5,000", maxLtv:"140%"},
+      {tier:"Tier B", rate:"15.99%", fico:"600–639", minYear:2017, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"135%"},
+      {tier:"Tier C", rate:"19.99%", fico:"560–599", minYear:2016, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"130%"},
+      {tier:"Tier D", rate:"23.99%", fico:"<560",    minYear:2015, maxMile:"170,000", maxCfx:"$7,500", maxLtv:"125%"},
+    ]},
+  iceberg:{ name:"ICEBERG FINANCE", phone:"855-694-0960", web:"icebergfinance.ca", hard:true, minYear:2012, maxMileage:180000, maxCarfax:6500, maxLTV:140,
+    programs:[
+      {tier:"Tier 1", rate:"12.99%", fico:"640+",    minYear:2018, maxMile:"150,000", maxCfx:"$3,000", maxLtv:"140%"},
+      {tier:"Tier 2", rate:"17.99%", fico:"600–639", minYear:2015, maxMile:"170,000", maxCfx:"$5,000", maxLtv:"135%"},
+      {tier:"Tier 3", rate:"22.99%", fico:"560–599", minYear:2013, maxMile:"180,000", maxCfx:"$6,500", maxLtv:"130%"},
+      {tier:"Tier 4", rate:"31.99%", fico:"<560",    minYear:2012, maxMile:"180,000", maxCfx:"$6,500", maxLtv:"125%"},
+    ]},
+  northlake:{ name:"NORTHLAKE FINANCIAL", phone:"1-888-652-5320", web:"northlakefinancial.ca", hard:true, minYear:2003, maxMileage:300000, maxCarfax:7500, maxLTV:140,
+    programs:[
+      {tier:"Standard", rate:"10.99%–16.99%", fico:"No min", minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"140%"},
+      {tier:"Extended", rate:"17.99%–22.99%", fico:"No min", minYear:2003, maxMile:"300,000", maxCfx:"$7,500", maxLtv:"130%"},
+    ]},
+  prefera:{ name:"PREFERA FINANCE", phone:"1-844-734-3577", web:"preferafinance.ca", hard:true, minYear:2015, maxMileage:200000, maxCarfax:5000, maxLTV:170,
+    programs:[
+      {tier:"Tier A", rate:"16.95%", fico:"620+",    minYear:2018, maxMile:"150,000", maxCfx:"$2,500", maxLtv:"170%"},
+      {tier:"Tier B", rate:"21.95%", fico:"580–619", minYear:2016, maxMile:"175,000", maxCfx:"$3,500", maxLtv:"160%"},
+      {tier:"Tier C", rate:"25.95%", fico:"550–579", minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"150%"},
+      {tier:"Tier D", rate:"30.95%", fico:"<550",    minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"140%"},
+    ]},
+  rbc:{ name:"RBC AUTO FINANCE", phone:"1-888-529-6999", web:"rbcautofinance.ca", hard:false, minYear:2015, maxMileage:null, maxCarfax:null, maxLTV:96,
+    programs:[
+      {tier:"Prime Program",    rate:"5.79%–7.99%", fico:"720+",    minYear:2019, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"Standard Program", rate:"7.99%–9.99%", fico:"650–719", minYear:2015, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"90%"},
+    ]},
+  santander:{ name:"SANTANDER CONSUMER", phone:"1-888-222-4227", web:"santanderconsumerusa.com", hard:true, minYear:2015, maxMileage:160000, maxCarfax:6000, maxLTV:150,
+    programs:[
+      {tier:"Tier 1", rate:"9.99%–14.99%",  fico:"650+",    minYear:2018, maxMile:"120,000", maxCfx:"$3,000", maxLtv:"150%"},
+      {tier:"Tier 2", rate:"15.99%–21.99%", fico:"600–649", minYear:2016, maxMile:"140,000", maxCfx:"$4,500", maxLtv:"140%"},
+      {tier:"Tier 3", rate:"22.99%–29.99%", fico:"<600",    minYear:2015, maxMile:"160,000", maxCfx:"$6,000", maxLtv:"130%"},
+    ]},
+  sda:{ name:"SDA FINANCE", phone:"1-800-731-2345", web:"sdafinance.ca", hard:true, minYear:2012, maxMileage:250000, maxCarfax:8000, maxLTV:135,
+    programs:[
+      {tier:"Standard", rate:"15.99%–24.99%", fico:"No min", minYear:2012, maxMile:"250,000", maxCfx:"$8,000", maxLtv:"135%"},
+    ]},
+  servus:{ name:"SERVUS CREDIT UNION", phone:"1-877-378-8728", web:"servus.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:5000, maxLTV:100,
+    programs:[
+      {tier:"Prime",      rate:"6.50%–8.99%",  fico:"700+",    minYear:2018, maxMile:"150,000", maxCfx:"$3,000", maxLtv:"100%"},
+      {tier:"Near Prime", rate:"9.99%–14.99%", fico:"640–699", minYear:2015, maxMile:"180,000", maxCfx:"$5,000", maxLtv:"95%"},
+    ]},
+  iauto:{ name:"iA AUTO FINANCE", phone:"1-855-378-5626", web:"ia.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:7500, maxLTV:140,
+    programs:[
+      {tier:"6th Gear", rate:"11.49%", fico:"700+",    minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"140%"},
+      {tier:"5th Gear", rate:"15.49%", fico:"650–699", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"140%"},
+      {tier:"4th Gear", rate:"20.49%", fico:"600–649", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"135%"},
+      {tier:"3rd Gear", rate:"25.49%", fico:"560–599", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"125%"},
+      {tier:"2nd Gear", rate:"29.99%", fico:"520–559", minYear:2015, maxMile:"140,000", maxCfx:"$7,500", maxLtv:"125%"},
+      {tier:"1st Gear", rate:"29.99%", fico:"<520",    minYear:2015, maxMile:"140,000", maxCfx:"$7,500", maxLtv:"110%"},
+    ]},
+  wsleasing:{ name:"WS LEASING", phone:"1-888-975-3273", web:"wsleasing.ca", hard:true, minYear:2018, maxMileage:120000, maxCarfax:3000, maxLTV:100,
+    programs:[
+      {tier:"Lease Program A", rate:"7.99%–11.99%",  fico:"680+",    minYear:2020, maxMile:"100,000", maxCfx:"$2,000", maxLtv:"100%"},
+      {tier:"Lease Program B", rate:"12.99%–16.99%", fico:"640–679", minYear:2018, maxMile:"120,000", maxCfx:"$3,000", maxLtv:"95%"},
+    ]},
 };
 
 // ── MATH HELPERS ──────────────────────────────────────
@@ -1073,10 +1137,20 @@ function initLenderPanels(){
       </div>
       ${warnNote}
       <div id="lp-tiers-${lid}" style="margin-top:8px;">
-        <!-- Tier table populated from tenant custom rates if uploaded, otherwise shown in Compare All -->
-        <div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">
-          Rate tiers shown in Compare All engine · Upload custom rates below to override defaults
-        </div>
+        ${l.programs && l.programs.length ? `
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p,i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:7px 10px;font-size:11px;${i<l.programs.length-1?'border-bottom:1px solid var(--border);':''}">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv||'—'}</span>
+          </div>`).join('')}
+        </div>` : `<div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">Rate tiers shown in Compare All engine · Upload custom rates below to override defaults</div>`}
       </div>
       <div class="checker-box">
         <div class="checker-title"><i data-lucide="search" class="ico"></i>Vehicle Approval Checker</div>
