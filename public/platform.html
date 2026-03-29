@@ -468,6 +468,7 @@ select option{background:#0d1526;color:var(--text);}
 .conv-time{font-size:10px;color:var(--muted);}
 .conv-badge{padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;}
 .badge-active{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);}
+.badge-engaged{background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
 .badge-converted{background:rgba(30,90,246,.12);color:var(--primary);border:1px solid rgba(30,90,246,.2);}
 .badge-stopped{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2);}
 
@@ -2148,6 +2149,7 @@ select option{background:#0d1526;color:var(--text);}
       <select id="convStatusFilter" onchange="filterConversations()" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;">
         <option value="all">All Status</option>
         <option value="active">Active</option>
+        <option value="engaged">Engaged</option>
         <option value="converted">Converted</option>
         <option value="stopped">Stopped</option>
       </select>
@@ -2191,7 +2193,7 @@ select option{background:#0d1526;color:var(--text);}
       </div>
       <div class="fgroup">
         <label>Opening Message</label>
-        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
+        <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from First Financial. I noticed you might be looking for a vehicle — are you after a truck, SUV, car, or van? (Reply STOP to opt out)</textarea>
       <div style="font-size:10px;color:var(--muted);margin-top:4px;">💡 Dealer name auto-fills when settings are loaded. You can edit this message freely.</div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="launchCharCount">0 characters</div>
