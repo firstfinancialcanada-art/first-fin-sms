@@ -294,16 +294,28 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               const tempPass = crypto.randomBytes(8).toString('hex');
               const passHash = await bcrypt.hash(tempPass, 12);
 
+              const initSettings = {
+                dealerName: dealership || 'My Dealership',
+                salesName: buyerName,
+                tempPassword: tempPass,          // shown in admin panel until dealer logs in
+                onboardingPending: true,          // triggers first-login wizard
+                stripeCustomerId: session.customer,
+                plan: plan,
+                subscribedAt: new Date().toISOString()
+              };
+
               const newUser = await client.query(
                 `INSERT INTO desk_users
                    (email, password_hash, display_name, role, settings_json,
                     subscription_status, stripe_customer_id)
                  VALUES ($1, $2, $3, 'owner', $4, 'active', $5)
                  ON CONFLICT (email) DO UPDATE
-                   SET subscription_status = 'active', stripe_customer_id = EXCLUDED.stripe_customer_id
+                   SET subscription_status = 'active',
+                       stripe_customer_id = EXCLUDED.stripe_customer_id,
+                       settings_json = desk_users.settings_json || $4::jsonb
                  RETURNING id`,
                 [buyerEmail, passHash, buyerName,
-                 JSON.stringify({ dealerName: dealership, salesName: buyerName }),
+                 JSON.stringify(initSettings),
                  session.customer]
               ).catch(e => { console.error('Create user error:', e.message); return { rows: [] }; });
 
