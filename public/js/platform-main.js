@@ -2738,28 +2738,65 @@ function parseCSVText(text) {
 
 function rowsToVehicles(rows) {
   if (rows.length < 2) return [];
-  const headers = rows[0].map(h => String(h ?? '').toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
-  const idx = k => headers.findIndex(h => h === k || h.startsWith(k));
+  // Normalize header → clean key
+  const rawHeaders = rows[0].map(h => String(h ?? '').trim());
+  const headers    = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
+
+  // Flexible column lookup — tries multiple aliases in order
+  const findCol = (...aliases) => {
+    for (const a of aliases) {
+      const i = headers.findIndex(h => h === a || h.startsWith(a));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  // Column index map — handles any DMS export format
+  const COL = {
+    stock:      findCol('stock','unit_id','unit','stock_no','stockno','stock_number','id'),
+    year:       findCol('year','yr','model_year','model_yr'),
+    make:       findCol('make','manufacturer','mfr','brand'),
+    model:      findCol('model','model_name'),
+    mileage:    findCol('mileage','kilometers','km','kms','kilometres','odometer','odo','miles'),
+    price:      findCol('price','retail','retail_price','asking','asking_price','list','list_price','sale_price'),
+    condition:  findCol('condition','cond'),
+    carfax:     findCol('carfax','carfax_value','carfax_adj'),
+    type:       findCol('type','body','body_style','vehicle_type','category'),
+    book_value: findCol('book_value','bookvalue','book_value','acv','book','wholesale'),
+    vin:        findCol('vin','vin_no','vin_number'),
+    colour:     findCol('colour','color','ext_color','ext_colour','exterior_color','exterior_colour'),
+    trim:       findCol('trim','series','grade','model_trim','package','trim_level'),
+    description:findCol('equip','equipment','description','desc','features','options'),
+  };
+
+  // Clean numeric — strips $, commas, spaces
+  const cleanNum = v => parseFloat(String(v ?? '').replace(/[$,\s]/g,'')) || 0;
+  const getStr   = i => i >= 0 ? String(rows[1][i] !== undefined ? '' : '').trim() : ''; // just for ref
+
   const vehicles = [];
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols || !cols.some(c => c !== '' && c !== null && c !== undefined)) continue;
-    const get = k => { const x = idx(k); return x >= 0 ? String(cols[x] ?? '').trim() : ''; };
-    vehicles.push({
-      stock:      get('stock'),
-      year:       parseInt(get('year')) || 0,
-      make:       get('make'),
-      model:      get('model'),
-      mileage:    parseInt(get('mileage')) || 0,
-      price:      parseFloat(get('price')) || 0,
-      condition:  get('condition') || 'Average',
-      carfax:     parseFloat(get('carfax')) || 0,
-      type:       get('type'),
-      book_value: parseFloat(get('book_value') || get('bookvalue') || get('book value') || get('acv')) || 0,
-      vin:        get('vin'),
-      colour:     get('colour') || get('color'),
-      trim:       get('trim'),
-    });
+    const get    = i => i >= 0 ? String(cols[i] ?? '').trim() : '';
+    const getNum = i => cleanNum(cols[i]);
+
+    const vehicle = {
+      stock:      get(COL.stock),
+      year:       parseInt(get(COL.year)) || 0,
+      make:       get(COL.make),
+      model:      get(COL.model),
+      mileage:    cleanNum(get(COL.mileage).replace(/,/g,'')),
+      price:      getNum(COL.price),
+      condition:  get(COL.condition) || 'Average',
+      carfax:     getNum(COL.carfax),
+      type:       get(COL.type),
+      book_value: getNum(COL.book_value),
+      vin:        get(COL.vin),
+      colour:     get(COL.colour),
+      trim:       get(COL.trim),
+      description:get(COL.description),
+    };
+    vehicles.push(vehicle);
   }
   return vehicles.filter(v => v.make || v.model || v.stock);
 }
