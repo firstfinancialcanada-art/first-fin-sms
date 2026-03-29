@@ -608,4 +608,30 @@ module.exports = function compareRoutes(app, { requireAuth }) {
     }
   });
 
+  // ── GET /api/compare/lender-tiers — display-safe tier data for lender panels ──
+  // Returns tier name, rate, FICO range, year/mileage/LTV limits only.
+  // Does NOT expose approval logic (PTI, DTI, income requirements).
+  app.get('/api/compare/lender-tiers', requireAuth, (req, res) => {
+    const tiers = {};
+    Object.entries(lenders).forEach(([lid, l]) => {
+      tiers[lid] = {
+        name:       l.name,
+        maxLTV:     l.maxLTV,
+        maxMileage: l.maxMileage,
+        maxCarfax:  l.maxCarfax,
+        minYear:    l.minYear,
+        programs:   (l.programs || []).map(p => ({
+          tier:    p.tier,
+          rate:    p.rate,
+          fico:    p.fico,
+          minYear: p.minYear,
+          maxMile: p.maxMile,
+          maxCfx:  p.maxCfx,
+          maxLtv:  p.maxLtv,
+        }))
+      };
+    });
+    res.json({ success: true, tiers });
+  });
+
 };
