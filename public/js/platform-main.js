@@ -3858,14 +3858,37 @@ function _applyDeskBlur() {
         <div style="font-size:36px;margin-bottom:12px;">🔒</div>
         <div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">Deal Desk Locked</div>
         <div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;">
-          Your trial has ended. Upgrade to unlock deal desking, payment grids, lender comparison, and all platform features.
+          A subscription is required to access deal desking, payment grids, lender comparison, and all platform features.
         </div>
-        <button onclick="showSection('settings')"
-          style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 32px;font-weight:800;font-size:14px;cursor:pointer;width:100%;">
-          Upgrade Now →
+        <button onclick="startAuthenticatedCheckout('monthly')"
+          style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 32px;font-weight:800;font-size:14px;cursor:pointer;width:100%;margin-bottom:8px;">
+          Subscribe Monthly — CA$225/mo →
+        </button>
+        <button onclick="startAuthenticatedCheckout('annual')"
+          style="background:transparent;color:var(--primary);border:1px solid var(--primary);border-radius:8px;padding:10px 32px;font-weight:700;font-size:13px;cursor:pointer;width:100%;">
+          Subscribe Annual — CA$2,426.99/yr (save 10%)
         </button>
       </div>`;
     document.body.appendChild(overlay);
+  }
+}
+
+async function startAuthenticatedCheckout(plan = 'monthly') {
+  try {
+    const res = await FF.apiFetch('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan })
+    });
+    const data = await res.json();
+    if (data.success && data.url) {
+      window.location.href = data.url;
+    } else {
+      toast('Checkout error: ' + (data.error || 'Please try again'));
+    }
+  } catch(e) {
+    toast('Checkout failed — please try again');
+    console.error('Checkout error:', e);
   }
 }
 
