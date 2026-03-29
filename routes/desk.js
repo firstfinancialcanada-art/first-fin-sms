@@ -148,10 +148,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         dealerName: 'My Dealership'
       };
 
-      // Exempt accounts get full access, everyone else gets 3-day trial
+      // Exempt accounts get full access, everyone else starts as pending (must subscribe)
       const isExempt = EXEMPT_EMAILS.includes(cleanEmail);
-      const subStatus = isExempt ? 'active' : 'trial';
-      const trialEndsAt = isExempt ? null : new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      const subStatus = isExempt ? 'active' : 'pending';
+      const trialEndsAt = null; // No free trial — paid subscription required per Terms of Service
 
       const result = await client.query(
         `INSERT INTO desk_users (email, password_hash, display_name, role, settings_json, subscription_status, trial_ends_at)
@@ -1081,6 +1081,10 @@ function getBillingStatus(user, exempt) {
   const now = new Date();
   if (status === 'active') return { access: 'full', reason: 'active' };
   if (status === 'lapsed') return { access: 'readonly', reason: 'lapsed' };
+  // 'pending' = registered but not yet subscribed — block writes immediately
+  if (status === 'pending') {
+    return { access: 'readonly', reason: 'subscription_required' };
+  }
   if (!status || status === 'trial') {
     if (trialEnd && now < trialEnd) {
       const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
