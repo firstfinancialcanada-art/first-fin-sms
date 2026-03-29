@@ -574,6 +574,8 @@ document.addEventListener('DOMContentLoaded', () => {
           return Promise.resolve({ ok:true, json: () => Promise.resolve({
             conversionRate: 36,
             totalConverted: 4,
+            totalEngaged:   3,
+            totalStopped:   1,
             totalConversations: 11,
             responseRate: 82,
             totalResponded: 9,
@@ -589,6 +591,33 @@ document.addEventListener('DOMContentLoaded', () => {
               {budget:'$20,000–$30,000', count:3},
               {budget:'$30,000–$40,000', count:5},
               {budget:'$40,000–$55,000', count:3},
+            ],
+            stageFunnel:[
+              {stage:'greeting',    count:2},
+              {stage:'budget',      count:3},
+              {stage:'appointment', count:2},
+              {stage:'datetime',    count:1},
+              {stage:'confirmed',   count:3},
+            ],
+            weeklyTrend:[
+              {week_start:'2026-02-02T00:00:00Z', conversations:3, converted:1},
+              {week_start:'2026-02-09T00:00:00Z', conversations:5, converted:2},
+              {week_start:'2026-02-16T00:00:00Z', conversations:4, converted:1},
+              {week_start:'2026-02-23T00:00:00Z', conversations:7, converted:3},
+              {week_start:'2026-03-02T00:00:00Z', conversations:6, converted:2},
+              {week_start:'2026-03-09T00:00:00Z', conversations:8, converted:4},
+              {week_start:'2026-03-16T00:00:00Z', conversations:5, converted:2},
+              {week_start:'2026-03-23T00:00:00Z', conversations:4, converted:2},
+            ],
+            dealStats:{
+              totalDeals:18, monthDeals:6, weekDeals:3, todayDeals:1,
+              vscCount:12, gapCount:14, twCount:8, waCount:6,
+              avgBackend:'1450', avgPvr:'1820',
+            },
+            dealVehicleTypes:[
+              {type:'Truck', count:8},
+              {type:'SUV',   count:6},
+              {type:'Car',   count:4},
             ]
           })});
         }
