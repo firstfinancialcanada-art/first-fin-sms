@@ -223,7 +223,9 @@ module.exports = function compareRoutes(app, { requireAuth }) {
     const gstAmt     = taxableBase * (gstRate / 100);
     const atf        = taxableBase + gstAmt + lenderFee - down;
     const bvRaw      = parseFloat(v.book_value) || 0;
-    const bookVal    = bookValOver > 0 ? bookValOver : (bvRaw > 0 ? bvRaw : (parseFloat(v.price) || 1));
+    const pRaw       = parseFloat(v.price) || 1;
+    // Sanity floor: book_value < 1% of price = corrupt import data, fall back to price
+    const bookVal    = bookValOver > 0 ? bookValOver : (bvRaw >= pRaw * 0.01 ? bvRaw : pRaw);
     const maxLTV     = prog ? prog.maxLTV : l.maxLTV;
     const ltvPct     = (atf / bookVal) * 100;
     const ltvOk      = ltvPct <= maxLTV;
@@ -592,7 +594,9 @@ module.exports = function compareRoutes(app, { requireAuth }) {
           if (!prog) return;
           const lenderFee = prog.fee || LENDER_FEES[lid] || 0;
           const atf = otd + lenderFee - parseFloat(down);
-          const bookVal = v.book_value || v.price;
+          const bvSim = parseFloat(v.book_value) || 0;
+          const pSim  = parseFloat(v.price) || 1;
+          const bookVal = bvSim >= pSim * 0.01 ? bvSim : pSim;
           const maxLTV  = prog.maxLTV || l.maxLTV;
           const ltvPct  = (atf / bookVal) * 100;
           if (ltvPct > maxLTV) return;
