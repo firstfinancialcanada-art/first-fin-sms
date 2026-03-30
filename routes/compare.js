@@ -219,7 +219,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
 
     const income     = combinedIncome;
     const lenderFee  = prog ? (prog.fee || 0) : 0;
-    const taxableBase = v.price + fees - trade;
+    const taxableBase = parseFloat(v.price) + fees - trade;
     const gstAmt     = taxableBase * (gstRate / 100);
     const atf        = taxableBase + gstAmt + lenderFee - down;
     const bvRaw      = parseFloat(v.book_value) || 0;
@@ -565,7 +565,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
       } finally { client.release(); }
 
       const gstRate = gstEnabled ? (parseFloat(gstIn) || 5) : 0;
-      const taxable = v.price + parseFloat(fees) - parseFloat(trade);
+      const taxable = parseFloat(v.price) + parseFloat(fees) - parseFloat(trade);
       const gstAmt  = taxable * (gstRate / 100);
       const otd     = taxable + gstAmt;
 
