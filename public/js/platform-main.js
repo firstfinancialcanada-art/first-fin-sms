@@ -663,6 +663,7 @@ function renderInventory(list){
         <button class="btn btn-sm" onclick="event.stopPropagation();deleteInventoryItem('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
       </td>
     </tr>`).join('');
+  try { lucide.createIcons(); } catch(e) {}
 }
 
 async function deleteInventoryItem(stock) {
