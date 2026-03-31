@@ -473,14 +473,19 @@ async function editBookValue(stock, currentVal, event) {
   });
 }
 
+let invSelected = new Set();
+
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
   if (countEl) countEl.textContent = `${list.length} vehicles`;
   if (!tbody) return;
+  invSelected.clear();
+  invUpdateBulkBar();
 
   tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="inv-cb" data-stock="${v.stock}" onchange="invOnCheck(this)"></td>
       <td><strong style="color:var(--amber);">${v.stock}</strong></td>
       <td>${v.year}</td>
       <td>${v.make}</td>
@@ -498,8 +503,91 @@ function renderInventory(list){
         <span class="badge badge-${String(v.condition||'average').toLowerCase()}">${v.condition||'Average'}</span>
         <span style="font-size:9px;color:var(--muted);margin-left:2px;">✏</span>
       </td>
-      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')" style="margin-right:4px;"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();invDeleteOne('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red);padding:5px 8px;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
+      </td>
     </tr>`).join('');
+  if(typeof lucide!=='undefined') lucide.createIcons();
+}
+
+function invOnCheck(cb) {
+  if (cb.checked) invSelected.add(cb.dataset.stock);
+  else invSelected.delete(cb.dataset.stock);
+  invUpdateBulkBar();
+}
+
+function invToggleAll(checked) {
+  document.querySelectorAll('.inv-cb').forEach(cb => {
+    cb.checked = checked;
+    if (checked) invSelected.add(cb.dataset.stock);
+    else invSelected.delete(cb.dataset.stock);
+  });
+  invUpdateBulkBar();
+}
+
+function invUpdateBulkBar() {
+  const bar = document.getElementById('invBulkBar');
+  const countEl = document.getElementById('invSelCount');
+  if (!bar) return;
+  if (invSelected.size > 0) {
+    bar.style.display = 'flex';
+    if (countEl) countEl.textContent = `${invSelected.size} selected`;
+  } else {
+    bar.style.display = 'none';
+  }
+  const selectAll = document.getElementById('invSelectAll');
+  if (selectAll) selectAll.checked = invSelected.size > 0 && invSelected.size === document.querySelectorAll('.inv-cb').length;
+}
+
+function invClearSelection() {
+  invSelected.clear();
+  document.querySelectorAll('.inv-cb').forEach(cb => cb.checked = false);
+  const selectAll = document.getElementById('invSelectAll');
+  if (selectAll) selectAll.checked = false;
+  invUpdateBulkBar();
+}
+
+async function invDeleteOne(stock) {
+  if (!confirm(`Delete ${stock} from inventory?\n\nThis permanently removes it from your database.`)) return;
+  try {
+    await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(stock), { method: 'DELETE' });
+    toast(`Deleted ${stock}`);
+    // Remove from local data and re-render
+    if (window.FF && FF.inventory) FF.inventory = FF.inventory.filter(v => v.stock !== stock);
+    const tbody = document.getElementById('inventoryBody');
+    const row = tbody?.querySelector(`input[data-stock="${stock}"]`)?.closest('tr');
+    if (row) row.remove();
+    invSelected.delete(stock);
+    invUpdateBulkBar();
+    const countEl = document.getElementById('invCount');
+    if (countEl) countEl.textContent = `${tbody?.children.length || 0} vehicles`;
+  } catch (e) {
+    toast('Delete failed: ' + (e.message || 'unknown error'));
+  }
+}
+
+async function invDeleteSelected() {
+  const stocks = [...invSelected];
+  if (!stocks.length) return;
+  if (!confirm(`Delete ${stocks.length} vehicle${stocks.length>1?'s':''} from inventory?\n\nThis permanently removes them from your database.`)) return;
+  let deleted = 0;
+  for (const stock of stocks) {
+    try {
+      await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(stock), { method: 'DELETE' });
+      deleted++;
+      const tbody = document.getElementById('inventoryBody');
+      const row = tbody?.querySelector(`input[data-stock="${stock}"]`)?.closest('tr');
+      if (row) row.remove();
+      if (window.FF && FF.inventory) FF.inventory = FF.inventory.filter(v => v.stock !== stock);
+    } catch (_) {}
+  }
+  invSelected.clear();
+  invUpdateBulkBar();
+  const countEl = document.getElementById('invCount');
+  const tbody = document.getElementById('inventoryBody');
+  if (countEl) countEl.textContent = `${tbody?.children.length || 0} vehicles`;
+  toast(`Deleted ${deleted} vehicle${deleted>1?'s':''}`);
 }
 
 // ── SYNC INVENTORY FROM LOCAL BRIDGE ─────────────────────────────
