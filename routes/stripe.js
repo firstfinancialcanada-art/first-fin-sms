@@ -332,8 +332,34 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
               // Log temp password for admin reference
               console.log('🔑 Temp password for ' + buyerEmail + ': ' + tempPass);
-
               console.log('✅ New dealer account created — ' + buyerEmail + ' (user ' + newUserId + ')');
+
+              // ── SMS credentials to buyer if phone provided ─────────
+              if (buyerPhone) {
+                try {
+                  const twilioC = require('twilio')(
+                    process.env.TWILIO_ACCOUNT_SID,
+                    process.env.TWILIO_AUTH_TOKEN
+                  );
+                  const platformUrl = process.env.BASE_URL
+                    ? process.env.BASE_URL.replace(/\/$/, '') + '/platform'
+                    : 'https://app.firstfinancialcanada.com/platform';
+                  await twilioC.messages.create({
+                    body:
+                      `Welcome to FIRST-FIN, ${buyerName.split(' ')[0]}! 🎉\n\n` +
+                      `Your account is ready. Log in here:\n${platformUrl}\n\n` +
+                      `Email: ${buyerEmail}\n` +
+                      `Temp password: ${tempPass}\n\n` +
+                      `Change your password in Settings after logging in.\n` +
+                      `Questions? Call/text 587-306-6133`,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to:   buyerPhone
+                  });
+                  console.log('📱 Credentials SMS sent to buyer: ' + buyerPhone);
+                } catch (smsErr) {
+                  console.error('Buyer credentials SMS failed:', smsErr.message);
+                }
+              }
             }
           }
 
