@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "FIRST FIN - Inventory Importer",
+  "version": "2.0.0",
+  "description": "Scan dealer inventory pages and sync vehicles to FIRST-FIN platform",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://app.firstfinancialcanada.com/*",
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FIRST FIN Inventory Importer"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

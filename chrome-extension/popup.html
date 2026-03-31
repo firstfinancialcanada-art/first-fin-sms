@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIRST-FIN Inventory Importer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1929;
+    --surface:  #152035;
+    --surface2: #1c2d45;
+    --navy:     #1e3a5f;
+    --silver:   #8090a8;
+    --chrome:   #b8c8d8;
+    --chrome-h: #d0dce8;
+    --text:     #e8eef4;
+    --muted:    #6a7d94;
+    --border:   #1e3050;
+    --green:    #2ecc71;
+    --red:      #e74c3c;
+    --amber:    #f39c12;
+  }
+
+  body {
+    width: 340px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--chrome);
+    padding: 12px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-text { flex: 1; }
+  .brand-name {
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+  .brand-first { color: var(--text); }
+  .brand-dot   { color: var(--chrome); margin: 0 3px; }
+  .brand-fin   { color: var(--navy); }
+  .brand-sub {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  #userBadge {
+    text-align: right;
+    font-size: 10px;
+    color: var(--chrome);
+    line-height: 1.4;
+  }
+  #userBadge .ub-name  { font-weight: 700; }
+  #userBadge .ub-email { font-size: 9px; color: var(--muted); }
+
+  /* ── Site bar ── */
+  .site-bar {
+    background: var(--surface2);
+    padding: 5px 16px;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .site-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    flex-shrink: 0;
+  }
+  .site-dot.green { background: var(--green); }
+  .site-dot.red   { background: var(--red); }
+
+  /* ── Views ── */
+  .view { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .view:last-of-type { border-bottom: none; }
+  .hidden { display: none !important; }
+
+  /* ── Labels + inputs ── */
+  label {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  input[type="email"],
+  input[type="password"],
+  input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--chrome); }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 8px;
+  }
+  .btn:first-of-type { margin-top: 0; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--navy);
+    color: var(--chrome-h);
+    margin-top: 0;
+  }
+  .btn-primary:hover:not(:disabled) { background: #27497a; }
+
+  .btn-green {
+    background: rgba(46,204,113,0.15);
+    color: var(--green);
+    border: 1px solid rgba(46,204,113,0.3);
+  }
+  .btn-green:hover:not(:disabled) { background: rgba(46,204,113,0.25); }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--silver); }
+
+  /* ── Error message ── */
+  .err-msg {
+    color: var(--red);
+    font-size: 10px;
+    margin-top: 8px;
+  }
+
+  /* ── Progress bar ── */
+  .progress-wrap {
+    background: var(--surface2);
+    border-radius: 3px;
+    height: 4px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--navy), var(--chrome));
+    border-radius: 3px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* ── Log box ── */
+  .log-box {
+    background: var(--surface2);
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .log-box .ok  { color: var(--green); }
+  .log-box .err { color: var(--red); }
+  .log-box .hi  { color: var(--chrome); }
+
+  /* ── Page description ── */
+  .page-desc {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  /* ── Preview header ── */
+  .preview-hdr {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .big-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--green);
+    line-height: 1;
+  }
+  .big-num-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Vehicle list ── */
+  .vehicle-list {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 110px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+  }
+  .vehicle-item {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  .vehicle-item:last-child { border-bottom: none; }
+  .vi-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .vi-details {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .vehicle-more {
+    padding: 5px 10px;
+    font-size: 10px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  /* ── Mode selector ── */
+  .mode-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .mode-btn {
+    padding: 8px 4px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .mode-btn:hover, .mode-btn.active {
+    border-color: var(--chrome);
+    color: var(--text);
+    background: var(--navy);
+  }
+  .mode-btn .mode-icon {
+    font-size: 14px;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .mode-desc {
+    font-size: 10px;
+    color: var(--amber);
+    margin-bottom: 10px;
+    min-height: 14px;
+  }
+
+  /* ── Done card ── */
+  .done-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 14px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .done-label {
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .done-detail {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 8px 16px;
+    font-size: 9px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .logout-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 9px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+  }
+  .logout-btn:hover { color: var(--red); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ───────────────────────────────────────────── -->
+<div class="header">
+  <canvas id="logo" width="48" height="42" style="flex-shrink:0;"></canvas>
+  <div class="brand-text">
+    <div class="brand-name">
+      <span class="brand-first">FIRST</span>
+      <span class="brand-dot">◆</span>
+      <span class="brand-fin">FIN</span>
+    </div>
+    <div class="brand-sub">Inventory Importer</div>
+  </div>
+  <div id="userBadge" class="hidden">
+    <div class="ub-name"  id="userName"></div>
+    <div class="ub-email" id="userEmail"></div>
+  </div>
+</div>
+
+<!-- ── SITE BAR ──────────────────────────────────────────── -->
+<div class="site-bar">
+  <div class="site-dot" id="siteDot"></div>
+  <span id="siteLabel">Detecting current page...</span>
+</div>
+
+<!-- ── VIEW: LOGIN ───────────────────────────────────────── -->
+<div id="viewLogin" class="view">
+  <label>FIRST-FIN Email</label>
+  <input type="email"    id="loginEmail" placeholder="you@dealership.com" autocomplete="email">
+  <label>Password</label>
+  <input type="password" id="loginPw"    placeholder="••••••••"           autocomplete="current-password">
+  <button class="btn btn-primary" id="btnLogin">
+    <span>▶</span> Sign In to FIRST-FIN
+  </button>
+  <div id="loginError" class="err-msg hidden"></div>
+</div>
+
+<!-- ── VIEW: MAIN ────────────────────────────────────────── -->
+<div id="viewMain" class="view hidden">
+  <div class="page-desc" id="pageDesc">Ready to scan inventory.</div>
+  <button class="btn btn-primary" id="btnScan">
+    <span>⬇</span> <span id="scanLabel">Scan This Page</span>
+  </button>
+  <div class="progress-wrap hidden" id="progressWrap">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <div class="log-box hidden" id="logBox"></div>
+</div>
+
+<!-- ── VIEW: PREVIEW ─────────────────────────────────────── -->
+<div id="viewPreview" class="view hidden">
+  <div class="preview-hdr">
+    <span class="big-num" id="previewCount">0</span>
+    <span class="big-num-label">Vehicles Found</span>
+  </div>
+
+  <div class="vehicle-list" id="vehicleList"></div>
+
+  <div class="section-title">Sync Mode</div>
+  <div class="mode-row">
+    <div class="mode-btn active" id="modeAdd">
+      <span class="mode-icon">＋</span>ADD
+    </div>
+    <div class="mode-btn" id="modeReplace">
+      <span class="mode-icon">↺</span>REPLACE
+    </div>
+    <div class="mode-btn" id="modeConsolidate">
+      <span class="mode-icon">⟳</span>MERGE
+    </div>
+  </div>
+  <div class="mode-desc" id="modeDesc">Add vehicles, skip existing VINs</div>
+
+  <button class="btn btn-green" id="btnSync">
+    <span>↑</span> Sync to FIRST-FIN
+  </button>
+  <button class="btn btn-ghost" id="btnRescan" style="margin-top:6px;">
+    <span>↺</span> Scan Again
+  </button>
+</div>
+
+<!-- ── VIEW: DONE ────────────────────────────────────────── -->
+<div id="viewDone" class="view hidden">
+  <div class="done-card">
+    <div class="big-num" id="doneNum">✓</div>
+    <div class="done-label">Synced to FIRST-FIN</div>
+    <div class="done-detail" id="doneDetail"></div>
+  </div>
+  <button class="btn btn-primary" id="btnOpenPlatform">
+    <span>↗</span> View in FIRST-FIN Inventory
+  </button>
+  <button class="btn btn-green" id="btnOpenFBPoster" style="margin-top:6px;">
+    <span>📘</span> Go to FB Poster
+  </button>
+  <button class="btn btn-ghost" id="btnScanAnother" style="margin-top:6px;">
+    <span>↺</span> Scan Another Page
+  </button>
+</div>
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<div class="footer">
+  <span>v2.0 · firstfinancialcanada.com</span>
+  <button class="logout-btn hidden" id="btnLogout">Sign out</button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
