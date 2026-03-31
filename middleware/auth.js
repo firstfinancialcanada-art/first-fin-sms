@@ -9,7 +9,7 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 const ACCESS_TTL = '4h';
-const REFRESH_TTL_DAYS = 7;
+const REFRESH_TTL_DAYS = 3;
 
 function generateAccessToken(user) {
   return jwt.sign(
