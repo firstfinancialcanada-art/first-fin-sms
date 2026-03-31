@@ -152,7 +152,7 @@ router.post('/verify', async (req, res) => {
 // ── Admin middleware ───────────────────────────────────────────────────────────
 
 const requireAdmin = (req, res, next) => {
-  const token = req.headers['x-admin-token'] || req.query.token;
+  const token = req.headers['x-admin-token'];
   if (!token || token !== process.env.ADMIN_TOKEN) {
     return res.status(401).json({ error: 'Unauthorized' });
   }

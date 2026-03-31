@@ -247,6 +247,24 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
     const client = await pool.connect();
     try {
+      // ── Idempotency — ignore duplicate webhook deliveries ──────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS stripe_events (
+          event_id TEXT PRIMARY KEY,
+          processed_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `).catch(() => {});
+      const already = await client.query(
+        'SELECT event_id FROM stripe_events WHERE event_id = $1', [event.id]
+      );
+      if (already.rows.length > 0) {
+        client.release();
+        return res.json({ received: true });
+      }
+      await client.query(
+        'INSERT INTO stripe_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING', [event.id]
+      );
+
       switch (event.type) {
 
         case 'checkout.session.completed': {
@@ -330,8 +348,6 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                 [buyerName, dealership || '', buyerPhone, buyerEmail]
               ).catch(e => console.error('Inquiry insert error:', e.message));
 
-              // Log temp password for admin reference
-              console.log('🔑 Temp password for ' + buyerEmail + ': ' + tempPass);
               console.log('✅ New dealer account created — ' + buyerEmail + ' (user ' + newUserId + ')');
 
               // ── SMS credentials to buyer if phone provided ─────────

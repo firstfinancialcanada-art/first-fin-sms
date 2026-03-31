@@ -10,7 +10,7 @@ function sanitizeError(e) {
 module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   function adminAuth(req, res, next) {
-    const token = req.headers['x-admin-token'] || req.query.token;
+    const token = req.headers['x-admin-token'];
     if (!token || token !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }

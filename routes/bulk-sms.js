@@ -80,7 +80,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
 
   // ── Emergency stop all bulk ───────────────────────────────────
   app.post('/api/emergency-stop-bulk', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     try {

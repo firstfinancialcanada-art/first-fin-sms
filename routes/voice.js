@@ -111,7 +111,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
 
   // ── Health check for Desk ─────────────────────────────────────
   app.get('/api/desk-ping', (req, res) => {
-    const token = req.query.token || req.headers['x-admin-token'];
+    const token = req.headers['x-admin-token'];
     if (token !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }

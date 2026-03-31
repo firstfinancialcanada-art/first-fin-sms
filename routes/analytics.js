@@ -18,7 +18,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
 
   // ── Test notification ─────────────────────────────────────────
   app.get('/test-notify', async (req, res) => {
-    if (req.query.token !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
     try {
@@ -85,7 +85,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
 
   // ── Export analytics (admin) ──────────────────────────────────
   app.get('/api/export/analytics', async (req, res) => {
-    if (req.query.token !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).send('Forbidden: invalid token');
     }
     const client = await pool.connect();

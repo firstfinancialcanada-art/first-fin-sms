@@ -12,7 +12,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
 
   // 🚨 EMERGENCY STOP +12899688778
   app.get('/api/stop-12899688778', async (req, res) => {
-    if (req.query.token !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     const BLOCKED_NUMBERS = ['+12899688778', '12899688778', '2899688778'];
@@ -44,7 +44,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
 
   // WIPE ALL BULK MESSAGES
   app.post('/api/wipe-bulk', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     const client = await pool.connect();
@@ -60,7 +60,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
 
   // Pause / resume bulk SMS processor
   app.post('/api/bulk-sms/pause', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     state.bulkSmsProcessorPaused = true;
@@ -68,7 +68,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
   });
 
   app.post('/api/bulk-sms/resume', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     state.bulkSmsProcessorPaused = false;
@@ -77,20 +77,20 @@ module.exports = function adminRoutes(app, { twilioClient }) {
 
   // Pause / resume AI responder
   app.post('/api/ai-responder/pause', (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
     state.aiResponderPaused = true;
     res.json({ success: true, paused: true });
   });
 
   app.post('/api/ai-responder/resume', (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
     state.aiResponderPaused = false;
     res.json({ success: true, paused: false });
   });
 
   // Nuclear clear
   app.post('/api/nuclear-clear', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) return res.status(403).json({ success: false, error: 'Forbidden' });
     const results = { twilioQueued: 0, twilioSending: 0, bulkCancelled: 0, errors: [] };
     state.bulkSmsProcessorPaused = true;
     state.aiResponderPaused = true;
@@ -120,7 +120,7 @@ module.exports = function adminRoutes(app, { twilioClient }) {
 
   // EMERGENCY STOP - ALL BULK MESSAGES
   app.post('/api/stop-bulk', async (req, res) => {
-    if ((req.body?.token || req.query.token) !== process.env.ADMIN_TOKEN) {
+    if (req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
     }
     const client = await pool.connect();

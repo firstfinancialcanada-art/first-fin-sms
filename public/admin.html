@@ -914,20 +914,19 @@ async function sysAction(action) {
   const confirmActions = { 'wipe-bulk': 'Wipe ALL pending bulk messages?', 'fintest-reset': 'Reset fintest@fintest.com test account?\n\nThis deletes all inventory, deals, CRM, and conversations for that account only.\n\nReal dealer accounts are NOT affected.' };
   if (confirmActions[action] && !confirm(confirmActions[action])) return;
   const endpoints = {
-    'resume-bulk':    ['/api/bulk-sms/resume', 'GET'],
-    'pause-bulk':     ['/api/bulk-sms/pause', 'GET'],
-    'resume-ai':      ['/api/ai-responder/resume', 'GET'],
-    'pause-ai':       ['/api/ai-responder/pause', 'GET'],
-    'stop-bulk':      ['/api/stop-bulk', 'GET'],
-    'wipe-bulk':      ['/api/wipe-bulk', 'GET'],
-    'fintest-reset':  ['/api/admin/fintest/reset', 'POST']
+    'resume-bulk':    '/api/bulk-sms/resume',
+    'pause-bulk':     '/api/bulk-sms/pause',
+    'resume-ai':      '/api/ai-responder/resume',
+    'pause-ai':       '/api/ai-responder/pause',
+    'stop-bulk':      '/api/stop-bulk',
+    'wipe-bulk':      '/api/wipe-bulk',
+    'fintest-reset':  '/api/admin/fintest/reset'
   };
-  const [path, method] = endpoints[action] || [];
+  const path = endpoints[action];
   if (!path) return;
   try {
-    const url = path.includes('?') ? path : path + '?token=' + encodeURIComponent(adminToken);
-    const opts = method === 'POST' ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken }, body: '{}' } : {};
-    const res = await fetch(url, opts);
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken }, body: '{}' };
+    const res = await fetch(path, opts);
     const d = await res.json();
     if (d.success !== false) { toast('✓ ' + (d.message || action + ' done')); loadSystemStatus(); loadStats(); }
     else toast('Error: ' + d.error);
@@ -937,7 +936,7 @@ async function sysAction(action) {
 async function nukeClear() {
   if (!confirm('⚠ Nuclear clear — cancel ALL queued Twilio messages and bulk queue. Continue?')) return;
   try {
-    const res = await fetch(`/api/nuclear-clear?token=${encodeURIComponent(adminToken)}`);
+    const res = await fetch('/api/nuclear-clear', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': adminToken }, body: '{}' });
     const d = await res.json();
     toast(`Nuclear clear: ${d.bulkCancelled||0} bulk, ${(d.twilioQueued||0)+(d.twilioSending||0)} Twilio msgs cancelled`);
     loadStats(); loadSystemStatus();
