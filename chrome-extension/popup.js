@@ -1,4 +1,4 @@
-// popup.js — FIRST-FIN Inventory Importer v2.1
+// popup.js — FIRST-FIN Inventory Importer v2.2
 'use strict';
 console.log('[FIRST-FIN] popup.js loaded');
 
@@ -7,11 +7,13 @@ const PLATFORM_URL = 'https://app.firstfinancialcanada.com/platform#inventory';
 const FB_URL       = 'https://app.firstfinancialcanada.com/platform#dtsync';
 
 // ── State ─────────────────────────────────────────────────────────────────
-let scraped     = [];
-let syncMode    = 'add';
-let authToken   = null;
-let currentTab  = null;
-let currentSite = { name: '', score: 0 };
+let scraped          = [];
+let syncMode         = 'add';
+let authToken        = null;
+let currentTab       = null;
+let currentSite      = { name: '', score: 0 };
+let bgScanActive     = false;     // true while background.js is running a scan
+let bgLogRendered    = 0;         // how many background log entries we've already shown
 
 // ── Logo ──────────────────────────────────────────────────────────────────
 function drawLogo() {
@@ -124,6 +126,11 @@ async function loadAuth() {
 }
 
 async function logout() {
+  // Cancel any in-progress background scan
+  chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+  bgScanActive  = false;
+  bgLogRendered = 0;
+
   await chrome.storage.local.clear().catch(()=>{});
   authToken = null;
   scraped   = [];
@@ -152,12 +159,11 @@ function detectSite(url) {
 }
 
 // ── Tab helpers ───────────────────────────────────────────────────────────
-// Wait for a tab to finish loading — handles race where it already loaded
 function waitForTabLoad(tabId, timeoutMs=12000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(listener);
-      resolve(); // timeout — assume loaded, proceed anyway
+      resolve();
     }, timeoutMs);
 
     function listener(id, info) {
@@ -165,12 +171,11 @@ function waitForTabLoad(tabId, timeoutMs=12000) {
       if (info.status === 'complete') {
         clearTimeout(timer);
         chrome.tabs.onUpdated.removeListener(listener);
-        setTimeout(resolve, 500); // brief settle time
+        setTimeout(resolve, 500);
       }
     }
     chrome.tabs.onUpdated.addListener(listener);
 
-    // Check if already loaded (race condition fix)
     chrome.tabs.get(tabId, tab => {
       if (chrome.runtime.lastError) { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener); resolve(); return; }
       if (tab.status === 'complete') {
@@ -197,6 +202,57 @@ async function scrapeTab(tabId) {
         throw new Error('Could not communicate with page. Try refreshing the tab and scanning again.');
       }
     }
+  }
+}
+
+// ── Background scan progress handler ─────────────────────────────────────
+function handleBgScanProgress(state) {
+  if (!state) return;
+
+  const btn = document.getElementById('btnScan');
+
+  // Append only new log entries (avoid duplicates on reconnect)
+  const newEntries = (state.log || []).slice(bgLogRendered);
+  newEntries.forEach(entry => log(entry.text, entry.cls || ''));
+  bgLogRendered = (state.log || []).length;
+
+  // Update progress bar
+  const pct = state.total > 0 ? 20 + Math.round((state.current / state.total) * 72) : 5;
+  setProgress(Math.min(pct, 98));
+
+  if (state.status === 'running') {
+    document.getElementById('scanLabel').textContent =
+      `Scanning ${state.current}/${state.total}...`;
+  }
+
+  if (state.status === 'done') {
+    bgScanActive  = false;
+    bgLogRendered = 0;
+    scraped = state.vehicles || [];
+    chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+
+    if (scraped.length === 0) {
+      setProgress(0);
+      resetProgress();
+      log('No valid vehicles were found — check the page and try again.', 'err');
+      return;
+    }
+    setProgress(100);
+    buildPreview(scraped);
+    selectMode('add');
+    showView('viewPreview');
+  }
+
+  if (state.status === 'error') {
+    bgScanActive  = false;
+    bgLogRendered = 0;
+    chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+    resetProgress();
   }
 }
 
@@ -236,49 +292,28 @@ async function runScan() {
   setProgress(5);
   log('Scanning page for vehicles...', 'hi');
 
-  let bgTab = null; // background tab used for multi-VDP scraping
-
   try {
     const response = await scrapeTab(currentTab.id);
     if (!response || !response.ok) throw new Error(response?.error || 'Scraper returned no data');
 
     const result = response.result;
-    setProgress(20);
+    setProgress(15);
 
     if (result.type === 'listing' && result.links?.length > 0) {
-      // Multi-VDP: open a BACKGROUND tab so the user's current tab stays put
-      // and the popup stays open throughout.
-      log(`Found ${result.links.length} vehicle pages — scanning each...`, 'hi');
-      scraped = [];
+      // Delegate multi-VDP crawl to background.js so it survives popup close
+      log(`Found ${result.links.length} vehicle pages — handing off to background...`, 'hi');
+      bgScanActive  = true;
+      bgLogRendered = 0;
 
-      bgTab = await chrome.tabs.create({ url: result.links[0], active: false });
-
-      for (let i = 0; i < result.links.length; i++) {
-        const link = result.links[i];
-        log(`[${i+1}/${result.links.length}] ${link.split('/').filter(Boolean).pop()?.slice(0,40) || link}`);
-        setProgress(20 + Math.round((i / result.links.length) * 72));
-
-        try {
-          await chrome.tabs.update(bgTab.id, { url: link });
-          await waitForTabLoad(bgTab.id);
-          const vResp = await scrapeTab(bgTab.id);
-          if (vResp?.result?.vehicles?.length) {
-            const v = vResp.result.vehicles[0];
-            if (isRealVehicle(v)) {
-              scraped.push(v);
-              log(`  ✓ ${v.year} ${v.make} ${v.model} — ${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()}`, 'ok');
-            } else {
-              log(`  ⏭ Skipped`);
-            }
-          }
-        } catch (e) {
-          log(`  ⚠ ${e.message}`);
-        }
-      }
-
-      // Close background tab
-      chrome.tabs.remove(bgTab.id).catch(()=>{});
-      bgTab = null;
+      chrome.runtime.sendMessage({ type: 'START_SCAN', links: result.links })
+        .catch(() => {
+          bgScanActive = false;
+          log('Could not start background scan — try again.', 'err');
+          btn.disabled = false;
+          document.getElementById('scanLabel').textContent = 'Scan This Page';
+        });
+      // UI updates come through the SCAN_PROGRESS listener
+      return;
 
     } else if (result.vehicles?.length > 0) {
       scraped = result.vehicles.filter(isRealVehicle);
@@ -297,12 +332,14 @@ async function runScan() {
     buildPreview(scraped);
     selectMode('add');
     showView('viewPreview');
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
 
   } catch (e) {
-    if (bgTab) chrome.tabs.remove(bgTab.id).catch(()=>{});
     log(`❌ ${e.message}`, 'err');
     btn.disabled = false;
     document.getElementById('scanLabel').textContent = 'Scan This Page';
+    resetProgress();
   }
 }
 
@@ -343,7 +380,6 @@ async function runSync() {
   } catch (e) {
     btn.disabled = false;
     btn.innerHTML = '<span>↑</span> Sync to FIRST-FIN';
-    // Show inline error under the button
     const old = document.getElementById('syncError');
     if (old) old.remove();
     const errEl = document.createElement('div');
@@ -358,6 +394,13 @@ async function runSync() {
 // ── Event listeners (synchronous — wired before any await) ────────────────
 function initListeners() {
   console.log('[FIRST-FIN] Attaching listeners');
+
+  // ── Background scan progress (popup can close and reopen mid-scan)
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'SCAN_PROGRESS') {
+      handleBgScanProgress(msg.state);
+    }
+  });
 
   // ── Login
   document.getElementById('btnLogin').addEventListener('click', async () => {
@@ -451,7 +494,7 @@ function initListeners() {
   console.log('[FIRST-FIN] All listeners attached');
 }
 
-// ── Init: async setup (tab detection + saved auth) ────────────────────────
+// ── Init: async setup (tab detection + saved auth + scan reconnect) ────────
 async function initAsync() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -481,10 +524,49 @@ async function initAsync() {
       showView('viewMain');
     } else {
       showView('viewLogin');
+      return; // don't check scan state if not logged in
     }
   } catch (e) {
     console.warn('[FIRST-FIN] loadAuth failed:', e.message);
     showView('viewLogin');
+    return;
+  }
+
+  // ── Reconnect to background scan if one was running when popup was closed ──
+  try {
+    const stored = await chrome.storage.local.get('activeScan');
+    const state  = stored.activeScan;
+    if (!state) return;
+
+    if (state.status === 'running') {
+      // Scan is still in progress — show the main view with progress
+      showView('viewMain');
+      bgScanActive  = true;
+      bgLogRendered = 0;
+      document.getElementById('btnScan').disabled = true;
+
+      // Render all log entries accumulated so far
+      (state.log || []).forEach(entry => log(entry.text, entry.cls || ''));
+      bgLogRendered = (state.log || []).length;
+
+      const pct = state.total > 0 ? 20 + Math.round((state.current / state.total) * 72) : 5;
+      setProgress(Math.min(pct, 98));
+      document.getElementById('scanLabel').textContent =
+        `Scanning ${state.current}/${state.total}...`;
+
+    } else if (state.status === 'done' && state.vehicles?.length > 0) {
+      // Scan completed while popup was closed — go straight to preview
+      scraped = state.vehicles;
+      chrome.storage.local.remove('activeScan').catch(() => {});
+      buildPreview(scraped);
+      selectMode('add');
+      showView('viewPreview');
+    } else {
+      // Error or empty result — clean up
+      chrome.storage.local.remove('activeScan').catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[FIRST-FIN] scan reconnect check failed:', e.message);
   }
 }
 
@@ -493,5 +575,5 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[FIRST-FIN] DOMContentLoaded fired');
   drawLogo();
   initListeners(); // sync — buttons are live before any network call
-  initAsync();     // async — tab/auth, isolated so failures can't break buttons
+  initAsync();     // async — tab/auth/scan-reconnect, isolated so failures can't break buttons
 });

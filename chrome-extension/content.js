@@ -43,20 +43,14 @@ function scrapeCurrentPage() {
     const isDetailPage = /\/(Used|New)-\d{4}-/i.test(location.pathname);
 
     if (!isDetailPage) {
-      // Listing page — collect all VDP links
+      // Listing page — collect VDP links only (must match /inventory/Used-YYYY- or /inventory/New-YYYY-)
       const seen  = new Set();
       const links = [];
       document.querySelectorAll('a[href]').forEach(a => {
         const href = a.href;
-        if (!href.includes('/inventory/') || seen.has(href)) return;
-        const slug = href.split('/inventory/')[1]?.split('/')[0] || '';
-        if (slug.length < 10) return;
-        const lower = slug.toLowerCase();
-        const junk  = ['used','new','trucks','cars','suvs','vans','suv','sedan',
-          'inventory','search','airdrie','barlow','chinook','cochrane','deerfoot',
-          'macleod','mcknight','olympic','edmonton','lethbridge','medicine','fort',
-          'red-deer','grande'];
-        if (junk.some(j => lower === j || lower === j + '-inventory')) return;
+        if (seen.has(href)) return;
+        // Only real VDP pages have this pattern — filters out nav, search, category links
+        if (!/\/inventory\/(Used|New)-\d{4}-/i.test(href)) return;
         seen.add(href);
         links.push(href);
       });
