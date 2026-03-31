@@ -542,15 +542,70 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   app.get('/api/admin/system-status', adminAuth, async (req, res) => {
     const { state } = require('../lib/bulk');
-    res.json({
-      success: true,
-      bulkProcessorRunning: !!state.bulkSmsProcessor,
-      bulkPaused:           state.bulkSmsProcessorPaused,
-      aiPaused:             state.aiResponderPaused,
-      uptime:               Math.floor(process.uptime()),
-      nodeVersion:          process.version,
-      memoryMB:             Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
-    });
+    const client = await pool.connect();
+    try {
+      const queueR = await client.query(`
+        SELECT COUNT(*) AS pending,
+               EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))/60 AS oldest_minutes
+        FROM bulk_messages WHERE status = 'pending'
+      `).catch(() => ({ rows: [{ pending: 0, oldest_minutes: null }] }));
+      const q = queueR.rows[0];
+      res.json({
+        success: true,
+        bulkProcessorRunning: !!state.bulkSmsProcessor,
+        bulkPaused:           state.bulkSmsProcessorPaused,
+        aiPaused:             state.aiResponderPaused,
+        uptime:               Math.floor(process.uptime()),
+        nodeVersion:          process.version,
+        memoryMB:             Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        pendingBulk:          parseInt(q.pending) || 0,
+        oldestPendingMinutes: q.oldest_minutes != null ? Math.floor(parseFloat(q.oldest_minutes)) : null
+      });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── GET /api/admin/users/:id/settings ────────────────────
+  app.get('/api/admin/users/:id/settings', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const r = await client.query(
+        'SELECT settings_json, email, display_name FROM desk_users WHERE id = $1',
+        [req.params.id]
+      );
+      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+      const s = typeof r.rows[0].settings_json === 'string'
+        ? JSON.parse(r.rows[0].settings_json || '{}')
+        : (r.rows[0].settings_json || {});
+      res.json({ success: true, settings: s, email: r.rows[0].email, name: r.rows[0].display_name });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/settings ───────────────────
+  app.post('/api/admin/users/:id/settings', adminAuth, async (req, res) => {
+    const allowed = ['dealerName','dealerCity','dealerPhone','salesName','googleReviewUrl','docFee','gst','apr','target'];
+    const client = await pool.connect();
+    try {
+      const r = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.params.id]);
+      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
+      const existing = typeof r.rows[0].settings_json === 'string'
+        ? JSON.parse(r.rows[0].settings_json || '{}')
+        : (r.rows[0].settings_json || {});
+      for (const key of allowed) {
+        if (key in req.body) existing[key] = req.body[key];
+      }
+      await client.query('UPDATE desk_users SET settings_json = $1::jsonb WHERE id = $2', [JSON.stringify(existing), req.params.id]);
+      res.json({ success: true, settings: existing });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
   });
 
 };

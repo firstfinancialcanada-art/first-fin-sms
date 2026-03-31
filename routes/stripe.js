@@ -6,7 +6,7 @@ const { EXEMPT_EMAILS } = require('../lib/constants');
 // ── Input validation helpers ──────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const VALID_PLANS = ['monthly', 'annual'];
-const VALID_STATUSES = ['active', 'trial', 'lapsed', 'cancelled'];
+const VALID_STATUSES = ['active', 'lapsed', 'cancelled', 'past_due', 'pending'];
 
 function validatePublicCheckoutInput({ plan, email, name, dealership }) {
   if (!email || typeof email !== 'string')
