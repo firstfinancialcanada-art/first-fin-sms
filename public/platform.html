@@ -2979,7 +2979,7 @@ async function startLoginBuy() {
   function fbpGuessBody(type, model) {
     const t = ((type||'') + ' ' + (model||'')).toLowerCase();
     if (/truck|f-?150|f-?250|f-?350|sierra|silverado|ram|tundra|tacoma|ranger|frontier|ridgeline|canyon|colorado/i.test(t)) return 'Truck';
-    if (/suv|4runner|explorer|escape|edge|equinox|traverse|tahoe|suburban|highlander|rav4|cr-v|pilot|pathfinder|rogue|tucson|santa fe|sportage|outlander|murano|wrangler|bronco|4x4/i.test(t)) return 'SUV';
+    if (/suv|4runner|explorer|escape|edge|equinox|traverse|tahoe|suburban|highlander|rav4|cr-v|crv|pilot|pathfinder|rogue|tucson|santa fe|sportage|outlander|murano|wrangler|bronco|4x4|x[1-7]\b|gla|glb|glc|gle|gls|q[3578]\b|cayenne|macan|urus|tiguan|atlas|kicks|seltos|telluride|palisade|ascent|crosstrek|forester|cx-?[3-9]|hr-v|hrv|rdx|mdx|nx|rx|ux|xc[4-9]|blazer|trailblazer|terrain|encore|envision|enclave/i.test(t)) return 'SUV';
     if (/van|caravan|sienna|odyssey|pacifica|transit|sprinter|minivan/i.test(t)) return 'Van/Minivan';
     if (/coupe|mustang|camaro|challenger|gt|supra|brz|86/i.test(t)) return 'Coupe';
     if (/convertible|cabrio|roadster|miata|spider|spyder/i.test(t)) return 'Convertible';
