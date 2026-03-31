@@ -658,8 +658,26 @@ function renderInventory(list){
         <span class="badge badge-${String(v.condition||'average').toLowerCase()}">${v.condition||'Average'}</span>
         <span style="font-size:9px;color:var(--muted);margin-left:2px;">✏</span>
       </td>
-      <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button></td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();deleteInventoryItem('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
+      </td>
     </tr>`).join('');
+}
+
+async function deleteInventoryItem(stock) {
+  if (!confirm(`Remove ${stock} from inventory?`)) return;
+  try {
+    const res = await window.FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Delete failed');
+    inventoryData = inventoryData.filter(v => v.stock !== stock);
+    renderInventory(inventoryData);
+    refreshLenderCheckerDropdowns();
+    toast(`${stock} removed`);
+  } catch(e) {
+    toast('⚠️ Could not delete vehicle — ' + e.message);
+  }
 }
 
 // ── SYNC INVENTORY FROM LOCAL BRIDGE ─────────────────────────────
