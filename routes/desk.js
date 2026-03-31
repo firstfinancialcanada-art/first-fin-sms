@@ -513,7 +513,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
+        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
         [req.user.userId]
       );
       res.json({ success: true, inventory: result.rows });
@@ -700,7 +700,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           (v.vin    || '').slice(0, 17).toUpperCase() || null,
           v.book_value  || 0,
           (v.color  || '').slice(0, 30),
-          (v.trim   || '').slice(0, 80)
+          (v.trim   || '').slice(0, 80),
+          JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0, 10) : [])
         ];
       }
 
@@ -711,11 +712,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         for (const v of vehicles) {
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
              ON CONFLICT (user_id,stock) DO UPDATE SET
                year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,carfax=$9,
-               type=$10,vin=$11,book_value=$12,color=$13,trim=$14,
+               type=$10,vin=$11,book_value=$12,color=$13,trim=$14,photos=$15,
                status='available',updated_at=NOW()`,
             insertParams(v)
           );
@@ -733,8 +734,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
              ON CONFLICT (user_id,stock) DO NOTHING`,
             insertParams(v)
           );
@@ -752,14 +753,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
               await client.query(
                 `UPDATE desk_inventory SET
                    year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,
-                   type=$9,book_value=$10,color=$11,trim=$12,
+                   type=$9,book_value=$10,color=$11,trim=$12,photos=$13,
                    status='available',updated_at=NOW()
                  WHERE user_id=$1 AND vin=$2`,
                 [userId, v.vin.toUpperCase(),
                  v.year||2020, (v.make||'').slice(0,50), (v.model||'').slice(0,80),
                  v.mileage||0, v.price||0, v.condition||'Average',
                  v.type||'Used', v.book_value||0,
-                 (v.color||'').slice(0,30), (v.trim||'').slice(0,80)]
+                 (v.color||'').slice(0,30), (v.trim||'').slice(0,80),
+                 JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0,10) : [])]
               );
               updated++;
               continue;
@@ -767,8 +769,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
              ON CONFLICT (user_id,stock) DO NOTHING`,
             insertParams(v)
           );

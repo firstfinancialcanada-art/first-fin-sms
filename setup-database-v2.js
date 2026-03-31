@@ -78,8 +78,9 @@ async function setup() {
     await client.query(`
       ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fb_status VARCHAR(20) DEFAULT 'pending';
       ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fb_posted_date DATE;
+      ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS photos JSONB DEFAULT '[]';
     `);
-    console.log('✅ desk_inventory fb_status + fb_posted_date columns');
+    console.log('✅ desk_inventory fb_status + fb_posted_date + photos columns');
 
     // ── 4. CRM (replaces ffCRM localStorage) ───────────────────
     await client.query(`
