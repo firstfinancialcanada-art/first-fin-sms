@@ -421,6 +421,40 @@ tr:hover td{background:rgba(30,90,246,.03);}
   </div>
 </div>
 
+<!-- ── FEATURES MODAL ── -->
+<div class="modal-overlay" id="featuresModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('featuresModal').classList.remove('open')">×</button>
+    <div class="modal-title">FEATURE ACCESS</div>
+    <div id="feat-user-label" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:18px;line-height:1.6;">Toggle which platform features this tenant can access. Empty = all-access for legacy active accounts.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:12px;background:var(--surf2);border-radius:8px;border:1px solid var(--border);">
+        <input type="checkbox" id="feat-sarah" style="width:18px;height:18px;accent-color:#1e5af6;cursor:pointer;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">SARAH — AI SMS &amp; Voice</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Twilio number provisioning, AI lead responder, bulk SMS, voice</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:12px;background:var(--surf2);border-radius:8px;border:1px solid var(--border);">
+        <input type="checkbox" id="feat-dt_sync" style="width:18px;height:18px;accent-color:#10b981;cursor:pointer;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">DT Sync <span style="font-size:10px;background:rgba(16,185,129,.2);color:#10b981;border-radius:3px;padding:1px 5px;margin-left:4px;">BETA</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">DealerTrack inventory bridge &amp; scraper</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:12px;background:var(--surf2);border-radius:8px;border:1px solid var(--border);">
+        <input type="checkbox" id="feat-fb_poster" style="width:18px;height:18px;accent-color:#3b82f6;cursor:pointer;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">FB Poster <span style="font-size:10px;background:rgba(59,130,246,.2);color:#3b82f6;border-radius:3px;padding:1px 5px;margin-left:4px;">BETA</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Facebook Marketplace auto-posting bridge</div>
+        </div>
+      </label>
+    </div>
+    <button class="btn-primary" onclick="submitFeatures()" style="width:100%;">Save Feature Access</button>
+  </div>
+</div>
+
 <!-- ── RESET PASSWORD MODAL ── -->
 <div class="modal-overlay" id="pwModal">
   <div class="modal-box">
@@ -692,6 +726,7 @@ function renderUsers(users) {
         <div class="action-row">
           <button class="act blue" onclick="openSubModal(${u.id},'${esc(u.email)}','${sub}')">Sub</button>
           <button class="act amber" onclick="openPwModal(${u.id},'${esc(u.email)}')">PW</button>
+          <button class="act" style="background:rgba(16,185,129,.15);color:#10b981;border-color:rgba(16,185,129,.3);" onclick="openFeaturesModal(${u.id},'${esc(u.email)}',${JSON.stringify(u.features||{}).replace(/"/g,'&quot;')})">Features</button>
           ${suspended
             ? `<button class="act green" onclick="userAction(${u.id},'unsuspend')">Restore</button>`
             : `<button class="act amber" onclick="userAction(${u.id},'suspend')">Suspend</button>`}
@@ -821,6 +856,33 @@ async function submitPwReset() {
     if (d.success) { toast('✓ Password reset'); document.getElementById('pwModal').classList.remove('open'); }
     else { errEl.textContent = d.error; errEl.style.display = 'block'; }
   } catch(e) {}
+}
+
+let currentFeatUserId = null;
+function openFeaturesModal(id, email, featuresRaw) {
+  currentFeatUserId = id;
+  document.getElementById('feat-user-label').textContent = email;
+  let f = {};
+  try { f = typeof featuresRaw === 'string' ? JSON.parse(featuresRaw) : (featuresRaw || {}); } catch(e) {}
+  document.getElementById('feat-sarah').checked    = !!f.sarah;
+  document.getElementById('feat-dt_sync').checked  = !!f.dt_sync;
+  document.getElementById('feat-fb_poster').checked = !!f.fb_poster;
+  document.getElementById('featuresModal').classList.add('open');
+}
+async function submitFeatures() {
+  const body = {
+    sarah:     document.getElementById('feat-sarah').checked,
+    dt_sync:   document.getElementById('feat-dt_sync').checked,
+    fb_poster: document.getElementById('feat-fb_poster').checked,
+  };
+  try {
+    const d = await api(`/api/admin/users/${currentFeatUserId}/features`, { method: 'POST', body: JSON.stringify(body) });
+    if (d.success) {
+      toast('✓ Features saved');
+      document.getElementById('featuresModal').classList.remove('open');
+      loadUsers();
+    } else toast('Error: ' + d.error);
+  } catch(e) { toast('Network error'); }
 }
 
 async function createTenant() {

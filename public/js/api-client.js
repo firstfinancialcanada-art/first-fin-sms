@@ -172,6 +172,7 @@
           dealerName: window.settings.dealerName || '',
           logoUrl:    window.settings.logoUrl    || ''
         };
+        if (data.user && data.user.features) _user.features = data.user.features;
       }
       // Apply immediately to deal desk fields
       if (typeof setVal === 'function') {
@@ -309,6 +310,10 @@
       // Check billing status and show banner / enforce readonly
       if (typeof checkBillingBanner === 'function') {
         try { checkBillingBanner(getBilling()); } catch(e) {}
+      }
+      // Apply feature gating to nav tabs
+      if (typeof applyFeatureGating === 'function') {
+        try { applyFeatureGating(_user ? (_user.features || {}) : {}); } catch(e) {}
       }
       console.log('🔄 Syncing UI with PostgreSQL data...');
       const inv = window.ffInventory || window.inventory || [];

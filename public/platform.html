@@ -963,8 +963,8 @@ select option{background:#0d1526;color:var(--text);}
     <button class="nav-btn" onclick="showSection('sarah')" id="nav-sarah"><i data-lucide="bot" class="ico"></i>SARAH</button>
     <button class="nav-btn compare-btn" onclick="showSection('compare',this)"><i data-lucide="zap" class="ico"></i>Compare All</button>
     <button class="nav-btn" onclick="showSection('analytics',this)"><i data-lucide="bar-chart-3" class="ico"></i>Analytics</button>
-    <button class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
-    <button class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
+    <button id="nav-dtsync" class="nav-btn" onclick="showSection('dtsync',this)" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));color:#10b981;border-color:rgba(16,185,129,.3);"><i data-lucide="refresh-cw" class="ico"></i>DT Sync <span style="font-size:8px;background:rgba(16,185,129,.25);color:#10b981;border:1px solid rgba(16,185,129,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
+    <button id="nav-fbposter" class="nav-btn" onclick="showSection('fbposter',this)" style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(30,90,246,.15));color:#3b82f6;border-color:rgba(59,130,246,.3);"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>FB Poster <span style="font-size:8px;background:rgba(59,130,246,.25);color:#3b82f6;border:1px solid rgba(59,130,246,.4);border-radius:3px;padding:1px 4px;letter-spacing:.5px;margin-left:2px;vertical-align:middle;">BETA</span></button>
   </nav>
   <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
@@ -2489,6 +2489,72 @@ select option{background:#0d1526;color:var(--text);}
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script src="/js/api-client.js"></script>
+<script>
+// ── FEATURE GATING ────────────────────────────────────────────────
+// Called by api-client._triggerRenders() after every login/session restore.
+// features = { sarah: bool, dt_sync: bool, fb_poster: bool }
+// Empty object = not yet assigned (treat as locked for new accounts,
+//   but api-client handles legacy active → all true before calling here).
+window.applyFeatureGating = function(features) {
+  const GATED = [
+    { key: 'sarah',     navId: 'nav-sarah',     label: 'SARAH — AI SMS & Voice' },
+    { key: 'dt_sync',   navId: 'nav-dtsync',    label: 'DT Sync' },
+    { key: 'fb_poster', navId: 'nav-fbposter',  label: 'FB Poster' },
+  ];
+
+  // Ensure upgrade modal exists
+  if (!document.getElementById('ff-upgrade-modal')) {
+    const m = document.createElement('div');
+    m.id = 'ff-upgrade-modal';
+    m.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;';
+    m.innerHTML = `
+      <div style="background:#0d1526;border:1px solid rgba(30,90,246,.35);border-radius:14px;padding:36px 32px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+        <div style="font-size:28px;margin-bottom:8px;">🔒</div>
+        <div id="ff-upgrade-title" style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:8px;"></div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:24px;line-height:1.6;">This feature is not included in your current plan.<br>Contact First-FIN to add it to your account.</div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <a href="tel:5873066133" style="background:#1e5af6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">📞 Call Us</a>
+          <button onclick="document.getElementById('ff-upgrade-modal').style.display='none';" style="background:rgba(255,255,255,.08);color:#e2e8f0;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;">Dismiss</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+  }
+
+  GATED.forEach(({ key, navId, label }) => {
+    const btn = document.getElementById(navId);
+    if (!btn) return;
+    const enabled = features[key] === true;
+
+    if (!enabled) {
+      // Style as locked
+      btn.style.opacity = '0.45';
+      btn.style.filter  = 'grayscale(0.6)';
+      btn.setAttribute('data-ff-locked', '1');
+      btn.setAttribute('title', label + ' — upgrade to unlock');
+      // Replace onclick with upgrade prompt (preserve original for if it gets unlocked)
+      if (!btn.dataset.ffOrigOnclick) btn.dataset.ffOrigOnclick = btn.getAttribute('onclick') || '';
+      btn.setAttribute('onclick', `showUpgradeModal('${label.replace(/'/g,"\\'")}'); return false;`);
+    } else {
+      // Restore
+      btn.style.opacity = '';
+      btn.style.filter  = '';
+      btn.removeAttribute('data-ff-locked');
+      btn.removeAttribute('title');
+      if (btn.dataset.ffOrigOnclick) {
+        btn.setAttribute('onclick', btn.dataset.ffOrigOnclick);
+        delete btn.dataset.ffOrigOnclick;
+      }
+    }
+  });
+};
+
+window.showUpgradeModal = function(featureName) {
+  const modal = document.getElementById('ff-upgrade-modal');
+  const title = document.getElementById('ff-upgrade-title');
+  if (title) title.textContent = featureName + ' — Add-On Required';
+  if (modal) modal.style.display = 'flex';
+};
+</script>
 <script src="/js/platform-main.js"></script>
 <script src="/js/platform-probability.js"></script>
 <script src="/js/platform-demo.js"></script>

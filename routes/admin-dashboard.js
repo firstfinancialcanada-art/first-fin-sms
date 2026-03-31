@@ -81,6 +81,9 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
         try { await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE'); } catch(e) {}
       }
 
+      // Ensure features column exists
+      try { await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`); } catch(e) {}
+
       const suspendedSel = hasSuspended ? 'COALESCE(u.suspended, FALSE) AS suspended' : 'FALSE AS suspended';
       const createdSel   = hasCreatedAt ? 'u.created_at,' : '';
       const lastLoginSel = hasLastLogin ? 'u.last_login,' : '';
@@ -97,6 +100,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  u.twilio_number,
                  u.stripe_customer_id,
                  u.settings_json,
+                 COALESCE(u.features, '{}') AS features,
                  COUNT(DISTINCT i.id)    AS inventory_count,
                  COUNT(DISTINCT c.id)    AS crm_count,
                  COUNT(DISTINCT conv.id) AS conversation_count,
@@ -351,6 +355,29 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Release number error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/features ───────────────────
+  // Sets per-tenant feature flags: { sarah, dt_sync, fb_poster }
+  app.post('/api/admin/users/:id/features', adminAuth, async (req, res) => {
+    const allowed = ['sarah', 'dt_sync', 'fb_poster'];
+    const incoming = req.body; // e.g. { sarah: true, dt_sync: false, fb_poster: true }
+    const features = {};
+    for (const key of allowed) {
+      if (key in incoming) features[key] = !!incoming[key];
+    }
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE desk_users SET features = $1::jsonb WHERE id = $2`,
+        [JSON.stringify(features), req.params.id]
+      );
+      res.json({ success: true, features });
+    } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
