@@ -17,7 +17,9 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     next();
   }
 
-  app.get('/admin', adminAuth, (req, res) => {
+  // Serve admin.html without server-side guard — browser navigation can't send headers.
+  // All API routes below remain protected by adminAuth.
+  app.get('/admin', (req, res) => {
     const path = require('path');
     res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
   });

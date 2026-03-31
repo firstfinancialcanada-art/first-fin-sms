@@ -1596,6 +1596,7 @@ select option{background:#0d1526;color:var(--text);}
         <span class="inv-count" id="invCount">0 vehicles</span>
         <button class="btn btn-sm" id="invSyncBtn" onclick="syncInventory()" style="background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(30,90,246,.15));border-color:rgba(16,185,129,.4);color:#10b981;font-weight:700;"><i data-lucide="refresh-cw" class="ico-sm"></i>Sync Inventory</button>
         <button class="btn btn-amber btn-sm" onclick="openModal('csvImportModal')"><i data-lucide="upload" class="ico-sm"></i>Import CSV</button>
+        <button class="btn btn-sm" onclick="downloadCsvTemplate()" style="background:rgba(30,90,246,.1);border-color:rgba(30,90,246,.35);color:#6b8afd;" title="Download blank CSV template"><i data-lucide="file-down" class="ico-sm"></i>CSV Template</button>
       </div>
     </div>
     <div class="inv-search">
@@ -2026,6 +2027,7 @@ select option{background:#0d1526;color:var(--text);}
     </div>
 
     <button id="saveSettingsBtn" class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:16px;"><i data-lucide="save" class="ico-sm"></i>Save Settings</button>
+    <button class="btn btn-sm btn-full" onclick="closeModal('settingsModal');wizOpen();" style="margin-top:8px;background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;"><i data-lucide="play-circle" class="ico-sm"></i>Re-run Setup Wizard</button>
 
     <!-- Change Password -->
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07);">

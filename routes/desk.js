@@ -20,8 +20,6 @@ function sanitizeError(e) {
   console.error('Route error:', e);
   return 'An unexpected error occurred. Please try again.';
 }
-const TRIAL_DAYS = 3;
-
 module.exports = function (app, pool, twilioClient, requireBilling) {
 
   // ── Feature telemetry table ───────────────────────────────────────

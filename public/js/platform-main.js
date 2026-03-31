@@ -2419,8 +2419,19 @@ async function saveSettings(){
   settings.apr       = parseFloat(getVal('setAPR'))     || settings.apr;
   settings.target    = parseInt(getVal('setTarget'))    || settings.target;
   settings.dealerCity   = (getVal('setDealerCity')   || '').trim();
-  settings.twilioNumber    = (getVal('setTwilioNumber')    || '').trim();
-  settings.notifyPhone     = (getVal('setNotifyPhone')     || '').trim();
+  const rawTwilio = (getVal('setTwilioNumber') || '').trim();
+  const rawNotify = (getVal('setNotifyPhone')  || '').trim();
+  const phoneRx   = /^\+1\d{10}$/;
+  if (rawTwilio && !phoneRx.test(rawTwilio)) {
+    toast('⚠️ Twilio Number must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+    return;
+  }
+  if (rawNotify && !phoneRx.test(rawNotify)) {
+    toast('⚠️ Notify Phone must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+    return;
+  }
+  settings.twilioNumber    = rawTwilio;
+  settings.notifyPhone     = rawNotify;
   settings.googleReviewUrl = (getVal('setGoogleReviewUrl') || '').trim();
 
   // 2. Apply locally immediately
@@ -2458,6 +2469,17 @@ async function saveSettings(){
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
+}
+
+function downloadCsvTemplate() {
+  const headers = ['stock','year','make','model','type','mileage','price','book_value','condition'];
+  const example = ['A1001','2021','Toyota','Camry','Sedan','42000','22995','19000','Good'];
+  const csv = headers.join(',') + '\n' + example.join(',') + '\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'firstfin-inventory-template.csv' });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── CRM ───────────────────────────────────────────────
