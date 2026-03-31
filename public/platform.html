@@ -3077,9 +3077,13 @@ async function startLoginBuy() {
         To use FB Poster, run <strong>start.bat</strong> or <strong>post.bat</strong> from your First-Fin poster folder on this computer, then reload this tab.<br><br>
         Don't have your folder yet? Contact First-Fin to get set up — we build it for you in about 15 minutes.
       </div>
+      <div id="fbp-cloud-inv" style="display:none;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:10px 18px;max-width:400px;font-size:12px;color:#10b981;text-align:center;line-height:1.6;">
+        <strong id="fbp-cloud-count" style="font-size:15px;display:block;margin-bottom:3px;">0</strong>
+        vehicles synced to your inventory — ready to post once the bridge is running.
+      </div>
       <div class="fbp-contact-row">
         <a href="tel:+15873066133" class="fbp-contact-btn secondary">📞 587-306-6133</a>
-        <a href="/cdn-cgi/l/email-protection#9bddf2e9e8efdbddf2e9e8efddf2f5faf5f8f2faf7d8faf5fafffab5f8f4f6" class="fbp-contact-btn primary">Get Set Up →</a>
+        <a href="mailto:support@firstfinancialcanada.com" class="fbp-contact-btn primary">Get Set Up →</a>
       </div>
     </div>
 
@@ -3225,6 +3229,14 @@ async function startLoginBuy() {
     if (msg) {
       const el = document.getElementById('fbp-inactive-msg');
       if (el) el.innerHTML = msg;
+    }
+    // Show cloud inventory count if vehicles are synced
+    const inv = window.ffInventory || window.inventory || [];
+    const cloudEl  = document.getElementById('fbp-cloud-inv');
+    const countEl  = document.getElementById('fbp-cloud-count');
+    if (cloudEl && countEl && inv.length > 0) {
+      countEl.textContent = inv.length;
+      cloudEl.style.display = 'block';
     }
   }
 
