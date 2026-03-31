@@ -663,6 +663,135 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ── EXTENSION: inventory sync (add | replace | consolidate) ─────
+  // POST /api/desk/inventory/sync
+  // Body: { mode: 'add'|'replace'|'consolidate', vehicles: [...] }
+  app.post('/api/desk/inventory/sync', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { mode, vehicles } = req.body;
+      if (!['add', 'replace', 'consolidate'].includes(mode)) {
+        return res.status(400).json({ success: false, error: 'mode must be add | replace | consolidate' });
+      }
+      if (!Array.isArray(vehicles) || vehicles.length === 0) {
+        return res.status(400).json({ success: false, error: 'vehicles array is required' });
+      }
+
+      const userId = req.user.userId;
+      let inserted = 0, updated = 0, skipped = 0;
+      let stockCounter = 0;
+
+      function makeStock(v) {
+        if (v.stock) return String(v.stock).toUpperCase().slice(0, 20);
+        if (v.vin)   return v.vin.slice(-8).toUpperCase();
+        stockCounter++;
+        return ('IMP' + Date.now() + stockCounter).slice(0, 20);
+      }
+
+      function insertParams(v) {
+        return [
+          userId,
+          makeStock(v),
+          v.year        || 2020,
+          (v.make   || '').slice(0, 50),
+          (v.model  || '').slice(0, 80),
+          v.mileage     || 0,
+          v.price       || 0,
+          v.condition   || 'Average',
+          v.carfax      || 0,
+          v.type        || 'Used',
+          (v.vin    || '').slice(0, 17).toUpperCase() || null,
+          v.book_value  || 0,
+          (v.color  || '').slice(0, 30),
+          (v.trim   || '').slice(0, 80)
+        ];
+      }
+
+      await client.query('BEGIN');
+
+      if (mode === 'replace') {
+        await client.query("UPDATE desk_inventory SET status='delisted' WHERE user_id=$1", [userId]);
+        for (const v of vehicles) {
+          await client.query(
+            `INSERT INTO desk_inventory
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+             ON CONFLICT (user_id,stock) DO UPDATE SET
+               year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,carfax=$9,
+               type=$10,vin=$11,book_value=$12,color=$13,trim=$14,
+               status='available',updated_at=NOW()`,
+            insertParams(v)
+          );
+          inserted++;
+        }
+
+      } else if (mode === 'add') {
+        for (const v of vehicles) {
+          if (v.vin) {
+            const { rows } = await client.query(
+              'SELECT id FROM desk_inventory WHERE user_id=$1 AND vin=$2 LIMIT 1',
+              [userId, v.vin.toUpperCase()]
+            );
+            if (rows.length) { skipped++; continue; }
+          }
+          await client.query(
+            `INSERT INTO desk_inventory
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+             ON CONFLICT (user_id,stock) DO NOTHING`,
+            insertParams(v)
+          );
+          inserted++;
+        }
+
+      } else { // consolidate
+        for (const v of vehicles) {
+          if (v.vin) {
+            const { rows } = await client.query(
+              'SELECT id FROM desk_inventory WHERE user_id=$1 AND vin=$2 LIMIT 1',
+              [userId, v.vin.toUpperCase()]
+            );
+            if (rows.length) {
+              await client.query(
+                `UPDATE desk_inventory SET
+                   year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,
+                   type=$9,book_value=$10,color=$11,trim=$12,
+                   status='available',updated_at=NOW()
+                 WHERE user_id=$1 AND vin=$2`,
+                [userId, v.vin.toUpperCase(),
+                 v.year||2020, (v.make||'').slice(0,50), (v.model||'').slice(0,80),
+                 v.mileage||0, v.price||0, v.condition||'Average',
+                 v.type||'Used', v.book_value||0,
+                 (v.color||'').slice(0,30), (v.trim||'').slice(0,80)]
+              );
+              updated++;
+              continue;
+            }
+          }
+          await client.query(
+            `INSERT INTO desk_inventory
+               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'available')
+             ON CONFLICT (user_id,stock) DO NOTHING`,
+            insertParams(v)
+          );
+          inserted++;
+        }
+      }
+
+      await client.query('COMMIT');
+      trackFeature(userId, 'inventory', 'extension_sync', { mode, total: vehicles.length });
+      console.log(`📦 inventory/sync [${mode}] user=${userId} inserted=${inserted} updated=${updated} skipped=${skipped}`);
+      res.json({ success: true, mode, inserted, updated, skipped });
+
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════
   // CRM
   // ═══════════════════════════════════════════════════════════

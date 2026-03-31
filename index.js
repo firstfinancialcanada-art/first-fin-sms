@@ -53,6 +53,8 @@ app.use(cors({
     // (Twilio callbacks, Stripe webhooks, curl — these never send Origin)
     if (!origin) return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    // Allow Chrome extension popups — Origin is chrome-extension://<id>
+    if (origin.startsWith('chrome-extension://')) return callback(null, true);
     callback(new Error('CORS: origin not allowed — ' + origin));
   },
   credentials: true
