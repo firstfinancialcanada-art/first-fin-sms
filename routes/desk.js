@@ -22,6 +22,26 @@ function sanitizeError(e) {
 }
 module.exports = function (app, pool, twilioClient, requireBilling) {
 
+  // ── Fix legacy single-column stock constraint (breaks multi-tenancy) ────
+  ;(async () => {
+    try {
+      // Old DB had UNIQUE(stock) globally — must be (user_id, stock) for multi-tenant
+      await pool.query(`ALTER TABLE desk_inventory DROP CONSTRAINT IF EXISTS desk_inventory_stock_unique`);
+      await pool.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'desk_inventory_user_stock_unique'
+              AND conrelid = 'desk_inventory'::regclass
+          ) THEN
+            ALTER TABLE desk_inventory ADD CONSTRAINT desk_inventory_user_stock_unique UNIQUE (user_id, stock);
+          END IF;
+        END $$
+      `);
+      console.log('✅ desk_inventory constraint: (user_id, stock) multi-tenant ready');
+    } catch(e) { console.error('⚠️ inventory constraint migration:', e.message); }
+  })();
+
   // ── Feature telemetry table ───────────────────────────────────────
   ;(async () => {
     try {
