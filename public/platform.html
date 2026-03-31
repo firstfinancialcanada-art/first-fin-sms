@@ -2828,11 +2828,17 @@ async function startLoginBuy() {
         <!-- Queue panel -->
         <div class="fbp-q">
           <div class="fbp-qhead">
-            <div class="fbp-qhead-lbl">Today's Queue</div>
-            <div class="fbp-sorts" style="gap:3px;">
-              <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:9px;padding:3px 7px;">Cheapest</button>
-              <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:9px;padding:3px 7px;">Newest</button>
-              <button class="fbp-sort" onclick="fbpSort('default',this)" style="font-size:9px;padding:3px 7px;">Listed</button>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+              <button class="fbp-sort active" id="fbp-view-queue" onclick="fbpSetView('queue')" style="font-size:9px;padding:3px 9px;">Queue (10)</button>
+              <button class="fbp-sort" id="fbp-view-all" onclick="fbpSetView('all')" style="font-size:9px;padding:3px 9px;">All Vehicles</button>
+              <button class="fbp-sort" id="fbp-view-posted" onclick="fbpSetView('posted')" style="font-size:9px;padding:3px 9px;">Posted</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="text" id="fbp-search" placeholder="Search..." oninput="fbpFilter()" style="flex:1;padding:3px 7px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Outfit',sans-serif;font-size:9px;outline:none;">
+              <div class="fbp-sorts" style="gap:3px;">
+                <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:8px;padding:2px 6px;">$</button>
+                <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:8px;padding:2px 6px;">New</button>
+              </div>
             </div>
           </div>
           <div class="fbp-repost" id="fbp-repost-bar" onclick="fbpShowReposts()"></div>
@@ -2899,7 +2905,7 @@ async function startLoginBuy() {
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
-      fbpDone = {};
+      fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '';
 
   // Init — called when FB Poster tab opens
   window.initFbPoster = async function() {
@@ -3003,10 +3009,34 @@ async function startLoginBuy() {
     const today   = new Date().toISOString().split('T')[0];
     const ptToday = fbpAllV.filter(v => v.is_posted && v.posted_date === today).length;
     const slots   = Math.max(0, DAILY_LIM - ptToday);
-    let unposted  = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
-    if (fbpSort_ === 'cheapest') unposted.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
-    else if (fbpSort_ === 'newest') unposted.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
-    fbpQueue = unposted.slice(0, slots);
+
+    // Build the list based on current view
+    let list;
+    if (fbpView_ === 'all') {
+      list = fbpAllV.filter(v => !v.is_skipped);
+    } else if (fbpView_ === 'posted') {
+      list = fbpAllV.filter(v => v.is_posted);
+    } else {
+      // queue view — unposted only, capped at daily limit
+      list = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
+      if (fbpSort_ === 'cheapest') list.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+      else if (fbpSort_ === 'newest') list.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
+      list = list.slice(0, slots);
+    }
+
+    // Apply sort to all/posted views too
+    if (fbpView_ !== 'queue') {
+      if (fbpSort_ === 'cheapest') list.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+      else if (fbpSort_ === 'newest') list.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
+    }
+
+    // Apply search filter
+    if (fbpSearch_) {
+      const q = fbpSearch_.toLowerCase();
+      list = list.filter(v => v.title.toLowerCase().includes(q) || v.stock.toLowerCase().includes(q) || v.price_display.includes(q));
+    }
+
+    fbpQueue = list;
     const reposts = fbpAllV.filter(v => v.needs_repost);
     const bar = document.getElementById('fbp-repost-bar');
     if (bar) { bar.style.display = reposts.length ? 'block':'none'; if(reposts.length) bar.textContent=`${reposts.length} need reposting`; }
@@ -3014,7 +3044,7 @@ async function startLoginBuy() {
     const totalP = fbpAllV.filter(v => v.is_posted).length;
     const ids = {
       'fbp-st-total': fbpAllV.length, 'fbp-st-posted': totalP,
-      'fbp-st-today': ptToday, 'fbp-st-queue': fbpQueue.length,
+      'fbp-st-today': ptToday, 'fbp-st-queue': fbpView_ === 'queue' ? fbpQueue.length : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length,
       'fbp-ft-today': ptToday, 'fbp-ft-total': totalP,
     };
     Object.entries(ids).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.textContent=val; });
@@ -3025,18 +3055,20 @@ async function startLoginBuy() {
     if (!list) return;
     list.innerHTML = '';
     if (!fbpQueue.length) {
-      const empty = fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Daily limit reached';
-      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">${empty}</div>`;
+      const msg = fbpSearch_ ? 'No matches' : fbpView_ === 'posted' ? 'Nothing posted yet' : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Daily limit reached';
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">${msg}</div>`;
       return;
     }
     fbpQueue.forEach((v,i) => {
       const d = document.createElement('div');
       d.className = 'fbp-qi' + (v.needs_repost?' repost':'');
       d.onclick = () => fbpSelect(i);
-      d.innerHTML = `<div class="fbp-qi-n">#${String(i+1).padStart(2,'0')}${v.stock?' · '+v.stock:''}</div>
+      const badge = v.is_posted ? '<span style="font-size:8px;background:rgba(16,185,129,.15);color:var(--green);border-radius:3px;padding:1px 4px;margin-left:4px;">POSTED</span>' : '';
+      d.innerHTML = `<div class="fbp-qi-n">#${String(i+1).padStart(2,'0')}${v.stock?' · '+v.stock:''}${badge}</div>
         <div class="fbp-qi-name">${v.title}</div>
         <div class="fbp-qi-row">
           ${v.price_display?`<span class="fbp-qi-price">${v.price_display}</span>`:''}
+          ${v.mileage_display?`<span style="font-size:9px;color:var(--muted);margin-left:4px;">${v.mileage_display}</span>`:''}
         </div>`;
       list.appendChild(d);
     });
@@ -3045,13 +3077,33 @@ async function startLoginBuy() {
 
   window.fbpSort = function(mode, btn) {
     fbpSort_ = mode; fbpIdx = -1;
-    document.querySelectorAll('.fbp-sort').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${mode}'`));
-    });
+    // Only toggle sort buttons (not view buttons)
+    btn?.closest('.fbp-sorts')?.querySelectorAll('.fbp-sort').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    fbpBuildQueue();
+  };
+
+  window.fbpSetView = function(view) {
+    fbpView_ = view; fbpIdx = -1;
+    document.getElementById('fbp-view-queue')?.classList.toggle('active', view === 'queue');
+    document.getElementById('fbp-view-all')?.classList.toggle('active', view === 'all');
+    document.getElementById('fbp-view-posted')?.classList.toggle('active', view === 'posted');
+    fbpBuildQueue();
+  };
+
+  window.fbpFilter = function() {
+    fbpSearch_ = (document.getElementById('fbp-search')?.value || '').trim();
+    fbpIdx = -1;
     fbpBuildQueue();
   };
 
   window.fbpShowReposts = function() {
+    fbpView_ = 'all';
+    document.getElementById('fbp-view-queue')?.classList.remove('active');
+    document.getElementById('fbp-view-all')?.classList.add('active');
+    document.getElementById('fbp-view-posted')?.classList.remove('active');
+    fbpSearch_ = '';
+    const searchEl = document.getElementById('fbp-search'); if (searchEl) searchEl.value = '';
     fbpQueue = fbpAllV.filter(v => v.needs_repost);
     fbpIdx = -1; fbpRenderQueue();
   };
