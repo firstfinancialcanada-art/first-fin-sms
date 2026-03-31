@@ -172,7 +172,6 @@
           dealerName: window.settings.dealerName || '',
           logoUrl:    window.settings.logoUrl    || ''
         };
-        if (data.user && data.user.features) _user.features = data.user.features;
       }
       // Apply immediately to deal desk fields
       if (typeof setVal === 'function') {
@@ -311,10 +310,6 @@
       if (typeof checkBillingBanner === 'function') {
         try { checkBillingBanner(getBilling()); } catch(e) {}
       }
-      // Apply feature gating to nav tabs
-      if (typeof applyFeatureGating === 'function') {
-        try { applyFeatureGating(_user ? (_user.features || {}) : {}); } catch(e) {}
-      }
       console.log('🔄 Syncing UI with PostgreSQL data...');
       const inv = window.ffInventory || window.inventory || [];
 
@@ -392,16 +387,6 @@
       // Fire onboarding wizard check — runs after server settings are fully
       // loaded into window.settings, so twilioNumber reflects actual DB value
       if (typeof wizCheckAndShow === 'function') wizCheckAndShow();
-
-      // Navigate to URL hash section (e.g. #fbposter from extension "Go to FB Poster" button)
-      const hashTarget = location.hash.replace('#', '').toLowerCase();
-      if (hashTarget && typeof showSection === 'function') {
-        const validSections = ['deal','inventory','crm','analytics','compare','settings','fbposter','dtsync','sarah'];
-        if (validSections.includes(hashTarget)) {
-          const btn = document.getElementById('nav-' + hashTarget);
-          setTimeout(() => showSection(hashTarget, btn || null), 100);
-        }
-      }
     } catch (e) {
       console.warn('⚠️ UI Sync Error:', e.message);
     }

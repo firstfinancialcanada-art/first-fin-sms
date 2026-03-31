@@ -10,16 +10,14 @@ function sanitizeError(e) {
 module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   function adminAuth(req, res, next) {
-    const token = req.headers['x-admin-token'];
+    const token = req.headers['x-admin-token'] || req.query.token;
     if (!token || token !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
     next();
   }
 
-  // Serve admin.html without server-side guard — browser navigation can't send headers.
-  // All API routes below remain protected by adminAuth.
-  app.get('/admin', (req, res) => {
+  app.get('/admin', adminAuth, (req, res) => {
     const path = require('path');
     res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
   });
@@ -31,7 +29,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       const [users, inventory, deals, inquiries, conversations, appointments, bulk, sarahActive] = await Promise.all([
         client.query('SELECT COUNT(*) FROM desk_users'),
         client.query('SELECT COUNT(*) FROM desk_inventory').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query('SELECT COUNT(*) FROM desk_deal_log').catch(() => ({ rows: [{ count: 0 }] })),
+        client.query('SELECT COUNT(*) FROM desk_deals').catch(() => ({ rows: [{ count: 0 }] })),
         client.query("SELECT COUNT(*) FROM platform_inquiries WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
         client.query('SELECT COUNT(*) FROM conversations').catch(() => ({ rows: [{ count: 0 }] })),
         client.query('SELECT COUNT(*) FROM appointments').catch(() => ({ rows: [{ count: 0 }] })),
@@ -83,9 +81,6 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
         try { await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE'); } catch(e) {}
       }
 
-      // Ensure features column exists
-      try { await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`); } catch(e) {}
-
       const suspendedSel = hasSuspended ? 'COALESCE(u.suspended, FALSE) AS suspended' : 'FALSE AS suspended';
       const createdSel   = hasCreatedAt ? 'u.created_at,' : '';
       const lastLoginSel = hasLastLogin ? 'u.last_login,' : '';
@@ -102,7 +97,6 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  u.twilio_number,
                  u.stripe_customer_id,
                  u.settings_json,
-                 COALESCE(u.features, '{}') AS features,
                  COUNT(DISTINCT i.id)    AS inventory_count,
                  COUNT(DISTINCT c.id)    AS crm_count,
                  COUNT(DISTINCT conv.id) AS conversation_count,
@@ -186,7 +180,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       await client.query('DELETE FROM desk_refresh_tokens   WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM desk_inventory        WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM desk_crm              WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_deal_log            WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_deals            WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM conversations         WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM appointments          WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM callbacks             WHERE user_id = $1', [uid]).catch(() => {});
@@ -363,29 +357,6 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     }
   });
 
-  // ── POST /api/admin/users/:id/features ───────────────────
-  // Sets per-tenant feature flags: { sarah, dt_sync, fb_poster }
-  app.post('/api/admin/users/:id/features', adminAuth, async (req, res) => {
-    const allowed = ['sarah', 'dt_sync', 'fb_poster'];
-    const incoming = req.body; // e.g. { sarah: true, dt_sync: false, fb_poster: true }
-    const features = {};
-    for (const key of allowed) {
-      if (key in incoming) features[key] = !!incoming[key];
-    }
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `UPDATE desk_users SET features = $1::jsonb WHERE id = $2`,
-        [JSON.stringify(features), req.params.id]
-      );
-      res.json({ success: true, features });
-    } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
-    }
-  });
-
   // ── POST /api/admin/fintest/reset ─────────────────────────
   app.post('/api/admin/fintest/reset', adminAuth, async (req, res) => {
     const client = await pool.connect();
@@ -395,7 +366,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       const uid = u.rows[0].id;
       await Promise.all([
         client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]),
-        client.query('DELETE FROM desk_deal_log WHERE user_id = $1', [uid]).catch(() => {}),
+        client.query('DELETE FROM desk_deals WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {}),
         client.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {}),
@@ -463,34 +434,20 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           GROUP BY user_id
         ) cv ON cv.user_id = u.id
         WHERE u.role != 'admin'
-        AND u.email NOT IN ('fintest@fintest.com', 'kevlarkarz@gmail.com')
         ORDER BY u.last_active DESC NULLS LAST
       `);
 
       // Churn risk scoring
       const tenants = rows.map(t => {
-        const daysInactive   = t.days_inactive ?? null;     // null = never logged in
-        const neverLoggedIn  = daysInactive === null;
-        const hasActivity    = t.deals_last_30d > 0 || t.crm_entries_last_30d > 0 || t.inventory_uploads_last_30d > 0;
-        const isTrial        = t.subscription_status === 'trial';
-        const trialExpired   = isTrial && t.trial_ends_at && new Date(t.trial_ends_at) < new Date();
-        // How old is the account in days?
-        const accountAgeDays = t.joined_at
-          ? Math.floor((Date.now() - new Date(t.joined_at)) / 86400000) : 0;
+        const daysInactive = t.days_inactive || 999;
+        const hasActivity  = t.deals_last_30d > 0 || t.crm_entries_last_30d > 0 || t.inventory_uploads_last_30d > 0;
+        const isTrial      = t.subscription_status === 'trial';
+        const trialExpired = isTrial && t.trial_ends_at && new Date(t.trial_ends_at) < new Date();
 
-        let churnRisk = 'active';
-        if (trialExpired) {
-          churnRisk = 'critical';
-        } else if (neverLoggedIn && accountAgeDays > 3) {
-          // Signed up but hasn't used it yet — not inactive, just not started
-          churnRisk = 'medium';
-        } else if (!neverLoggedIn && daysInactive > 21 && !hasActivity) {
-          churnRisk = 'high';
-        } else if (!neverLoggedIn && (daysInactive > 14 || (!hasActivity && accountAgeDays > 7))) {
-          churnRisk = 'medium';
-        } else {
-          churnRisk = 'active';
-        }
+        let churnRisk = 'low';
+        if (trialExpired)                          churnRisk = 'critical';
+        else if (daysInactive > 21 && !hasActivity) churnRisk = 'high';
+        else if (daysInactive > 14 || !hasActivity) churnRisk = 'medium';
 
         const settings = typeof t.settings_json === 'string'
           ? JSON.parse(t.settings_json || '{}') : (t.settings_json || {});
@@ -504,7 +461,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           status:          t.subscription_status,
           joinedAt:        t.joined_at,
           lastActive:      t.last_active,
-          daysInactive:    daysInactive,
+          daysInactive:    daysInactive < 999 ? daysInactive : null,
           hasPhone:        !!t.twilio_number,
           churnRisk,
           usage: {
@@ -528,7 +485,6 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
         active30d:   tenants.filter(t => t.daysInactive !== null && t.daysInactive <= 30).length,
         riskHigh:    tenants.filter(t => t.churnRisk === 'high' || t.churnRisk === 'critical').length,
         riskMedium:  tenants.filter(t => t.churnRisk === 'medium').length,
-        neverLoggedIn: tenants.filter(t => t.daysInactive === null).length,
         noPhone:     tenants.filter(t => !t.hasPhone).length,
         trials:      tenants.filter(t => t.status === 'trial').length,
       };
@@ -544,70 +500,15 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   app.get('/api/admin/system-status', adminAuth, async (req, res) => {
     const { state } = require('../lib/bulk');
-    const client = await pool.connect();
-    try {
-      const queueR = await client.query(`
-        SELECT COUNT(*) AS pending,
-               EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))/60 AS oldest_minutes
-        FROM bulk_messages WHERE status = 'pending'
-      `).catch(() => ({ rows: [{ pending: 0, oldest_minutes: null }] }));
-      const q = queueR.rows[0];
-      res.json({
-        success: true,
-        bulkProcessorRunning: !!state.bulkSmsProcessor,
-        bulkPaused:           state.bulkSmsProcessorPaused,
-        aiPaused:             state.aiResponderPaused,
-        uptime:               Math.floor(process.uptime()),
-        nodeVersion:          process.version,
-        memoryMB:             Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-        pendingBulk:          parseInt(q.pending) || 0,
-        oldestPendingMinutes: q.oldest_minutes != null ? Math.floor(parseFloat(q.oldest_minutes)) : null
-      });
-    } finally {
-      client.release();
-    }
-  });
-
-  // ── GET /api/admin/users/:id/settings ────────────────────
-  app.get('/api/admin/users/:id/settings', adminAuth, async (req, res) => {
-    const client = await pool.connect();
-    try {
-      const r = await client.query(
-        'SELECT settings_json, email, display_name FROM desk_users WHERE id = $1',
-        [req.params.id]
-      );
-      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
-      const s = typeof r.rows[0].settings_json === 'string'
-        ? JSON.parse(r.rows[0].settings_json || '{}')
-        : (r.rows[0].settings_json || {});
-      res.json({ success: true, settings: s, email: r.rows[0].email, name: r.rows[0].display_name });
-    } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
-    }
-  });
-
-  // ── POST /api/admin/users/:id/settings ───────────────────
-  app.post('/api/admin/users/:id/settings', adminAuth, async (req, res) => {
-    const allowed = ['dealerName','dealerCity','dealerPhone','salesName','googleReviewUrl','docFee','gst','apr','target'];
-    const client = await pool.connect();
-    try {
-      const r = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.params.id]);
-      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found' });
-      const existing = typeof r.rows[0].settings_json === 'string'
-        ? JSON.parse(r.rows[0].settings_json || '{}')
-        : (r.rows[0].settings_json || {});
-      for (const key of allowed) {
-        if (key in req.body) existing[key] = req.body[key];
-      }
-      await client.query('UPDATE desk_users SET settings_json = $1::jsonb WHERE id = $2', [JSON.stringify(existing), req.params.id]);
-      res.json({ success: true, settings: existing });
-    } catch(e) {
-      res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
-    }
+    res.json({
+      success: true,
+      bulkProcessorRunning: !!state.bulkSmsProcessor,
+      bulkPaused:           state.bulkSmsProcessorPaused,
+      aiPaused:             state.aiResponderPaused,
+      uptime:               Math.floor(process.uptime()),
+      nodeVersion:          process.version,
+      memoryMB:             Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+    });
   });
 
 };

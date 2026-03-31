@@ -13,22 +13,16 @@ const DEMO_INVENTORY = [
 ];
 
 const DEMO_CRM = [
-  {id:'d1',name:'James Thornton',phone:'+14035550101',email:'jthornton@email.com',status:'Test Drive',score:680,income:6200,vehicle:'2022 Toyota RAV4',date:'2024-01-14',beacon:680,stock:'MAG-1002',created_at:new Date(Date.now()-2*86400000).toISOString()},
-  {id:'d2',name:'Sarah Mitchell',phone:'+14035550102',email:'smitchell@email.com',status:'Negotiating',score:720,income:7800,vehicle:'2021 Ford F-150',date:'2024-01-15',beacon:720,stock:'MAG-1001',created_at:new Date(Date.now()-1*86400000).toISOString()},
-  {id:'d3',name:'David Park',phone:'+14035550103',email:'dpark@email.com',status:'Sold',score:760,income:9100,vehicle:'2023 Chevrolet Silverado',date:'2024-01-10',beacon:760,stock:'MAG-1004',created_at:new Date(Date.now()-5*86400000).toISOString()},
-  {id:'d4',name:'Lisa Chen',phone:'+14035550104',email:'lchen@email.com',status:'Contacted',score:640,income:5400,vehicle:'2020 Honda Civic',date:'2024-01-13',beacon:640,stock:'MAG-1003',created_at:new Date(Date.now()-3*86400000).toISOString()},
-  {id:'d5',name:'Marcus Williams',phone:'+14035550105',email:'mwilliams@email.com',status:'Lead',score:695,income:6800,vehicle:'2021 Hyundai Tucson',date:'2024-01-16',beacon:695,stock:'MAG-1005',created_at:new Date(Date.now()-86400000/2).toISOString()},
-  {id:'d6',name:'Rachel Torres',phone:'+14035550106',email:'rtorres@email.com',status:'Test Drive',score:740,income:8200,vehicle:'2019 Jeep Wrangler',date:'2024-01-12',beacon:740,stock:'MAG-1006',created_at:new Date(Date.now()-4*86400000).toISOString()},
-  {id:'d7',name:'Kevin OBrien',phone:'+14035550107',email:'kobrien@email.com',status:'Sold',score:780,income:10500,vehicle:'2023 Chevrolet Silverado',date:'2024-01-09',beacon:780,stock:'MAG-1004',created_at:new Date(Date.now()-6*86400000).toISOString()},
-  {id:'d8',name:'Priya Sharma',phone:'+14035550108',email:'psharma@email.com',status:'Contacted',score:660,income:5900,vehicle:'2022 Toyota RAV4',date:'2024-01-11',beacon:660,stock:'MAG-1002',created_at:new Date(Date.now()-4*86400000+3600000).toISOString()},
+  {id:'d1',name:'James Thornton',phone:'+14035550101',email:'jthornton@email.com',status:'engaged',score:680,income:6200,vehicle:'2022 Toyota RAV4',created_at:new Date(Date.now()-2*86400000).toISOString()},
+  {id:'d2',name:'Sarah Mitchell',phone:'+14035550102',email:'smitchell@email.com',status:'active',score:720,income:7800,vehicle:'2021 Ford F-150',created_at:new Date(Date.now()-1*86400000).toISOString()},
+  {id:'d3',name:'David Park',phone:'+14035550103',email:'dpark@email.com',status:'converted',score:760,income:9100,vehicle:'2023 Chevrolet Silverado',created_at:new Date(Date.now()-5*86400000).toISOString()},
+  {id:'d4',name:'Lisa Chen',phone:'+14035550104',email:'lchen@email.com',status:'active',score:640,income:5400,vehicle:'2020 Honda Civic',created_at:new Date(Date.now()-3*86400000).toISOString()},
 ];
 
 const DEMO_DEAL_LOG = [
   {id:'dl1',ts:new Date(Date.now()-1*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'David Park'},financial:{price:51200,doc:998,apr:7.99,gst:5,finalDown:3000},products:{vscPrice:2400,gapPrice:895}},
   {id:'dl2',ts:new Date(Date.now()-3*86400000).toISOString(),vehicle:{stock:'MAG-1002',desc:'2022 Toyota RAV4'},customer:{name:'Maria Santos'},financial:{price:34500,doc:998,apr:8.49,gst:5,finalDown:2000},products:{vscPrice:1800,gapPrice:795}},
   {id:'dl3',ts:new Date(Date.now()-7*86400000).toISOString(),vehicle:{stock:'MAG-1001',desc:'2021 Ford F-150'},customer:{name:'Tyler Brooks'},financial:{price:38900,doc:998,apr:6.99,gst:5,finalDown:4000},products:{vscPrice:2100,gapPrice:895}},
-  {id:'dl4',ts:new Date(Date.now()-10*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'Kevin OBrien'},financial:{price:51200,doc:998,apr:7.49,gst:5,finalDown:5000},products:{vscPrice:2500,gapPrice:895,twPrice:595}},
-  {id:'dl5',ts:new Date(Date.now()-14*86400000).toISOString(),vehicle:{stock:'MAG-1006',desc:'2019 Jeep Wrangler'},customer:{name:'Rachel Torres'},financial:{price:31500,doc:998,apr:8.99,gst:5,finalDown:1500},products:{vscPrice:1995,gapPrice:795}},
 ];
 
 
@@ -45,15 +39,10 @@ function _buildWatermarkSVG() {
   const vh = window.innerHeight;
   svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
 
-  // Detect light mode — use dark ink on light bg, light ink on dark bg
-  const isLight = document.body.classList.contains('light-mode');
-  const ink      = isLight ? '#0f172a' : 'white';
-  // Slightly higher opacity in light mode so it\'s actually visible
-  const tileOpacity = isLight ? '0.12' : '0.08';
-
+  // Tile parameters
   const tileW = 340;
   const tileH = 180;
-  const angle = -28;
+  const angle = -28; // degrees
   const cols  = Math.ceil(vw / tileW) + 4;
   const rows  = Math.ceil(vh / tileH) + 4;
 
@@ -63,20 +52,20 @@ function _buildWatermarkSVG() {
       const cx = c * tileW + (r % 2) * (tileW / 2);
       const cy = r * tileH;
       tiles += `
-        <g transform="translate(${cx + tileW/2}, ${cy + tileH/2}) rotate(${angle})" opacity="${tileOpacity}">
+        <g transform="translate(${cx + tileW/2}, ${cy + tileH/2}) rotate(${angle})" opacity="0.07">
           <image href="${DEMO_LOGO_B64}" x="-28" y="-28" width="52" height="52"/>
           <text x="30" y="-8"
             font-family="'Bebas Neue', 'Outfit', sans-serif"
-            font-size="16" font-weight="900" fill="${ink}"
+            font-size="16" font-weight="900" fill="white"
             letter-spacing="3.5">FIRST-FIN</text>
           <text x="30" y="9"
             font-family="'Outfit', sans-serif"
-            font-size="9" font-weight="700" fill="${ink}"
+            font-size="9" font-weight="700" fill="white"
             letter-spacing="2.5" opacity="0.9">DEMO MODE</text>
           <text x="30" y="23"
             font-family="'DM Mono', monospace"
-            font-size="7" fill="${ink}"
-            letter-spacing="1.2" opacity="0.7">firstfinancialcanada.com</text>
+            font-size="7" fill="white"
+            letter-spacing="1.2" opacity="0.6">firstfinancialcanada.com</text>
         </g>`;
     }
   }
@@ -100,13 +89,6 @@ window.addEventListener('resize', () => {
   if (window.DEMO_MODE) _buildWatermarkSVG();
 });
 
-// Rebuild if light-mode class is applied to body after watermark is shown
-// (covers the case where saved theme preference is applied after DOMContentLoaded)
-const _wmThemeObserver = new MutationObserver(() => {
-  if (window.DEMO_MODE) _buildWatermarkSVG();
-});
-_wmThemeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
 function startDemo() {
   window.DEMO_MODE = true;
 
@@ -116,13 +98,7 @@ function startDemo() {
   // Inject demo data — mutate window.settings IN-PLACE so the `settings` alias in platform-main.js stays in sync
   window.ffInventory = DEMO_INVENTORY;
   window.inventory   = DEMO_INVENTORY;
-  window.crmData     = DEMO_CRM.map(c => ({
-    ...c,
-    date:    c.date    || new Date(c.created_at).toLocaleDateString('en-CA'),
-    beacon:  c.beacon  || c.score || '—',
-    vehicle: c.vehicle || '—',
-    stock:   c.stock   || '',
-  }));
+  window.crmData     = DEMO_CRM;
   window.dealLog     = DEMO_DEAL_LOG;
   Object.assign(window.settings, {salesName:'Demo User', dealerName:'Maple Auto Group', docFee:998, gst:5, apr:8.99, target:30, logoUrl:''});
   if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
@@ -162,8 +138,6 @@ function startDemo() {
       setVal('lotPack','500');
       if(typeof calculate === 'function') calculate();
       if(typeof initInventory === 'function') initInventory();
-      // Apply demo field constraints and lock manager tools
-      setTimeout(demoApplyConstraints, 100);
       // Pre-populate Compare All inputs with demo F-150 data
       try {
         const setC = (id,val) => { const e=document.getElementById(id); if(e) e.value=val; };
@@ -184,7 +158,6 @@ function startDemo() {
       } catch(e) {}
       if(typeof refreshLenderCheckerDropdowns === 'function') refreshLenderCheckerDropdowns();
       if(typeof renderCRM === 'function') renderCRM();
-      if(typeof loadSarahDashboard === 'function') setTimeout(loadSarahDashboard, 200);
       if(typeof refreshAllAnalytics === 'function') refreshAllAnalytics();
       if(typeof renderScenarios === 'function') renderScenarios();
       if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
@@ -192,193 +165,6 @@ function startDemo() {
       toast('Welcome to Maple Auto Group — Demo Mode 🚀');
     } catch(e) { console.warn('Demo setup:', e.message); }
   }, 400);
-}
-
-
-// ═══════════════════════════════════════════════════════════
-// DEMO FIELD CONSTRAINTS
-// ═══════════════════════════════════════════════════════════
-
-// Baseline values set when demo starts — constraints are relative to these
-const DEMO_BASELINE = {
-  apr:               7.99,
-  odometer:          45000,
-  creditScore:       720,
-  monthlyIncome:     7800,
-  existingPayments:  1800,
-  tradeAllow:        8500,
-  tradePayoff:       6200,
-  acv:               8000,
-  vscPrice:          500,
-  gapPrice:          500,
-  twPrice:           500,
-  waPrice:           500,
-  compareBeacon:     720,
-  compareIncome:     7800,
-  compareDown:       3000,
-  contractRate:      8.99,
-  compareContractRate: 8.99,
-};
-
-const DEMO_LIMITS = {
-  apr:               0.25,
-  odometer:          100,
-  creditScore:       20,
-  monthlyIncome:     200,
-  existingPayments:  100,
-  tradeAllow:        200,
-  tradePayoff:       200,
-  acv:               200,
-  vscPrice:          15,
-  gapPrice:          15,
-  twPrice:           15,
-  waPrice:           15,
-  compareBeacon:     20,
-  compareIncome:     200,
-  compareDown:       200,
-  contractRate:      0.25,
-  compareContractRate: 0.25,
-};
-
-// Fields that are completely locked (no adjustment allowed) in demo mode
-const DEMO_LOCKED_FIELDS = [
-  'sellingPrice','docFee','gstRate','finalDown',
-  'unitAcv','recon','lotPack','vscCost','gapCost','twCost','waCost',
-  'contractRate','buyRate','bankSplit','reserveTerm',
-  'compareFees','compareTerm',
-];
-
-// Manager sections locked entirely (show upgrade prompt instead)
-const DEMO_LOCKED_MGR_TABS = ['profit','reserve','subprime','tools','commission'];
-
-let _demoUpgradeShown = false;
-
-function demoBumpCheck(fieldId) {
-  if (!window.DEMO_MODE) return;
-  const baseline = DEMO_BASELINE[fieldId];
-  const limit    = DEMO_LIMITS[fieldId];
-  if (baseline === undefined) return;
-
-  const el  = document.getElementById(fieldId);
-  if (!el) return;
-  const val = parseFloat(el.value);
-  if (isNaN(val)) return;
-
-  const min = parseFloat((baseline - limit).toFixed(2));
-  const max = parseFloat((baseline + limit).toFixed(2));
-
-  if (val < min) { el.value = min; showDemoUpgradePopup(); return; }
-  if (val > max) { el.value = max; showDemoUpgradePopup(); return; }
-}
-
-function showDemoUpgradePopup() {
-  if (_demoUpgradeShown) return;
-  _demoUpgradeShown = true;
-  const pop = document.getElementById('demo-upgrade-popup');
-  if (pop) {
-    pop.classList.add('show');
-    clearTimeout(pop._t);
-    pop._t = setTimeout(() => {
-      pop.classList.remove('show');
-      _demoUpgradeShown = false;
-    }, 4000);
-  }
-}
-
-function demoBumpAndCalc(fieldId) {
-  demoBumpCheck(fieldId);
-  if (typeof calculate === 'function') calculate();
-}
-
-function demoLockField(fieldId) {
-  const el = document.getElementById(fieldId);
-  if (!el) return;
-  el.readOnly  = true;
-  el.style.opacity = '0.5';
-  el.style.cursor  = 'not-allowed';
-  el.title     = 'Locked in demo mode — upgrade to adjust';
-  el.addEventListener('focus', showDemoUpgradePopup);
-}
-
-function demoApplyConstraints() {
-  if (!window.DEMO_MODE) return;
-
-  // Apply baseline values for constrained fields
-  Object.entries(DEMO_BASELINE).forEach(([id, val]) => {
-    const el = document.getElementById(id);
-    if (el && !DEMO_LOCKED_FIELDS.includes(id)) el.value = val;
-  });
-
-  // Lock completely locked fields
-  DEMO_LOCKED_FIELDS.forEach(demoLockField);
-
-  // Wire constrained inputs
-  Object.keys(DEMO_LIMITS).forEach(id => {
-    const el = document.getElementById(id);
-    if (!el || DEMO_LOCKED_FIELDS.includes(id)) return;
-    el.addEventListener('change', () => demoBumpAndCalc(id));
-    el.addEventListener('blur',   () => demoBumpAndCalc(id));
-    // For number inputs, also on input (with debounce so they can type)
-    if (el.type === 'number') {
-      let _t;
-      el.addEventListener('input', () => {
-        clearTimeout(_t);
-        _t = setTimeout(() => demoBumpCheck(id), 800);
-      });
-    }
-  });
-
-  // Lock F&I sold checkboxes — can check/uncheck but not adjust beyond limit
-  // (limits already handled by vscPrice etc)
-
-  if (typeof calculate === 'function') calculate();
-}
-
-// Intercept showMgrTab to block locked manager sections
-const _origShowMgrTab = window.showMgrTab;
-document.addEventListener('DOMContentLoaded', () => {
-  // Override showMgrTab after platform-main.js defines it
-  const _patchMgr = () => {
-    if (typeof showMgrTab === 'function' && showMgrTab !== _patchedShowMgrTab) {
-      window._realShowMgrTab = showMgrTab;
-      window.showMgrTab = _patchedShowMgrTab;
-    }
-  };
-  setTimeout(_patchMgr, 600);
-});
-
-function _patchedShowMgrTab(id, btn) {
-  if (window.DEMO_MODE && DEMO_LOCKED_MGR_TABS.includes(id)) {
-    showDemoUpgradePopup();
-    // Still show the tab visually but overlay it
-    if (typeof window._realShowMgrTab === 'function') window._realShowMgrTab(id, btn);
-    // Overlay the locked content
-    setTimeout(() => {
-      const panel = document.getElementById('mgr-' + id);
-      if (panel && !panel.querySelector('.demo-mgr-lock')) {
-        const lock = document.createElement('div');
-        lock.className = 'demo-mgr-lock';
-        lock.innerHTML = `<div style="text-align:center;padding:20px;">
-          <div style="font-size:22px;margin-bottom:8px;">🔒</div>
-          <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:4px;">Available for Paid Members</div>
-          <div style="font-size:11px;color:var(--muted);">Manager tools are locked in demo mode.</div>
-        </div>`;
-        lock.style.cssText = 'position:absolute;inset:0;background:rgba(5,10,25,.85);backdrop-filter:blur(2px);border-radius:8px;display:flex;align-items:center;justify-content:center;z-index:10;';
-        panel.style.position = 'relative';
-        panel.appendChild(lock);
-      }
-    }, 50);
-    return;
-  }
-  if (typeof window._realShowMgrTab === 'function') window._realShowMgrTab(id, btn);
-  else {
-    // Fallback: inline original logic
-    document.querySelectorAll('.mgr-content').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.mgr-tab').forEach(b => b.classList.remove('active'));
-    const panel = document.getElementById('mgr-' + id);
-    if (panel) panel.classList.add('active');
-    if (btn) btn.classList.add('active');
-  }
 }
 
 function exitDemo() {
@@ -407,290 +193,21 @@ document.addEventListener('DOMContentLoaded', () => {
     window.FF.apiFetch = function(path, opts) {
       if(!window.DEMO_MODE) return _real(path, opts);
 
-      // ── Demo mock for Compare All engine ──────────────────────────────────────
-      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/compare-all') {
-        console.log('[DEMO] Mocking /api/compare-all response');
-        const body = JSON.parse(opts.body || '{}');
-        const inv  = window.ffInventory || window.DEMO_INVENTORY || [];
-        const v    = inv.find(x => x.stock === body.stock) || inv[0] || {};
-
-        const curYear = new Date().getFullYear();
-        const gst     = body.gstEnabled ? (body.gstRate || 5) : 0;
-        const taxable = (v.price||34500) + (body.fees||0) - (body.trade||0);
-        const atf     = taxable * (1 + gst/100) - (body.down||0);
-        const book    = v.book_value || v.price || 29325;
-        const ltvPct  = (atf / book) * 100;
-
-        function PMT(r,n,pv){ if(r===0) return Math.abs(pv/n); return Math.abs(pv*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1)); }
-        function BPMT(apr,mo,fin){ return PMT(apr/100/12,mo,fin); }
-
-        const term    = body.term || 72;
-        const income  = (body.income||0) + (body.coIncome||0);
-        const existing = body.existing || 0;
-        const beacon  = body.beacon || 0;
-
-        // Build realistic demo lender results
-        const demoLenders = [
-          { lid:'santander', lName:'SANTANDER CONSUMER', lPhone:'1-888-222-4227', lWeb:'santanderconsumerusa.com', lHard:true, minYear:2015, maxMile:160000, maxCfx:6000,
-            prog:{ tier:'Tier 1', rate:9.99, maxLTV:150, fee:595 }, maxLTV:150, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'northlake', lName:'NORTHLAKE FINANCIAL', lPhone:'1-888-652-5320', lWeb:'northlakefinancial.ca', lHard:true, minYear:2003, maxMile:300000, maxCfx:7500,
-            prog:{ tier:'Standard', rate:10.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:17, lMaxDti:44, lMinIncome:1800, lMaxPay:930 },
-          { lid:'edenpark',  lName:'EDENPARK', lPhone:'1-855-366-8667', lWeb:'edenparkfinancial.ca', lHard:true, minYear:2015, maxMile:180000, maxCfx:7500,
-            prog:{ tier:'Tier A', rate:11.99, maxLTV:140, fee:695 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'iauto',     lName:'iA AUTO FINANCE', lPhone:'1-855-378-5626', lWeb:'ia.ca', lHard:true, minYear:2015, maxMile:180000, maxCfx:7500,
-            prog:{ tier:'Tier 1', rate:12.49, maxLTV:140, fee:699 }, maxLTV:140, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:1000 },
-          { lid:'prefera',   lName:'PREFERA FINANCE', lPhone:'1-844-734-3577', lWeb:'preferafinance.ca', lHard:true, minYear:2015, maxMile:200000, maxCfx:5000,
-            prog:{ tier:'Tier A', rate:16.95, maxLTV:170, fee:695 }, maxLTV:170, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-          { lid:'sda',       lName:'SDA FINANCE', lPhone:'1-800-731-2345', lWeb:'sdafinance.ca', lHard:true, minYear:2012, maxMile:250000, maxCfx:8000,
-            prog:{ tier:'Standard', rate:17.99, maxLTV:135, fee:995 }, maxLTV:135, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null },
-        ];
-        const demoIneligible = [
-          { lid:'autocapital', lName:'AUTOCAPITAL CANADA', lPhone:'855-646-0534', lWeb:'autocapitalcanada.ca', lHard:true,
-            prog:null, yearOk:false, mileOk:true, cfxOk:true, ageOk:true, ltvOk:true, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
-            minYear:2025, approved:false, vehiclePass:false, dealPass:true, beaconPass:true, type:'hard',
-            ltvPct:ltvPct, maxLTV:175, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:20, lMaxDti:44, lMinIncome:1800, lMaxPay:null,
-            structureTip:null, allStructureTips:[], coAppTip:null,
-            termResults:{}, passingTerms:[], term, bestTerm:term, optimalTerm:term, flatReserve:895, spreadReserve:0, totalGross:895 },
-          { lid:'cibc', lName:'CIBC AUTO FINANCE', lPhone:'1-855-598-1856', lWeb:'cibc.com/auto', lHard:false,
-            prog:null, yearOk:true, mileOk:true, cfxOk:true, ageOk:true, ltvOk:false, ptiOk:true, dtiOk:true, payOk:true, incomeOk:true,
-            minYear:2015, approved:false, vehiclePass:true, dealPass:false, beaconPass:true, type:'credit',
-            ltvPct:ltvPct, maxLTV:96, atf, payment:0, ptiPct:0, dtiPct:0, lMaxPti:null, lMaxDti:null, lMinIncome:null, lMaxPay:null,
-            downNeeded:Math.ceil(atf - book*0.96),
-            structureTip:`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`,
-            allStructureTips:[`Add $${Math.ceil(atf-book*0.96).toLocaleString()} down → LTV passes`],
-            coAppTip:null, termResults:{}, passingTerms:[], term, bestTerm:term, optimalTerm:term, flatReserve:0, spreadReserve:0, totalGross:0 },
-        ];
-
-        const eligible = demoLenders.map(l => {
-          const rate    = l.prog.rate;
-          const lFee    = l.prog.fee || 0;
-          const lAtf    = atf + lFee;
-          const ltvOk   = (lAtf / book) * 100 <= l.maxLTV;
-          const ALL_TERMS = [48,60,72,84];
-          const termResults = {};
-          let passingTerms = [];
-          ALL_TERMS.forEach(t => {
-            const pmt = BPMT(rate, t, lAtf);
-            const ageOk = (curYear - parseInt(v.year||2022)) + t/12 <= 14;
-            const ptiOk = income === 0 || (pmt/income*100) <= l.lMaxPti;
-            const dtiOk = income === 0 || ((pmt+existing)/income*100) <= l.lMaxDti;
-            const payOk = !l.lMaxPay || pmt <= l.lMaxPay;
-            const passes = ageOk && ltvOk && (income===0||(ptiOk&&dtiOk&&payOk));
-            if(passes) passingTerms.push(t);
-            termResults[t] = { term:t, payment:pmt, ageOk, ptiOk, dtiOk, payOk, passes,
-              ptiPct: income>0?pmt/income*100:0, dtiPct: income>0?(pmt+existing)/income*100:0 };
-          });
-          const optTerm  = passingTerms.length ? passingTerms[passingTerms.length-1] : term;
-          const bestTerm = passingTerms.length ? passingTerms[0] : term;
-          const selRes   = termResults[term] || termResults[72];
-          return { ...l, atf:lAtf, ltvPct:(lAtf/book*100), ltvOk, maxLoan:book*l.maxLTV/100,
-            bookVal:book, downNeeded:0, yearOk:true, mileOk:true, cfxOk:true, ageOk:true,
-            payment:selRes.payment, ptiPct:selRes.ptiPct, dtiPct:selRes.dtiPct,
-            ptiOk:selRes.ptiOk, dtiOk:selRes.dtiOk, payOk:selRes.payOk, incomeOk:true,
-            approved:true, vehiclePass:true, dealPass:true, beaconPass:true, type:'hard',
-            term, bestTerm, optimalTerm:optTerm, termResults, passingTerms,
-            flatReserve:lFee, spreadReserve:0, totalGross:lFee,
-            contractRate:body.contractRate||0, buyRate:rate, beacon, income,
-            primaryIncome:body.income||0, coIncome:body.coIncome||0, hasCoApp:false, existing,
-            lenderFee:lFee, hasBK:false, vehicleAgeAtPayoff:(curYear-parseInt(v.year||2022))+term/12,
-            cond:(v.condition||'clean').toLowerCase(),
-            structureTip:null, allStructureTips:[], coAppTip:null,
-            minYear:l.minYear, maxMile:l.maxMile, maxCfx:l.maxCfx };
-        });
-
-        return Promise.resolve({ ok:true, json: () => Promise.resolve({
-          success:true, vehicle: v, eligible, ineligible: demoIneligible
-        })});
-      }
-
-      // ── Demo mock for beacon-match ────────────────────────────────────────
-      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/beacon-match') {
-        const body   = JSON.parse(opts.body || '{}');
-        const beacon = body.beacon || 0;
-        const badges = [
-          { lid:'santander',  label: beacon>=600  ? 'SANTANDER — 9.99%'  : 'SANTANDER ✗',  cls: beacon>=600  ? 'badge-green'  : 'badge-red'  },
-          { lid:'northlake',  label: beacon>=0    ? 'NORTHLAKE — 10.99%' : 'NORTHLAKE ✗',  cls: beacon>=0    ? 'badge-amber'  : 'badge-red'  },
-          { lid:'edenpark',   label: beacon>=500  ? 'EDENPARK — 11.99%'  : 'EDENPARK ✗',   cls: beacon>=500  ? 'badge-amber'  : 'badge-red'  },
-          { lid:'iauto',      label: beacon>=500  ? 'iA — 12.49%'        : 'iA ✗',          cls: beacon>=500  ? 'badge-amber'  : 'badge-red'  },
-          { lid:'cibc',       label: beacon>=680  ? 'CIBC ✓'             : 'CIBC ✗',        cls: beacon>=680  ? 'badge-green'  : 'badge-red'  },
-          { lid:'rbc',        label: beacon>=700  ? 'RBC ✓'              : 'RBC ✗',         cls: beacon>=700  ? 'badge-green'  : 'badge-red'  },
-          { lid:'prefera',    label: beacon>=520  ? 'PREFERA — 16.95%'   : 'PREFERA ✗',    cls: beacon>=520  ? 'badge-orange' : 'badge-red'  },
-          { lid:'sda',        label: 'SDA — 17.99%', cls: 'badge-orange' },
-        ];
-        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, badges }) });
-      }
-
-      // ── Demo mock for beacon-simulator ───────────────────────────────────
-      if(opts && (opts.method||'').toUpperCase() === 'POST' && path === '/api/beacon-simulator') {
-        const rows = [
-          { label:'<500', approved:2, bestRate:17.99 },
-          { label:'500',  approved:4, bestRate:16.95 },
-          { label:'540',  approved:5, bestRate:12.49 },
-          { label:'560',  approved:5, bestRate:12.49 },
-          { label:'580',  approved:5, bestRate:12.49 },
-          { label:'600',  approved:6, bestRate:9.99  },
-          { label:'620',  approved:6, bestRate:9.99  },
-          { label:'640',  approved:6, bestRate:9.99  },
-          { label:'660',  approved:6, bestRate:9.99  },
-          { label:'680',  approved:8, bestRate:9.99  },
-          { label:'700',  approved:8, bestRate:9.99  },
-          { label:'720',  approved:8, bestRate:9.99  },
-          { label:'750+', approved:8, bestRate:9.99  },
-        ];
-        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, rows }) });
-      }
-
-      // Block all other writes
+      // Block all writes
       if(opts && ['PUT','POST','DELETE'].includes((opts.method||'').toUpperCase())) {
         console.log('[DEMO] Blocked write to:', path);
         return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true}) });
       }
 
-      // Return rich demo data for Sarah reads
+      // Block Sarah reads — return empty demo-safe data
       const SARAH_PATHS = ['/api/conversations', '/api/conversation/', '/api/dashboard',
         '/api/appointments', '/api/callbacks', '/api/qualified-leads',
         '/api/analytics', '/api/deals', '/api/voicemails', '/api/bulk-status'];
       if(SARAH_PATHS.some(p => path.startsWith(p))) {
-        console.log('[DEMO] Sarah demo response:', path);
-
-        // ── Dashboard stats ──────────────────────────────────────────────────
-        if(path.startsWith('/api/dashboard')) {
-          return Promise.resolve({ ok:true, json: () => Promise.resolve({
-            stats:{totalCustomers:8,totalConversations:11,totalMessages:74,totalAppointments:3,totalCallbacks:2},
-            recentAppointments:[
-              {id:101,customer_name:'James Thornton',customer_phone:'+14035550101',vehicle_type:'SUV — $25,000–$35,000',budget:'$25,000–$35,000',budget_amount:30000,datetime:'Saturday Jan 20 @ 11:00 AM',created_at:new Date(Date.now()-2*86400000).toISOString()},
-              {id:102,customer_name:'Rachel Torres',customer_phone:'+14035550106',vehicle_type:'SUV — $30,000–$40,000',budget:'$30,000–$40,000',budget_amount:35000,datetime:'Monday Jan 22 @ 2:00 PM',created_at:new Date(Date.now()-4*86400000).toISOString()},
-              {id:103,customer_name:'Marcus Williams',customer_phone:'+14035550105',vehicle_type:'Truck — $35,000–$45,000',budget:'$35,000–$45,000',budget_amount:40000,datetime:'Tuesday Jan 23 @ 10:30 AM',created_at:new Date(Date.now()-86400000/2).toISOString()},
-            ],
-            recentCallbacks:[
-              {id:201,customer_name:'Priya Sharma',customer_phone:'+14035550108',vehicle_type:'SUV',budget:'$30,000–$35,000',datetime:'Weekday afternoons',created_at:new Date(Date.now()-1*86400000).toISOString()},
-              {id:202,customer_name:'Lisa Chen',customer_phone:'+14035550104',vehicle_type:'Car — compact',budget:'$20,000–$25,000',datetime:'Anytime',created_at:new Date(Date.now()-3*86400000).toISOString()},
-            ]
-          })});
-        }
-
-        // ── Analytics ────────────────────────────────────────────────────────
-        if(path.startsWith('/api/analytics')) {
-          return Promise.resolve({ ok:true, json: () => Promise.resolve({
-            conversionRate: 36,
-            totalConverted: 4,
-            totalEngaged:   3,
-            totalStopped:   1,
-            totalConversations: 11,
-            responseRate: 82,
-            totalResponded: 9,
-            avgMessages: 6.7,
-            weekConversations: 4,
-            weekConverted: 2,
-            topVehicles:[
-              {vehicle_type:'Truck', count:4},
-              {vehicle_type:'SUV',   count:5},
-              {vehicle_type:'Car',   count:2},
-            ],
-            budgetDist:[
-              {budget:'$20,000–$30,000', count:3},
-              {budget:'$30,000–$40,000', count:5},
-              {budget:'$40,000–$55,000', count:3},
-            ],
-            stageFunnel:[
-              {stage:'greeting',    count:2},
-              {stage:'budget',      count:3},
-              {stage:'appointment', count:2},
-              {stage:'datetime',    count:1},
-              {stage:'confirmed',   count:3},
-            ],
-            weeklyTrend:[
-              {week_start:'2026-02-02T00:00:00Z', conversations:3, converted:1},
-              {week_start:'2026-02-09T00:00:00Z', conversations:5, converted:2},
-              {week_start:'2026-02-16T00:00:00Z', conversations:4, converted:1},
-              {week_start:'2026-02-23T00:00:00Z', conversations:7, converted:3},
-              {week_start:'2026-03-02T00:00:00Z', conversations:6, converted:2},
-              {week_start:'2026-03-09T00:00:00Z', conversations:8, converted:4},
-              {week_start:'2026-03-16T00:00:00Z', conversations:5, converted:2},
-              {week_start:'2026-03-23T00:00:00Z', conversations:4, converted:2},
-            ],
-            dealStats:{
-              totalDeals:18, monthDeals:6, weekDeals:3, todayDeals:1,
-              vscCount:12, gapCount:14, twCount:8, waCount:6,
-              avgBackend:'1450', avgPvr:'1820',
-            },
-            dealVehicleTypes:[
-              {type:'Truck', count:8},
-              {type:'SUV',   count:6},
-              {type:'Car',   count:4},
-            ]
-          })});
-        }
-
-        // ── Full conversation list ────────────────────────────────────────────
-        if(path === '/api/conversations' || path.startsWith('/api/conversations')) {
-          const DEMO_CONVS = [
-            {customer_phone:'+14035550101',customer_name:'James Thornton',status:'converted',stage:'Appointment Set',vehicle_type:'SUV',budget:'$25,000–$35,000',message_count:8,last_message:'Sounds great, see you Saturday!',updated_at:new Date(Date.now()-2*86400000).toISOString()},
-            {customer_phone:'+14035550102',customer_name:'Sarah Mitchell',status:'engaged',stage:'Negotiating',vehicle_type:'Truck',budget:'$35,000–$45,000',message_count:11,last_message:'What\'s the best you can do on payments?',updated_at:new Date(Date.now()-3600000).toISOString()},
-            {customer_phone:'+14035550103',customer_name:'David Park',status:'converted',stage:'Deal Funded',vehicle_type:'Truck',budget:'$45,000–$55,000',message_count:7,last_message:'Thanks so much — love the truck!',updated_at:new Date(Date.now()-5*86400000).toISOString()},
-            {customer_phone:'+14035550104',customer_name:'Lisa Chen',status:'engaged',stage:'Interested',vehicle_type:'Car',budget:'$20,000–$25,000',message_count:5,last_message:'Do you have anything in red?',updated_at:new Date(Date.now()-3*86400000).toISOString()},
-            {customer_phone:'+14035550105',customer_name:'Marcus Williams',status:'converted',stage:'Appointment Set',vehicle_type:'Truck',budget:'$35,000–$45,000',message_count:9,last_message:'Tuesday at 10:30 works perfectly',updated_at:new Date(Date.now()-86400000/2).toISOString()},
-            {customer_phone:'+14035550106',customer_name:'Rachel Torres',status:'converted',stage:'Test Drive Done',vehicle_type:'SUV',budget:'$30,000–$40,000',message_count:6,last_message:'The Wrangler was amazing — can we talk numbers?',updated_at:new Date(Date.now()-4*86400000).toISOString()},
-            {customer_phone:'+14035550107',customer_name:'Kevin OBrien',status:'converted',stage:'Deal Funded',vehicle_type:'Truck',budget:'$45,000+',message_count:5,last_message:'Just got home — what a beast!',updated_at:new Date(Date.now()-6*86400000).toISOString()},
-            {customer_phone:'+14035550108',customer_name:'Priya Sharma',status:'engaged',stage:'Callback Requested',vehicle_type:'SUV',budget:'$30,000–$35,000',message_count:4,last_message:'Call me anytime after 2pm',updated_at:new Date(Date.now()-1*86400000).toISOString()},
-            {customer_phone:'+14035550109',customer_name:'Tyler Brooks',status:'converted',stage:'Deal Funded',vehicle_type:'Truck',budget:'$35,000–$45,000',message_count:10,last_message:'Appreciate you working with us on the F-150',updated_at:new Date(Date.now()-7*86400000).toISOString()},
-            {customer_phone:'+14035550110',customer_name:'Angela Moore',status:'active',stage:'Initial Contact',vehicle_type:'SUV',budget:'$25,000–$35,000',message_count:3,last_message:'Yes still looking, what do you have?',updated_at:new Date(Date.now()-86400000*0.25).toISOString()},
-            {customer_phone:'+14035550111',customer_name:'Daniel Kim',status:'lost',stage:'No Response',vehicle_type:'Car',budget:'$20,000–$28,000',message_count:2,last_message:'',updated_at:new Date(Date.now()-8*86400000).toISOString()},
-          ];
-          return Promise.resolve({ ok:true, json: () => Promise.resolve(DEMO_CONVS) });
-        }
-
-        // ── Individual conversation thread ───────────────────────────────────
-        if(path.startsWith('/api/conversation/')) {
-          const phone = decodeURIComponent(path.split('/api/conversation/')[1]);
-          const THREADS = {
-            '+14035550101': [
-              {role:'user',content:'Hey, saw your ad — do you have any RAV4s?',created_at:new Date(Date.now()-2*86400000-3600000*3).toISOString()},
-              {role:'assistant',content:"Hi James! Yes, we have a 2022 Toyota RAV4 in stock — clean Carfax, only 28,000 km. What\'s most important for you in your next vehicle?",created_at:new Date(Date.now()-2*86400000-3600000*2.8).toISOString()},
-              {role:'user',content:'Budget around 30k, need AWD, have a trade',created_at:new Date(Date.now()-2*86400000-3600000*2).toISOString()},
-              {role:'assistant',content:"Perfect — AWD is standard on the RAV4. We can absolutely work with a trade-in. Would this Saturday at 11am work for a test drive? We\'ll do a full appraisal on your trade while you\'re here.",created_at:new Date(Date.now()-2*86400000-3600000*1.8).toISOString()},
-              {role:'user',content:'Saturday works. What do I need to bring?',created_at:new Date(Date.now()-2*86400000-3600000).toISOString()},
-              {role:'assistant',content:"Just your driver's licence and your trade-in vehicle. We\'ll handle everything else. See you Saturday at 11! 🙌",created_at:new Date(Date.now()-2*86400000-1800000).toISOString()},
-              {role:'user',content:'Sounds great, see you Saturday!',created_at:new Date(Date.now()-2*86400000).toISOString()},
-            ],
-            '+14035550102': [
-              {role:'user',content:'Looking for an F-150, saw your inventory',created_at:new Date(Date.now()-86400000*1.5).toISOString()},
-              {role:'assistant',content:"Hi Sarah! Great choice — we have a 2021 Ford F-150 XLT, 45,000 km, clean unit. Are you financing or paying cash?",created_at:new Date(Date.now()-86400000*1.5+900000).toISOString()},
-              {role:'user',content:'Financing. Credit is pretty good, around 720',created_at:new Date(Date.now()-86400000*1.4).toISOString()},
-              {role:'assistant',content:"With a 720 beacon you\'re looking at some great rates — likely 7-8% range. Want to come in for a test drive and we can run the numbers together?",created_at:new Date(Date.now()-86400000*1.4+600000).toISOString()},
-              {role:'user',content:'What about payments on 72 months with 3k down?',created_at:new Date(Date.now()-3600000*4).toISOString()},
-              {role:'assistant',content:"Rough estimate around $620–650/month depending on exact rate. Our finance manager can sharpen that up with your actual approval. Want to book a time?",created_at:new Date(Date.now()-3600000*3.5).toISOString()},
-              {role:'user',content:'What\'s the best you can do on payments?',created_at:new Date(Date.now()-3600000).toISOString()},
-            ],
-            '+14035550110': [
-              {role:'user',content:'Still have SUVs available?',created_at:new Date(Date.now()-3600000*5).toISOString()},
-              {role:'assistant',content:"Hi Angela! Yes, we have several — RAV4, Tucson, Wrangler. What\'s your budget range?",created_at:new Date(Date.now()-3600000*4.8).toISOString()},
-              {role:'user',content:'Yes still looking, what do you have?',created_at:new Date(Date.now()-3600000*1).toISOString()},
-            ],
-          };
-          const msgs = THREADS[phone] || [{role:'user',content:'Hi, interested in a vehicle',created_at:new Date(Date.now()-86400000).toISOString()},{role:'assistant',content:"Hi there! Thanks for reaching out. What kind of vehicle are you looking for?",created_at:new Date(Date.now()-86400000+600000).toISOString()}];
-          return Promise.resolve({ ok:true, json: () => Promise.resolve({messages: msgs}) });
-        }
-
-        // ── Qualified leads ──────────────────────────────────────────────────
-        if(path.startsWith('/api/qualified-leads')) {
-          return Promise.resolve({ ok:true, json: () => Promise.resolve([
-            {customer_phone:'+14035550102',customer_name:'Sarah Mitchell',vehicle_type:'Truck',budget:'$35,000–$45,000',income:'$7,800/mo'},
-            {customer_phone:'+14035550101',customer_name:'James Thornton',vehicle_type:'SUV',budget:'$25,000–$35,000',income:'$6,200/mo'},
-            {customer_phone:'+14035550106',customer_name:'Rachel Torres',vehicle_type:'SUV',budget:'$30,000–$40,000',income:'$8,200/mo'},
-          ]) });
-        }
-
-        // ── Voicemails ───────────────────────────────────────────────────────
-        if(path.startsWith('/api/voicemails')) {
-          return Promise.resolve({ ok:true, json: () => Promise.resolve([
-            {id:1,customer_phone:'+14035550108',customer_name:'Priya Sharma',transcription:'Hi, this is Priya. I saw your message about the RAV4. Can someone call me back after 2pm? Thanks.',duration:14,created_at:new Date(Date.now()-1*86400000).toISOString()},
-            {id:2,customer_phone:'+14035550104',customer_name:'Lisa Chen',transcription:"Hey, it\'s Lisa. Just following up — do you have the Civic in any other colours? Looking for red or blue if possible.",duration:18,created_at:new Date(Date.now()-2*86400000).toISOString()},
-          ]) });
-        }
-
-        // Fallback for any other Sarah paths
-        return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true, data:[], leads:[], deals:[]}) });
+        console.log('[DEMO] Blocked Sarah read:', path);
+        if(path.startsWith('/api/conversations')) return Promise.resolve({ ok:true, json: () => Promise.resolve([]) });
+        if(path.startsWith('/api/dashboard')) return Promise.resolve({ ok:true, json: () => Promise.resolve({stats:{totalCustomers:0,totalConversations:0,totalMessages:0,totalAppointments:0,totalCallbacks:0},recentAppointments:[],recentCallbacks:[]}) });
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true, data:[], leads:[], voicemails:[], deals:[]}) });
       }
 
       return _real(path, opts);

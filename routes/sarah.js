@@ -90,13 +90,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           cu.name as customer_name,
           c.stage, c.status, c.vehicle_type, c.budget,
           c.started_at, c.updated_at,
-          (SELECT COUNT(*) FROM messages m
-           JOIN conversations cx ON m.conversation_id = cx.id
-           WHERE cx.customer_phone = c.customer_phone AND cx.user_id = $1) as message_count,
-          (SELECT m2.content FROM messages m2
-           JOIN conversations cx2 ON m2.conversation_id = cx2.id
-           WHERE cx2.customer_phone = c.customer_phone AND cx2.user_id = $1
-           ORDER BY m2.created_at DESC LIMIT 1) as last_message
+          (SELECT COUNT(*) FROM messages m 
+           JOIN conversations cx ON m.conversation_id = cx.id 
+           WHERE cx.customer_phone = c.customer_phone AND cx.user_id = $1) as message_count
         FROM conversations c
         LEFT JOIN customers cu ON c.customer_phone = cu.phone AND cu.user_id = $1
         WHERE c.user_id = $1
@@ -195,17 +191,6 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     try {
       const { phone, message } = req.body;
       if (!phone || !message) return res.json({ success: false, error: 'Phone and message required' });
-      // CASL: block replies to opted-out customers
-      const stoppedCheck = await pool.query(
-        `SELECT status FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1`,
-        [phone, req.user.userId]
-      );
-      if (stoppedCheck.rows[0]?.status === 'stopped') {
-        return res.json({
-          success: false,
-          error: 'This customer has opted out (replied STOP). They must reply START before you can contact them.'
-        });
-      }
       const conversation = await getOrCreateConversation(phone, req.user.userId);
       await saveMessage(conversation.id, phone, 'assistant', message, req.user.userId);
       await logAnalytics('manual_reply_sent', phone, { message }, req.user.userId);
@@ -243,23 +228,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           error: 'This customer already has an active conversation. Check "Recent Conversations" below to continue their conversation.'
         });
       }
-      // CASL: block if customer has previously opted out
-      const stoppedCheck = await pool.query(
-        `SELECT status FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1`,
-        [normalizedPhone, req.user.userId]
-      );
-      if (stoppedCheck.rows[0]?.status === 'stopped') {
-        return res.json({
-          success: false,
-          error: 'This number has opted out (replied STOP). You cannot contact them unless they reply START.'
-        });
-      }
-      // Resolve dealer name from tenant settings (TENANT_DEALER_NAME is only scoped to the webhook handler)
-      let tenantName = 'the dealership';
-      try {
-        const ts = await getTenantSettings(req.user.userId);
-        if (ts?.dealerName) tenantName = ts.dealerName;
-      } catch(e) {}
+      const tenantName = TENANT_DEALER_NAME || 'the dealership';
       const messageBody = message || `Hi! 👋 I'm Sarah from ${tenantName}. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)`;
       const uid = req.user.userId;
       await getOrCreateCustomer(normalizedPhone, uid);
@@ -407,13 +376,6 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           }
 
           const conversation = await getOrCreateConversation(phone, WEBHOOK_USER_ID);
-
-          // Mark conversation as 'engaged' on first customer reply (was 'active' = outreach sent, no reply yet)
-          if (conversation.status === 'active' && !isStopCmd && !isStartCmd) {
-            await updateConversation(conversation.id, { status: 'engaged' });
-            conversation.status = 'engaged';
-          }
-
           await saveMessage(conversation.id, phone, 'user', message, WEBHOOK_USER_ID);
           try { await logAnalytics('message_received', phone, { message }, WEBHOOK_USER_ID); } catch(e) { console.error('Analytics error:', e.message); }
 
@@ -442,25 +404,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           const custName  = conversation.customer_name || 'Unknown';
           const custPhone = formatPretty(phone);
           const preview   = message.length > 100 ? message.substring(0, 100) + '...' : message;
-          // Only notify dealer on first contact (new lead) — stage-change events
-          // (appt booked, callback) send their own dedicated alerts already.
-          // Notifying on every reply is too noisy for active conversations.
-          const isFirstContact = conversation.stage === 'greeting' ||
-            (await pool.query(
-              'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = $1',
-              [conversation.id]
-            )).rows[0]?.cnt <= 2;
-          if (TENANT_NOTIFY_PHONE && isFirstContact) {
+          if (TENANT_NOTIFY_PHONE) {
             twilioClient.messages.create({
               body: `💬 New lead from ${custName}\n📞 ${custPhone}\n\n"${preview}"\n\nReply via: app.firstfinancialcanada.com`,
               from: TENANT_FROM_NUMBER,
               to: TENANT_NOTIFY_PHONE
             }).then(() => {
-              console.log(`✅ New lead notify sent to ${TENANT_NOTIFY_PHONE}`);
+              console.log(`✅ Notify sent to ${TENANT_NOTIFY_PHONE} from ${TENANT_FROM_NUMBER}`);
             }).catch(err => {
-              console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE}: ${err.message} (code ${err.code})`);
+              console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE} from ${TENANT_FROM_NUMBER}: ${err.message} (code ${err.code})`);
             });
-          } else if (!TENANT_NOTIFY_PHONE) {
+          } else {
             console.warn('⚠️ No notify phone configured — skipping lead alert');
           }
 
@@ -491,7 +445,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (name && conversation.vehicle_type) {
         // Returning customer mid-funnel — pick up where they left off
         if (conversation.stage === 'budget' && !conversation.budget) return `Hey ${name}! Still here 😊 Where are you comfortable for monthly payments on a ${conversation.vehicle_type}?`;
-        if (conversation.stage === 'appointment') return `Hey ${name}! Would you like to schedule a viewing — we can also deliver — or would a quick call be easier?`;
+        if (conversation.stage === 'appointment') return `Hey ${name}! Would you like to come in for a test drive or would a quick call be easier?`;
         if (conversation.stage === 'datetime') return `Hey ${name}! When works best for you?`;
       }
       return pick(
@@ -510,13 +464,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (conversation.stage === 'confirmed') return `${name ? 'Great '+name+'! ' : 'Great! '}See you ${conversation.datetime || 'soon'}! Text me if anything changes.`;
       if (conversation.stage === 'appointment' && !conversation.intent) {
         await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
-        return name ? `${name}, when works best to book a time?` : "What's your name? I'll get everything set up for you.";
+        return name ? `${name}, when works best to come in?` : "What's your name? I'll get everything set up.";
       }
       if (conversation.stage === 'datetime') return `When works best${name ? ' '+name : ''}? Morning, afternoon, or evening?`;
       if (conversation.stage === 'name' && !name) return "What's your name?";
       if (!conversation.vehicle_type) return "Are you looking for a Car, Truck, Van, or SUV?";
       if (!conversation.budget) return `What monthly payment range works for you on a ${conversation.vehicle_type}?`;
-      return `${name ? name+', when' : 'When'} works best — would you prefer to schedule a viewing or have someone call you?`;
+      return `${name ? name+', when' : 'When'} works best for you to come in or get a call?`;
     }
 
     // ── STOP / UNSUBSCRIBE ────────────────────────────────────
@@ -550,7 +504,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
       if (!name) return "No problem at all! What's your name so I can make sure the right person follows up?";
-      return `${name}, no problem! I'll make a note so the right person follows up. When would be a good time for them to reach out?`;
+      return `${name}, no problem! I'll flag it so the team knows you've already been in touch. When's the best time for them to reach back out?`;
     }
 
     // ── ALREADY BOUGHT / FOUND ONE ELSEWHERE ────────────────
@@ -591,9 +545,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── ODD QUESTIONS → funnel to callback ───────────────────
     if (lowerMsg.includes('location') || lowerMsg.includes('where are you') || lowerMsg.includes('address') || lowerMsg.includes('directions')) {
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `We're in ${dealerCity} — and we deliver all across Canada! I can have one of our team call you with details and details. What's your name?`; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `We're in ${dealerCity} — and we deliver all across Canada! I can have one of our guys call you with directions and details. What's your name?`; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
-      return `We're in ${dealerCity} ${name} — and we deliver all across Canada! When's a good time for one of our team to call you with directions?`;
+      return `We're in ${dealerCity} ${name} — and we deliver all across Canada! When's a good time for one of our guys to call you with directions?`;
     }
 
     if (lowerMsg.includes('financ') || lowerMsg.includes('credit') || lowerMsg.includes('loan') ||
@@ -630,14 +584,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     if (lowerMsg.includes('how much') || lowerMsg.includes('price') || lowerMsg.includes('cost') ||
         lowerMsg.includes('cheapest') || lowerMsg.includes('expensive') || lowerMsg.includes('rates')) {
       if (!conversation.vehicle_type) { await updateConversation(conversation.id, { stage: 'greeting' }); return "Pricing really depends on what you're looking for! Are you thinking Car, Truck, Van, or SUV? Once I know that I can point you in the right direction."; }
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `${conversation.vehicle_type} pricing varies by year and features. I can have one of our team send you some options with pricing — what's your name?`; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `${conversation.vehicle_type} pricing varies by year and features. I can have one of our guys text you some options with pricing — what's your name?`; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, pricing on ${conversation.vehicle_type}s really depends on the specifics. When's a good time for one of our team to call you? They can go over everything and find the best fit.`;
     }
 
     if (lowerMsg.includes('detail') || lowerMsg.includes('more info') || lowerMsg.includes('tell me more') ||
         lowerMsg.includes('manager') || lowerMsg.includes('speak to') || lowerMsg.includes('talk to someone')) {
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Absolutely — I'll have one of our team reach out with all the details. What's your name?"; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Absolutely — I'll have one of our guys reach out with all the details. What's your name?"; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, I'll get one of our team on it. When's the best time to reach you?`;
     }
@@ -661,14 +615,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           const examples = matches.slice(0,3).map(v => `${v.year} ${v.make} ${v.model}${v.mileage ? ' ('+Math.round(v.mileage/1000)+'k km)' : ''}${v.price ? ' — $'+Number(v.price).toLocaleString() : ''}`).join(', ');
           if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name', vehicle_type: makeLabel || conversation.vehicle_type }); return `Yes! We have ${matches.length} ${label} option${matches.length>1?'s':''}: ${examples}. I can have someone reach out with full details and photos — what's your name?`; }
           await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime', vehicle_type: makeLabel || conversation.vehicle_type });
-          return `${name}, we have ${matches.length} ${label} option${matches.length>1?'s':''} in stock: ${examples}. Would you like to schedule a viewing, or a quick call to go over the details?`;
+          return `${name}, we have ${matches.length} ${label} option${matches.length>1?'s':''} in stock: ${examples}. Want to come take a look, or would a quick call to go over the details work better?`;
         } else {
           if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `We don't have a ${label} in stock right now, but inventory moves fast and we can source vehicles. What's your name? I'll have someone reach out with what's coming in.`; }
           await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
-          return `${name}, we don't have a ${label} right now but we can source them and get something close. When's a good time for one of our team to reach out with some options?`;
+          return `${name}, we don't have a ${label} right now but we can source them and get something close. When's a good time for one of our guys to reach out with options?`;
         }
       }
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `Great choice! I'll have one of our team reach out with details on ${label} options. What's your name?`; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `Great choice! I'll have one of our guys reach out with details on ${label} options. What's your name?`; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, I'll have the team pull up ${label} options for you. When's a good time to reach out?`;
     }
@@ -707,14 +661,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const typeLabel = askTruck ? 'truck' : askSuv ? 'SUV' : askCar ? 'car' : askVan ? 'van' : 'vehicle';
         if (!name) {
           await updateConversation(conversation.id, { intent: 'callback', stage: 'name' });
-          return `Yes! We have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock — ${invReply.examples}. Our team can reach out with photos and full details. What's your name?`;
+          return `Yes! We have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} available right now — ${invReply.examples}. I can have someone reach out with photos and details. What's your name?`;
         }
         await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
-        return `${name}, we have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock right now — ${invReply.examples}. Would you like to book a time to view them, or a quick call to walk through what we have?`;
+        return `${name}, we have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock right now — ${invReply.examples}. Want to come see them, or would a quick call to walk through what we've got work better?`;
       }
 
       // Fallback if no inventory or no match
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Yes! We have a great selection. I can have one of our team send you photos and details — what's your name?"; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return "Yes! We have a great selection. I can have one of our guys send you photos and details on what we've got — what's your name?"; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, I'll have the team send over what we've got. When's a good time to reach you? They can send photos and walk you through the options.`;
     }
@@ -732,7 +686,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const matches = inventory.slice(0, 3).map(v => `${v.year} ${v.make} ${v.model}`).join(', ');
         await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
         if (!name) return `Yes! We have ${inventory.length} vehicles in stock — ${matches} and more. What's your name? I'll have someone reach out with details and photos.`;
-        return `${name}, yes! We have options in stock right now. I'll have one of our team call you — when's the best time to reach you?`;
+        return `${name}, yes! We have options in stock right now. I'll have one of our guys call you — when's the best time to reach you?`;
       }
       await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
       if (!name) return "Yes we do! What's your name? I'll have someone call you with full details.";
@@ -774,8 +728,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           const budgetRange = (num * 72) < 30000 ? 'Under $30k' : (num * 72) < 50000 ? '$30k-$50k' : '$50k+';
           await updateConversation(conversation.id, { budget: budgetRange, budget_amount: num, stage: 'appointment' });
           return pick(
-            `$${num}/month — solid! I've got great options in that range. Would you like to schedule a viewing, or would a quick call work better?`,
-            `Around $${num}/month works! I can find you some solid vehicles. Would you like to book a time to see it, or start with a quick call?`
+            `$${num}/month — solid! I've got great options in that range. Would you like to come in for a test drive, or would a quick call work better?`,
+            `Around $${num}/month works! I can find you some solid vehicles. Want to come take a look, or start with a quick call?`
           );
         }
       }
@@ -800,29 +754,29 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const budgetRange = estTotal < 30000 ? 'Under $30k' : estTotal < 50000 ? '$30k-$50k' : '$50k+';
         await updateConversation(conversation.id, { budget: budgetRange, budget_amount: budgetAmount, stage: 'appointment' });
         return pick(
-          `$${budgetAmount}/month — solid. I have some great ${conversation.vehicle_type} options in that range. Would you like to schedule a viewing — we deliver too — or would a quick call with one of our team work better?`,
-          `Around $${budgetAmount}/month — I have some solid options for you. Would you like to book a time to see one, or would a quick call work first?`
+          `$${budgetAmount}/month — I've got some great ${conversation.vehicle_type} options in that range. Would you like to come in for a test drive, or would a quick call with one of our guys work better?`,
+          `Perfect, around $${budgetAmount}/month. I've got solid options for you. Want to come take a look, or would you rather a quick call first?`
         );
       }
       if (budgetAmount >= 2000) {
         const budgetRange = budgetAmount < 30000 ? 'Under $30k' : budgetAmount < 50000 ? '$30k-$50k' : '$50k+';
         await updateConversation(conversation.id, { budget: budgetRange, budget_amount: budgetAmount, stage: 'appointment' });
         return pick(
-          `Around $${(budgetAmount/1000).toFixed(0)}k — solid budget. I have some great options. Would you like to schedule a viewing, or a quick call to go over what we have?`,
-          `$${(budgetAmount/1000).toFixed(0)}k — I can work with that. Would you like to book a time to view something, or prefer a call first?`
+          `Around $${(budgetAmount/1000).toFixed(0)}k — solid budget. I've got great options. Would you like to come see them in person, or a quick call to go over what we've got?`,
+          `$${(budgetAmount/1000).toFixed(0)}k range — I can work with that! Want to come in for a test drive, or prefer a call first?`
         );
       }
       if (lowerMsg.includes('cheap') || lowerMsg.includes('low') || lowerMsg.includes('budget') || lowerMsg.includes('affordable')) {
         await updateConversation(conversation.id, { budget: 'Under $30k', stage: 'appointment' });
-        return "I hear you — we've got great value options. Would you like to book a time to view one, or should one of our team reach out with what's available?";
+        return "I hear you — we've got great value options. Would you like to come take a look, or should I have one of our guys call you with what's available?";
       }
       if (lowerMsg.includes("don't care") || lowerMsg.includes('whatever') || lowerMsg.includes('open') || lowerMsg.includes('flexible') || lowerMsg.includes('not sure')) {
         await updateConversation(conversation.id, { budget: 'Flexible', stage: 'appointment' });
-        return "No problem — we'll find the right fit. Would you like to book a time to see what we have, or would a quick call be easier?";
+        return "No problem — we'll find the right fit. Want to come in for a test drive, or would a quick call be easier?";
       }
       if (lowerMsg.includes('high') || lowerMsg.includes('premium') || lowerMsg.includes('luxury')) {
         await updateConversation(conversation.id, { budget: '$50k+', stage: 'appointment' });
-        return "Excellent taste! We have some premium options. Would you like to schedule a viewing, or should our team reach out with details and photos?";
+        return "Excellent taste! I've got some premium options. Would you like to come see them, or should our team call you with details?";
       }
       if (budgetAmount > 0 && budgetAmount < 100) {
         return "Just to make sure I understand — is that $" + budgetAmount + " per month, or total budget? Most people are in the $300-$700/month range.";
@@ -834,8 +788,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           lowerMsg.includes('cheaper') || lowerMsg.includes('less expensive') || lowerMsg.includes('lower payment')) {
         await updateConversation(conversation.id, { budget: 'Under $30k', stage: 'appointment' });
         return pick(
-          `No worries at all${name ? ' '+name : ''}! We work with all budgets and every credit situation. Even $200-$300/month gets you into something solid. Would you like to schedule a time — we can also bring the vehicle to you — or would a quick call be easier?`,
-          `${name ? name+', we' : "We"} specialize in making deals work — we've helped people in every situation. Let's find something that works for you. Would you like to book a time, or would a call be a better first step?`
+          `No worries at all${name ? ' '+name : ''}! We work with all budgets and every credit situation. Even $200-$300/month gets you into something solid. Would you like to come in and see what we can do, or would a quick call be easier?`,
+          `${name ? name+', we' : "We"} specialize in making deals work — we've helped customers in every situation. Let's figure out what works for you. Want to come in or would a call be better?`
         );
       }
       return pick(
@@ -846,13 +800,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── STAGE 3: APPOINTMENT ──────────────────────────────────
     if (conversation.stage === 'appointment' && !conversation.intent) {
-      if (lowerMsg.includes('view') || lowerMsg.includes('book') || lowerMsg.includes('visit') || lowerMsg.includes('test') ||
+      if (lowerMsg.includes('come') || lowerMsg.includes('visit') || lowerMsg.includes('test') ||
           lowerMsg.includes('drive') || lowerMsg.includes('see') || lowerMsg.includes('look') ||
-          lowerMsg.includes('come') || lowerMsg.includes('in person') || lowerMsg.includes('show up') || lowerMsg.includes('schedule')) {
+          lowerMsg.includes('in person') || lowerMsg.includes('show up')) {
         await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
         return name
-          ? `${name}, when works best for you? We're flexible — mornings, afternoons, evenings, weekends. We can also arrange delivery if that's easier.`
-          : "Sounds great! What's your name so I can get everything set up for you?";
+          ? `${name}, when works best for you? We're flexible — mornings, afternoons, evenings, weekends.`
+          : "Love it! What's your name so I can get everything set up?";
       }
       if (lowerMsg.includes('call') || lowerMsg.includes('phone') || lowerMsg.includes('talk') ||
           lowerMsg.includes('reach') || lowerMsg.includes('contact') || lowerMsg.includes('ring')) {
@@ -863,11 +817,11 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (lowerMsg.includes('maybe') || lowerMsg.includes('not sure') || lowerMsg.includes('think') ||
           lowerMsg.includes('later') || lowerMsg.includes('busy')) {
-        return `No rush at all${name ? ' '+name : ''}! Whenever you're ready — we can arrange a viewing, or start with a phone call. Either works for us.`;
+        return `No rush at all${name ? ' '+name : ''}! Whenever you're ready — you can come in for a quick test drive or we can start with a phone call. Either way works.`;
       }
       await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
       return name
-        ? `${name}, I have some great options lined up for you. When works best to book a time? We're flexible, and we can also deliver to you.`
+        ? `${name}, I've got some great options for you. When can you come take a look? We're flexible on timing.`
         : "I've got some solid options lined up. What's your name? I'll get everything ready for you.";
     }
 
@@ -887,8 +841,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       await pool.query('UPDATE customers SET name = $1, last_contact = CURRENT_TIMESTAMP WHERE phone = $2', [parsedName, phone]);
       if (conversation.intent === 'test_drive') {
         return pick(
-          `Hey ${parsedName}! When works best for a viewing? We're flexible — mornings, afternoons, evenings, weekends. We can also deliver.`,
-          `Nice to meet you ${parsedName}! When works best to book a time? We'll have everything ready — and we can deliver too if that's easier.`
+          `Hey ${parsedName}! When works best to come in? We're flexible — mornings, afternoons, evenings, weekends.`,
+          `Nice to meet you ${parsedName}! When can you come take a look? We'll have everything ready.`
         );
       } else {
         return pick(
@@ -946,7 +900,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         }, 60000);
         await logAnalytics('appointment_booked', phone, data, userId);
         const afterHoursNote = isAfterHours ? ` Our team will confirm your time in the morning.` : '';
-        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}.${afterHoursNote} We're at ${dealerName} in ${dealerCity} and we deliver across Canada. Our team will have everything ready for you.\n\nIf anything changes just text me back. See you soon!`;
+        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}.${afterHoursNote} We're at ${dealerName} in ${dealerCity} and we deliver across Canada. I'll have everything ready when you get here.\n\nIf anything changes just text me back. See you soon!`;
       } else {
         await saveCallback(data);
         try {
@@ -981,7 +935,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         return `${name}, I've flagged it — someone will text you photos of what we've got in your range shortly!`;
       }
       if (lowerMsg.includes('warranty') || lowerMsg.includes('protection') || lowerMsg.includes('gap') || lowerMsg.includes('coverage')) {
-        return `Great question ${name}! We offer full protection packages including payment coverage, powertrain warranty, GAP insurance, and tire & wheel. Your finance manager will walk you through all the options when you connect with our team.`;
+        return `Great question ${name}! We offer full protection packages including payment coverage, powertrain warranty, GAP insurance, and tire & wheel. Your finance manager will walk you through all the options when you come in.`;
       }
       if (lowerMsg.includes('payment') || lowerMsg.includes('first payment') || lowerMsg.includes('void') || lowerMsg.includes('cheque') || lowerMsg.includes('insurance') || lowerMsg.includes('pink slip')) {
         return `${name}, our finance team will go over all of that with you — payments, insurance, everything. They'll make sure it's all taken care of. Is there anything else I can help with?`;
@@ -1006,7 +960,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return `Where are you comfortable for monthly payments on a ${conversation.vehicle_type || 'vehicle'}? Just a rough number.`;
     }
     if (conversation.stage === 'appointment' && !conversation.intent) {
-      return `${name ? name+', would' : 'Would'} you like to book a time to view one — we can deliver too — or would a quick call be a better start?`;
+      return `${name ? name+', would' : 'Would'} you like to come in for a test drive, or would a quick call work better to start?`;
     }
     if (conversation.stage === 'name' && !name) {
       return "What's your name? I'll get everything set up for you.";

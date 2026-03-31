@@ -74,6 +74,13 @@ async function setup() {
     `);
     console.log('✅ desk_inventory table');
 
+    // ── 3b. FB POSTER COLUMNS (additive migration) ────────────
+    await client.query(`
+      ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fb_status VARCHAR(20) DEFAULT 'pending';
+      ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fb_posted_date DATE;
+    `);
+    console.log('✅ desk_inventory fb_status + fb_posted_date columns');
+
     // ── 4. CRM (replaces ffCRM localStorage) ───────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS desk_crm (

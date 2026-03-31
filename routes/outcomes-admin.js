@@ -16,7 +16,7 @@ module.exports = function(app, pool) {
   
   // Admin auth middleware (same as admin-dashboard.js)
   function adminAuth(req, res, next) {
-    const token = req.headers['x-admin-token'];
+    const token = req.headers['x-admin-token'] || req.query.token;
     if (!token || token !== process.env.ADMIN_TOKEN) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }

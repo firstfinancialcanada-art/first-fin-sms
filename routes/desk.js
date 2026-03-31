@@ -20,27 +20,9 @@ function sanitizeError(e) {
   console.error('Route error:', e);
   return 'An unexpected error occurred. Please try again.';
 }
-module.exports = function (app, pool, twilioClient, requireBilling) {
+const TRIAL_DAYS = 3;
 
-  // ── Fix legacy single-column stock constraint (breaks multi-tenancy) ────
-  ;(async () => {
-    try {
-      // Old DB had UNIQUE(stock) globally — must be (user_id, stock) for multi-tenant
-      await pool.query(`ALTER TABLE desk_inventory DROP CONSTRAINT IF EXISTS desk_inventory_stock_unique`);
-      await pool.query(`
-        DO $$ BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_constraint
-            WHERE conname = 'desk_inventory_user_stock_unique'
-              AND conrelid = 'desk_inventory'::regclass
-          ) THEN
-            ALTER TABLE desk_inventory ADD CONSTRAINT desk_inventory_user_stock_unique UNIQUE (user_id, stock);
-          END IF;
-        END $$
-      `);
-      console.log('✅ desk_inventory constraint: (user_id, stock) multi-tenant ready');
-    } catch(e) { console.error('⚠️ inventory constraint migration:', e.message); }
-  })();
+module.exports = function (app, pool, twilioClient, requireBilling) {
 
   // ── Feature telemetry table ───────────────────────────────────────
   ;(async () => {
@@ -166,10 +148,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         dealerName: 'My Dealership'
       };
 
-      // Exempt accounts get full access, everyone else starts as pending (must subscribe)
+      // Exempt accounts get full access, everyone else gets 3-day trial
       const isExempt = EXEMPT_EMAILS.includes(cleanEmail);
-      const subStatus = isExempt ? 'active' : 'pending';
-      const trialEndsAt = null; // No free trial — paid subscription required per Terms of Service
+      const subStatus = isExempt ? 'active' : 'trial';
+      const trialEndsAt = isExempt ? null : new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
       const result = await client.query(
         `INSERT INTO desk_users (email, password_hash, display_name, role, settings_json, subscription_status, trial_ends_at)
@@ -311,14 +293,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── GET ME ───────────────────────────────────────────────
-  app.get('/api/desk/me', requireAuthTracked, async (req, res) => {
+  app.get('/api/desk/me', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
-      await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`).catch(() => {});
-
       const result = await client.query(
         `SELECT id, email, display_name, role, created_at, last_login, settings_json,
-                subscription_status, trial_ends_at, features
+                subscription_status, trial_ends_at
          FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -327,13 +307,6 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const row = result.rows[0];
       const exempt = EXEMPT_EMAILS.includes(row.email);
       const billing = getBillingStatus(row, exempt);
-
-      // Resolve feature flags — exempt users and legacy active accounts get all features
-      const rawFeatures = (typeof row.features === 'string' ? JSON.parse(row.features || '{}') : row.features) || {};
-      const isLegacy = exempt || (Object.keys(rawFeatures).length === 0 && row.subscription_status === 'active');
-      const features = isLegacy
-        ? { sarah: true, dt_sync: true, fb_poster: true }
-        : rawFeatures;
 
       res.json({
         success: true,
@@ -344,8 +317,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           role: row.role,
           created_at: row.created_at,
           last_login: row.last_login,
-          tenantBranding: buildTenantBrandingFromSettings(row.settings_json),
-          features
+          tenantBranding: buildTenantBrandingFromSettings(row.settings_json)
         },
         billing
       });
@@ -370,35 +342,6 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── CHANGE PASSWORD ─────────────────────────────────────
-  // ── FIRST-LOGIN PASSWORD SET (onboarding only — no current password required) ──────────
-  app.post('/api/desk/set-password', requireAuth, async (req, res) => {
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
-    }
-    const client = await pool.connect();
-    try {
-      // Only allow if onboardingPending is set in settings
-      const userRow = await client.query(
-        'SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]
-      );
-      const s = userRow.rows[0]?.settings_json || {};
-      const parsed = typeof s === 'string' ? JSON.parse(s) : s;
-      if (!parsed.onboardingPending) {
-        return res.status(403).json({ success: false, error: 'Use change-password instead' });
-      }
-      const hash = await bcrypt.hash(newPassword, 12);
-      await client.query(
-        'UPDATE desk_users SET password_hash = $1 WHERE id = $2',
-        [hash, req.user.userId]
-      );
-      console.log('✅ Onboarding password set for user', req.user.userId);
-      res.json({ success: true });
-    } catch(e) {
-      res.status(500).json({ success: false, error: e.message });
-    } finally { client.release(); }
-  });
-
   app.post('/api/desk/change-password', requireAuth, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
@@ -434,7 +377,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // SETTINGS
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/settings', requireAuthTracked, async (req, res) => {
+  app.get('/api/desk/settings', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]);
@@ -566,11 +509,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // INVENTORY
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/inventory', requireAuthTracked, async (req, res) => {
+  app.get('/api/desk/inventory', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
+        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
         [req.user.userId]
       );
       res.json({ success: true, inventory: result.rows });
@@ -684,6 +627,32 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     try {
       await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND user_id = $2', [req.params.stock, req.user.userId]);
       res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── PATCH fb posting status on a single vehicle ─────────────────
+  app.patch('/api/desk/inventory/:stock/fb-status', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const VALID = ['pending', 'posted', 'skipped'];
+      const status = req.body.status;
+      if (!VALID.includes(status)) {
+        return res.status(400).json({ success: false, error: 'status must be pending, posted, or skipped' });
+      }
+      const dateClause = status === 'posted' ? 'fb_posted_date = CURRENT_DATE,' : status === 'pending' ? 'fb_posted_date = NULL,' : '';
+      const result = await client.query(
+        `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
+         WHERE stock = $2 AND user_id = $3 RETURNING stock, fb_status, fb_posted_date`,
+        [status, req.params.stock, req.user.userId]
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ success: false, error: 'Vehicle not found' });
+      }
+      res.json({ success: true, ...result.rows[0] });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
@@ -823,7 +792,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   // CRM
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/desk/crm', requireAuthTracked, async (req, res) => {
+  app.get('/api/desk/crm', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(
@@ -1182,7 +1151,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         lenderR,
         scenariosR
       ] = await Promise.all([
-        client.query('SELECT settings_json, email, display_name, role, id, COALESCE(features, \'{}\'::jsonb) AS features, subscription_status FROM desk_users WHERE id = $1', [req.user.userId]),
+        client.query('SELECT settings_json, email, display_name, role, id FROM desk_users WHERE id = $1', [req.user.userId]),
         client.query("SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE user_id = $1 AND status IN ('available', 'wholesale') ORDER BY stock", [req.user.userId]),
         client.query('SELECT * FROM desk_crm WHERE user_id = $1 ORDER BY updated_at DESC', [req.user.userId]),
         client.query('SELECT id, deal_data, created_at FROM desk_deal_log WHERE user_id = $1 ORDER BY created_at DESC', [req.user.userId]),
@@ -1202,15 +1171,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       const u = settingsR.rows[0] || {};
       const settings = normalizeSettings(u.settings_json || {});
-      const rawFeatures = (typeof u.features === 'string' ? JSON.parse(u.features || '{}') : u.features) || {};
-      const isLegacy = EXEMPT_EMAILS.includes(u.email) || (Object.keys(rawFeatures).length === 0 && u.subscription_status === 'active');
       const user = {
         id: u.id,
         email: u.email,
         name: u.display_name,
         role: u.role,
-        tenantBranding: buildTenantBrandingFromSettings(settings),
-        features: isLegacy ? { sarah: true, dt_sync: true, fb_poster: true } : rawFeatures
+        tenantBranding: buildTenantBrandingFromSettings(settings)
       };
 
       res.json({
@@ -1270,10 +1236,6 @@ function getBillingStatus(user, exempt) {
   const now = new Date();
   if (status === 'active') return { access: 'full', reason: 'active' };
   if (status === 'lapsed') return { access: 'readonly', reason: 'lapsed' };
-  // 'pending' = registered but not yet subscribed — block writes immediately
-  if (status === 'pending') {
-    return { access: 'readonly', reason: 'subscription_required' };
-  }
   if (!status || status === 'trial') {
     if (trialEnd && now < trialEnd) {
       const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
