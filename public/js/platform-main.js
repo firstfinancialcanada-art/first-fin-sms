@@ -671,8 +671,11 @@ async function deleteInventoryItem(stock) {
     const res = await window.FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}`, { method: 'DELETE' });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Delete failed');
-    inventoryData = inventoryData.filter(v => v.stock !== stock);
-    renderInventory(inventoryData);
+    const filtered = (window.ffInventory || []).filter(v => v.stock !== stock);
+    window.ffInventory = filtered;
+    window.inventory   = filtered;
+    localStorage.setItem('ffInventory', JSON.stringify(filtered));
+    renderInventory(filtered);
     refreshLenderCheckerDropdowns();
     toast(`${stock} removed`);
   } catch(e) {
