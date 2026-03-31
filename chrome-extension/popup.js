@@ -16,24 +16,8 @@ let bgScanActive     = false;     // true while background.js is running a scan
 let bgLogRendered    = 0;         // how many background log entries we've already shown
 
 // ── Logo ──────────────────────────────────────────────────────────────────
-function drawLogo() {
-  const c = document.getElementById('logo');
-  if (!c) return;
-  const ctx = c.getContext('2d');
-  const W = 48, H = 42, cx = W / 2, top = 4, bot = H - 4;
-  function tri(ax,ay, bx,by, rx,ry, fill, stroke) {
-    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(rx,ry); ctx.closePath();
-    ctx.fillStyle = fill; ctx.fill();
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
-  }
-  tri(cx-8,top, cx-24,bot, cx+3, bot, '#1e3a5f','#8090a8');
-  tri(cx+8,top, cx-3, bot, cx+24,bot, '#6a7d94','#b8c8d8');
-  ctx.save(); ctx.translate(cx, top-1); ctx.scale(0.55,0.55);
-  const leaf=[[0,-18],[3,-12],[11,-10],[7,-5],[18,-2],[10,3],[9,8],[4,6],[3,14],[0,11],[-3,14],[-4,6],[-9,8],[-10,3],[-18,-2],[-7,-5],[-11,-10],[-3,-12]];
-  ctx.beginPath(); ctx.moveTo(leaf[0][0],leaf[0][1]); leaf.forEach(([x,y])=>ctx.lineTo(x,y)); ctx.closePath();
-  ctx.fillStyle='#c0392b'; ctx.fill(); ctx.strokeStyle='#8b1a14'; ctx.lineWidth=1; ctx.stroke();
-  ctx.fillStyle='#c0392b'; ctx.fillRect(-2,14,4,7); ctx.restore();
-}
+// Logo is rendered via <img src="icons/logo.png"> in popup.html
+function drawLogo() {}
 
 // ── Utilities ─────────────────────────────────────────────────────────────
 function ts() { return new Date().toTimeString().slice(0,8); }
