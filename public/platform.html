@@ -2899,12 +2899,10 @@ async function startLoginBuy() {
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
-      fbpDone = {}, fbpLoaded = false;
+      fbpDone = {};
 
   // Init — called when FB Poster tab opens
   window.initFbPoster = async function() {
-    if (fbpLoaded) return;
-    fbpLoaded = true;
     await fbpLoadInventory();
   };
 
@@ -3184,9 +3182,7 @@ async function startLoginBuy() {
         body: JSON.stringify({ status })
       });
       fbpFlash(`${label}: ${fbpV.title}`);
-      fbpLoaded = false;
       await fbpLoadInventory();
-      fbpLoaded = true;
       if (fbpQueue.length) { const nxt=Math.min(fbpIdx,fbpQueue.length-1); fbpIdx=-1; fbpSelect(Math.max(0,nxt)); }
       else { const ph=document.getElementById('fbp-ph'); const vc=document.getElementById('fbpvc'); if(ph)ph.style.display='flex'; if(vc)vc.style.display='none'; }
     } catch { fbpFlash('Could not save — try again'); }
