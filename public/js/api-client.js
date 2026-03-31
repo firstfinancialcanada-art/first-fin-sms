@@ -392,6 +392,16 @@
       // Fire onboarding wizard check — runs after server settings are fully
       // loaded into window.settings, so twilioNumber reflects actual DB value
       if (typeof wizCheckAndShow === 'function') wizCheckAndShow();
+
+      // Navigate to URL hash section (e.g. #fbposter from extension "Go to FB Poster" button)
+      const hashTarget = location.hash.replace('#', '').toLowerCase();
+      if (hashTarget && typeof showSection === 'function') {
+        const validSections = ['deal','inventory','crm','analytics','compare','settings','fbposter','dtsync','sarah'];
+        if (validSections.includes(hashTarget)) {
+          const btn = document.getElementById('nav-' + hashTarget);
+          setTimeout(() => showSection(hashTarget, btn || null), 100);
+        }
+      }
     } catch (e) {
       console.warn('⚠️ UI Sync Error:', e.message);
     }

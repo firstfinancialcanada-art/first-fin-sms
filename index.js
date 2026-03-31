@@ -62,8 +62,8 @@ app.use(cors({
 // ── Stripe webhook needs raw body BEFORE express.json() ──────────
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '5mb' }));        // 5mb — handles base64 logo uploads in settings
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────
 // Login — 10 attempts per 15 min per IP
