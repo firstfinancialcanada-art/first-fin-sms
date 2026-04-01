@@ -311,9 +311,12 @@
       if (typeof checkBillingBanner === 'function') {
         try { checkBillingBanner(getBilling()); } catch(e) {}
       }
-      // Apply feature gating to nav tabs
+      // Apply feature gating to nav tabs (run now + delayed to override any late UI resets)
       if (typeof applyFeatureGating === 'function') {
-        try { applyFeatureGating(_user ? (_user.features || {}) : {}); } catch(e) {}
+        const _feats = _user ? (_user.features || {}) : {};
+        try { applyFeatureGating(_feats); } catch(e) {}
+        setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 500);
+        setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 2000);
       }
       console.log('🔄 Syncing UI with PostgreSQL data...');
       const inv = window.ffInventory || window.inventory || [];
