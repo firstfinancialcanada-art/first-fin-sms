@@ -2986,7 +2986,7 @@ async function startLoginBuy() {
       is_skipped: v.fb_status === 'skipped',
       posted_date: postedDate,
       needs_repost: v.fb_status === 'posted' && daysSince !== null && daysSince >= 7,
-      photos: Array.isArray(v.photos) ? v.photos : [],
+      photos: Array.isArray(v.photos) ? v.photos : (typeof v.photos === 'string' ? (function(){try{const p=JSON.parse(v.photos);return Array.isArray(p)?p:[];}catch(e){return [];}})() : []),
     };
   }
 
