@@ -506,6 +506,20 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ── GET scrape domain lock (extension calls this before scraping) ─────
+  app.get('/api/desk/scrape-domain', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT scrape_domain FROM desk_users WHERE id = $1', [req.user.userId]);
+      const domain = result.rows[0]?.scrape_domain || null;
+      res.json({ success: true, scrape_domain: domain, locked: !!domain });
+    } catch(e) {
+      res.json({ success: true, scrape_domain: null, locked: false });
+    } finally {
+      client.release();
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════
   // INVENTORY
   // ═══════════════════════════════════════════════════════════

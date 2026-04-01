@@ -97,6 +97,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  u.twilio_number,
                  u.stripe_customer_id,
                  u.settings_json,
+                 u.scrape_domain,
                  COUNT(DISTINCT i.id)    AS inventory_count,
                  COUNT(DISTINCT c.id)    AS crm_count,
                  COUNT(DISTINCT conv.id) AS conversation_count,
@@ -351,6 +352,24 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Release number error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/scrape-domain ────────────────
+  // Set or clear the allowed scraping domain for a tenant
+  app.post('/api/admin/users/:id/scrape-domain', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { domain } = req.body;
+      // Clean domain: strip protocol, www, trailing slash
+      const clean = domain ? domain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim().toLowerCase() : null;
+      await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS scrape_domain VARCHAR(255) DEFAULT NULL').catch(() => {});
+      await client.query('UPDATE desk_users SET scrape_domain = $1 WHERE id = $2', [clean || null, req.params.id]);
+      res.json({ success: true, scrape_domain: clean || null });
+    } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();

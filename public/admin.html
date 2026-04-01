@@ -691,6 +691,9 @@ function renderUsers(users) {
             : `<button class="act amber" onclick="userAction(${u.id},'suspend')">Suspend</button>`}
           <button class="act red" onclick="deleteUser(${u.id},'${esc(u.email)}')">Del</button>
         </div>
+        <div class="action-row" style="margin-top:4px;">
+          <button class="act ${u.scrape_domain ? 'green' : 'blue'}" onclick="toggleDomainLock(${u.id},'${esc(u.email)}','${esc(u.scrape_domain||'')}')" style="font-size:9px;padding:2px 7px;" title="${u.scrape_domain ? 'Locked to: '+u.scrape_domain : 'No domain lock'}">${u.scrape_domain ? '🔒 '+u.scrape_domain : '🔓 Lock Domain'}</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -753,6 +756,25 @@ async function userAction(id, action) {
     if (d.success) { toast(`✓ User ${action}ed`); loadUsers(); }
     else toast('Error: ' + d.error);
   } catch(e) {}
+}
+
+async function toggleDomainLock(id, email, currentDomain) {
+  if (currentDomain) {
+    if (!confirm(`Remove domain lock for ${email}?\n\nCurrently locked to: ${currentDomain}`)) return;
+    try {
+      const d = await api(`/api/admin/users/${id}/scrape-domain`, { method: 'POST', body: JSON.stringify({ domain: null }) });
+      if (d.success) { toast('🔓 Domain lock removed'); loadUsers(); }
+      else toast('Error: ' + d.error);
+    } catch(e) {}
+  } else {
+    const domain = prompt(`Set scrape domain lock for ${email}:\n\nEnter the allowed domain (e.g., automaxx.com).\nLeave empty to cancel.`);
+    if (!domain) return;
+    try {
+      const d = await api(`/api/admin/users/${id}/scrape-domain`, { method: 'POST', body: JSON.stringify({ domain }) });
+      if (d.success) { toast(`🔒 Locked to: ${d.scrape_domain}`); loadUsers(); }
+      else toast('Error: ' + d.error);
+    } catch(e) {}
+  }
 }
 
 async function deleteUser(id, email) {
