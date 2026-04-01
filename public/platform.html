@@ -3586,9 +3586,10 @@ async function startLoginBuy() {
         body_style: fbpV.body_style, ext_color: fbpV.ext_color, int_color: fbpV.int_color,
         fuel: fbpV.fuel, transmission: fbpV.transmission,
         description: fbpV.description, condition: fbpV.condition,
+        photos: fbpV.photos || [],
       }
     }, '*');
-    fbpFlash('Auto-fill sent to extension — check the Facebook tab');
+    fbpFlash('Auto-fill sent — filling form + uploading photos');
   };
 
   window.fbpOpenFb = function() { window.open(FB_URL,'_blank'); fbpFlash('Facebook opened'); };
