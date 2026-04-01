@@ -464,7 +464,7 @@ function scrapeCurrentPage() {
         // Check if there are additional pages — if so, tell popup to crawl them too
         const pageSeen = new Set([location.href]);
         const extraPages = [];
-        // Automaxx-style slug pagination
+        // Automaxx-style slug pagination + ?page=N links
         document.querySelectorAll('a[href]').forEach(a => {
           const href = a.href || '';
           if (pageSeen.has(href)) return;
@@ -475,6 +475,21 @@ function scrapeCurrentPage() {
             extraPages.push(href);
           }
         });
+        // Vehica Vue-rendered pagination (divs, not links)
+        if (!extraPages.length) {
+          const vehicaPages = document.querySelectorAll('.vehica-pagination__page:not(.vehica-pagination__page--active)');
+          if (vehicaPages.length) {
+            const base = new URL(location.href);
+            vehicaPages.forEach(div => {
+              const num = parseInt(div.textContent.trim());
+              if (num && num > 1) {
+                base.searchParams.set('page', num);
+                const href = base.toString();
+                if (!pageSeen.has(href)) { pageSeen.add(href); extraPages.push(href); }
+              }
+            });
+          }
+        }
         // Always check for VDP links — use VDP crawl to get full photos
         const seen  = new Set();
         const vdpLinks = [];
@@ -551,6 +566,22 @@ function scrapeCurrentPage() {
             pageLinks.push(href);
           }
         });
+      }
+      // Vehica (WordPress theme) Vue-rendered pagination — divs, not links
+      // Detect .vehica-pagination__page divs and build ?page=N URLs
+      if (!pageLinks.length) {
+        const vehicaPages = document.querySelectorAll('.vehica-pagination__page:not(.vehica-pagination__page--active)');
+        if (vehicaPages.length) {
+          const base = new URL(location.href);
+          vehicaPages.forEach(div => {
+            const num = parseInt(div.textContent.trim());
+            if (num && num > 1) {
+              base.searchParams.set('page', num);
+              const href = base.toString();
+              if (!pageSeen.has(href)) { pageSeen.add(href); pageLinks.push(href); }
+            }
+          });
+        }
       }
       return { type: 'listing', links, pageLinks, url };
     }
