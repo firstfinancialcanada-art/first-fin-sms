@@ -1602,10 +1602,16 @@ select option{background:#0d1526;color:var(--text);}
     <div class="inv-search">
       <input type="text" id="invSearch" placeholder="Search by Stock #, Make, Model, Year, Price..." oninput="filterInventory()">
     </div>
+    <div id="invBulkBar" style="display:none;padding:8px 12px;margin-bottom:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:6px;align-items:center;gap:10px;">
+      <span style="font-size:12px;font-weight:700;color:var(--red);" id="invSelCount">0 selected</span>
+      <button class="btn btn-sm" onclick="invDeleteSelected()" style="background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:var(--red);font-weight:700;">Delete Selected</button>
+      <button class="btn btn-sm" onclick="invClearSelection()" style="color:var(--muted);">Cancel</button>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
           <tr>
+            <th style="width:30px;"><input type="checkbox" id="invSelectAll" onchange="invToggleAll(this.checked)" title="Select all"></th>
             <th>Stock #</th><th>Year</th><th>Make</th><th>Model</th><th>Type</th>
             <th>Mileage</th><th>Price</th><th>Book Val</th><th>Condition</th><th>Action</th>
           </tr>

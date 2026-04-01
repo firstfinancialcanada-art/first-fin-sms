@@ -633,14 +633,19 @@ async function editBookValue(stock, currentVal, event) {
   });
 }
 
+let invSelected = new Set();
+
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
   if (countEl) countEl.textContent = `${list.length} vehicles`;
   if (!tbody) return;
+  invSelected.clear();
+  invUpdateBulkBar();
 
   tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="inv-cb" data-stock="${v.stock}" onchange="invOnCheck(this)"></td>
       <td><strong style="color:var(--amber);">${v.stock}</strong></td>
       <td>${v.year}</td>
       <td>${v.make}</td>
@@ -683,6 +688,67 @@ async function deleteInventoryItem(stock) {
     toast('⚠️ Could not delete vehicle — ' + e.message);
   }
 }
+
+// ── BULK SELECT / DELETE ─────────────────────────────────────────
+function invOnCheck(cb) {
+  if (cb.checked) invSelected.add(cb.dataset.stock);
+  else invSelected.delete(cb.dataset.stock);
+  invUpdateBulkBar();
+}
+
+window.invToggleAll = function(checked) {
+  document.querySelectorAll('.inv-cb').forEach(cb => {
+    cb.checked = checked;
+    if (checked) invSelected.add(cb.dataset.stock);
+    else invSelected.delete(cb.dataset.stock);
+  });
+  invUpdateBulkBar();
+};
+
+function invUpdateBulkBar() {
+  const bar = document.getElementById('invBulkBar');
+  const countEl = document.getElementById('invSelCount');
+  if (!bar) return;
+  if (invSelected.size > 0) {
+    bar.style.display = 'flex';
+    if (countEl) countEl.textContent = `${invSelected.size} selected`;
+  } else {
+    bar.style.display = 'none';
+  }
+  const selectAll = document.getElementById('invSelectAll');
+  if (selectAll) selectAll.checked = invSelected.size > 0 && invSelected.size === document.querySelectorAll('.inv-cb').length;
+}
+
+window.invClearSelection = function() {
+  invSelected.clear();
+  document.querySelectorAll('.inv-cb').forEach(cb => cb.checked = false);
+  const selectAll = document.getElementById('invSelectAll');
+  if (selectAll) selectAll.checked = false;
+  invUpdateBulkBar();
+};
+
+window.invDeleteSelected = async function() {
+  const stocks = [...invSelected];
+  if (!stocks.length) return;
+  if (!confirm(`Delete ${stocks.length} vehicle${stocks.length>1?'s':''} from inventory?\n\nThis permanently removes them from your database.`)) return;
+  let deleted = 0;
+  for (const stock of stocks) {
+    try {
+      const res = await window.FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) deleted++;
+    } catch (_) {}
+  }
+  invSelected.clear();
+  invUpdateBulkBar();
+  const filtered = (window.ffInventory || []).filter(v => !stocks.includes(v.stock));
+  window.ffInventory = filtered;
+  window.inventory   = filtered;
+  localStorage.setItem('ffInventory', JSON.stringify(filtered));
+  renderInventory(filtered);
+  refreshLenderCheckerDropdowns();
+  toast(`Deleted ${deleted} vehicle${deleted>1?'s':''}`);
+};
 
 // ── SYNC INVENTORY FROM LOCAL BRIDGE ─────────────────────────────
 async function syncInventory(){
