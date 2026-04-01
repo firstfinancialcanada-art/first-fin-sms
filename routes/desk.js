@@ -621,7 +621,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       if (!Array.isArray(vehicles)) return res.status(400).json({ success: false, error: 'vehicles[] required' });
 
       await client.query('BEGIN');
-      await client.query("UPDATE desk_inventory SET status = 'delisted' WHERE user_id = $1", [req.user.userId]);
+      await client.query("DELETE FROM desk_inventory WHERE user_id = $1", [req.user.userId]);
 
       for (const v of vehicles) {
         await client.query(
@@ -779,7 +779,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('BEGIN');
 
       if (mode === 'replace') {
-        await client.query("UPDATE desk_inventory SET status='delisted' WHERE user_id=$1", [userId]);
+        await client.query("DELETE FROM desk_inventory WHERE user_id=$1", [userId]);
         for (const v of vehicles) {
           await client.query(
             `INSERT INTO desk_inventory
