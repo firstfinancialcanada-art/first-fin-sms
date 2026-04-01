@@ -218,12 +218,20 @@ function parseVdpDetail(url) {
     return src;
   }
 
+  // DEBUG: write to DOM so page context can read it
+  try { document.documentElement.dataset.ffDebugGallery = galleryEl ? galleryEl.className : 'NONE'; } catch(_){}
+  try { document.documentElement.dataset.ffDebugImgs = galleryEl ? galleryEl.querySelectorAll('img').length : 0; } catch(_){}
+
   if (galleryEl) {
     // Gallery found — only take images from it
-    galleryEl.querySelectorAll('img').forEach(img => {
+    galleryEl.querySelectorAll('img').forEach((img, idx) => {
       addPhoto(getBestSrc(img));
     });
   }
+
+  // DEBUG: write photo count to DOM
+  try { document.documentElement.dataset.ffDebugPhotos = photos.length; } catch(_){}
+  try { document.documentElement.dataset.ffDebugFirst = photos[0]?.substring(0, 80) || 'NONE'; } catch(_){}
 
   // Strategy 2: If gallery had < 3 photos, try all images but filter aggressively
   if (photos.length < 3) {
@@ -549,7 +557,9 @@ function scrapeCurrentPage() {
   }
 
   if (isVdpDetail) {
-    return { type: 'detail', vehicles: [parseVdpDetail(url)] };
+    const vdpResult = parseVdpDetail(url);
+    console.log('[FF-DEBUG] VDP result for', url, '→ photos:', vdpResult._photos?.length, 'first:', vdpResult._photos?.[0]?.substring(0, 60));
+    return { type: 'detail', vehicles: [vdpResult] };
   }
 
   // ── 3. Generic dealer site — card selectors ───────────────────────────
@@ -641,8 +651,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== 'SCRAPE') return false;
   try {
     const result = scrapeCurrentPage();
+    console.log('[FF-DEBUG] SCRAPE response type:', result.type, 'vehicles:', result.vehicles?.length, 'photos:', result.vehicles?.[0]?._photos?.length);
     sendResponse({ ok: true, result });
   } catch (e) {
+    console.error('[FF-DEBUG] SCRAPE error:', e.message);
     sendResponse({ ok: false, error: e.message });
   }
   return false;

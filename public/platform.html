@@ -3482,8 +3482,7 @@ async function startLoginBuy() {
           const img = document.createElement('img');
           img.className = 'fbp-thumb';
           img.src = url;
-          img.crossOrigin = 'anonymous';
-          img.title = `Photo ${i+1}`;
+          img.title = `Photo ${i+1} — drag to Facebook`;
           img.style.cssText = 'width:70px;height:52px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;transition:all .13s;';
           img.onmouseover = () => { img.style.borderColor = 'var(--primary)'; img.style.transform = 'scale(1.08)'; };
           img.onmouseout = () => { img.style.borderColor = 'var(--border)'; img.style.transform = 'scale(1)'; };
@@ -3491,14 +3490,29 @@ async function startLoginBuy() {
           img.onerror = () => img.style.display = 'none';
           strip.appendChild(img);
         });
-        // "Open All Photos" button — opens photos in new tabs for easy save/drag
+        // "Open All Photos" button — opens a single gallery page with all photos (avoids popup blocker)
         const openBtn = document.createElement('button');
         openBtn.style.cssText = 'flex-shrink:0;padding:6px 12px;border-radius:5px;background:rgba(30,90,246,.12);border:1px solid rgba(30,90,246,.3);color:#93c5fd;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
         openBtn.textContent = 'Open All Photos';
-        openBtn.title = 'Opens all photos in new tabs — right-click to save, or drag from tab to Facebook';
+        openBtn.title = 'Opens all photos in a single page — drag from there to Facebook';
         openBtn.onclick = () => {
-          v.photos.forEach(url => window.open(url, '_blank'));
-          fbpFlash(`Opened ${v.photos.length} photos in new tabs`);
+          const w = window.open('', '_blank');
+          if (!w) { fbpFlash('Popup blocked — allow popups for this site'); return; }
+          w.document.title = v.title + ' — Photos';
+          w.document.body.style.cssText = 'margin:0;padding:20px;background:#111;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;';
+          v.photos.forEach((url, i) => {
+            const img = w.document.createElement('img');
+            img.src = url;
+            img.style.cssText = 'max-width:600px;max-height:450px;object-fit:contain;border-radius:6px;cursor:grab;';
+            img.title = 'Drag this photo to Facebook';
+            img.draggable = true;
+            w.document.body.appendChild(img);
+          });
+          const tip = w.document.createElement('p');
+          tip.style.cssText = 'width:100%;text-align:center;color:#666;font-family:sans-serif;font-size:13px;margin-top:16px;';
+          tip.textContent = 'Drag photos from here to the Facebook upload area. Close this tab when done.';
+          w.document.body.appendChild(tip);
+          fbpFlash(`Opened ${v.photos.length} photos — drag to Facebook`);
         };
         strip.appendChild(openBtn);
         if (hint) hint.textContent = `${v.photos.length} photos — click to preview, Open All to save`;
