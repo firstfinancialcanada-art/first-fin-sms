@@ -927,10 +927,21 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.patch('/api/desk/crm/:id', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      const { status } = req.body;
+      const { status, phone, email, source, notes, name, beacon } = req.body;
+      const sets = ['updated_at = NOW()'];
+      const vals = [];
+      let idx = 1;
+      if (status !== undefined) { sets.push(`status = $${idx++}`); vals.push(status); }
+      if (phone !== undefined)  { sets.push(`phone = $${idx++}`); vals.push(phone); }
+      if (email !== undefined)  { sets.push(`email = $${idx++}`); vals.push(email); }
+      if (source !== undefined) { sets.push(`source = $${idx++}`); vals.push(source); }
+      if (notes !== undefined)  { sets.push(`notes = $${idx++}`); vals.push(notes); }
+      if (name !== undefined)   { sets.push(`name = $${idx++}`); vals.push(name); }
+      if (beacon !== undefined) { sets.push(`beacon = $${idx++}`); vals.push(beacon); }
+      vals.push(req.params.id, req.user.userId);
       await client.query(
-        'UPDATE desk_crm SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3',
-        [status, req.params.id, req.user.userId]
+        `UPDATE desk_crm SET ${sets.join(', ')} WHERE id = $${idx++} AND user_id = $${idx}`,
+        vals
       );
       res.json({ success: true });
     } catch (e) {

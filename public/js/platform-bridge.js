@@ -198,49 +198,79 @@
 
   window.dtPushCRM=async function(){
     if(!dtContacts.length){alert('No contacts to push.');return;}
-    var pushed=0;
+    var mode=(document.getElementById('dt-crm-mode')||{}).value||'add';
+    var pushed=0,updated=0,skipped=0;
+
+    // Replace mode: hard delete all CRM contacts first
+    if(mode==='replace'){
+      if(!confirm('REPLACE will delete ALL existing CRM contacts and replace with DT Sync data.\n\nThis cannot be undone. Continue?'))return;
+      try{
+        // Delete all existing CRM entries for this user
+        var crmResp=await FF.apiFetch('/api/desk/crm').then(function(r){return r.json();});
+        if(crmResp.success&&crmResp.crm){
+          for(var d=0;d<crmResp.crm.length;d++){
+            await FF.apiFetch('/api/desk/crm/'+crmResp.crm[d].id,{method:'DELETE'}).catch(function(){});
+          }
+        }
+        crmData=[];
+      }catch(e){console.error('DT CRM replace clear error:',e);}
+    }
+
     for(var i=0;i<dtContacts.length;i++){
       var c=dtContacts[i];
       var name=((c.first_name||'')+' '+(c.last_name||'')).trim();
       if(!name)continue;
-      var exists=crmData.some(function(e){return e.name===name&&e.vehicle&&e.vehicle.indexOf('DT Scrape')>-1&&e.vehicle.indexOf(c.deal_number)>-1;});
-      if(exists)continue;
+      var source='DT Scrape'+(c.lender?' | '+c.lender:'')+(c.deal_number?' | #'+c.deal_number:'');
+      var phone=c.mobile_phone||c.phone||'';
+      var email=c.email||'';
+
+      // Check if contact already exists
+      var existingIdx=-1;
+      for(var j=0;j<crmData.length;j++){
+        if(crmData[j].name===name&&crmData[j].source&&crmData[j].source.indexOf('DT Scrape')>-1){existingIdx=j;break;}
+      }
+
+      if(mode==='add'&&existingIdx>=0){skipped++;continue;}
+
+      if(mode==='merge'&&existingIdx>=0){
+        // Update existing contact with latest data
+        try{
+          var upd=await FF.apiFetch('/api/desk/crm/'+crmData[existingIdx].id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            phone:phone,email:email,source:source,status:'Lead'
+          })}).then(function(r){return r.json();});
+          if(upd.success){crmData[existingIdx].phone=phone;crmData[existingIdx].email=email;updated++;}
+        }catch(e){console.error('DT CRM merge error:',e);}
+        continue;
+      }
+
+      // Add new contact
       try{
         var res=await FF.apiFetch('/api/desk/crm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-          name:name,
-          phone:c.mobile_phone||c.phone||'',
-          email:c.email||'',
-          beacon:'',
-          status:'Lead',
-          source:'DT Scrape'+(c.lender?' | '+c.lender:'')+(c.deal_number?' | #'+c.deal_number:''),
-          notes:''
+          name:name,phone:phone,email:email,beacon:'',status:'Lead',source:source,notes:''
         })}).then(function(r){return r.json();});
         if(res.success){
           crmData.unshift({
-            id:res.entry.id,
-            date:new Date().toLocaleDateString('en-CA'),
-            name:name,
-            phone:c.mobile_phone||c.phone||'',
-            email:c.email||'',
-            vehicle:'DT Scrape'+(c.lender?' | '+c.lender:'')+(c.deal_number?' | #'+c.deal_number:''),
-            stock:'',beacon:'',status:'Lead'
+            id:res.entry.id,date:new Date().toLocaleDateString('en-CA'),
+            name:name,phone:phone,email:email,
+            vehicle:source,stock:'',beacon:'',status:'Lead',source:source
           });
           pushed++;
         }
       }catch(e){console.error('DT CRM push error:',e);}
     }
-    if(pushed>0){
+    var parts=[];
+    if(pushed)parts.push(pushed+' added');
+    if(updated)parts.push(updated+' updated');
+    if(skipped)parts.push(skipped+' skipped');
+    var msg=parts.join(', ')||'No changes';
+    if(pushed>0||updated>0){
       renderCRM();
       dtCRMCount+=pushed;
       document.getElementById('dt-s-crm').textContent=dtCRMCount;
-      var t=document.getElementById('dt-crm-toast');
-      t.textContent=pushed+' contacts pushed to CRM!';
-      t.style.display='block';
-      setTimeout(function(){t.style.display='none';},3000);
-      if(typeof toast==='function')toast(pushed+' DT contacts added to CRM!');
-    }else{
-      if(typeof toast==='function')toast('All contacts already in CRM');
     }
+    var t=document.getElementById('dt-crm-toast');
+    if(t){t.textContent=msg;t.style.display='block';setTimeout(function(){t.style.display='none';},4000);}
+    if(typeof toast==='function')toast('DT Sync: '+msg);
   };
 
   function dtInit(){

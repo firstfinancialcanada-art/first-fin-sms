@@ -1918,6 +1918,11 @@ select option{background:#0d1526;color:var(--text);}
     <button class="dt-btn" id="dt-btn-resume" onclick="dtResume()" disabled style="background:var(--amber);color:#000;"><i data-lucide="skip-forward" class="ico-sm"></i> Resume</button>
     <button class="dt-btn stop"  id="dt-btn-stop"  onclick="dtStop()"  disabled><i data-lucide="square" class="ico-sm"></i> Stop</button>
     <button class="dt-btn crm"   id="dt-btn-crm"   onclick="dtPushCRM()" disabled><i data-lucide="users" class="ico-sm"></i> Push to CRM</button>
+    <select id="dt-crm-mode" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Outfit',sans-serif;font-size:10px;font-weight:600;">
+      <option value="add">Add (skip existing)</option>
+      <option value="replace">Replace (delete all CRM first)</option>
+      <option value="merge">Merge (update existing, add new)</option>
+    </select>
     <button class="dt-btn export" onclick="dtExportCSV()"><i data-lucide="download" class="ico-sm"></i> CSV</button>
     <button class="dt-btn clear"  onclick="dtClear()"><i data-lucide="trash-2" class="ico-sm"></i> Clear</button>
   </div>
