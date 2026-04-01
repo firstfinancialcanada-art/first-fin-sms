@@ -475,20 +475,18 @@ function scrapeCurrentPage() {
             extraPages.push(href);
           }
         });
-        // Vehica Vue-rendered pagination (divs, not links)
-        if (!extraPages.length) {
-          const vehicaPages = document.querySelectorAll('.vehica-pagination__page:not(.vehica-pagination__page--active)');
-          if (vehicaPages.length) {
-            const base = new URL(location.href);
-            vehicaPages.forEach(div => {
-              const num = parseInt(div.textContent.trim());
-              if (num && num > 1) {
-                base.searchParams.set('page', num);
-                const href = base.toString();
-                if (!pageSeen.has(href)) { pageSeen.add(href); extraPages.push(href); }
-              }
-            });
-          }
+        // Vehica Vue-rendered pagination (divs, not links) — always check, merge with above
+        const vehicaPages = document.querySelectorAll('.vehica-pagination__page:not(.vehica-pagination__page--active)');
+        if (vehicaPages.length) {
+          const base = new URL(location.href);
+          vehicaPages.forEach(div => {
+            const num = parseInt(div.textContent.trim());
+            if (num && num > 1) {
+              base.searchParams.set('page', num);
+              const href = base.toString();
+              if (!pageSeen.has(href)) { pageSeen.add(href); extraPages.push(href); }
+            }
+          });
         }
         // Always check for VDP links — use VDP crawl to get full photos
         const seen  = new Set();
