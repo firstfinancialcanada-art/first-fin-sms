@@ -62,7 +62,7 @@ app.use(cors({
 // ── Stripe webhook needs raw body BEFORE express.json() ──────────
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' }));        // 10mb — handles inventory sync with photos + base64 logo uploads
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────
@@ -137,6 +137,8 @@ require('./routes/lenders')(app, require('./lib/db').pool, requireBilling);
 const pool = require('./lib/db').pool;
 require('./routes/probability')(app, pool, requireAuth, requireBilling);  // User-facing: read-only probabilities
 require('./routes/outcomes-admin')(app, pool);                 // Admin: log/manage outcomes
+app.use('/api/fb-license', require('./routes/fb-license'));     // FB Poster license management
+require('./routes/compare')(app, { requireAuth });             // Compare All engine (server-side)
 
 // ── L1: Periodic refresh token cleanup (every 6 hours) ──────────
 setInterval(async () => {

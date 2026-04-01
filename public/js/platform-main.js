@@ -155,99 +155,84 @@ let crmData  = [];
 
 
 // ── LENDER DATA ─────────────────────────────────────────
+// ── Lender display info (name/phone/web only — approval criteria are server-side) ──
 const lenders = {
-  autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  autocapital:{ name:"AUTOCAPITAL CANADA",  phone:"855-646-0534",   web:"autocapitalcanada.ca",   hard:true,  minYear:2015, maxMileage:195000, maxCarfax:7500, maxLTV:175,
     programs:[
-      {tier:"Tier 1 — Prime",rate:"13.49%",fico:"680+",minYear:2025,maxMile:"Unlimited",maxCfx:"$0",maxLtv:"175%"},
-      {tier:"Tier 2 — Standard",rate:"14.49%",fico:"620–679",minYear:2024,maxMile:"Unlimited",maxCfx:"$2,500",maxLtv:"175%"},
-      {tier:"Tier 3 — Good",rate:"15.99%",fico:"590–619",minYear:2023,maxMile:"195,000",maxCfx:"$5,000",maxLtv:"165%"},
-      {tier:"Tier 4 — Fair",rate:"17.99%",fico:"560–589",minYear:2022,maxMile:"195,000",maxCfx:"$5,000",maxLtv:"165%"},
-      {tier:"Tier 5 — Poor",rate:"21.49%",fico:"540–559",minYear:2020,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"},
-      {tier:"Tier 6 — Subprime",rate:"23.49%",fico:"<540",minYear:2015,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"}
+      {tier:"Tier 1 — Prime",    rate:"13.49%", fico:"680+",    minYear:2025, maxMile:"Unlimited", maxCfx:"$0",     maxLtv:"175%"},
+      {tier:"Tier 2 — Standard", rate:"14.49%", fico:"620–679", minYear:2024, maxMile:"Unlimited", maxCfx:"$2,500", maxLtv:"175%"},
+      {tier:"Tier 3 — Good",     rate:"15.99%", fico:"590–619", minYear:2023, maxMile:"195,000",   maxCfx:"$5,000", maxLtv:"165%"},
+      {tier:"Tier 4 — Fair",     rate:"17.99%", fico:"560–589", minYear:2022, maxMile:"195,000",   maxCfx:"$5,000", maxLtv:"165%"},
+      {tier:"Tier 5 — Poor",     rate:"21.49%", fico:"540–559", minYear:2020, maxMile:"195,000",   maxCfx:"$7,500", maxLtv:"150%"},
+      {tier:"Tier 6 — Subprime", rate:"23.49%", fico:"<540",    minYear:2015, maxMile:"195,000",   maxCfx:"$7,500", maxLtv:"150%"},
     ]},
-  cibc:{name:"CIBC AUTO FINANCE",phone:"1-855-598-1856",web:"cibc.com/auto",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  cibc:{ name:"CIBC AUTO FINANCE", phone:"1-855-598-1856", web:"cibc.com/auto", hard:false, minYear:2015, maxMileage:null, maxCarfax:null, maxLTV:96,
     programs:[
-      {tier:"Chequing Acct Program",rate:"6.36%",fico:"N/A",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
-      {tier:"2023–2026 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2023,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
-      {tier:"2018–2022 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2018,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"84%"},
-      {tier:"Newcomers Program",rate:"Varies",fico:"No history",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"}
+      {tier:"Chequing Acct Program", rate:"6.36%",       fico:"N/A",        minYear:2019, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"2023–2026 Vehicles",    rate:"7.29%–9.49%", fico:"Various",    minYear:2023, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"2018–2022 Vehicles",    rate:"7.29%–9.49%", fico:"Various",    minYear:2018, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"84%"},
+      {tier:"Newcomers Program",     rate:"Varies",       fico:"No history", minYear:2015, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
     ]},
-  edenpark:{name:"EDENPARK",phone:"1-855-366-8667",web:"edenparkfinancial.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  edenpark:{ name:"EDENPARK", phone:"1-855-366-8667", web:"edenparkfinancial.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:7500, maxLTV:140,
     programs:[
-      {tier:"Tier A",rate:"11.99%",fico:"640+",minYear:2020,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"140%"},
-      {tier:"Tier B",rate:"15.99%",fico:"600–639",minYear:2017,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"135%"},
-      {tier:"Tier C",rate:"19.99%",fico:"560–599",minYear:2016,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"130%"},
-      {tier:"Tier D",rate:"23.99%",fico:"<560",minYear:2015,maxMile:"170,000",maxCfx:"$7,500",maxLtv:"125%"}
+      {tier:"Tier A", rate:"11.99%", fico:"640+",    minYear:2020, maxMile:"180,000", maxCfx:"$5,000", maxLtv:"140%"},
+      {tier:"Tier B", rate:"15.99%", fico:"600–639", minYear:2017, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"135%"},
+      {tier:"Tier C", rate:"19.99%", fico:"560–599", minYear:2016, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"130%"},
+      {tier:"Tier D", rate:"23.99%", fico:"<560",    minYear:2015, maxMile:"170,000", maxCfx:"$7,500", maxLtv:"125%"},
     ]},
-  iceberg:{name:"ICEBERG FINANCE",phone:"855-694.0960",web:"icebergfinance.ca",minYear:2012,maxMileage:180000,maxCarfax:6500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1750,maxPayment:825,
+  iceberg:{ name:"ICEBERG FINANCE", phone:"855-694-0960", web:"icebergfinance.ca", hard:true, minYear:2012, maxMileage:180000, maxCarfax:6500, maxLTV:140,
     programs:[
-      {tier:"Tier 1",rate:"12.99%",fico:"640+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"140%"},
-      {tier:"Tier 2",rate:"17.99%",fico:"600–639",minYear:2015,maxMile:"170,000",maxCfx:"$5,000",maxLtv:"135%"},
-      {tier:"Tier 3",rate:"22.99%",fico:"560–599",minYear:2013,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"130%"},
-      {tier:"Tier 4",rate:"31.99%",fico:"<560",minYear:2012,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"125%"}
+      {tier:"Tier 1", rate:"12.99%", fico:"640+",    minYear:2018, maxMile:"150,000", maxCfx:"$3,000", maxLtv:"140%"},
+      {tier:"Tier 2", rate:"17.99%", fico:"600–639", minYear:2015, maxMile:"170,000", maxCfx:"$5,000", maxLtv:"135%"},
+      {tier:"Tier 3", rate:"22.99%", fico:"560–599", minYear:2013, maxMile:"180,000", maxCfx:"$6,500", maxLtv:"130%"},
+      {tier:"Tier 4", rate:"31.99%", fico:"<560",    minYear:2012, maxMile:"180,000", maxCfx:"$6,500", maxLtv:"125%"},
     ]},
-  northlake:{name:"NORTHLAKE FINANCIAL",phone:"1-888-652-5320",web:"northlakefinancial.ca",minYear:2003,maxMileage:300000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1800,maxPayment:930,
+  northlake:{ name:"NORTHLAKE FINANCIAL", phone:"1-888-652-5320", web:"northlakefinancial.ca", hard:true, minYear:2003, maxMileage:300000, maxCarfax:7500, maxLTV:140,
     programs:[
-      {tier:"Standard",rate:"10.99%–16.99%",fico:"No min",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"},
-      {tier:"Extended",rate:"17.99%–22.99%",fico:"No min",minYear:2003,maxMile:"300,000",maxCfx:"$7,500",maxLtv:"130%"}
+      {tier:"Standard", rate:"10.99%–16.99%", fico:"No min", minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"140%"},
+      {tier:"Extended", rate:"17.99%–22.99%", fico:"No min", minYear:2003, maxMile:"300,000", maxCfx:"$7,500", maxLtv:"130%"},
     ]},
-  prefera:{name:"PREFERA FINANCE",phone:"1-844-734-3577",web:"preferafinance.ca",minYear:2015,maxMileage:200000,maxCarfax:5000,maxLTV:170,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  prefera:{ name:"PREFERA FINANCE", phone:"1-844-734-3577", web:"preferafinance.ca", hard:true, minYear:2015, maxMileage:200000, maxCarfax:5000, maxLTV:170,
     programs:[
-      {tier:"Tier A",rate:"16.95%",fico:"620+",minYear:2018,maxMile:"150,000",maxCfx:"$2,500",maxLtv:"170%"},
-      {tier:"Tier B",rate:"21.95%",fico:"580–619",minYear:2016,maxMile:"175,000",maxCfx:"$3,500",maxLtv:"160%"},
-      {tier:"Tier C",rate:"25.95%",fico:"550–579",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"150%"},
-      {tier:"Tier D",rate:"30.95%",fico:"<550",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"}
+      {tier:"Tier A", rate:"16.95%", fico:"620+",    minYear:2018, maxMile:"150,000", maxCfx:"$2,500", maxLtv:"170%"},
+      {tier:"Tier B", rate:"21.95%", fico:"580–619", minYear:2016, maxMile:"175,000", maxCfx:"$3,500", maxLtv:"160%"},
+      {tier:"Tier C", rate:"25.95%", fico:"550–579", minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"150%"},
+      {tier:"Tier D", rate:"30.95%", fico:"<550",    minYear:2015, maxMile:"200,000", maxCfx:"$5,000", maxLtv:"140%"},
     ]},
-  rbc:{name:"RBC AUTO FINANCE",phone:"1-888-529-6999",web:"rbcautofinance.ca",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  rbc:{ name:"RBC AUTO FINANCE", phone:"1-888-529-6999", web:"rbcautofinance.ca", hard:false, minYear:2015, maxMileage:null, maxCarfax:null, maxLTV:96,
     programs:[
-      {tier:"Prime Program",rate:"5.79%–7.99%",fico:"720+",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
-      {tier:"Standard Program",rate:"7.99%–9.99%",fico:"650–719",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"90%"}
+      {tier:"Prime Program",    rate:"5.79%–7.99%", fico:"720+",    minYear:2019, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"96%"},
+      {tier:"Standard Program", rate:"7.99%–9.99%", fico:"650–719", minYear:2015, maxMile:"Credit-based", maxCfx:"Credit-based", maxLtv:"90%"},
     ]},
-  santander:{name:"SANTANDER CONSUMER",phone:"1-888-222-4227",web:"santanderconsumerusa.com",minYear:2015,maxMileage:160000,maxCarfax:6000,maxLTV:150,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  santander:{ name:"SANTANDER CONSUMER", phone:"1-888-222-4227", web:"santanderconsumerusa.com", hard:true, minYear:2015, maxMileage:160000, maxCarfax:6000, maxLTV:150,
     programs:[
-      {tier:"Tier 1",rate:"9.99%–14.99%",fico:"650+",minYear:2018,maxMile:"120,000",maxCfx:"$3,000",maxLtv:"150%"},
-      {tier:"Tier 2",rate:"15.99%–21.99%",fico:"600–649",minYear:2016,maxMile:"140,000",maxCfx:"$4,500",maxLtv:"140%"},
-      {tier:"Tier 3",rate:"22.99%–29.99%",fico:"<600",minYear:2015,maxMile:"160,000",maxCfx:"$6,000",maxLtv:"130%"}
+      {tier:"Tier 1", rate:"9.99%–14.99%",  fico:"650+",    minYear:2018, maxMile:"120,000", maxCfx:"$3,000", maxLtv:"150%"},
+      {tier:"Tier 2", rate:"15.99%–21.99%", fico:"600–649", minYear:2016, maxMile:"140,000", maxCfx:"$4,500", maxLtv:"140%"},
+      {tier:"Tier 3", rate:"22.99%–29.99%", fico:"<600",    minYear:2015, maxMile:"160,000", maxCfx:"$6,000", maxLtv:"130%"},
     ]},
-  sda:{name:"SDA FINANCE",phone:"1-800-731-2345",web:"sdafinance.ca",minYear:2012,maxMileage:250000,maxCarfax:8000,maxLTV:135,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  sda:{ name:"SDA FINANCE", phone:"1-800-731-2345", web:"sdafinance.ca", hard:true, minYear:2012, maxMileage:250000, maxCarfax:8000, maxLTV:135,
     programs:[
-      {tier:"Standard",rate:"15.99%–24.99%",fico:"No min",minYear:2012,maxMile:"250,000",maxCfx:"$8,000",maxLtv:"135%"}
+      {tier:"Standard", rate:"15.99%–24.99%", fico:"No min", minYear:2012, maxMile:"250,000", maxCfx:"$8,000", maxLtv:"135%"},
     ]},
-  servus:{name:"SERVUS CREDIT UNION",phone:"1-877-378-8728",web:"servus.ca",minYear:2015,maxMileage:180000,maxCarfax:5000,maxLTV:100,hard:true,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  servus:{ name:"SERVUS CREDIT UNION", phone:"1-877-378-8728", web:"servus.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:5000, maxLTV:100,
     programs:[
-      {tier:"Prime",rate:"6.50%–8.99%",fico:"700+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"100%"},
-      {tier:"Near Prime",rate:"9.99%–14.99%",fico:"640–699",minYear:2015,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"95%"}
+      {tier:"Prime",      rate:"6.50%–8.99%",  fico:"700+",    minYear:2018, maxMile:"150,000", maxCfx:"$3,000", maxLtv:"100%"},
+      {tier:"Near Prime", rate:"9.99%–14.99%", fico:"640–699", minYear:2015, maxMile:"180,000", maxCfx:"$5,000", maxLtv:"95%"},
     ]},
-  iauto:{name:"iA AUTO FINANCE",phone:"1-855-378-5626",web:"ia.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:1000,
+  iauto:{ name:"iA AUTO FINANCE", phone:"1-855-378-5626", web:"ia.ca", hard:true, minYear:2015, maxMileage:180000, maxCarfax:7500, maxLTV:140,
     programs:[
-      {tier:'6th Gear',fico:'700+',   rate:'11.49', maxLtv:140, minYear:2015},
-      {tier:'5th Gear',fico:'650-699',rate:'15.49', maxLtv:140, minYear:2015},
-      {tier:'4th Gear',fico:'600-649',rate:'20.49', maxLtv:135, minYear:2015},
-      {tier:'3rd Gear',fico:'560-599',rate:'25.49', maxLtv:125, minYear:2015},
-      {tier:'2nd Gear',fico:'520-559',rate:'29.99', maxLtv:125, minYear:2015},
-      {tier:'1st Gear',fico:'<520',   rate:'29.99', maxLtv:110, minYear:2015},
+      {tier:"6th Gear", rate:"11.49%", fico:"700+",    minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"140%"},
+      {tier:"5th Gear", rate:"15.49%", fico:"650–699", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"140%"},
+      {tier:"4th Gear", rate:"20.49%", fico:"600–649", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"135%"},
+      {tier:"3rd Gear", rate:"25.49%", fico:"560–599", minYear:2015, maxMile:"180,000", maxCfx:"$7,500", maxLtv:"125%"},
+      {tier:"2nd Gear", rate:"29.99%", fico:"520–559", minYear:2015, maxMile:"140,000", maxCfx:"$7,500", maxLtv:"125%"},
+      {tier:"1st Gear", rate:"29.99%", fico:"<520",    minYear:2015, maxMile:"140,000", maxCfx:"$7,500", maxLtv:"110%"},
     ]},
-  wsleasing:{name:"WS LEASING",phone:"1-888-975-3273",web:"wsleasing.ca",minYear:2018,maxMileage:120000,maxCarfax:3000,maxLTV:100,hard:true,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  wsleasing:{ name:"WS LEASING", phone:"1-888-975-3273", web:"wsleasing.ca", hard:true, minYear:2018, maxMileage:120000, maxCarfax:3000, maxLTV:100,
     programs:[
-      {tier:"Lease Program A",rate:"7.99%–11.99%",fico:"680+",minYear:2020,maxMile:"100,000",maxCfx:"$2,000",maxLtv:"100%"},
-      {tier:"Lease Program B",rate:"12.99%–16.99%",fico:"640–679",minYear:2018,maxMile:"120,000",maxCfx:"$3,000",maxLtv:"95%"}
-    ]}
-};
-
-// ── LENDER FEES (added to ATF before LTV calc) ─────────
-const LENDER_FEES = {
-  autocapital: 895,
-  cibc: 0,
-  edenpark: 695,
-  iceberg: 695,
-  northlake: 695,
-  prefera: 695,
-  rbc: 0,
-  santander: 595,
-  sda: 995,
-  servus: 0,
-  wsleasing: 0,
-  iauto: 699
+      {tier:"Lease Program A", rate:"7.99%–11.99%",  fico:"680+",    minYear:2020, maxMile:"100,000", maxCfx:"$2,000", maxLtv:"100%"},
+      {tier:"Lease Program B", rate:"12.99%–16.99%", fico:"640–679", minYear:2018, maxMile:"120,000", maxCfx:"$3,000", maxLtv:"95%"},
+    ]},
 };
 
 // ── MATH HELPERS ──────────────────────────────────────
@@ -256,12 +241,34 @@ function PV(rate,nper,pmt){if(rate===0)return pmt*nper;return pmt*((1-Math.pow(1
 
 // ── BI-WEEKLY MODE ────────────────────────────────────────────────
 window._biweekly = false;
+window._fiTerm   = 72;
+
+// ── Hidden lenders Set (persisted to localStorage) ─────────────
+window._hiddenLenders = new Set(
+  JSON.parse(localStorage.getItem('ffHiddenLenders') || '[]')
+);
+function isLenderHidden(lid){ return window._hiddenLenders.has(lid); }
+function toggleHideLender(lid){
+  if(window._hiddenLenders.has(lid)) window._hiddenLenders.delete(lid);
+  else window._hiddenLenders.add(lid);
+  localStorage.setItem('ffHiddenLenders', JSON.stringify([...window._hiddenLenders]));
+  // Re-render rate editor so HIDE/SHOW button updates immediately
+  if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+  // Re-run comparison if results are already showing
+  runComparison();
+}   // F&I section active term (48/60/72/84)
 function toggleBiweekly(el){
   window._biweekly = el.checked;
-  // Sync all toggles
+  // Sync all toggles (grid + F&I) to same state
   document.querySelectorAll('.bw-toggle').forEach(t=>{ t.checked = window._biweekly; });
+  const fiBwEl = document.getElementById('fi-biweekly-toggle');
+  if (fiBwEl) fiBwEl.checked = window._biweekly;
   calculate();
   updateRateComparison();
+  // Always refresh presentation cards — refreshPresentationCards() returns early
+  // if the presentation has never been opened, so this is always safe to call.
+  // Avoids a race where overlay.classList.contains('open') fails mid-event.
+  refreshPresentationCards();
 }
 // BPMT: calculates payment based on current mode (monthly or bi-weekly)
 function BPMT(apr, months, fin){
@@ -273,6 +280,159 @@ function BPMT(apr, months, fin){
   return PMT(apr/100/12, months, fin);
 }
 function _pmtLabel(){ return window._biweekly ? '/bi-wk' : '/mo'; }
+
+// ── F&I section term selector ────────────────────────────────────────────────
+function setFiTerm(term, btn) {
+  window._fiTerm = term;
+  // Update button styles
+  document.querySelectorAll('.fi-term-btn').forEach(b => b.classList.remove('active-term'));
+  if (btn) btn.classList.add('active-term');
+  // Keep the main biweekly grid toggle in sync (F&I biweekly mirrors global)
+  updateFiSection();
+}
+
+function fiBiweeklyToggle(el) {
+  // Sync F&I biweekly toggle with the global toggle
+  window._biweekly = el.checked;
+  document.querySelectorAll('.bw-toggle').forEach(t => { if (t !== el) t.checked = el.checked; });
+  calculate(); // recalculates everything including F&I
+}
+
+// Helper: get confirmed (sold + price > 0) product total
+function getFiConfirmedProducts() {
+  const products = [
+    { id: 'vsc', name: 'VSC',   priceId: 'vscPrice', soldId: 'vscSold' },
+    { id: 'gap', name: 'GAP',   priceId: 'gapPrice', soldId: 'gapSold' },
+    { id: 'tw',  name: 'T&W',   priceId: 'twPrice',  soldId: 'twSold'  },
+    { id: 'wa',  name: 'WA',    priceId: 'waPrice',  soldId: 'waSold'  },
+  ];
+  let confirmed = [];
+  let total = 0;
+  products.forEach(p => {
+    const price = parseFloat(document.getElementById(p.priceId)?.value) || 0;
+    const sold  = document.getElementById(p.soldId)?.checked;
+    if (sold && price > 0) {
+      confirmed.push({ ...p, price });
+      total += price;
+    }
+  });
+  return { confirmed, total };
+}
+
+function updateFiSection() {
+  // ── Deal base numbers ─────────────────────────────────────────────────────
+  const apr      = parseFloat(document.getElementById('apr')?.value) || 0;
+  const price    = parseFloat(document.getElementById('sellingPrice')?.value) || 0;
+  const doc      = parseFloat(document.getElementById('docFee')?.value) || 0;
+  const tAllow   = parseFloat(document.getElementById('tradeAllow')?.value) || 0;
+  const tPayoff  = parseFloat(document.getElementById('tradePayoff')?.value) || 0;
+  const gst      = parseFloat(document.getElementById('gstRate')?.value) || 5;
+  const finalDown= parseFloat(document.getElementById('finalDown')?.value) || 0;
+
+  const netTrade = tAllow - tPayoff;
+  const gstAmt   = (price + doc - netTrade) * (gst / 100);
+  const otd      = price + doc - netTrade + gstAmt;
+  const finAmt   = Math.max(0, otd - finalDown);
+
+  const term    = window._fiTerm || 72;
+  const bw      = window._biweekly;
+  const periods = bw ? Math.round(term * 26 / 12) : term;
+  const lbl     = bw ? '/bi-wk' : '/mo';
+  const baseP   = BPMT(apr, term, finAmt);
+
+  const vsc = parseFloat(document.getElementById('vscPrice')?.value) || 0;
+  const gap = parseFloat(document.getElementById('gapPrice')?.value) || 0;
+  const tw  = parseFloat(document.getElementById('twPrice')?.value)  || 0;
+  const wa  = parseFloat(document.getElementById('waPrice')?.value)  || 0;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  // ── Payment breakdown (all offered products) ─────────────────────────────
+  set('basePayment72',     $f(baseP));
+  set('withGap',           $f(baseP + gap / periods));
+  set('withGapVsc',        $f(baseP + gap / periods + vsc / periods));
+  set('withAllProtection', $f(baseP + gap / periods + vsc / periods + tw / periods));
+  set('fullProtection',    $f(baseP + gap / periods + vsc / periods + tw / periods + wa / periods));
+
+  set('vscImpact', '+' + $f(vsc / periods) + lbl);
+  set('gapImpact', '+' + $f(gap / periods) + lbl);
+  set('twImpact',  '+' + $f(tw  / periods) + lbl);
+  set('waImpact',  '+' + $f(wa  / periods) + lbl);
+
+  // ── Visual: strike/dim unchecked boxes ───────────────────────────────────
+  [['vsc','pb-vsc'],['gap','pb-gap'],['tw','pb-tw'],['wa','pb-wa']].forEach(([id, boxId]) => {
+    const sold = document.getElementById(id + 'Sold')?.checked;
+    const priceVal = parseFloat(document.getElementById(id + 'Price')?.value) || 0;
+    const box = document.getElementById(boxId);
+    if (box) {
+      box.style.opacity  = (!sold || priceVal === 0) ? '0.45' : '1';
+      box.style.filter   = (!sold || priceVal === 0) ? 'grayscale(0.3)' : '';
+    }
+    // Auto-uncheck if price cleared to 0
+    if (priceVal === 0) {
+      const cb = document.getElementById(id + 'Sold');
+      if (cb) cb.checked = false;
+    }
+  });
+
+  // ── Header label ─────────────────────────────────────────────────────────
+  const hdr = document.getElementById('fi-pay-header');
+  if (hdr) {
+    const termLabel = bw ? `${periods} Bi-Wkly Periods` : `${term} Months`;
+    hdr.textContent = `Payment @ ${termLabel}`;
+  }
+
+  // ── Sync biweekly checkbox + term buttons ─────────────────────────────────
+  const fiBwEl = document.getElementById('fi-biweekly-toggle');
+  if (fiBwEl) fiBwEl.checked = bw;
+  document.querySelectorAll('.fi-term-btn').forEach(b => {
+    b.classList.toggle('active-term', parseInt(b.dataset.term) === term);
+  });
+
+  // ── Confirmed deal box ────────────────────────────────────────────────────
+  const { confirmed, total: confirmedTotal } = getFiConfirmedProducts();
+  const confirmedFinanced = finAmt + confirmedTotal;
+  const confirmedBaseP    = BPMT(apr, term, confirmedFinanced);
+
+  // Products label
+  const prodLabel = document.getElementById('fi-confirmed-products');
+  if (prodLabel) {
+    prodLabel.textContent = confirmed.length
+      ? confirmed.map(p => p.name + ' ' + $i(p.price)).join(' · ')
+      : 'Vehicle only — no products confirmed';
+  }
+
+  set('fi-confirmed-financed',       $i(confirmedFinanced));
+  set('fi-confirmed-products-total', confirmedTotal > 0 ? '+' + $i(confirmedTotal) : '$0');
+
+  // Confirmed payment rows at each term
+  const rowsEl = document.getElementById('fi-confirmed-rows');
+  if (rowsEl) {
+    if (confirmed.length === 0) {
+      rowsEl.innerHTML = '';
+    } else {
+      const terms = [48, 60, 72, 84];
+      let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">';
+      terms.forEach(t => {
+        const periods_t = bw ? Math.round(t * 26 / 12) : t;
+        const pmt = BPMT(apr, t, confirmedFinanced);
+        const isActive = t === term;
+        const termLbl = bw ? `${periods_t}×` : `${t}mo`;
+        html += `<div style="text-align:center;background:${isActive?'rgba(245,158,11,.12)':'rgba(0,0,0,.15)'};border:1px solid ${isActive?'rgba(245,158,11,.4)':'rgba(255,255,255,.06)'};border-radius:6px;padding:8px 4px;">
+          <div style="font-size:9px;font-weight:700;color:${isActive?'var(--amber)':'var(--muted)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">${termLbl}</div>
+          <div style="font-size:14px;font-weight:900;color:${isActive?'var(--amber)':'white'};">${$f(pmt)}</div>
+          <div style="font-size:9px;color:var(--muted);">${lbl}</div>
+        </div>`;
+      });
+      html += '</div>';
+      rowsEl.innerHTML = html;
+    }
+  }
+  // Keep step 4 client summary current when F&I products change
+  if (document.getElementById('wizStep4')?.classList.contains('active')) {
+    updateWizSummary();
+  }
+}
 function _biweeklyToggleHTML(id){
   return `<label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
     <input type="checkbox" class="bw-toggle" id="${id}" onchange="toggleBiweekly(this)" ${window._biweekly?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary);">
@@ -298,7 +458,7 @@ function showSection(id, btn){
   if(id==='fbposter') {
     if (typeof window.initFbPoster === 'function') setTimeout(window.initFbPoster, 100);
   }
-  setTimeout(refreshIcons, 50);
+  setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 50);
 }
 
 // ── INVENTORY INIT (Cloud & Database Version) ─────────
@@ -473,19 +633,14 @@ async function editBookValue(stock, currentVal, event) {
   });
 }
 
-let invSelected = new Set();
-
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
   if (countEl) countEl.textContent = `${list.length} vehicles`;
   if (!tbody) return;
-  invSelected.clear();
-  invUpdateBulkBar();
 
   tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
-      <td onclick="event.stopPropagation()"><input type="checkbox" class="inv-cb" data-stock="${v.stock}" onchange="invOnCheck(this)"></td>
       <td><strong style="color:var(--amber);">${v.stock}</strong></td>
       <td>${v.year}</td>
       <td>${v.make}</td>
@@ -503,91 +658,30 @@ function renderInventory(list){
         <span class="badge badge-${String(v.condition||'average').toLowerCase()}">${v.condition||'Average'}</span>
         <span style="font-size:9px;color:var(--muted);margin-left:2px;">✏</span>
       </td>
-      <td style="white-space:nowrap;">
-        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')" style="margin-right:4px;"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
-        <button class="btn btn-sm" onclick="event.stopPropagation();invDeleteOne('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red);padding:5px 8px;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();deleteInventoryItem('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
       </td>
     </tr>`).join('');
-  if(typeof lucide!=='undefined') lucide.createIcons();
+  try { lucide.createIcons(); } catch(e) {}
 }
 
-function invOnCheck(cb) {
-  if (cb.checked) invSelected.add(cb.dataset.stock);
-  else invSelected.delete(cb.dataset.stock);
-  invUpdateBulkBar();
-}
-
-function invToggleAll(checked) {
-  document.querySelectorAll('.inv-cb').forEach(cb => {
-    cb.checked = checked;
-    if (checked) invSelected.add(cb.dataset.stock);
-    else invSelected.delete(cb.dataset.stock);
-  });
-  invUpdateBulkBar();
-}
-
-function invUpdateBulkBar() {
-  const bar = document.getElementById('invBulkBar');
-  const countEl = document.getElementById('invSelCount');
-  if (!bar) return;
-  if (invSelected.size > 0) {
-    bar.style.display = 'flex';
-    if (countEl) countEl.textContent = `${invSelected.size} selected`;
-  } else {
-    bar.style.display = 'none';
-  }
-  const selectAll = document.getElementById('invSelectAll');
-  if (selectAll) selectAll.checked = invSelected.size > 0 && invSelected.size === document.querySelectorAll('.inv-cb').length;
-}
-
-function invClearSelection() {
-  invSelected.clear();
-  document.querySelectorAll('.inv-cb').forEach(cb => cb.checked = false);
-  const selectAll = document.getElementById('invSelectAll');
-  if (selectAll) selectAll.checked = false;
-  invUpdateBulkBar();
-}
-
-async function invDeleteOne(stock) {
-  if (!confirm(`Delete ${stock} from inventory?\n\nThis permanently removes it from your database.`)) return;
+async function deleteInventoryItem(stock) {
+  if (!confirm(`Remove ${stock} from inventory?`)) return;
   try {
-    await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(stock), { method: 'DELETE' });
-    toast(`Deleted ${stock}`);
-    // Remove from local data and re-render
-    if (window.FF && FF.inventory) FF.inventory = FF.inventory.filter(v => v.stock !== stock);
-    const tbody = document.getElementById('inventoryBody');
-    const row = tbody?.querySelector(`input[data-stock="${stock}"]`)?.closest('tr');
-    if (row) row.remove();
-    invSelected.delete(stock);
-    invUpdateBulkBar();
-    const countEl = document.getElementById('invCount');
-    if (countEl) countEl.textContent = `${tbody?.children.length || 0} vehicles`;
-  } catch (e) {
-    toast('Delete failed: ' + (e.message || 'unknown error'));
+    const res = await window.FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Delete failed');
+    const filtered = (window.ffInventory || []).filter(v => v.stock !== stock);
+    window.ffInventory = filtered;
+    window.inventory   = filtered;
+    localStorage.setItem('ffInventory', JSON.stringify(filtered));
+    renderInventory(filtered);
+    refreshLenderCheckerDropdowns();
+    toast(`${stock} removed`);
+  } catch(e) {
+    toast('⚠️ Could not delete vehicle — ' + e.message);
   }
-}
-
-async function invDeleteSelected() {
-  const stocks = [...invSelected];
-  if (!stocks.length) return;
-  if (!confirm(`Delete ${stocks.length} vehicle${stocks.length>1?'s':''} from inventory?\n\nThis permanently removes them from your database.`)) return;
-  let deleted = 0;
-  for (const stock of stocks) {
-    try {
-      await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(stock), { method: 'DELETE' });
-      deleted++;
-      const tbody = document.getElementById('inventoryBody');
-      const row = tbody?.querySelector(`input[data-stock="${stock}"]`)?.closest('tr');
-      if (row) row.remove();
-      if (window.FF && FF.inventory) FF.inventory = FF.inventory.filter(v => v.stock !== stock);
-    } catch (_) {}
-  }
-  invSelected.clear();
-  invUpdateBulkBar();
-  const countEl = document.getElementById('invCount');
-  const tbody = document.getElementById('inventoryBody');
-  if (countEl) countEl.textContent = `${tbody?.children.length || 0} vehicles`;
-  toast(`Deleted ${deleted} vehicle${deleted>1?'s':''}`);
 }
 
 // ── SYNC INVENTORY FROM LOCAL BRIDGE ─────────────────────────────
@@ -718,6 +812,13 @@ function goWizStep(n) {
 
   // Recalculate when entering payment/review steps
   if (n >= 3) calculate();
+  // Populate client summary when entering review step
+  if (n === 4) {
+    setTimeout(() => {
+      if (typeof updateWizSummary === 'function') updateWizSummary();
+      lucide.createIcons();
+    }, 50);
+  }
 }
 
 function updateWizBanners(otd, down, finance, pay72) {
@@ -846,29 +947,8 @@ function calculate(){
   </tr>`;
   document.getElementById('paymentGrid').innerHTML = html;
 
-  const vsc = parseFloat(document.getElementById('vscPrice').value)||0;
-  const gap = parseFloat(document.getElementById('gapPrice').value)||0;
-  const tw  = parseFloat(document.getElementById('twPrice').value)||0;
-  const wa  = parseFloat(document.getElementById('waPrice').value)||0;
-
-  const b72 = BPMT(apr,72,otd);
-  const bwPeriods = window._biweekly ? Math.round(72*26/12) : 72;
-  const lbl = _pmtLabel();
-  document.getElementById('basePayment72').textContent = $f(b72);
-  document.getElementById('withGap').textContent = $f(b72+(gap/bwPeriods));
-  document.getElementById('withGapVsc').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods));
-  document.getElementById('withAllProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods));
-  document.getElementById('fullProtection').textContent = $f(b72+(gap/bwPeriods)+(vsc/bwPeriods)+(tw/bwPeriods)+(wa/bwPeriods));
-
-  document.getElementById('vscImpact').textContent = '+'+$f(vsc/bwPeriods)+lbl;
-  document.getElementById('gapImpact').textContent = '+'+$f(gap/bwPeriods)+lbl;
-  document.getElementById('twImpact').textContent  = '+'+$f(tw/bwPeriods)+lbl;
-  document.getElementById('waImpact').textContent  = '+'+$f(wa/bwPeriods)+lbl;
-
-  // Update F&I section label to show current payment mode
-  const fi72Label = document.querySelector('#wizStep3 .wiz-section-title + div .insight-label, #wizStep3 [style*="Monthly Payment"]');
-  const fi72Header = document.querySelector('#wizStep3 div[style*="72 Months"]');
-  if(fi72Header) fi72Header.textContent = `Payment @ 72 ${window._biweekly?'Bi-Weekly':'Months'}`;
+  // ── F&I payment summary — delegated to updateFiSection() ───────────────────
+  updateFiSection();
 
   calculateProfit();
   calculateReserve();
@@ -876,7 +956,10 @@ function calculate(){
   calculatePTI();
 
   // Update wizard live banners (steps 4 & 5)
-  updateWizBanners(otd, finalDown, finAmt, BPMT(apr,72,finAmt));
+  // Wizard banner shows confirmed-product finance amount (what dealer actually presents)
+  const { total: wizFiTotal } = getFiConfirmedProducts();
+  const wizFinAmt = finAmt + wizFiTotal;
+  updateWizBanners(otd, finalDown, wizFinAmt, BPMT(apr, window._fiTerm||72, wizFinAmt));
 }
 
 function calcCustom(){
@@ -967,7 +1050,7 @@ function calculatePTI(){
   const ptiStatus = pti <= ptiLimit ? 'PASS' : 'EXCEEDS LIMIT';
   document.getElementById('ptiStatus').textContent = ptiStatus;
   document.getElementById('ptiStatus').style.color = pti <= ptiLimit ? 'var(--green)' : 'var(--red)';
-  // DTI display (if element exists)
+  // TDSR display (Total Debt Service Ratio — Canadian lender term for DTI)
   const dtiEl = document.getElementById('dtiResult');
   if(dtiEl){ dtiEl.textContent = dti.toFixed(1)+'%'; dtiEl.style.color = dti<=44 ? 'var(--green)':'var(--red)'; }
   const dtiStatusEl = document.getElementById('dtiStatus');
@@ -1058,6 +1141,8 @@ function bridgeToCompare(){
 // ── LENDER SECTION INIT ───────────────────────────────
 function initLenderPanels(){
   const container = document.getElementById('lender-panels');
+  if (!container) return;
+  container.innerHTML = ''; // Clear before rebuild to prevent duplicates on re-call
   Object.entries(lenders).forEach(([lid,l])=>{
     const warnNote = !l.hard?`<div class="warning-box">ℹ️ ${l.name} uses a credit profile-based approval. Mileage and Carfax limits may vary based on full application review.</div>`:'';
     const html = `
@@ -1073,10 +1158,22 @@ function initLenderPanels(){
         </div>
       </div>
       ${warnNote}
-      <table class="programs-table">
-        <thead><tr><th>Program / Tier</th><th>Rate</th><th>Min FICO</th><th>Min Year</th><th>Max Mileage</th><th>Max Carfax</th><th>Max LTV</th></tr></thead>
-        <tbody>${l.programs.map(p=>`<tr><td><strong>${p.tier}</strong></td><td style="color:var(--amber);">${p.rate}</td><td>${p.fico}</td><td>${p.minYear}</td><td>${p.maxMile}</td><td>${p.maxCfx}</td><td>${p.maxLtv}</td></tr>`).join('')}</tbody>
-      </table>
+      <div id="lp-tiers-${lid}" style="margin-top:8px;">
+        ${l.programs && l.programs.length ? `
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p,i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:7px 10px;font-size:11px;${i<l.programs.length-1?'border-bottom:1px solid var(--border);':''}">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv||'—'}</span>
+          </div>`).join('')}
+        </div>` : `<div style="font-size:11px;color:var(--muted);padding:8px 0;font-style:italic;">Rate tiers shown in Compare All engine · Upload custom rates below to override defaults</div>`}
+      </div>
       <div class="checker-box">
         <div class="checker-title"><i data-lucide="search" class="ico"></i>Vehicle Approval Checker</div>
         <div class="fgroup">
@@ -1105,6 +1202,13 @@ function initLenderPanels(){
 
   // Quick Ref panel — built dynamically from lenders object + extraLenders
   buildQuickRef();
+  // Load tier display data — elements now exist so the render will work
+  // Use setTimeout to ensure DOM has fully updated before we populate
+  if (typeof loadLenderTiers === 'function') {
+    setTimeout(loadLenderTiers, 100);
+  } else {
+    setTimeout(() => { if (typeof renderAllLenderPanelTiers === 'function') renderAllLenderPanelTiers(); }, 100);
+  }
 }
 
 function buildQuickRef(){
@@ -1145,7 +1249,7 @@ function buildQuickRef(){
           const rates = customTiers.map(t => parseFloat(t.buy_rate)).filter(r => r > 0).sort((a,b) => a-b);
           return rates.length ? (rates.length > 1 ? `${rates[0]}%–${rates[rates.length-1]}%` : `${rates[0]}%`) : '—';
         })()
-      : l.programs.map(p => p.rate).join(' / ');
+      : '—'; // rates managed server-side
     const maxLTV    = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_ltv)||0)) : l.maxLTV;
     const minYear   = customTiers ? Math.min(...customTiers.map(t=>parseInt(t.min_year)||2099)) : l.minYear;
     const maxMile   = customTiers ? Math.max(...customTiers.map(t=>parseInt(t.max_mileage)||0)) : l.maxMileage;
@@ -1404,10 +1508,10 @@ function calcLTV(lid){
   const down = parseFloat(document.getElementById(`ltv-down-${lid}`).value)||0;
   const trade= parseFloat(document.getElementById(`ltv-trade-${lid}`).value)||0;
   const fees = parseFloat(document.getElementById(`ltv-fees-${lid}`).value)||0;
-  const price = v.price || 0;
+  const price   = parseFloat(v.price)   || 0;
+  const bookVal = parseFloat(v.book_value || v.bookValue || v.price) || price;
   const totalCost = price + fees;
   const finance   = totalCost - down - trade;
-  const bookVal   = v.bookValue || v.book_value || price; // Use book value for LTV, fallback to price
   const ltvPct    = bookVal > 0 ? (finance/bookVal)*100 : 0;
   const maxLoan   = (bookVal*l.maxLTV)/100;
   const ok        = ltvPct <= l.maxLTV;
@@ -1445,6 +1549,11 @@ async function loadTenantRates(){
       });
       console.log('%cTenant rate sheets loaded','color:#f59e0b;font-size:11px;',
         Object.keys(window._tenantRates).map(k=>k+':'+window._tenantRates[k].length+'tiers').join(' | '));
+      // Update checker panels with custom tiers
+      updateLenderPanelTiers();
+      if(typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
+      // Render default tiers for lenders without custom rates
+      if(typeof renderAllLenderPanelTiers === 'function') renderAllLenderPanelTiers();
     }
     // Extra lenders: DB lenders not in the hardcoded lenders object
     // These get their own dynamic cards in Compare All
@@ -1464,77 +1573,85 @@ async function loadTenantRates(){
   }
 }
 
-// Returns the best qualifying program for a lender + beacon score
-// Merges tenant DB rates over hardcoded defaults
-function getQualifyingProgram(lid, beacon){
-  const defaultFee = LENDER_FEES[lid] || 0;
-  
-  // Try tenant custom rates first
-  if(window._tenantRates && window._tenantRates[lid] && window._tenantRates[lid].length){
-    const rows = window._tenantRates[lid]
-      .filter(r => beacon === 0 || (beacon >= (r.min_fico||0) && beacon <= (r.max_fico||9999)))
-      .sort((a,b) => parseFloat(a.buy_rate) - parseFloat(b.buy_rate));
-    if(rows.length){
-      const r = rows[0];
-      return {
-        tier: r.tier_name, rate: parseFloat(r.buy_rate),
-        minFico: r.min_fico||0, maxLTV: r.max_ltv||140,
-        minYear: r.min_year||2015, maxMileage: r.max_mileage||200000,
-        maxCarfax: r.max_carfax||9999, fee: parseFloat(r.lender_fee) || defaultFee,
-        isCustom: true
-      };
-    }
-  }
-  // Fall back to hardcoded programs[]
-  const l = lenders[lid];
-  if(!l) return null;
-  if(beacon === 0){
-    const prog = l.programs[l.programs.length-1]; // show lowest tier as estimate
-    return { tier: prog.tier, rate: parseFloat(prog.rate), isEstimate: true,
-             minFico: 0, maxLTV: l.maxLTV, minYear: l.minYear,
-             maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-  }
-  // Match beacon against program FICO strings like "680+", "620–679", "<540"
-  for(const prog of l.programs){
-    const ficoStr = prog.fico || '';
-    if(ficoStr === 'N/A' || ficoStr === 'No min' || /credit.based/i.test(ficoStr)){
-      return { tier: prog.tier, rate: parseFloat(prog.rate)||0, minFico: 0,
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-    }
-    const plusM = ficoStr.match(/^(\d+)\+$/);
-    if(plusM && beacon >= parseInt(plusM[1])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: parseInt(plusM[1]),
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-    }
-    const rangeM = ficoStr.match(/^(\d+)[–\-](\d+)$/);
-    if(rangeM && beacon >= parseInt(rangeM[1]) && beacon <= parseInt(rangeM[2])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: parseInt(rangeM[1]),
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-    }
-    const ltM = ficoStr.match(/^<(\d+)$/);
-    if(ltM && beacon < parseInt(ltM[1])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: 0,
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-    }
-    // Range with rate range like "9.99%–14.99%" — use lower end
-    if(ficoStr && /\d{3}/.test(ficoStr)){
-      const rateNum = parseFloat(prog.rate);
-      if(!isNaN(rateNum) && beacon > 0){
-        return { tier: prog.tier, rate: rateNum, minFico: 0,
-                 maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-                 maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-      }
-    }
-  }
-  return null;
+// ── Update lender checker panel tiers from loaded tenant rates ───────────────
+function updateLenderPanelTiers(){
+  if(!window._tenantRates) return;
+  Object.entries(window._tenantRates).forEach(([lid, tiers]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if(!el || !tiers || !tiers.length) return;
+    el.innerHTML = tiers
+      .sort((a,b) => parseFloat(a.buy_rate) - parseFloat(b.buy_rate))
+      .map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span style="font-weight:600;color:var(--text);">${t.tier_name || '—'}</span>
+        <span style="color:var(--green);font-weight:800;">${t.buy_rate}%
+          <span style="color:var(--muted);font-weight:400;font-size:10px;">
+            · ${t.min_fico}–${t.max_fico>=9999?'∞':t.max_fico}
+            · ${t.max_ltv}% LTV
+          </span>
+        </span>
+      </div>`).join('');
+  });
 }
 
-function runComparison(){
+// ── Load default lender tier display from server (display-safe, no approval logic) ──
+async function loadLenderTiers() {
+  if (!window.FF || !FF.isLoggedIn || window.DEMO_MODE) return;
+  try {
+    const data = await FF.apiFetch('/api/compare/lender-tiers').then(r => r.json());
+    if (!data.success || !data.tiers) return;
+    window._lenderTiers = data.tiers;
+    renderAllLenderPanelTiers();
+  } catch(e) {
+    console.warn('Could not load lender tiers:', e.message);
+  }
+}
+
+function renderAllLenderPanelTiers() {
+  const tiers = window._lenderTiers;
+  if (!tiers) return;
+  Object.entries(tiers).forEach(([lid, l]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if (!el) return;
+    // Custom uploaded rates take priority
+    if (window._tenantRates && window._tenantRates[lid] && window._tenantRates[lid].length) return;
+    if (!l.programs || !l.programs.length) return;
+    el.innerHTML = `
+      <div>
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p, i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:7px 10px;font-size:11px;${i < l.programs.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv||'—'}</span>
+          </div>`).join('')}
+        </div>
+        ${l.maxMileage||l.maxCarfax||l.minYear ? `<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
+          ${l.minYear    ? `<span>Min Year: <strong style="color:var(--text);">${l.minYear}</strong></span>` : ''}
+          ${l.maxMileage ? `<span>Max KM: <strong style="color:var(--text);">${l.maxMileage.toLocaleString()}</strong></span>` : ''}
+          ${l.maxCarfax  ? `<span>Max Carfax: <strong style="color:var(--text);">$${l.maxCarfax.toLocaleString()}</strong></span>` : ''}
+        </div>` : ''}
+      </div>`;
+  });
+}
+
+
+
+// Returns the best qualifying program for a lender + beacon score
+// Merges tenant DB rates over hardcoded defaults
+async function runComparison(){
   const stock   = document.getElementById('compareStock').value;
+  if (!stock) { toast('Select a vehicle first'); return; }
+  // Quick client-side check — if vehicle not in local inventory, server will 404
+  const localInv = window.ffInventory || window.inventory || [];
+  if (localInv.length && !localInv.find(v => v.stock === stock)) {
+    toast('Vehicle not found in inventory — try re-importing or log out and back in');
+    return;
+  }
   const down    = parseFloat(document.getElementById('compareDown').value)||0;
   const trade   = parseFloat(document.getElementById('compareTrade').value)||0;
   const fees    = parseFloat(document.getElementById('compareFees').value)||0;
@@ -1546,43 +1663,12 @@ function runComparison(){
   const res     = document.getElementById('compareResults');
   const vCard   = document.getElementById('compareVehicleCard');
   if(!stock){ph.style.display='block';res.style.display='none';vCard.style.display='none';return;}
-  const src = window.ffInventory || window.inventory || [];
-  const v = src.find(x=>x.stock===stock);
-  if(!v) return;
-  const curYear = new Date().getFullYear();
-  ph.style.display='none'; vCard.style.display='block'; res.style.display='block';
-  const simEl = document.getElementById('beaconSimulator');
-  if(simEl) simEl.style.display = 'block';
 
-  vCard.innerHTML = `
-    <div style="font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Selected Vehicle</div>
-    <div style="font-size:20px;font-weight:800;margin-bottom:12px;">${v.year} ${v.make} ${v.model}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;">
-      ${[['Stock',v.stock],['Mileage',(v.mileage||0).toLocaleString()+' km'],['Price','$'+(v.price||0).toLocaleString()],['Carfax','$'+(v.carfax||0).toLocaleString()],['Type',v.type||'—']].map(([k,val])=>`<div style="background:rgba(255,255,255,.08);border-radius:6px;padding:8px;"><div style="font-size:10px;opacity:.6;text-transform:uppercase;margin-bottom:4px;">${k}</div><div style="font-weight:700;">${val}</div></div>`).join('')}
-    </div>`;
-
-  // Read BK/proposal flag and book value override from UI
-  const hasBK        = document.getElementById('compareBK')?.checked || false;
-  const bookValOver  = parseFloat(document.getElementById('compareBookVal')?.value) || 0;
-  const coBeacon     = parseInt(document.getElementById('compareCoBeacon')?.value)  || 0;
-  const coIncome     = parseFloat(document.getElementById('compareCoIncome')?.value) || 0;
-  const combinedIncome = income + coIncome;
-  // Effective beacon: lenders use primary beacon for tier matching
-  // but some use lower of two — dealer can toggle via co-app beacon field
-  const hasCoApp = coIncome > 0 || coBeacon > 0;
-  // Override income used in evaluateLender with combined income
-  // evaluateLender reads `income` from closure — reassign here
-  // We store original for display purposes
-  const primaryIncome = income;
-
-  // Contract rate for gross/reserve calc
-  const contractRate = parseFloat(document.getElementById('compareContractRate')?.value) || 0;
-
-  // Save compare session to localStorage
+  // Save compare session
   try {
     localStorage.setItem('ffCompareSession', JSON.stringify({
-      stock, down, trade, fees, term, beacon,
-      income, existing, contractRate,
+      stock, down, trade, fees, term, beacon, income, existing,
+      contractRate: document.getElementById('compareContractRate')?.value || '',
       bookVal: document.getElementById('compareBookVal')?.value || '',
       condition: document.getElementById('compareCondition')?.value || '',
       coBeacon: document.getElementById('compareCoBeacon')?.value || '',
@@ -1593,317 +1679,115 @@ function runComparison(){
     }));
   } catch(e){}
 
-  // GST setting — read from compare toggle or fall back to dealer settings
-  const compareGstEl  = document.getElementById('compareGst');
-  const gstEnabled    = compareGstEl ? compareGstEl.checked : false;
-  const gstRate       = gstEnabled ? (parseFloat(document.getElementById('gstRate')?.value) || settings.gst || 5) : 0;
+  // Show loading state
+  ph.style.display='none'; res.style.display='block'; vCard.style.display='block';
+  vCard.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);">
+    <i data-lucide="loader-2" style="width:20px;height:20px;animation:spin 1s linear infinite;"></i> Running comparison...
+  </div>`;
+  lucide.createIcons();
 
-  // ── Core per-lender evaluator — shared by hardcoded and extra lenders ──────
-  function evaluateLender(lid, l, prog) {
-    const income = combinedIncome; // use combined primary + co-app income for PTI/DTI
-    const lenderFee  = prog ? (prog.fee || 0) : 0;
-    // GST-correct ATF: tax applies to (price + fees - trade), then subtract down and add lender fee
-    const taxableBase = v.price + fees - trade;
-    const gstAmt      = taxableBase * (gstRate / 100);
-    const atf         = taxableBase + gstAmt + lenderFee - down;
-    const bookVal    = bookValOver > 0 ? bookValOver : (v.book_value || v.bookValue || v.price);
-    const maxLTV     = prog ? prog.maxLTV : l.maxLTV;
-    const ltvPct     = (atf / bookVal) * 100;
-    const ltvOk      = ltvPct <= maxLTV;
-    const maxLoan    = (bookVal * maxLTV) / 100;
-    const downNeeded = ltvOk ? 0 : Math.ceil(atf - maxLoan);
-
-    const lMaxPti    = l.maxPti    || 20;
-    const lMaxDti    = l.maxDti    || 44;
-    const lMinIncome = l.minIncome || 0;
-    const lMaxPay    = l.maxPayment || null;
-
-    const minYear    = prog ? (prog.minYear    || l.minYear)    : l.minYear;
-    const rawMaxMile = prog ? (prog.maxMileage || l.maxMileage  || 999999) : (l.maxMileage || 999999);
-    const maxCfx     = prog ? (prog.maxCarfax  || l.maxCarfax   || 999999) : (l.maxCarfax  || 999999);
+  try {
+    const gstEnabled   = document.getElementById('compareGst')?.checked || false;
+    const gstRate      = parseFloat(document.getElementById('gstRate')?.value) || settings.gst || 5;
+    const contractRate = parseFloat(document.getElementById('compareContractRate')?.value) || 0;
+    const bookValOver  = parseFloat(document.getElementById('compareBookVal')?.value) || 0;
+    const coBeacon     = parseInt(document.getElementById('compareCoBeacon')?.value) || 0;
+    const coIncome     = parseFloat(document.getElementById('compareCoIncome')?.value) || 0;
+    const hasBK        = document.getElementById('compareBK')?.checked || false;
     const condOverride = document.getElementById('compareCondition')?.value || '';
-    const cond       = (condOverride || v.condition || 'Average').toLowerCase();
-    const condMult   = (cond === 'rough' || cond === 'very rough') ? 0.90 : 1.0;
-    const maxMile    = Math.floor(rawMaxMile * condMult);
+    const hiddenLenders = window._hiddenLenders instanceof Set ? [...window._hiddenLenders] : [];
 
-    const yearOk     = v.year >= minYear;
-    const mileOk     = (v.mileage||0) <= maxMile;
-    const cfxOk      = (v.carfax||0)  <= maxCfx;
-    const incomeOk   = lMinIncome === 0 || income === 0 || income >= lMinIncome;
-
-    // ── Term optimization: try 48/60/72/84 ───────────────────────────────────
-    const ALL_TERMS   = [48, 60, 72, 84];
-    const buyRate     = prog && prog.rate > 0 ? prog.rate : 8.99;
-    const termResults = {};
-
-    ALL_TERMS.forEach(t => {
-      const ageAtPayoff = (curYear - v.year) + (t / 12);
-      const ageOkT      = ageAtPayoff <= 14;
-      const pmt         = atf > 0 ? BPMT(buyRate, t, atf) : 0;
-      let ptiOkT = true, dtiOkT = true, payOkT = true;
-      let ptiPctT = 0, dtiPctT = 0;
-      if (income > 0 && pmt > 0) {
-        ptiPctT = (pmt / income) * 100;
-        dtiPctT = ((pmt + existing) / income) * 100;
-        ptiOkT  = ptiPctT <= lMaxPti;
-        dtiOkT  = dtiPctT <= lMaxDti;
-        payOkT  = lMaxPay === null || pmt <= lMaxPay;
-      }
-      const passes = ageOkT && ltvOk && incomeOk &&
-                     (income === 0 || (ptiOkT && dtiOkT && payOkT));
-      termResults[t] = { term: t, payment: pmt, ageAtPayoff, ageOk: ageOkT,
-                         ptiOk: ptiOkT, dtiOk: dtiOkT, payOk: payOkT,
-                         ptiPct: ptiPctT, dtiPct: dtiPctT, passes };
-    });
-
-    // Best term = shortest that passes all gates (least interest risk for lender)
-    // Optimal term = longest that passes (lowest payment for customer)
-    const passingTerms = ALL_TERMS.filter(t => termResults[t].passes);
-    const bestTerm     = passingTerms.length ? passingTerms[0]      : term; // shortest
-    const optimalTerm  = passingTerms.length ? passingTerms[passingTerms.length-1] : term; // longest
-
-    // Use selected term for primary display, best term as recommendation
-    const selResult    = termResults[term] || termResults[72];
-    const payment      = selResult.payment;
-    const ptiPct       = selResult.ptiPct;
-    const dtiPct       = selResult.dtiPct;
-    const ptiOk        = selResult.ptiOk;
-    const dtiOk        = selResult.dtiOk;
-    const payOk        = selResult.payOk;
-    const vehicleAgeAtPayoff = selResult.ageAtPayoff;
-    const ageOk        = selResult.ageOk;
-
-    // ── Gross estimate ────────────────────────────────────────────────────────
-    // Flat dealer reserve (already in lenderFee for display lenders, 0 here as it's in ATF)
-    // Rate spread reserve: if contract rate entered, estimate additional gross
-    const flatReserve  = prog ? (prog.fee || lenderFee || 0) : lenderFee;
-    let spreadReserve  = 0;
-    let totalGross     = flatReserve;
-    if (contractRate > 0 && contractRate > buyRate) {
-      const spread = contractRate - buyRate;
-      // Approximate: spread * ATF * term factor (simplified actuarial)
-      spreadReserve = Math.round((spread / 100 / 12) * atf * optimalTerm * 0.82);
-      totalGross    = flatReserve + spreadReserve;
-    }
-
-    // ── Structuring tips — min down for EVERY failure type ──────────
-    let structureTip = null;
-    const structureTips = []; // collect all applicable tips
-
-    // LTV fail: add down
-    if (!ltvOk && downNeeded > 0) {
-      const fixedPmt = BPMT(buyRate, optimalTerm, atf - downNeeded);
-      structureTips.push(`Add $${downNeeded.toLocaleString()} down → LTV passes (${$f(fixedPmt)}/mo at ${optimalTerm}mo)`);
-    }
-
-    // PTI fail: try 84mo first, then calculate min down
-    if (income > 0 && !ptiOk) {
-      if (termResults[84] && termResults[84].ptiOk && ltvOk) {
-        structureTips.push(`Extend to 84mo → PTI drops to ${termResults[84].ptiPct.toFixed(1)}% (${$f(termResults[84].payment)}/mo) ✓`);
-      } else if (ltvOk) {
-        // Calc min down so payment * lMaxPti/100 * income passes — solve for atf
-        // payment = BPMT(rate, term, atf) <= income * lMaxPti / 100
-        // target_payment = income * lMaxPti / 100
-        const targetPmt = income * lMaxPti / 100;
-        const mr = buyRate / 100 / 12;
-        const maxAtfForPti = mr > 0
-          ? targetPmt * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
-          : targetPmt * optimalTerm;
-        const downForPti = Math.ceil(atf - maxAtfForPti);
-        if (downForPti > 0) structureTips.push(`Add $${downForPti.toLocaleString()} down → PTI within ${lMaxPti}% at ${optimalTerm}mo`);
-      }
-    }
-
-    // Pay call fail: try 84mo, then calc min down
-    if (income > 0 && lMaxPay && !payOk) {
-      if (termResults[84] && termResults[84].payOk && ltvOk) {
-        structureTips.push(`Extend to 84mo → payment ${$f(termResults[84].payment)}/mo within pay call ✓`);
-      } else if (ltvOk) {
-        const mr = buyRate / 100 / 12;
-        const maxAtfForPay = mr > 0
-          ? lMaxPay * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
-          : lMaxPay * optimalTerm;
-        const downForPay = Math.ceil(atf - maxAtfForPay);
-        if (downForPay > 0) structureTips.push(`Add $${downForPay.toLocaleString()} down → payment within $${lMaxPay}/mo pay call`);
-      }
-    }
-
-    // DTI fail: same approach
-    if (income > 0 && !dtiOk && ltvOk) {
-      const targetDtiPmt = (income * lMaxDti / 100) - existing;
-      if (targetDtiPmt > 0) {
-        const mr = buyRate / 100 / 12;
-        const maxAtfForDti = mr > 0
-          ? targetDtiPmt * (Math.pow(1+mr, optimalTerm) - 1) / (mr * Math.pow(1+mr, optimalTerm))
-          : targetDtiPmt * optimalTerm;
-        const downForDti = Math.ceil(atf - maxAtfForDti);
-        if (downForDti > 0) structureTips.push(`Add $${downForDti.toLocaleString()} down → DTI within ${lMaxDti}%`);
-      }
-    }
-
-    // Income fail: show what income is needed
-    if (!incomeOk && lMinIncome > 0 && income > 0) {
-      structureTips.push(`Income $${income.toLocaleString()} below min $${lMinIncome.toLocaleString()} — co-applicant could bridge gap`);
-    }
-
-    structureTip = structureTips.length ? structureTips[0] : null; // primary tip
-    const allStructureTips = structureTips; // full list for display
-
-    // Co-app tip: if primary fails PTI but combined passes, flag it
-    let coAppTip = null;
-    if (hasCoApp && primaryIncome > 0 && !ptiOk) {
-      const primaryPti = payment > 0 ? (payment / primaryIncome) * 100 : 0;
-      if (primaryPti > lMaxPti && ptiPct <= lMaxPti) {
-        coAppTip = `Co-app income required — primary PTI ${primaryPti.toFixed(1)}% exceeds ${lMaxPti}%, combined ${ptiPct.toFixed(1)}% ✓`;
-      }
-    }
-
-    return {
-      lid, l, prog, atf, ltvPct, maxLTV, ltvOk, maxLoan, bookVal, downNeeded,
-      yearOk, mileOk, cfxOk, ageOk, minYear, maxMile, maxCfx,
-      payment, ptiPct, dtiPct, ptiOk, dtiOk, payOk, incomeOk,
-      lMaxPti, lMaxDti, lMinIncome, lMaxPay,
-      term, bestTerm, optimalTerm, termResults, passingTerms,
-      flatReserve, spreadReserve, totalGross, contractRate, buyRate,
-      beacon, income, primaryIncome, coIncome, hasCoApp, existing, lenderFee, hasBK,
-      vehicleAgeAtPayoff, v, cond, structureTip, allStructureTips, coAppTip
-    };
-  }
-
-  const eligible=[], ineligible=[];
-
-  Object.entries(lenders).forEach(([lid, l])=>{
-    const prog = getQualifyingProgram(lid, beacon);
-    const r    = evaluateLender(lid, l, prog);
-
-    const vehiclePass = r.yearOk && r.mileOk && r.cfxOk && r.ageOk;
-    const dealPass    = r.ltvOk && r.ptiOk && r.dtiOk && r.payOk && r.incomeOk;
-    const hasBeacon   = beacon > 0;
-    const beaconPass  = !hasBeacon || prog !== null;
-    r.type        = l.hard ? 'hard' : 'credit';
-    r.vehiclePass = vehiclePass;
-    r.dealPass    = dealPass;
-    r.beaconPass  = beaconPass;
-
-    // A lender is eligible if vehicle passes AND beacon passes AND
-    // either no income entered OR all deal gates pass
-    if(l.hard){
-      r.approved = vehiclePass && beaconPass && (income === 0 || dealPass) && r.ltvOk;
-    } else {
-      r.approved = beaconPass && (income === 0 || dealPass) && r.ltvOk;
-    }
-    (r.approved ? eligible : ineligible).push(r);
-  });
-
-  // ── Extra dynamic lenders (uploaded PDFs not in hardcoded list) ──
-  const extraLenders = window._extraLenders || {};
-  Object.entries(extraLenders).forEach(([lid, lenderData]) => {
-    const tiers = lenderData.tiers || [];
-    if (!tiers.length) return;
-
-    // Find best qualifying tier by beacon score
-    let prog = null;
-    if (beacon > 0) {
-      const matching = tiers.filter(t => beacon >= t.minFico && beacon <= t.maxFico);
-      if (matching.length) {
-        const best = matching.sort((a,b) => a.rate - b.rate)[0];
-        prog = { tier: best.tier, rate: best.rate, maxLTV: best.maxLTV,
-                 minYear: best.minYear, maxMileage: best.maxMileage,
-                 maxCarfax: best.maxCarfax, fee: best.fee, isCustom: true };
-      }
-    } else {
-      const sorted = [...tiers].sort((a,b) => a.rate - b.rate);
-      if (sorted.length) prog = { ...sorted[0], isEstimate: true, isCustom: true };
-    }
-
-    const l = {
-      name: lenderData.name, phone: '', web: '', hard: true,
-      maxPti: 20, maxDti: 44, minIncome: 0, maxPayment: null,
-      minYear:    Math.min(...tiers.map(t => t.minYear    || 2015)),
-      maxMileage: Math.max(...tiers.map(t => t.maxMileage || 200000)),
-      maxCarfax:  Math.max(...tiers.map(t => t.maxCarfax  || 7500)),
-      maxLTV:     Math.max(...tiers.map(t => t.maxLTV     || 140)),
-      programs: tiers.map(t => ({ tier: t.tier, rate: String(t.rate),
-                                   fico: `${t.minFico}-${t.maxFico === 9999 ? '∞' : t.maxFico}` }))
+    const payload = {
+      stock, down, trade, fees, beacon, income, term, existing,
+      bookVal: bookValOver, coBeacon, coIncome, hasBK,
+      gstEnabled, gstRate, contractRate, condOverride,
+      biweekly: window._biweekly, hiddenLenders
     };
 
-    const r    = evaluateLender(lid, l, prog);
-    r.type        = 'hard';
-    r.vehiclePass = r.yearOk && r.mileOk && r.cfxOk && r.ageOk;
-    r.dealPass    = r.ltvOk && r.ptiOk && r.dtiOk && r.payOk && r.incomeOk;
-    r.beaconPass  = beacon === 0 || prog !== null;
-    r.approved    = r.vehiclePass && r.beaconPass && (income === 0 || r.dealPass) && r.ltvOk;
-    (r.approved ? eligible : ineligible).push(r);
-  });
+    const data = await FF.apiFetch('/api/compare-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
 
-  // ── Sort eligible: by priority score (rate + gross potential + passing terms) ─
-  eligible.sort((a, b) => {
-    const rA = a.prog ? a.prog.rate : 99;
-    const rB = b.prog ? b.prog.rate : 99;
-    // Secondary sort: more passing terms = more flexible lender
-    const ptA = a.passingTerms ? a.passingTerms.length : 0;
-    const ptB = b.passingTerms ? b.passingTerms.length : 0;
-    // Primary: lowest rate, tiebreak: more term flexibility
-    if (Math.abs(rA - rB) > 0.5) return rA - rB;
-    return ptB - ptA;
-  });
+    if (!data || !data.success) { toast((data && data.error) || 'Comparison failed'); return; }
+    if (!data.vehicle) { toast('Vehicle data not returned — check stock selection'); return; }
 
-  // ── Best deal summary ─────────────────────────────────────────────────────
-  let bestLabel = '', bestPayLabel = '', bestGrossLabel = '';
-  if (eligible.length) {
-    const bestRate = eligible.find(r => r.prog && r.prog.rate > 0);
-    if (bestRate) {
-      const optPmt = bestRate.termResults[bestRate.optimalTerm]?.payment || bestRate.payment;
-      bestLabel = `<div class="sum-pill sum-amber">★ ${bestRate.prog.rate}% @ ${bestRate.l.name.split(' ')[0]}</div>`;
-      bestPayLabel = `<div class="sum-pill" style="background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);">⬇ ${$f(optPmt)}/mo (${bestRate.optimalTerm}mo)</div>`;
+    const v = data.vehicle;
+    const eligible   = data.eligible;
+    const ineligible = data.ineligible;
+    const curYear    = new Date().getFullYear();
+
+    // Show vehicle card
+    vCard.innerHTML = `
+      <div style="font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Selected Vehicle</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:12px;">${v.year} ${v.make} ${v.model}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;">
+        ${[['Stock',v.stock],['Mileage',(v.mileage||0).toLocaleString()+' km'],['Price','$'+(v.price||0).toLocaleString()],['Carfax','$'+(v.carfax||0).toLocaleString()],['Type',v.type||'—']].map(([k,val])=>`<div style="background:rgba(255,255,255,.08);border-radius:6px;padding:8px;"><div style="font-size:10px;opacity:.6;text-transform:uppercase;margin-bottom:4px;">${k}</div><div style="font-weight:700;">${val}</div></div>`).join('')}
+      </div>`;
+
+    const simEl = document.getElementById('beaconSimulator');
+    if(simEl) simEl.style.display = 'block';
+
+    // Best deal summary pills
+    let bestLabel='', bestPayLabel='', bestGrossLabel='';
+    if(eligible.length){
+      const bestRate = eligible.find(r => r.prog && r.prog.rate > 0);
+      if(bestRate){
+        const optPmt = bestRate.termResults[bestRate.optimalTerm]?.payment || bestRate.payment;
+        bestLabel    = `<div class="sum-pill sum-amber">★ ${bestRate.prog.rate}% @ ${bestRate.lName.split(' ')[0]}</div>`;
+        bestPayLabel = `<div class="sum-pill" style="background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);">⬇ ${$f(optPmt)}/mo (${bestRate.optimalTerm}mo)</div>`;
+      }
+      const grossLenders = eligible.filter(r => r.totalGross > 0);
+      if(grossLenders.length){
+        const bestGross = grossLenders.sort((a,b)=>b.totalGross-a.totalGross)[0];
+        bestGrossLabel = `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">$ Est. Gross: ${$f(bestGross.totalGross)} @ ${bestGross.lName.split(' ')[0]}</div>`;
+      }
     }
-    // Best gross (if contract rate entered)
-    const grossLenders = eligible.filter(r => r.totalGross > 0);
-    if (grossLenders.length) {
-      const bestGross = grossLenders.sort((a,b) => b.totalGross - a.totalGross)[0];
-      bestGrossLabel = `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">$ Est. Gross: ${$f(bestGross.totalGross)} @ ${bestGross.l.name.split(' ')[0]}</div>`;
+
+    const beaconNote = beacon > 0
+      ? `<div class="sum-pill sum-blue">Beacon: ${beacon}</div>`
+      : `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">⚠ Enter Beacon for exact tiers</div>`;
+    const incNote = income > 0
+      ? `<div class="sum-pill sum-blue">PTI/TDSR Active</div>`
+      : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/TDSR check</div>`;
+    const taxBase = v.price + fees - trade;
+
+    document.getElementById('compareSummaryBar').innerHTML =
+      `<div class="sum-row">${beaconNote}${incNote}${bestLabel}${bestPayLabel}${bestGrossLabel}</div>`;
+
+    const inelLabel = document.getElementById('ineligibleLabel');
+
+    // Render eligible lenders
+    document.getElementById('compareEligible').innerHTML =
+      eligible.map(r => buildLenderCard(r, v, false)).join('');
+
+    // Render ineligible
+    if(ineligible.length > 0){
+      if(inelLabel) inelLabel.style.display='flex';
+      document.getElementById('compareIneligible').innerHTML =
+        ineligible.map(r => buildLenderCard(r, v, true)).join('');
+    } else {
+      if(inelLabel) inelLabel.style.display='none';
+      document.getElementById('compareIneligible').innerHTML='';
     }
+
+    // Lender rate table (hardcoded rows) — use display lenders + returned data
+    updateRateComparison();
+    lucide.createIcons();
+
+    // Beacon simulator
+    runBeaconSimulator();
+
+  } catch(e){
+    console.error('Compare All error:', e);
+    toast('Comparison failed — try again');
   }
-
-  const beaconNote = beacon > 0
-    ? `<div class="sum-pill sum-blue">Beacon: ${beacon}</div>`
-    : `<div class="sum-pill" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);">⚠ Enter Beacon for exact tiers</div>`;
-  const incNote = income > 0
-    ? `<div class="sum-pill sum-blue">PTI/DTI Active</div>`
-    : `<div class="sum-pill" style="background:rgba(100,100,100,.15);color:var(--muted);border:1px solid var(--border);">Enter income for PTI/DTI check</div>`;
-  const taxBase = v.price + fees - trade;
-  const atfVal  = taxBase * (1 + gstRate/100) - down;
-
-  document.getElementById('compareSummaryBar').innerHTML = `
-    <div class="sum-pill sum-green">${eligible.length} Will Buy</div>
-    <div class="sum-pill sum-red">${ineligible.length} Declined</div>
-    <div class="sum-pill sum-blue">ATF: ${$f(atfVal)}</div>
-    ${bestLabel}${bestPayLabel}${bestGrossLabel}${beaconNote}${incNote}`;
-
-  document.getElementById('eligibleCount').textContent = eligible.length;
-  document.getElementById('compareEligible').innerHTML = eligible.map(r=>buildLenderCard(r,v,false)).join('');
-  const inelLabel = document.getElementById('ineligibleLabel');
-  if(ineligible.length > 0){
-    inelLabel.style.display='flex';
-    document.getElementById('ineligibleCount').textContent = ineligible.length;
-    document.getElementById('compareIneligible').innerHTML = ineligible.map(r=>buildLenderCard(r,v,true)).join('');
-  } else {
-    inelLabel.style.display='none';
-    document.getElementById('compareIneligible').innerHTML='';
-  }
-
-  // Inject approval probabilities
-  if (window.ProbabilityDisplay) {
-    setTimeout(() => window.ProbabilityDisplay.injectProbabilities(), 150);
-  }
-  // Render submission tracker (shows existing submissions for this deal)
-  setTimeout(renderSubmissionTracker, 100);
-  // Beacon range simulator
-  setTimeout(runBeaconSimulator, 120);
 }
 
 function buildLenderCard(r, v, isIneligible){
-  const l    = r.l;
+  // r.l comes from client-side evaluation; r.lName etc from server API — support both
+  const l    = r.l || { name: r.lName, phone: r.lPhone, web: r.lWeb, hard: r.lHard };
   const prog = r.prog;
   const curYear = new Date().getFullYear();
 
@@ -1916,10 +1800,10 @@ function buildLenderCard(r, v, isIneligible){
     if(!r.beaconPass)   reasons.push(`Beacon ${r.beacon} — no qualifying tier`);
     if(!r.ltvOk)        reasons.push(`LTV ${r.ltvPct.toFixed(1)}% exceeds ${r.maxLTV}% max — need $${(r.downNeeded||0).toLocaleString()} more down`);
     if(r.ptiOk===false) reasons.push(`PTI ${r.ptiPct.toFixed(1)}% exceeds ${r.lMaxPti}% limit`);
-    if(r.dtiOk===false) reasons.push(`DTI ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
+    if(r.dtiOk===false) reasons.push(`TDSR ${r.dtiPct.toFixed(1)}% exceeds ${r.lMaxDti}% limit`);
     if(r.payOk===false) reasons.push(`Payment ${$f(r.payment)} exceeds max ${$f(r.lMaxPay)} for this lender`);
     if(r.incomeOk===false) reasons.push(`Income $${(r.income||0).toLocaleString()} below min $${(r.lMinIncome||0).toLocaleString()}/mo`);
-    const rateRange = l.programs ? l.programs.map(p=>p.rate).join(' / ') : '—';
+    const rateRange = r.prog ? r.prog.rate+'%' : '—';
     // Show "what would it take" tip if only LTV fails
     const fixTip = (r.allStructureTips && r.allStructureTips.length)
       ? `<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:8px 10px;margin-top:8px;font-size:11px;color:var(--amber);font-weight:600;">
@@ -1993,10 +1877,10 @@ function buildLenderCard(r, v, isIneligible){
     ? `<div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.25);border-radius:5px;padding:6px 10px;font-size:11px;color:#06b6d4;font-weight:600;margin-bottom:6px;">ℹ️ ${r.coAppTip}</div>` : '';
   const ptiRow = r.income > 0
     ? `${coAppBadge}${coAppTipRow}<div class="lc-row"><span class="lc-lbl">PTI (max ${r.lMaxPti}%)</span><span class="lc-val ${r.ptiOk?'green':'red'}">${r.ptiPct.toFixed(1)}% ${r.ptiOk?'✓ PASS':'✗ HIGH'}</span></div>
-       <div class="lc-row"><span class="lc-lbl">DTI (max ${r.lMaxDti}%)</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>
+       <div class="lc-row"><span class="lc-lbl">TDSR (max ${r.lMaxDti}%)</span><span class="lc-val ${r.dtiOk?'green':'red'}">${r.dtiPct.toFixed(1)}% ${r.dtiOk?'✓ PASS':'✗ HIGH'}</span></div>
        ${r.lMinIncome>0?`<div class="lc-row"><span class="lc-lbl">Min Income</span><span class="lc-val ${r.incomeOk?'green':'red'}">$${(r.income||0).toLocaleString()} ${r.incomeOk?'✓':'✗ Need $'+r.lMinIncome.toLocaleString()}</span></div>`:''}
        ${r.lMaxPay?`<div class="lc-row"><span class="lc-lbl">Max Pay Call</span><span class="lc-val ${r.payOk?'green':'red'}">${$f(r.payment)} ${r.payOk?'✓':'✗ Limit '+$f(r.lMaxPay)}</span></div>`:''}`
-    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/DTI/Income</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
+    : `<div class="lc-row" style="opacity:.5;"><span class="lc-lbl">PTI/TDSR/Income</span><span class="lc-val" style="font-size:10px;">Enter income above</span></div>`;
   const ageRow = ageWarn
     ? `<div class="lc-row" style="background:rgba(245,158,11,.08);border-radius:4px;padding:4px 6px;"><span class="lc-lbl" style="color:var(--amber);">⚠ Age at Payoff</span><span class="lc-val" style="color:var(--amber);">${r.vehicleAgeAtPayoff.toFixed(1)} yrs</span></div>` : '';
   const feeRow = r.lenderFee > 0
@@ -2113,7 +1997,7 @@ Total Out-the-Door:   ${$f(otd)}
 
 PROTECTION PACKAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${vsc>0?`Vehicle Service Contract: ${$f(vsc)}\n`:''}${gap>0?`GAP Insurance:            ${$f(gap)}\n`:''}${tw>0?`Tire & Wheel Protection:  ${$f(tw)}\n`:''}${wa>0?`Wear Appearance:          ${$f(wa)}\n`:''}
+${vsc>0?`Vehicle Service Contract: ${$f(vsc)}\n`:''}${gap>0?`GAP Insurance:            ${$f(gap)}\n`:''}${tw>0?`Tire & Wheel Protection:  ${$f(tw)}\n`:''}${wa>0?`Walk Away Insurance:          ${$f(wa)}\n`:''}
 ESTIMATED PAYMENTS @ ${apr}% APR
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 72 Month:   ${pmt72} / month
@@ -2471,7 +2355,7 @@ function openSettingsModal(){
   setVal('setGST',     settings.gst);
   setVal('setAPR',     settings.apr);
   setVal('setTarget',  settings.target);
-  if(settings.logoUrl){ const el=document.getElementById('logo-preview'); if(el){el.src=settings.logoUrl;el.style.display='block';} }
+  if(settings.logoUrl){ previewLogo(settings.logoUrl); }
   setVal('setDealerCity',   settings.dealerCity   || '');
   setVal('setTwilioNumber',   settings.twilioNumber   || '');
   setVal('setNotifyPhone',    settings.notifyPhone    || '');
@@ -2498,10 +2382,54 @@ function updateHeaderDealer(){
   }
 }
 function previewLogo(url){
-  const el = document.getElementById('logo-preview');
+  const el  = document.getElementById('logo-preview');
+  const lbl = document.getElementById('logo-upload-label');
+  const btn = document.getElementById('logo-remove-btn');
   if(!el) return;
-  if(url){ el.src=url; el.style.display='block'; }
-  else{ el.style.display='none'; }
+  if(url){
+    el.src = url; el.style.display = 'block';
+    if(lbl) lbl.textContent = 'Logo uploaded ✓ — click to replace';
+    if(btn) btn.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+    if(lbl) lbl.textContent = 'Click to upload logo (PNG / JPG)';
+    if(btn) btn.style.display = 'none';
+  }
+}
+
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  // Size check — keep under 200KB for settings storage
+  if (file.size > 200 * 1024) {
+    toast('Logo too large — please use an image under 200KB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const base64 = ev.target.result; // data:image/png;base64,...
+    // Store in hidden input so saveSettings() picks it up
+    const hiddenInput = document.getElementById('setLogoUrl');
+    if (hiddenInput) hiddenInput.value = base64;
+    // Update settings object immediately
+    settings.logoUrl = base64;
+    // Show preview + update header
+    previewLogo(base64);
+    if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
+    toast('Logo loaded — click Save Settings to apply');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  settings.logoUrl = '';
+  const hiddenInput = document.getElementById('setLogoUrl');
+  const fileInput   = document.getElementById('logoFileInput');
+  if (hiddenInput) hiddenInput.value = '';
+  if (fileInput)   fileInput.value   = '';
+  previewLogo('');
+  if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
+  toast('Logo removed — click Save Settings to apply');
 }
 async function saveSettings(){
   // 1. Read from form inputs
@@ -2513,8 +2441,19 @@ async function saveSettings(){
   settings.apr       = parseFloat(getVal('setAPR'))     || settings.apr;
   settings.target    = parseInt(getVal('setTarget'))    || settings.target;
   settings.dealerCity   = (getVal('setDealerCity')   || '').trim();
-  settings.twilioNumber    = (getVal('setTwilioNumber')    || '').trim();
-  settings.notifyPhone     = (getVal('setNotifyPhone')     || '').trim();
+  const rawTwilio = (getVal('setTwilioNumber') || '').trim();
+  const rawNotify = (getVal('setNotifyPhone')  || '').trim();
+  const phoneRx   = /^\+1\d{10}$/;
+  if (rawTwilio && !phoneRx.test(rawTwilio)) {
+    toast('⚠️ Twilio Number must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+    return;
+  }
+  if (rawNotify && !phoneRx.test(rawNotify)) {
+    toast('⚠️ Notify Phone must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+    return;
+  }
+  settings.twilioNumber    = rawTwilio;
+  settings.notifyPhone     = rawNotify;
   settings.googleReviewUrl = (getVal('setGoogleReviewUrl') || '').trim();
 
   // 2. Apply locally immediately
@@ -2524,6 +2463,8 @@ async function saveSettings(){
   document.getElementById('targetInput').value = settings.target;
   updateHeaderDealer();
   calculate();
+  // Refresh voice templates if dealer name updated
+  if(typeof populateVoiceTemplates === 'function') populateVoiceTemplates();
 
   // 3. Save to Postgres directly — not via the debounced localStorage interceptor.
   //    Without this, a page refresh within 1500ms of clicking Save silently loses changes.
@@ -2550,6 +2491,17 @@ async function saveSettings(){
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
+}
+
+function downloadCsvTemplate() {
+  const headers = ['stock','year','make','model','type','mileage','price','book_value','condition'];
+  const example = ['A1001','2021','Toyota','Camry','Sedan','42000','22995','19000','Good'];
+  const csv = headers.join(',') + '\n' + example.join(',') + '\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'firstfin-inventory-template.csv' });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── CRM ───────────────────────────────────────────────
@@ -2894,55 +2846,223 @@ function updateTarget(dealsThisMonth){
 }
 
 // ── CSV IMPORT (Updated for Cloud & Sync) ──────────────
-function importCSV(){
-  const txt=document.getElementById('csvText').value.trim();
-  if(!txt){toast('Paste CSV content first');return;}
-  const lines=txt.split('\n');
-  if(lines.length<2){toast('Need at least header + 1 data row');return;}
-  const headers=lines[0].split(',').map(h=>h.trim().toLowerCase());
-  const idx=k=>headers.indexOf(k);
-  const imported=[];
-  
-  for(let i=1;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    const cols=lines[i].split(',').map(c=>c.trim());
-    imported.push({
-      stock:cols[idx('stock')]||'',
-      year:parseInt(cols[idx('year')])||0,
-      make:cols[idx('make')]||'',
-      model:cols[idx('model')]||'',
-      mileage:parseInt(cols[idx('mileage')])||0,
-      price:parseFloat(cols[idx('price')])||0,
-      condition:cols[idx('condition')]||'Average',
-      carfax:parseFloat(cols[idx('carfax')])||0,
-      type:cols[idx('type')]||'',
-      book_value:parseFloat(cols[idx('book_value')]||cols[idx('book value')]||cols[idx('bookvalue')])||0
-    });
+// ── INVENTORY IMPORT — CSV / Excel / paste ────────────────────────
+// Proper CSV parser that handles quoted fields with commas inside
+function parseCSVText(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  const result = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const row = [];
+    let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        row.push(cur.trim()); cur = '';
+      } else { cur += ch; }
+    }
+    row.push(cur.trim());
+    result.push(row);
   }
-  
-  if(!imported.length){toast('No valid rows found');return;}
-
-  // 1. Update the new global variables
-  window.inventory = imported;
-  window.ffInventory = imported;
-
-  // 2. Immediately rebuild dropdowns and the inventory table
-  initInventory(); 
-
-  // 3. Sync imported inventory to the cloud (desk_inventory table)
-  if(window.FF && FF.isLoggedIn) {
-    FF.apiFetch('/api/desk/inventory/bulk',{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({vehicles:imported})
-    }).catch(e => console.error("Cloud sync failed:", e));
-  }
-  
-  closeModal('csvImportModal');
-  toast(` Imported ${imported.length} vehicles!`);
+  return result;
 }
 
-// ── EXPORT ────────────────────────────────────────────
+function rowsToVehicles(rows) {
+  if (rows.length < 2) return [];
+  // Normalize header → clean key
+  const rawHeaders = rows[0].map(h => String(h ?? '').trim());
+  const headers    = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''));
+
+  // Flexible column lookup — tries multiple aliases in order
+  const findCol = (...aliases) => {
+    for (const a of aliases) {
+      const i = headers.findIndex(h => h === a || h.startsWith(a));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  // Column index map — handles any DMS export format
+  const COL = {
+    stock:      findCol('stock','unit_id','unit','stock_no','stockno','stock_number','id'),
+    year:       findCol('year','yr','model_year','model_yr'),
+    make:       findCol('make','manufacturer','mfr','brand'),
+    model:      findCol('model','model_name'),
+    mileage:    findCol('mileage','kilometers','km','kms','kilometres','odometer','odo','miles'),
+    price:      findCol('price','retail','retail_price','asking','asking_price','list','list_price','sale_price'),
+    condition:  findCol('condition','cond'),
+    carfax:     findCol('carfax','carfax_value','carfax_adj'),
+    type:       findCol('type','body','body_style','vehicle_type','category'),
+    book_value: findCol('book_value','bookvalue','book_value','acv','book','wholesale'),
+    vin:        findCol('vin','vin_no','vin_number'),
+    colour:     findCol('colour','color','ext_color','ext_colour','exterior_color','exterior_colour'),
+    trim:       findCol('trim','series','grade','model_trim','package','trim_level'),
+    description:findCol('equip','equipment','description','desc','features','options'),
+  };
+
+  // Clean numeric — strips $, commas, spaces
+  const cleanNum = v => parseFloat(String(v ?? '').replace(/[$,\s]/g,'')) || 0;
+  const getStr   = i => i >= 0 ? String(rows[1][i] !== undefined ? '' : '').trim() : ''; // just for ref
+
+  const vehicles = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i];
+    if (!cols || !cols.some(c => c !== '' && c !== null && c !== undefined)) continue;
+    const get    = i => i >= 0 ? String(cols[i] ?? '').trim() : '';
+    const getNum = i => cleanNum(cols[i]);
+
+    const vehicle = {
+      stock:      get(COL.stock),
+      year:       parseInt(get(COL.year)) || 0,
+      make:       get(COL.make),
+      model:      get(COL.model),
+      mileage:    cleanNum(get(COL.mileage).replace(/,/g,'')),
+      price:      getNum(COL.price),
+      condition:  get(COL.condition) || 'Average',
+      carfax:     getNum(COL.carfax),
+      type:       get(COL.type),
+      book_value: getNum(COL.book_value),
+      vin:        get(COL.vin),
+      colour:     get(COL.colour),
+      trim:       get(COL.trim),
+      description:get(COL.description),
+    };
+    vehicles.push(vehicle);
+  }
+  return vehicles.filter(v => v.make || v.model || v.stock);
+}
+
+function showInvPreview(vehicles) {
+  const preview = document.getElementById('inv-import-preview');
+  const countEl = document.getElementById('inv-import-count');
+  const warnEl  = document.getElementById('inv-import-warn');
+  if (!preview) return;
+  const missing = vehicles.filter(v => !v.stock).length;
+  if (countEl) countEl.textContent = vehicles.length + ' vehicles ready to import';
+  if (warnEl)  warnEl.textContent  = missing ? missing + ' rows missing stock #' : '';
+  preview.style.display = 'block';
+}
+
+function handleInvFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processInvFile(file);
+}
+
+function handleInvFileDrop(e) {
+  const file = e.dataTransfer.files[0];
+  if (file) processInvFile(file);
+}
+
+function processInvFile(file) {
+  const nameEl = document.getElementById('inv-file-name');
+  if (nameEl) nameEl.textContent = '📄 ' + file.name;
+
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'xlsx' || ext === 'xls') {
+    // Excel — use SheetJS
+    if (typeof XLSX === 'undefined') {
+      toast('Excel library not loaded — refresh and try again');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb    = XLSX.read(e.target.result, { type: 'array' });
+        const ws    = wb.Sheets[wb.SheetNames[0]];
+        const rows  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        window._invImportRows = rows;
+        const vehicles = rowsToVehicles(rows);
+        showInvPreview(vehicles);
+        toast(vehicles.length + ' vehicles parsed from Excel');
+      } catch(err) {
+        toast('Could not parse Excel file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // CSV or text
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      document.getElementById('csvText').value = text;
+      window._invImportRows = parseCSVText(text);
+      const vehicles = rowsToVehicles(window._invImportRows);
+      showInvPreview(vehicles);
+      toast(vehicles.length + ' vehicles parsed from CSV');
+    };
+    reader.readAsText(file);
+  }
+}
+
+function importInventory() {
+  let vehicles;
+
+  // Priority: parsed from file → paste textarea
+  if (window._invImportRows && window._invImportRows.length > 1) {
+    vehicles = rowsToVehicles(window._invImportRows);
+  } else {
+    const txt = document.getElementById('csvText')?.value?.trim();
+    if (!txt) { toast('Upload a file or paste CSV content first'); return; }
+    window._invImportRows = parseCSVText(txt);
+    vehicles = rowsToVehicles(window._invImportRows);
+  }
+
+  if (!vehicles.length) { toast('No valid vehicles found — check column headers'); return; }
+
+  window.inventory   = vehicles;
+  window.ffInventory = vehicles;
+  window._invImportRows = null; // clear
+
+  initInventory();
+
+  if (window.FF && FF.isLoggedIn) {
+    FF.apiFetch('/api/desk/inventory/bulk', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicles })
+    }).then(r => r.json()).then(d => {
+      if (!d.success) {
+        if (d.code === 'BILLING_REQUIRED') toast('⚠️ Subscription required to save inventory to cloud — upgrade to persist data');
+        else console.error('Inventory sync failed:', d.error);
+      }
+    }).catch(e => console.error('Cloud sync failed:', e));
+  }
+
+  // Repopulate all stock dropdowns immediately — don't wait for re-login
+  const stockDd   = document.getElementById('stockNum');
+  const compareDd = document.getElementById('compareStock');
+  const makeOpt = v => `${v.stock} — ${v.year} ${v.make} ${v.model} ($${Number(v.price||0).toLocaleString()})`;
+
+  if (stockDd) {
+    stockDd.innerHTML = '<option value="">— Select Stock # —</option>';
+    vehicles.forEach(v => stockDd.add(new Option(makeOpt(v), v.stock)));
+  }
+  if (compareDd) {
+    compareDd.innerHTML = '<option value="">— Choose a vehicle —</option>';
+    vehicles.forEach(v => compareDd.add(new Option(makeOpt(v), v.stock)));
+  }
+  // Repopulate lender checker dropdowns
+  if (typeof lenders === 'object') {
+    Object.keys(lenders).forEach(lid => {
+      const sel = document.getElementById('chk-stock-' + lid);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— Select a vehicle —</option>';
+      vehicles.forEach(v => sel.add(new Option(makeOpt(v), v.stock)));
+    });
+  }
+
+  closeModal('csvImportModal');
+  toast('✅ Imported ' + vehicles.length + ' vehicles!');
+}
+
+// Legacy wrapper — keep importCSV working if called anywhere
+function importCSV() { importInventory(); }
+
+
 function exportJSON(type){
   const data=type==='deals'?dealLog:crmData;
   const name=`firstfin-${type}-${new Date().toISOString().split('T')[0]}.json`;
@@ -2967,6 +3087,8 @@ function toggleDarkMode(){
   btn.textContent = isLight ? 'Dark' : 'Light';
   localStorage.setItem('ffTheme', isLight ? 'light' : 'dark');
   toast(isLight ? 'Switched to Light Mode' : 'Switched to Dark Mode');
+  // Rebuild watermark so ink colour matches new background
+  if (window.DEMO_MODE && typeof _buildWatermarkSVG === 'function') _buildWatermarkSVG();
 }
 
 // ── TOAST ─────────────────────────────────────────────
@@ -3018,6 +3140,20 @@ function showSarahTab(id, btn){
   document.querySelectorAll('#section-sarah .mgr-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('stab-'+id).classList.add('active');
   if(btn) btn.classList.add('active');
+  if(id === 'voice') populateVoiceTemplates();
+}
+
+function populateVoiceTemplates(){
+  const dealer = settings.dealerName || getVal('dealerName') || 'First Financial';
+  const vd = document.getElementById('vd_message');
+  const vc = document.getElementById('vc_message');
+  // Only replace if still contains the default placeholder name
+  if(vd && (vd.value.includes('First Financial') || vd.value.trim() === '')){
+    vd.value = `Hi {name}, this is calling from ${dealer}. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!`;
+  }
+  if(vc && (vc.value.includes('First Financial') || vc.value.trim() === '')){
+    vc.value = `Hi {name}, this is calling from ${dealer} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!`;
+  }
 }
 
 // ── Load all dashboard data ───────────────────────────────────────
@@ -3068,7 +3204,9 @@ async function loadSarahDashboard(){
     renderCallbacks(stats.recentCallbacks || []);
 
     toast('Sarah data refreshed');
-    setTimeout(refreshIcons, 100);
+    setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 100);
+    // Load lender tier display (needs auth — can't run at DOMContentLoaded)
+    if (typeof loadLenderTiers === 'function') setTimeout(loadLenderTiers, 200);
   } catch(e){
     console.error('Sarah load error:', e);
     toast('Could not load Sarah data: ' + e.message);
@@ -4059,8 +4197,14 @@ function buildLenderRateEditor(){
       transition:border-color .2s;
     ">
       <!-- Header -->
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${accentColor};">${l.name}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${accentColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${isLenderHidden(lid)?'opacity:.4;text-decoration:line-through;':''}">${l.name}</div>
+        </div>
+        <button onclick="toggleHideLender('${lid}')" title="${isLenderHidden(lid)?'Show in Compare All':'Hide from Compare All'}"
+          style="flex-shrink:0;padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;border:1px solid ${isLenderHidden(lid)?'rgba(16,185,129,.4)':'rgba(239,68,68,.35)'};background:${isLenderHidden(lid)?'rgba(16,185,129,.1)':'rgba(239,68,68,.08)'};color:${isLenderHidden(lid)?'var(--green)':'var(--red)'};font-family:'Outfit',sans-serif;">
+          ${isLenderHidden(lid)?'SHOW':'HIDE'}
+        </button>
         ${hasCustom
           ? `<span style="font-size:9px;background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:3px 9px;font-weight:700;letter-spacing:.5px;">★ CUSTOM — ${customTiers.length} TIERS</span>`
           : `<span style="font-size:9px;background:rgba(30,90,246,.1);color:var(--primary);border:1px solid rgba(30,90,246,.2);border-radius:20px;padding:3px 9px;font-weight:600;letter-spacing:.5px;">PLATFORM DEFAULTS</span>`}
@@ -4268,7 +4412,7 @@ function buildLenderRateEditor(){
     </div>
   </div>`;
 
-  setTimeout(refreshIcons, 50);
+  setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 50);
 }
 
 function updateFileLabel(lid){
@@ -4300,6 +4444,7 @@ async function uploadExtraRateSheet(lid){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ ${data.count} tiers updated</span>`;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} rates updated`);
     } else {
       statusEl.innerHTML = `<span style="color:var(--red);">✗ ${data.error}</span>`;
@@ -4360,6 +4505,7 @@ async function saveExtraManualRates(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} — ${tiers.length} tiers saved`);
     } else { toast('Save failed: ' + data.error); }
   } catch(e){ toast('Save failed'); }
@@ -4373,6 +4519,7 @@ async function deleteExtraLender(lid, name){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`${name} removed`);
     } else { toast('Remove failed'); }
@@ -4402,6 +4549,7 @@ async function uploadNewLender(){
       fileInput.value = '';
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`✅ ${name} added — ${data.count} tiers`);
     } else if(data.fallback){
@@ -4465,6 +4613,7 @@ async function saveNewLenderManual(){
       _newLenderManualCount = 0;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       initExtraLenderPanels();
       toast(`✅ ${name} added — ${tiers.length} tiers`);
     } else { toast('Save failed: ' + data.error); }
@@ -4486,6 +4635,7 @@ async function uploadRateSheet(lid){
       statusEl.innerHTML = `<span style="color:var(--green);">✅ Parsed ${data.count} tiers for ${data.lender.toUpperCase()}</span>`;
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${data.lender.toUpperCase()} rates updated — ${data.count} tiers loaded`);
     } else if(data.fallback){
       statusEl.innerHTML = `<span style="color:var(--amber);">⚠ ${data.error}</span>`;
@@ -4562,6 +4712,7 @@ async function saveManualRates(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`✅ ${lid.toUpperCase()} — ${tiers.length} manual tiers saved`);
     } else {
       toast('Save failed: ' + data.error);
@@ -4577,6 +4728,7 @@ async function resetLenderSheet(lid){
     if(data.success){
       await loadTenantRates();
       buildLenderRateEditor();
+      if(typeof renderAllLenderPanelTiers==='function') renderAllLenderPanelTiers();
       toast(`${lid.toUpperCase()} reset to platform defaults`);
     }
   } catch(e){ toast('Error: ' + e.message); }
@@ -4621,18 +4773,28 @@ function openPresentation(){
   const tAllow   = parseFloat(getVal('tradeAllow'))||0;
   const tPayoff  = parseFloat(getVal('tradePayoff'))||0;
   const gst      = parseFloat(getVal('gstRate'))||5;
-  const vsc      = parseFloat(getVal('vscPrice'))||0;
-  const gap      = parseFloat(getVal('gapPrice'))||0;
-  const tw       = parseFloat(getVal('twPrice'))||0;
-  const wa       = parseFloat(getVal('waPrice'))||0;
   const netTrade = tAllow - tPayoff;
   const gstAmt   = (price + doc - netTrade) * (gst/100);
   const otd      = price + doc - netTrade + gstAmt;
-  const products = vsc + gap + tw + wa;
-  const finance  = otd + products;
+
+  // Use CONFIRMED (checked + price > 0) products only — not everything offered
+  const { confirmed: confirmedProds, total: confirmedProdTotal } = getFiConfirmedProducts();
+  const finance  = otd + confirmedProdTotal;
   const mr       = apr / 100 / 12;
 
+  // Build F&I line for footer display
+  const fiLine = confirmedProds.length
+    ? 'Includes: ' + confirmedProds.map(p => p.name).join(', ')
+    : null;
+
   document.getElementById('presDealer').textContent = dealer.toUpperCase();
+  // Show confirmed F&I products in footer if any selected
+  const footerEl = document.getElementById('presFooter');
+  if (footerEl && fiLine) {
+    footerEl.textContent = 'All payments include applicable taxes. OAC — Subject to credit approval. ' + fiLine + '.';
+  } else if (footerEl) {
+    footerEl.textContent = 'All payments include applicable taxes. OAC — Subject to credit approval.';
+  }
   document.getElementById('presVehicle').textContent = desc.toUpperCase();
   const subParts = [];
   if(stock) subParts.push('Stock #' + stock);
@@ -4652,8 +4814,7 @@ function openPresentation(){
   let cardsHTML = '';
   const featured_term = 72;
 
-  // Biweekly toggle for presentation
-  const presToggleBar = `<div style="display:flex;justify-content:center;margin-bottom:20px;">${_biweeklyToggleHTML('bw-toggle-pres')}</div>`;
+  // Inject toggle wrapper if not already in DOM (refreshPresentationCards handles rendering)
   let presToggleWrap = document.getElementById('bw-toggle-wrap-pres');
   if(!presToggleWrap){
     presToggleWrap = document.createElement('div');
@@ -4661,24 +4822,11 @@ function openPresentation(){
     const ladder = document.getElementById('presPaymentLadder');
     if(ladder) ladder.parentNode.insertBefore(presToggleWrap, ladder);
   }
-  presToggleWrap.innerHTML = presToggleBar;
 
-  [60, 72, 84].forEach(term => {
-    const fin = Math.max(0, finance - finalDown);
-    const pmt = BPMT(apr, term, fin);
-    const featured = term === featured_term;
-    const termLabel = window._biweekly ? `${Math.round(term*26/12)} BI-WEEKLY` : `${term} MONTHS`;
-    const pmtFreq = window._biweekly ? '/bi-weekly' : '/month';
-    cardsHTML += `
-    <div class="pres-pmt-card ${featured?'featured':''}">
-      <div class="pres-term">${termLabel}</div>
-      <div class="pres-amount">${$f(pmt)}</div>
-      <div class="pres-monthly">${pmtFreq}</div>
-      ${finalDown>0?`<div class="pres-down-note">$${finalDown.toLocaleString()} down</div>`:'<div class="pres-obo">No money down</div>'}
-    </div>`;
-  });
+  // Store current deal context for refreshPresentationCards to use
+  window._presCtx = { apr, finance, finalDown, featured_term: 72 };
 
-  document.getElementById('presPaymentLadder').innerHTML = cardsHTML;
+  refreshPresentationCards();
   document.getElementById('presentationOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -4688,13 +4836,48 @@ function closePresentation(){
   document.body.style.overflow = '';
 }
 
+// Renders/re-renders the presentation payment cards using current _biweekly state.
+// Called by: openPresentation() on open, toggleBiweekly() if overlay is open.
+// Reads deal context from window._presCtx (set by openPresentation).
+function refreshPresentationCards(){
+  const ctx = window._presCtx;
+  if(!ctx) return; // presentation not opened yet
+
+  const { apr, finance, finalDown, featured_term } = ctx;
+
+  // Sync the toggle checkbox state without re-rendering it
+  // (re-rendering innerHTML destroys the element mid-event and is unnecessary
+  //  because toggleBiweekly already syncs all .bw-toggle checked states)
+  const presToggleEl = document.getElementById('bw-toggle-pres');
+  if(presToggleEl) presToggleEl.checked = window._biweekly;
+
+  let cardsHTML = '';
+  [48, 60, 72, 84].forEach(term => {
+    const fin = Math.max(0, finance - finalDown);
+    const pmt = BPMT(apr, term, fin);
+    const featured = term === featured_term;
+    const termLabel = window._biweekly ? `${Math.round(term*26/12)} BI-WEEKLY` : `${term} MONTHS`;
+    const pmtFreq   = window._biweekly ? '/bi-weekly' : '/month';
+    cardsHTML += `
+    <div class="pres-pmt-card ${featured?'featured':''}">
+      <div class="pres-term">${termLabel}</div>
+      <div class="pres-amount">${$f(pmt)}</div>
+      <div class="pres-monthly">${pmtFreq}</div>
+      ${finalDown>0?`<div class="pres-down-note">$${finalDown.toLocaleString()} down</div>`:'<div class="pres-obo">No money down</div>'}
+    </div>`;
+  });
+
+  const ladder = document.getElementById('presPaymentLadder');
+  if(ladder) ladder.innerHTML = cardsHTML;
+}
+
 // ESC to close presentation
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape') closePresentation();
 });
 
 // ── BEACON LENDER MATCH BADGES ────────────────────────────────
-function runBeaconMatch(){
+async function runBeaconMatch(){
   const beacon = parseInt(getVal('creditScore')) || 0;
   const stock  = getVal('stockNum');
   const row    = document.getElementById('beaconLenderRow');
@@ -4702,36 +4885,37 @@ function runBeaconMatch(){
 
   if(!beacon){ toast('Enter a Beacon score first'); return; }
   if(!stock){  toast('Select a vehicle first'); return; }
+  if(row)    row.style.display = 'block';
+  if(badges) badges.innerHTML = '<span style="color:var(--muted);font-size:11px;">Checking...</span>';
 
-  const src = window.ffInventory || window.inventory || [];
-  const v = src.find(x => x.stock === stock);
-  row.style.display = 'block';
-  badges.innerHTML = '';
+  try {
+    const data = await FF.apiFetch('/api/beacon-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stock, beacon, income: parseFloat(getVal('monthlyIncome'))||0 })
+    }).then(r => r.json());
 
-  Object.entries(lenders).forEach(([lid, l]) => {
-    const prog = getQualifyingProgram(lid, beacon);
-    let label, cls;
-    const shortName = l.name.split(' ')[0];
+    if(!data || !data.success){ toast((data && data.error) || 'Beacon match failed'); return; }
+    if(!data.badges){ return; } // demo mode blocks API — nothing to render
 
-    if(!l.hard){
-      // Credit-based — just show if beacon is in reasonable range
-      if(beacon >= 700)     { label = shortName + ' ✓'; cls = 'bln-green'; }
-      else if(beacon >= 650){ label = shortName + ' ~'; cls = 'bln-amber'; }
-      else                  { label = shortName + ' ✕'; cls = 'bln-red'; }
-    } else {
-      const vehicleOk = v && (v.year >= l.minYear) &&
-        (l.maxMileage ? (v.mileage||0) <= l.maxMileage : true) &&
-        (l.maxCarfax  ? (v.carfax||0)  <= l.maxCarfax  : true);
-      if(!vehicleOk){ label = shortName + ' ✕ Vehicle'; cls = 'bln-red'; }
-      else if(!prog){ label = shortName + ' ✕ Score'; cls = 'bln-red'; }
-      else {
-        const rate = prog.rate;
-        label = `${shortName} ✓ ${rate}%${prog.isCustom ? '★' : ''}`;
-        cls   = rate < 15 ? 'bln-green' : rate < 22 ? 'bln-amber' : 'bln-red';
-      }
+    const clsMap = {
+      'badge-green':  'background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);',
+      'badge-amber':  'background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.3);',
+      'badge-orange': 'background:rgba(239,68,68,.12);color:#f97316;border:1px solid rgba(239,68,68,.25);',
+      'badge-red':    'background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3);',
+    };
+
+    if(badges){
+      badges.innerHTML = data.badges.map(b => {
+        if(isLenderHidden(b.lid)) return '';
+        const style = clsMap[b.cls] || '';
+        return `<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;${style}">${b.label}</span>`;
+      }).join('');
     }
-    badges.innerHTML += `<span class="bln-badge ${cls}" title="${l.name}">${label}</span>`;
-  });
+  } catch(e){
+    console.error('Beacon match error:', e);
+    if(badges) badges.innerHTML = '<span style="color:var(--red);font-size:11px;">Error — try again</span>';
+  }
 }
 
 // ── LIVE SYNC: Deal Desk → Compare All (full pre-population) ────
@@ -4936,20 +5120,104 @@ function updateRateComparison(){
     const pBuy = BPMT(buyRate, t, otd);
     const pCon = BPMT(conRate, t, otd);
     const pMax = BPMT(maxRate, t, otd);
-    const reservePerPeriod = pCon - pBuy;
     const tLabel = window._biweekly ? `${Math.round(t*26/12)} bi-wk` : `${t} mo`;
     html += `<tr>
       <td><strong>${tLabel}</strong></td>
       <td class="rc-buy">${$f(pBuy)}</td>
       <td class="rc-contract">${$f(pCon)}</td>
       <td class="rc-max">${$f(pMax)}</td>
-      <td style="color:var(--green);">+${$f(reservePerPeriod)}</td>
     </tr>`;
   });
   tbody.innerHTML = html;
 }
 
 // ── COMMISSION CALCULATOR ─────────────────────────────────────
+function toggleMgrSection(btn){
+  const body  = document.getElementById('mgr-section-body');
+  const arrow = document.getElementById('mgr-toggle-arrow');
+  if(!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display  = open ? 'none' : 'block';
+  if(arrow) arrow.textContent = open ? '▼' : '▲';
+  if(!open) { lucide.createIcons(); }
+}
+
+// ── Populate wizard step 4 client summary ────────────────────────────────────
+function updateWizSummary(){
+  // Vehicle
+  const vDesc  = getVal('vehicleDesc') || '—';
+  const stock  = getVal('stockNum')    || '';
+  const vin    = getVal('vin')         || '';
+  const el_v   = document.getElementById('sum-vehicle');
+  const el_s   = document.getElementById('sum-stock');
+  if(el_v) el_v.textContent = vDesc;
+  if(el_s) el_s.textContent = [stock ? 'Stock: '+stock : '', vin ? 'VIN: '+vin : ''].filter(Boolean).join('  ·  ') || '—';
+
+  // Customer
+  const name  = getVal('custName')  || '—';
+  const phone = getVal('custPhone') || '';
+  const el_c  = document.getElementById('sum-customer');
+  const el_p  = document.getElementById('sum-phone');
+  if(el_c) el_c.textContent = name;
+  if(el_p) el_p.textContent = phone || '—';
+
+  // Payment — use current active fi term and deal structure
+  const price    = parseFloat(getVal('sellingPrice'))||0;
+  const doc      = parseFloat(getVal('docFee'))||0;
+  const tAllow   = parseFloat(getVal('tradeAllow'))||0;
+  const tPayoff  = parseFloat(getVal('tradePayoff'))||0;
+  const gst      = parseFloat(getVal('gstRate'))||5;
+  const apr      = parseFloat(getVal('apr'))||0;
+  const finalDown= parseFloat(getVal('finalDown'))||0;
+  const term     = window._fiTerm || 72;
+
+  const netTrade = tAllow - tPayoff;
+  const gstAmt   = (price + doc - netTrade) * (gst/100);
+  const otd      = price + doc - netTrade + gstAmt;
+  const { total: fiTotal } = typeof getFiConfirmedProducts === 'function'
+    ? getFiConfirmedProducts() : { total: 0 };
+  const financed = Math.max(0, otd - finalDown + fiTotal);
+  const pmt = financed > 0 && apr > 0
+    ? BPMT(apr, term, financed)
+    : (financed / (term || 72));
+
+  const pmtLabel = window._biweekly
+    ? `per bi-weekly payment · ${Math.round(term*26/12)} payments`
+    : `per month · ${term}-month term`;
+  const rateLabel = apr > 0 ? `${apr.toFixed(2)}% APR` : '';
+
+  const el_pay  = document.getElementById('sum-payment');
+  const el_term = document.getElementById('sum-term-label');
+  const el_rate = document.getElementById('sum-rate-label');
+  if(el_pay)  el_pay.textContent  = '$' + Math.round(pmt).toLocaleString();
+  if(el_term) el_term.textContent = pmtLabel;
+  if(el_rate) el_rate.textContent = rateLabel;
+
+  // Deal details
+  const el_otd  = document.getElementById('sum-otd');
+  const el_down = document.getElementById('sum-down');
+  const el_fin  = document.getElementById('sum-financed');
+  if(el_otd)  el_otd.textContent  = '$' + Math.round(otd).toLocaleString();
+  if(el_down) el_down.textContent = '$' + Math.round(finalDown).toLocaleString();
+  if(el_fin)  el_fin.textContent  = '$' + Math.round(financed).toLocaleString();
+
+  // F&I confirmed products
+  const fiSection  = document.getElementById('sum-fi-section');
+  const fiProducts = document.getElementById('sum-fi-products');
+  const { confirmed = [] } = typeof getFiConfirmedProducts === 'function'
+    ? getFiConfirmedProducts() : { confirmed: [] };
+  if(fiSection && fiProducts){
+    if(confirmed.length > 0){
+      fiSection.style.display = 'block';
+      fiProducts.innerHTML = confirmed.map(prod =>
+        `<div style="background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--green);">✓ ${prod.label}</div>`
+      ).join('');
+    } else {
+      fiSection.style.display = 'none';
+    }
+  }
+}
+
 function calcCommission(){
   // Pull live profit values from the DOM output fields
   const frontText = document.getElementById('frontGross')?.textContent || '$0';
@@ -5076,104 +5344,60 @@ function restoreCompareSession(){
 }
 
 // ── BEACON RANGE SIMULATOR ────────────────────────────────────────
-function runBeaconSimulator(){
-  const el = document.getElementById('beaconSimulator');
+async function runBeaconSimulator(){
+  const el    = document.getElementById('beaconSimulator');
   if(!el) return;
 
-  const stock    = document.getElementById('compareStock')?.value || '';
-  const inv      = window.ffInventory || window.inventory || [];
-  const v        = inv.find(x => x.stock === stock);
-  if(!v){ el.innerHTML = ''; return; }
+  const stock = document.getElementById('compareStock')?.value || '';
+  if(!stock){ el.innerHTML = ''; return; }
 
-  const down     = parseFloat(document.getElementById('compareDown')?.value)    || 0;
-  const trade    = parseFloat(document.getElementById('compareTrade')?.value)   || 0;
-  const fees     = parseFloat(document.getElementById('compareFees')?.value)    || 0;
-  const income   = parseFloat(document.getElementById('compareIncome')?.value)  || 0;
-  const existing = parseFloat(document.getElementById('compareExisting')?.value)|| 0;
-  const term     = parseInt(document.getElementById('compareTerm')?.value)      || 72;
-  const bookValOver = parseFloat(document.getElementById('compareBookVal')?.value) || 0;
-  const coIncome = parseFloat(document.getElementById('compareCoIncome')?.value)|| 0;
-  const combinedInc = income + coIncome;
-  const contractRate = parseFloat(document.getElementById('compareContractRate')?.value) || 0;
-  const curYear  = new Date().getFullYear();
+  const down       = parseFloat(document.getElementById('compareDown')?.value) || 0;
+  const trade      = parseFloat(document.getElementById('compareTrade')?.value) || 0;
+  const fees       = parseFloat(document.getElementById('compareFees')?.value) || 0;
+  const gstEnabled = document.getElementById('compareGst')?.checked || false;
+  const gstRate    = parseFloat(document.getElementById('gstRate')?.value) || settings.gst || 5;
 
-  const BEACON_RANGES = [
-    { label: '<500',  min: 0,   max: 499  },
-    { label: '500',   min: 500, max: 539  },
-    { label: '540',   min: 540, max: 559  },
-    { label: '560',   min: 560, max: 579  },
-    { label: '580',   min: 580, max: 599  },
-    { label: '600',   min: 600, max: 619  },
-    { label: '620',   min: 620, max: 639  },
-    { label: '640',   min: 640, max: 659  },
-    { label: '660',   min: 660, max: 679  },
-    { label: '680',   min: 680, max: 699  },
-    { label: '700',   min: 700, max: 719  },
-    { label: '720',   min: 720, max: 749  },
-    { label: '750+',  min: 750, max: 9999 },
-  ];
+  try {
+    const data = await FF.apiFetch('/api/beacon-simulator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stock, down, trade, fees, gstEnabled, gstRate })
+    }).then(r => r.json());
 
-  const results = BEACON_RANGES.map(range => {
-    const testBeacon = range.min === 0 ? 0 : range.min + 10;
-    let approved = 0, bestRate = 99;
-    Object.entries(lenders).forEach(([lid, l]) => {
-      const prog = getQualifyingProgram(lid, testBeacon);
-      if(!prog) return;
-      const lenderFee = prog.fee || 0;
-      const atf = v.price + fees + lenderFee - down - trade;
-      const bookVal = bookValOver > 0 ? bookValOver : (v.book_value || v.bookValue || v.price);
-      const maxLTV = prog.maxLTV || l.maxLTV;
-      const ltvPct = (atf / bookVal) * 100;
-      if(ltvPct > maxLTV) return;
-      const minYear = prog.minYear || l.minYear;
-      if(v.year < minYear) return;
-      const maxMile = prog.maxMileage || l.maxMileage || 999999;
-      if((v.mileage||0) > maxMile) return;
-      const maxCfx = prog.maxCarfax || l.maxCarfax || 999999;
-      if((v.carfax||0) > maxCfx) return;
-      const ageAtPayoff = (curYear - v.year) + (term/12);
-      if(ageAtPayoff > 14) return;
-      const lMaxPti = l.maxPti || 20;
-      if(combinedInc > 0 && prog.rate > 0){
-        const pmt = BPMT(prog.rate, term, atf);
-        const pti = (pmt / combinedInc) * 100;
-        if(pti > lMaxPti) return;
-      }
-      approved++;
-      if(prog.rate < bestRate) bestRate = prog.rate;
+    if(!data.success){ el.innerHTML = ''; return; }
+
+    let html = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;margin-bottom:10px;color:var(--muted);">BEACON SCORE SIMULATOR</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Beacon Range</th>
+          <th style="text-align:center;padding:6px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Lenders</th>
+          <th style="text-align:center;padding:6px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Best Rate</th>
+          <th style="padding:6px 8px;border-bottom:1px solid var(--border);"></th>
+        </tr></thead><tbody>`;
+
+    data.rows.forEach(row => {
+      const barW   = Math.min(100, (row.approved / 12) * 100);
+      const colour = row.approved >= 6 ? 'var(--green)' : row.approved >= 3 ? 'var(--amber)' : 'var(--red)';
+      html += `<tr>
+        <td style="padding:6px 8px;font-weight:700;">${row.label}</td>
+        <td style="text-align:center;padding:6px 8px;color:${colour};font-weight:800;">${row.approved}</td>
+        <td style="text-align:center;padding:6px 8px;color:var(--green);font-weight:700;">
+          ${row.bestRate !== null ? row.bestRate.toFixed(2)+'%' : '—'}
+        </td>
+        <td style="padding:6px 8px;width:120px;">
+          <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;">
+            <div style="width:${barW}%;height:100%;background:${colour};border-radius:4px;transition:width .3s;"></div>
+          </div>
+        </td>
+      </tr>`;
     });
-    return { ...range, approved, bestRate: bestRate < 99 ? bestRate : null };
-  });
 
-  const maxApproved = Math.max(...results.map(r => r.approved), 1);
-  const currentBeacon = parseInt(document.getElementById('compareBeacon')?.value) || 0;
-
-  el.innerHTML = `
-    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-      <span>📊 Beacon Range Simulator</span>
-      <span style="font-size:10px;font-weight:400;color:var(--muted);">How many lenders approve at each beacon score?</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(${results.length},1fr);gap:3px;align-items:end;height:80px;">
-      ${results.map(r => {
-        const pct   = r.approved > 0 ? Math.max(15, Math.round((r.approved / maxApproved) * 100)) : 4;
-        const isNow = currentBeacon >= r.min && currentBeacon <= r.max;
-        const col   = r.approved === 0 ? 'rgba(239,68,68,.4)'
-                    : r.approved <= 2  ? 'rgba(245,158,11,.6)'
-                    : r.approved <= 5  ? 'rgba(16,185,129,.5)'
-                    :                    'rgba(16,185,129,.85)';
-        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-          <div style="font-size:9px;color:${r.approved>0?'var(--green)':'var(--muted)'};">${r.approved>0?r.approved:''}</div>
-          <div style="width:100%;height:${pct}%;background:${col};border-radius:3px 3px 0 0;${isNow?'outline:2px solid var(--amber);':''};transition:height .3s;"></div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(${results.length},1fr);gap:3px;margin-top:3px;">
-      ${results.map(r => {
-        const isNow = currentBeacon >= r.min && currentBeacon <= r.max;
-        return `<div style="font-size:8px;text-align:center;color:${isNow?'var(--amber)':'var(--muted)'};font-weight:${isNow?800:400};">${r.label}</div>`;
-      }).join('')}
-    </div>
-    ${results.some(r => r.bestRate) ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;">Best rate by range: ${results.filter(r=>r.bestRate).map(r=>`<span style="color:var(--green);font-weight:700;">${r.label}: ${r.bestRate}%</span>`).join(' · ')}</div>` : ''}`;
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e){
+    console.error('Beacon simulator error:', e);
+    el.innerHTML = '';
+  }
 }
 // ── PRINT COMPARISON ─────────────────────────────────────────────
 function printComparison(){
@@ -5423,3 +5647,48 @@ async function wizFinish() {
     btn.disabled = false;
   }
 }
+
+// ── Load lender tier display data from server ─────────────────────────────
+
+
+function renderAllLenderPanelTiers() {
+  const tiers = window._lenderTiers;
+  if (!tiers) return;
+
+  Object.entries(tiers).forEach(([lid, l]) => {
+    const el = document.getElementById('lp-tiers-' + lid);
+    if (!el) return;
+
+    // If dealer has custom uploaded rates, those take priority — already handled by updateLenderPanelTiers()
+    if (window._tenantRates && window._tenantRates[lid] && window._tenantRates[lid].length) return;
+
+    if (!l.programs || !l.programs.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 0;font-style:italic;">No tier data available</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Default Rate Programs</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;background:var(--surface);padding:6px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);">
+            <span>Tier</span><span>Rate</span><span>FICO</span><span>Max LTV</span>
+          </div>
+          ${l.programs.map((p, i) => `
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;padding:7px 10px;font-size:11px;border-bottom:${i < l.programs.length-1 ? '1px solid var(--border)' : 'none'};">
+            <span style="color:var(--text);font-weight:600;">${p.tier}</span>
+            <span style="color:var(--green);font-weight:800;">${p.rate}</span>
+            <span style="color:var(--amber);">${p.fico}</span>
+            <span style="color:var(--muted);">${p.maxLtv || '—'}</span>
+          </div>`).join('')}
+        </div>
+        ${l.maxMileage || l.maxCarfax || l.minYear ? `
+        <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">
+          ${l.minYear   ? `<span>Min Year: <strong style="color:var(--text);">${l.minYear}</strong></span>` : ''}
+          ${l.maxMileage? `<span>Max KM: <strong style="color:var(--text);">${l.maxMileage.toLocaleString()}</strong></span>` : ''}
+          ${l.maxCarfax ? `<span>Max Carfax: <strong style="color:var(--text);">$${l.maxCarfax.toLocaleString()}</strong></span>` : ''}
+        </div>` : ''}
+      </div>`;
+  });
+}
+

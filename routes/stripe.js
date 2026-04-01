@@ -6,7 +6,7 @@ const { EXEMPT_EMAILS } = require('../lib/constants');
 // ── Input validation helpers ──────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const VALID_PLANS = ['monthly', 'annual'];
-const VALID_STATUSES = ['active', 'trial', 'lapsed', 'cancelled'];
+const VALID_STATUSES = ['active', 'lapsed', 'cancelled', 'past_due', 'pending'];
 
 function validatePublicCheckoutInput({ plan, email, name, dealership }) {
   if (!email || typeof email !== 'string')
@@ -50,7 +50,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const stripe = getStripe();
     if (!stripe) return res.status(503).json({ success: false, error: 'Billing not configured' });
 
-    const { plan, email, name, dealership } = req.body;
+    const { plan, email, name, dealership, phone = '' } = req.body;
 
     // ── ONBOARDING TEST BYPASS ─────────────────────────────────────────────
     // Set ONBOARDING_TEST_MODE=true in Railway env vars to skip real Stripe payment.
@@ -90,13 +90,15 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
           name:        cleanName,
           dealership:  cleanDealership,
           plan:        plan,
+          phone:       (req.body.phone || '').toString().trim().substring(0, 20),
           source:      'public_modal'
         },
         subscription_data: {
           metadata: {
             email:      cleanEmail,
             name:       cleanName,
-            dealership: cleanDealership
+            dealership: cleanDealership,
+            phone:      (req.body.phone || '').toString().trim().substring(0, 20)
           }
         }
       });
@@ -245,6 +247,24 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
     const client = await pool.connect();
     try {
+      // ── Idempotency — ignore duplicate webhook deliveries ──────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS stripe_events (
+          event_id TEXT PRIMARY KEY,
+          processed_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `).catch(() => {});
+      const already = await client.query(
+        'SELECT event_id FROM stripe_events WHERE event_id = $1', [event.id]
+      );
+      if (already.rows.length > 0) {
+        client.release();
+        return res.json({ received: true });
+      }
+      await client.query(
+        'INSERT INTO stripe_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING', [event.id]
+      );
+
       switch (event.type) {
 
         case 'checkout.session.completed': {
@@ -283,9 +303,79 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               );
               console.log(`✅ Existing account activated via public checkout — ${buyerEmail}`);
             } else {
-              // Brand new buyer — no account yet. Log it so onboarding can create one.
-              // Account creation happens during manual 24hr onboarding call.
-              console.log(`✅ New public purchase pending onboarding — ${buyerEmail} (${dealership})`);
+              // Brand new buyer — create pending account + log inquiry
+              const buyerPhone = session.metadata?.phone || '';
+              const bcrypt = require('bcryptjs');
+              const crypto = require('crypto');
+
+              // Generate a temporary random password — dealer must reset
+              const tempPass = crypto.randomBytes(8).toString('hex');
+              const passHash = await bcrypt.hash(tempPass, 12);
+
+              const initSettings = {
+                dealerName: dealership || 'My Dealership',
+                salesName: buyerName,
+                tempPassword: tempPass,          // shown in admin panel until dealer logs in
+                onboardingPending: true,          // triggers first-login wizard
+                stripeCustomerId: session.customer,
+                plan: plan,
+                subscribedAt: new Date().toISOString()
+              };
+
+              const newUser = await client.query(
+                `INSERT INTO desk_users
+                   (email, password_hash, display_name, role, settings_json,
+                    subscription_status, stripe_customer_id)
+                 VALUES ($1, $2, $3, 'owner', $4, 'active', $5)
+                 ON CONFLICT (email) DO UPDATE
+                   SET subscription_status = 'active',
+                       stripe_customer_id = EXCLUDED.stripe_customer_id,
+                       settings_json = desk_users.settings_json || $4::jsonb
+                 RETURNING id`,
+                [buyerEmail, passHash, buyerName,
+                 JSON.stringify(initSettings),
+                 session.customer]
+              ).catch(e => { console.error('Create user error:', e.message); return { rows: [] }; });
+
+              const newUserId = newUser.rows[0]?.id;
+
+              // Write to platform_inquiries so it shows in admin panel
+              await client.query(
+                `INSERT INTO platform_inquiries
+                   (name, dealership, phone, email, status)
+                 VALUES ($1, $2, $3, $4, 'paid')
+                 ON CONFLICT DO NOTHING`,
+                [buyerName, dealership || '', buyerPhone, buyerEmail]
+              ).catch(e => console.error('Inquiry insert error:', e.message));
+
+              console.log('✅ New dealer account created — ' + buyerEmail + ' (user ' + newUserId + ')');
+
+              // ── SMS credentials to buyer if phone provided ─────────
+              if (buyerPhone) {
+                try {
+                  const twilioC = require('twilio')(
+                    process.env.TWILIO_ACCOUNT_SID,
+                    process.env.TWILIO_AUTH_TOKEN
+                  );
+                  const platformUrl = process.env.BASE_URL
+                    ? process.env.BASE_URL.replace(/\/$/, '') + '/platform'
+                    : 'https://app.firstfinancialcanada.com/platform';
+                  await twilioC.messages.create({
+                    body:
+                      `Welcome to FIRST-FIN, ${buyerName.split(' ')[0]}! 🎉\n\n` +
+                      `Your account is ready. Log in here:\n${platformUrl}\n\n` +
+                      `Email: ${buyerEmail}\n` +
+                      `Temp password: ${tempPass}\n\n` +
+                      `Change your password in Settings after logging in.\n` +
+                      `Questions? Call/text 587-306-6133`,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to:   buyerPhone
+                  });
+                  console.log('📱 Credentials SMS sent to buyer: ' + buyerPhone);
+                } catch (smsErr) {
+                  console.error('Buyer credentials SMS failed:', smsErr.message);
+                }
+              }
             }
           }
 
@@ -295,14 +385,16 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               process.env.TWILIO_ACCOUNT_SID,
               process.env.TWILIO_AUTH_TOKEN
             );
+            const buyerPhone = session.metadata?.phone || 'not provided';
             await twilio.messages.create({
               body: `💳 NEW FIRST-FIN PURCHASE!\n` +
                     `Name: ${buyerName}\n` +
                     `Dealership: ${dealership}\n` +
                     `Email: ${buyerEmail}\n` +
+                    `Phone: ${buyerPhone}\n` +
                     `Plan: ${plan}\n` +
-                    (source === 'public_modal' ? `Source: Landing page\n` : '') +
-                    `⚡ Contact within 24 hrs to onboard`,
+                    (source === 'public_modal' ? `✅ Account auto-created — check admin panel for temp password` : `✅ Existing account activated`) + `\n` +
+                    `🔗 ${process.env.BASE_URL}/admin`,
               from: process.env.TWILIO_PHONE_NUMBER,
               to:   process.env.FORWARD_PHONE
             });

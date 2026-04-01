@@ -293,12 +293,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── GET ME ───────────────────────────────────────────────
-  app.get('/api/desk/me', requireAuth, async (req, res) => {
+  app.get('/api/desk/me', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
+      await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`).catch(() => {});
+
       const result = await client.query(
         `SELECT id, email, display_name, role, created_at, last_login, settings_json,
-                subscription_status, trial_ends_at
+                subscription_status, trial_ends_at, features
          FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -307,6 +309,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const row = result.rows[0];
       const exempt = EXEMPT_EMAILS.includes(row.email);
       const billing = getBillingStatus(row, exempt);
+
+      // Resolve feature flags — exempt users and legacy active accounts get all features
+      const rawFeatures = (typeof row.features === 'string' ? JSON.parse(row.features || '{}') : row.features) || {};
+      const isLegacy = exempt || (Object.keys(rawFeatures).length === 0 && row.subscription_status === 'active');
+      const features = isLegacy
+        ? { sarah: true, dt_sync: true, fb_poster: true }
+        : rawFeatures;
 
       res.json({
         success: true,
@@ -317,7 +326,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           role: row.role,
           created_at: row.created_at,
           last_login: row.last_login,
-          tenantBranding: buildTenantBrandingFromSettings(row.settings_json)
+          tenantBranding: buildTenantBrandingFromSettings(row.settings_json),
+          features
         },
         billing
       });
