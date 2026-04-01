@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIRST-FIN — Internal Onboarding Checklist</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#1e5af6;--blue2:#3b82f6;--green:#10b981;--amber:#f59e0b;--red:#ef4444;--cyan:#06b6d4;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Outfit',sans-serif;background:#070d1a;color:#e2e8f0;font-size:13px;line-height:1.5;}
+.page{width:210mm;min-height:297mm;margin:0 auto;background:#0a1220;}
+
+.header{background:linear-gradient(135deg,#050b18,#0a1530,#0d1e40);padding:28px 36px 24px;position:relative;overflow:hidden;border-bottom:2px solid rgba(59,130,246,.3);}
+.header::before{content:'';position:absolute;top:-50px;right:-50px;width:220px;height:220px;background:radial-gradient(circle,rgba(239,68,68,.1),transparent 70%);}
+.hrow{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.brand-name{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;background:linear-gradient(135deg,#fff 30%,#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;}
+.brand-sub{font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.doc-badge{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);color:#fca5a5;font-size:9px;font-weight:700;letter-spacing:1.5px;padding:3px 10px;border-radius:4px;text-transform:uppercase;}
+.htitle{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:4px;color:white;line-height:1;margin-bottom:4px;}
+.htitle span{color:var(--red);}
+.hsub{font-size:12px;color:rgba(255,255,255,.42);}
+
+.body{padding:22px 36px 28px;}
+.intro{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-left:4px solid var(--red);border-radius:8px;padding:13px 17px;margin-bottom:20px;font-size:12.5px;color:#fca5a5;line-height:1.65;}
+.intro strong{color:white;}
+
+.stitle{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--blue2);margin-bottom:9px;margin-top:18px;display:flex;align-items:center;gap:6px;}
+.stitle::after{content:'';flex:1;height:1px;background:rgba(59,130,246,.2);}
+
+.check-group{margin-bottom:16px;}
+.check-item{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border:1px solid rgba(59,130,246,.12);border-radius:7px;margin-bottom:4px;background:rgba(255,255,255,.02);}
+.check-item:hover{background:rgba(59,130,246,.05);}
+.check-box{width:18px;height:18px;border:2px solid rgba(59,130,246,.4);border-radius:4px;flex-shrink:0;margin-top:1px;cursor:pointer;}
+.check-box:hover{border-color:var(--green);}
+.check-text{flex:1;font-size:12px;line-height:1.5;}
+.check-text strong{color:var(--blue2);}
+.check-text code{font-family:'DM Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#93c5fd;font-size:10px;padding:1px 5px;border-radius:3px;}
+.check-text .muted{color:#64748b;font-size:11px;}
+
+.table-wrap{overflow-x:auto;margin:10px 0 16px;}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+th{background:rgba(59,130,246,.12);color:var(--blue2);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:7px 10px;text-align:left;border-bottom:1px solid rgba(59,130,246,.2);}
+td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:#94a3b8;}
+td strong{color:#e2e8f0;}
+
+.upsell{background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(59,130,246,.08));border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:16px 18px;margin:16px 0;}
+.upsell-ttl{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--amber);margin-bottom:6px;}
+.upsell-txt{font-size:12px;color:#94a3b8;line-height:1.65;}
+.upsell-txt strong{color:#fbbf24;}
+
+.footer{background:rgba(0,0,0,.3);border-top:1px solid rgba(59,130,246,.15);padding:10px 36px;display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#64748b;}
+.footer strong{color:var(--blue2);}
+.logo-img{width:52px;height:52px;object-fit:contain;flex-shrink:0;}
+.footer-logo{height:32px;object-fit:contain;opacity:.5;}
+.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);pointer-events:none;z-index:0;opacity:.08;}
+.watermark img{width:320px;height:auto;}
+.watermark-label{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:8px;color:#fff;text-align:center;margin-top:8px;}
+.page{position:relative;z-index:1;}
+@media print{body{background:#0a1220;}.page{box-shadow:none;}
+.header,.upsell{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.watermark{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="watermark">
+  <img src="logo-icon.png" alt="">
+  <div class="watermark-label">FIRST FINANCIAL CANADA</div>
+</div>
+<div class="header">
+  <div class="hrow">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <img src="logo-icon.png" class="logo-img" alt="First Financial Canada">
+      <div><div class="brand-name">FIRST&#8209;FIN</div><div class="brand-sub">Operator Console</div></div>
+    </div>
+    <div class="doc-badge">Internal &middot; Do Not Distribute</div>
+  </div>
+  <div class="htitle">NEW TENANT <span>ONBOARDING</span></div>
+  <div class="hsub">Step-by-step checklist for onboarding a new dealer &mdash; follow in order</div>
+</div>
+
+<div class="body">
+
+  <div class="intro">
+    <strong>Before you start:</strong> You need admin access to the FIRST-FIN operator panel and the dealer's email address.
+    The whole process takes about 15 minutes. Have the dealer on the phone if possible.
+  </div>
+
+  <div class="stitle">Phase 1 &mdash; Create the Tenant</div>
+
+  <div class="check-group">
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Open <code>app.firstfinancialcanada.com/admin?token=ChangeMe12345</code></div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Click <strong>+ New Tenant</strong> and fill in: dealer email, display name, dealership name</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Set a <strong>temporary password</strong> (e.g., <code>123456</code>) &mdash; dealer changes it during wizard</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Set subscription status to <strong>Active</strong> (or Trial if applicable)</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Ask the dealer for their <strong>inventory page URL</strong> (e.g., <code>www.stampedeauto.com/inventory</code>) &mdash; you'll need this for domain lock in Phase 3</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Text the dealer their login: <span class="muted">"Your FIRST-FIN platform is ready. Go to app.firstfinancialcanada.com and log in with [email] / [password]"</span></div>
+    </div>
+  </div>
+
+  <div class="stitle">Phase 2 &mdash; Prepare the Extension Package</div>
+
+  <div class="check-group">
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Copy the <strong>generic-dealer-package</strong> folder (from ONBOARDING folder)</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Rename the copy to the dealer's name (e.g., <code>Kenneth - Automaxx</code>)</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Open <strong>README - START HERE.txt</strong> &mdash; no edits needed, it's generic</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Send the folder to the dealer (email zip, USB, Google Drive, etc.)</div>
+    </div>
+  </div>
+
+  <div class="stitle">Phase 3 &mdash; Walk the Dealer Through Setup</div>
+
+  <div class="check-group">
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Login</strong> &mdash; Dealer logs into <code>app.firstfinancialcanada.com</code></div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Wizard</strong> &mdash; Dealer completes setup wizard (name, phone number, password)</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Extension install</strong> &mdash; Walk through: <code>chrome://extensions</code> > Developer Mode > Load unpacked > select firstfin-extension folder</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Extension login</strong> &mdash; Click FIRST-FIN icon in toolbar > log in with platform credentials</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>First scan</strong> &mdash; Go to dealer's website inventory page > click Scan This Page > wait for all vehicles > Sync with Replace</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Lock scraper domain</strong> &mdash; Back in admin panel, click <strong>Domain Lock</strong> on the tenant and enter the dealer's inventory URL domain (e.g., <code>stampedeauto.com</code>). This restricts the scraper to only work on that dealer's website.</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Verify inventory</strong> &mdash; Check Inventory tab in platform shows all vehicles with correct prices and mileage</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text"><strong>Test FB Poster</strong> &mdash; Click FB Poster tab > pick a vehicle > click Auto-Fill Facebook > verify form fills correctly</div>
+    </div>
+  </div>
+
+  <div class="stitle">Phase 4 &mdash; Admin Verification</div>
+
+  <div class="check-group">
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Back in admin panel &mdash; verify tenant shows <strong>ACTIVE</strong> with correct inventory count</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Verify Twilio number is claimed (if applicable)</div>
+    </div>
+    <div class="check-item">
+      <div class="check-box"></div>
+      <div class="check-text">Send dealer the <strong>Dealer Setup Guide</strong> PDF for their records</div>
+    </div>
+  </div>
+
+  <div class="upsell">
+    <div class="upsell-ttl">Upsell: DealerTrack Sync</div>
+    <div class="upsell-txt">
+      Once the dealer is live, mention DealerTrack Sync as an add-on: <strong>"We can connect your DealerTrack account so contacts and deals flow into your CRM automatically. Takes about 15 minutes to set up."</strong>
+      <br><br>
+      Requires: dealer's DealerTrack credentials, the DT Bridge desktop app installed on their computer, and a brief setup call.
+    </div>
+  </div>
+
+  <div class="stitle">Quick Reference</div>
+
+  <div class="table-wrap">
+    <table>
+      <tr><th>Item</th><th>Details</th></tr>
+      <tr><td><strong>Platform URL</strong></td><td>app.firstfinancialcanada.com</td></tr>
+      <tr><td><strong>Admin Panel</strong></td><td>app.firstfinancialcanada.com/admin?token=ChangeMe12345</td></tr>
+      <tr><td><strong>Support Line</strong></td><td>587-306-6133 (call or text)</td></tr>
+      <tr><td><strong>Support Email</strong></td><td>First@FirstFinancialCanada.com</td></tr>
+      <tr><td><strong>Extension Install</strong></td><td>chrome://extensions > Developer Mode > Load unpacked</td></tr>
+      <tr><td><strong>Scan Workflow</strong></td><td>Dealer site > Extension icon > Scan > Replace > Sync</td></tr>
+      <tr><td><strong>FB Poster</strong></td><td>Built into platform (FB Poster tab) &mdash; no bridge or .bat needed</td></tr>
+      <tr><td><strong>DT Sync</strong></td><td>Requires DT Bridge desktop app + dealer DealerTrack login</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<div class="footer">
+  <img src="logo-wide.jpg" class="footer-logo" alt="First Financial Canada Ltd.">
+  <div style="color:var(--red);font-weight:700;letter-spacing:1px;">INTERNAL USE ONLY</div>
+</div>
+
+</div>
+</body>
+</html>
