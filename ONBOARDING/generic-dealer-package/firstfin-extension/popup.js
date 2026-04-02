@@ -415,17 +415,28 @@ async function runScan() {
           const collected = await chrome.scripting.executeScript({
             target: { tabId: currentTab.id },
             func: async (totalPages) => {
-              const VDP_RE = /\/(vehicle-details\/|inventory\/(Used|New)-|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+              // D2C VDP links always have -idNNNN.html — use that to filter out category pages
+              const D2C_VDP_RE = /-id\d+\.html/i;
               const allLinks = new Set();
-              document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              const collectD2cLinks = () => {
+                // Method 1: links from data-vin card elements (most reliable)
+                document.querySelectorAll('div.carImage[data-vin] a[href]').forEach(a => {
+                  if (D2C_VDP_RE.test(a.href)) allLinks.add(a.href);
+                });
+                // Method 2: any link with -idNNN.html pattern
+                document.querySelectorAll('a[href]').forEach(a => {
+                  if (D2C_VDP_RE.test(a.href)) allLinks.add(a.href);
+                });
+              };
+              collectD2cLinks();
               for (let p = 2; p <= totalPages; p++) {
-                // Click the "next" arrow or the page number
-                const nextBtn = document.querySelector('a.next, .paging-next, [class*="next-page"]') ||
-                  [...document.querySelectorAll('a, button, span')].find(el => el.textContent.trim() === '>' || el.textContent.trim() === '›');
+                // D2C uses <button> with text "Next" or page numbers inside .divPaginationBox
+                const nextBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Next') ||
+                  [...document.querySelectorAll('.divPaginationBox:not(.selected) button')][0];
                 if (!nextBtn) break;
                 nextBtn.click();
                 await new Promise(r => setTimeout(r, 3000));
-                document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+                collectD2cLinks();
               }
               return [...allLinks];
             },

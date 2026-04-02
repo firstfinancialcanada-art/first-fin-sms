@@ -399,16 +399,14 @@ function scrapeCurrentPage() {
         }
       });
       if (vdpLinks.length > 0) {
-        // D2C pagination: detect total results and calculate pages
-        // D2C shows "74 Results" or similar text, and uses JS pagination (no real links)
+        // D2C pagination: detect .divPaginationBox buttons or "Next" button
         let d2cTotalPages = 0;
-        const resultsText = document.body.innerText.match(/(\d+)\s*Results/i);
-        if (resultsText) {
-          const totalResults = parseInt(resultsText[1]);
-          const perPage = vdpLinks.length || 36;
-          if (totalResults > perPage) {
-            d2cTotalPages = Math.ceil(totalResults / perPage);
-          }
+        const d2cPageBoxes = document.querySelectorAll('.divPaginationBox');
+        const d2cNextBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Next');
+        if (d2cPageBoxes.length > 1) {
+          d2cTotalPages = d2cPageBoxes.length;
+        } else if (d2cNextBtn) {
+          d2cTotalPages = 2; // at least 2 pages
         }
         return { type: 'listing', links: vdpLinks, pageLinks: [], d2cPagination: d2cTotalPages, vehicaPagination: 0, url: location.href };
       }
