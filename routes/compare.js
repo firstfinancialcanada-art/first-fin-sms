@@ -503,6 +503,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     prefera: 679, northlake: 699, edenpark: 679, iceberg: 679, sda: 659,
   };
 
+      // Prime lenders: low rates, strict LTV, credit-based or high-beacon tiers
+      const primeLenders = new Set(['cibc', 'rbc', 'servus', 'wsleasing']);
+
       const badges = [];
       Object.entries(lenders).forEach(([lid, l]) => {
         const prog = getQualifyingProgram(lid, beacon, tenantRates);
@@ -510,9 +513,11 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         const pMin = profileMin[lid] ?? 0;
         const pMax = profileMax[lid] ?? 850;
         const inProfile = beacon >= pMin && beacon <= pMax;
+        const isPrime = primeLenders.has(lid);
         let label, cls;
 
         if (!l.hard) {
+          // Credit-based lenders (CIBC, RBC) — green if beacon qualifies
           label = beacon >= (pMin || 680) ? `${shortName} ✓` : `${shortName} ✗`;
           cls   = beacon >= (pMin || 680) ? 'badge-green' : 'badge-red';
         } else if (!inProfile) {
@@ -520,12 +525,24 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
           cls   = 'badge-red';
         } else if (prog) {
           label = `${shortName} — ${prog.rate}%`;
-          cls   = beacon >= 680 ? 'badge-green' : beacon >= 600 ? 'badge-amber' : 'badge-orange';
+          if (isPrime) {
+            // Prime lenders: always green when they qualify
+            cls = 'badge-green';
+          } else if (beacon >= 700) {
+            // Subprime lender shown to prime customer: amber (available but not ideal)
+            cls = 'badge-amber';
+          } else if (beacon >= 600) {
+            // Subprime lender in their target range: green
+            cls = 'badge-green';
+          } else {
+            // Deep subprime: orange
+            cls = 'badge-orange';
+          }
         } else {
           label = `${shortName} ✗`;
           cls   = 'badge-red';
         }
-        badges.push({ lid, label, cls, rate: prog ? prog.rate : null });
+        badges.push({ lid, label, cls, rate: prog ? prog.rate : null, prime: isPrime });
       });
 
       res.json({ success: true, badges });
