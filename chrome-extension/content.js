@@ -264,6 +264,19 @@ function parseVdpDetail(url) {
   try { document.documentElement.dataset.ffDebugPhotos = photos.length; } catch(_){}
   try { document.documentElement.dataset.ffDebugFirst = photos[0]?.substring(0, 80) || 'NONE'; } catch(_){}
 
+  // Strategy 1.5: D2C Media sequential photo generation
+  // D2C only puts photo #1 in the HTML; #2-#10+ are loaded by JS.
+  // If we found a d2cmedia URL with /1/, generate /2/ through /10/
+  if (photos.length < 3) {
+    const d2cBase = photos.find(p => /d2cmedia\.ca.*\/1\//i.test(p));
+    if (d2cBase) {
+      for (let n = 2; n <= 10; n++) {
+        const generated = d2cBase.replace(/\/1\//, '/' + n + '/');
+        addPhoto(generated);
+      }
+    }
+  }
+
   // Strategy 2: If gallery had < 3 photos, try all images but filter aggressively
   if (photos.length < 3) {
     document.querySelectorAll('img').forEach(img => {
