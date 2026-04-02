@@ -58,7 +58,10 @@ function parseColor(text) {
   return '';
 }
 function parseMileage(t) {
-  const m = (t || '').replace(/,/g, '').match(/([\d]+)\s*k(?:m|ilometers?)?/i);
+  // Match "Kilometres: 293,874" or "Kilometers: 150000" (label before value)
+  const labeled = (t || '').match(/(?:kilometres?|kilometers?|odometer|mileage)[:\s]+([0-9,]{3,7})/i);
+  if (labeled) { const v = parseInt(labeled[1].replace(/,/g, '')); if (v >= 500 && v <= 400000) return v; }
+  const m = (t || '').replace(/,/g, '').match(/([\d]+)\s*k(?:m|ilometers?|ilometres?)?/i);
   if (m) { const v = parseInt(m[1]); return v > 350000 ? 0 : v; }
   // Also handle plain km numbers like "89000 km"
   const m2 = (t || '').replace(/,/g, '').match(/([\d]+)\s*km/i);
@@ -282,8 +285,8 @@ function parseVdpDetail(url) {
 
   // Targeted mileage — look for odometer/km label then digits
   let mileage = 0;
-  // Pattern 1: "km: 151,000" or "odometer: 89,000 km" (label before value)
-  const odoMatch = body.match(/(?:odometer|mileage|km|kilometers?)[:\s]+([0-9,]{3,7})(?:\s*km)?/i);
+  // Pattern 1: "km: 151,000" or "odometer: 89,000 km" or "Kilometres: 293,874" (label before value)
+  const odoMatch = body.match(/(?:odometer|mileage|km|kilometers?|kilometres?)[:\s]+([0-9,]{3,7})(?:\s*km)?/i);
   if (odoMatch) {
     const v = parseInt(odoMatch[1].replace(/,/g, ''));
     if (v >= 500 && v <= 400000) mileage = v;
