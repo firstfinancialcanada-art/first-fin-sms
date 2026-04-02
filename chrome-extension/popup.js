@@ -375,7 +375,7 @@ async function runScan() {
           const collected = await chrome.scripting.executeScript({
             target: { tabId: currentTab.id },
             func: async (totalPages) => {
-              const VDP_RE = /\/(vehicle-details\/|inventory\/(Used|New)-|vehicle\/|vehicles\/)\d{4}[-\/]/i;
+              const VDP_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
               const allLinks = new Set();
               // Collect from current page
               document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
@@ -404,6 +404,39 @@ async function runScan() {
           pageLinks = []; // All links collected — no need for background pagination crawl
         } catch (e) {
           log(`Could not collect all pages: ${e.message}`, 'err');
+        }
+      }
+
+      // "Load more" / infinite scroll (Algolia, etc.) — click button in foreground until all loaded
+      if (result.hasLoadMore) {
+        log(`Found ${allLinks.length} vehicles — clicking "Load more" to get all...`, 'hi');
+        setProgress(18);
+        try {
+          const collected = await chrome.scripting.executeScript({
+            target: { tabId: currentTab.id },
+            func: async () => {
+              const VDP_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+              // Click "load more" repeatedly until button disappears or no new links
+              for (let i = 0; i < 50; i++) {
+                const btn = document.querySelector('.ais-InfiniteHits-loadMore:not([disabled]), [class*="load-more"]:not([disabled]), [class*="loadmore"]:not([disabled])');
+                if (!btn || btn.disabled) break;
+                btn.click();
+                await new Promise(r => setTimeout(r, 2000));
+              }
+              // Collect all VDP links
+              const allLinks = new Set();
+              document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              return [...allLinks];
+            }
+          });
+          const loadedLinks = collected?.[0]?.result || [];
+          if (loadedLinks.length > allLinks.length) {
+            log(`Loaded ${loadedLinks.length} vehicles total (was ${allLinks.length})`, 'ok');
+            allLinks = loadedLinks;
+          }
+          pageLinks = [];
+        } catch (e) {
+          log(`Could not load all: ${e.message}`, 'err');
         }
       }
 

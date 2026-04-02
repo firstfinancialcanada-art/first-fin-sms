@@ -404,7 +404,7 @@ function scrapeCurrentPage() {
   //    Works for House of Cars, Automaxx, Stampede Auto, D2C Media (Renfrew), and similar sites.
   //    Matches: /inventory/Used-2023-, /vehicle-details/2023-, /vehicle/2023-, /vehicles/2023-
   //    D2C Media: /demos/2026-RAM-, /used/2024-Ford-, /new/inventory/2026-RAM-
-  const VDP_LINK_RE = /\/(inventory\/(Used|New)-|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+  const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
   const isVdpDetail = VDP_LINK_RE.test(location.pathname);
 
   // ── D2C Media (Renfrew Chrysler, etc.) — data-vin cards with rich attributes ──
@@ -665,7 +665,9 @@ function scrapeCurrentPage() {
         const perPage2 = links.length || 16;
         vehicaPagination = totalVehicles2 > perPage2 ? Math.ceil(totalVehicles2 / perPage2) : vehicaPageDivs2.length;
       }
-      return { type: 'listing', links, pageLinks, vehicaPagination, url };
+      // Detect "load more" / infinite scroll buttons (Algolia, etc.)
+      const hasLoadMore = !!document.querySelector('.ais-InfiniteHits-loadMore, [class*="load-more"], [class*="loadmore"]');
+      return { type: 'listing', links, pageLinks, vehicaPagination, hasLoadMore, url };
     }
   }
 
