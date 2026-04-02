@@ -379,10 +379,15 @@ async function runScan() {
               const allLinks = new Set();
               // Collect from current page
               document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
-              // Click through remaining pages
+              // Click through remaining pages using the right arrow (handles sliding window pagination)
               for (let p = 2; p <= totalPages; p++) {
-                const pageDiv = [...document.querySelectorAll('.vehica-pagination__page')].find(d => d.textContent.trim() === String(p));
-                if (!pageDiv) continue;
+                // Try direct page number first, then fall back to right arrow
+                let pageDiv = [...document.querySelectorAll('.vehica-pagination__page')].find(d => d.textContent.trim() === String(p));
+                if (!pageDiv) {
+                  // Page number not visible — use right arrow to advance
+                  pageDiv = document.querySelector('.vehica-pagination__arrow--right');
+                }
+                if (!pageDiv) break;
                 pageDiv.click();
                 await new Promise(r => setTimeout(r, 2500));
                 document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });

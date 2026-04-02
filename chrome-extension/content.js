@@ -495,9 +495,21 @@ function scrapeCurrentPage() {
           if (!seen.has(a.href) && VDP_LINK_RE.test(a.href)) { seen.add(a.href); vdpLinks.push(a.href); }
         });
         if (vdpLinks.length > 0) {
-          // Detect Vehica Vue pagination (total page count) so popup can click through in foreground
+          // Detect Vehica Vue pagination — calculate total pages from vehicle count
+          // Vehica shows a sliding window of page buttons (e.g., 1-7) not all pages
           const vehicaPageDivs = document.querySelectorAll('.vehica-pagination__page');
-          const vehicaPagination = vehicaPageDivs.length > 1 ? vehicaPageDivs.length : 0;
+          let vehicaPagination = 0;
+          if (vehicaPageDivs.length > 1) {
+            // Try to calculate from "N Used cars" text + per-page count
+            const countMatch = document.body.innerText.match(/(\d+)\s*Used\s*(cars|vehicles|trucks)/i);
+            const totalVehicles = countMatch ? parseInt(countMatch[1]) : 0;
+            const perPage = vdpLinks.length || 16;
+            if (totalVehicles > perPage) {
+              vehicaPagination = Math.ceil(totalVehicles / perPage);
+            } else {
+              vehicaPagination = vehicaPageDivs.length;
+            }
+          }
           return { type: 'listing', links: vdpLinks, pageLinks: extraPages, vehicaPagination, url: location.href };
         }
         // No VDP links — use card data as-is (single photos)
@@ -584,7 +596,13 @@ function scrapeCurrentPage() {
         }
       }
       const vehicaPageDivs2 = document.querySelectorAll('.vehica-pagination__page');
-      const vehicaPagination = vehicaPageDivs2.length > 1 ? vehicaPageDivs2.length : 0;
+      let vehicaPagination = 0;
+      if (vehicaPageDivs2.length > 1) {
+        const countMatch2 = document.body.innerText.match(/(\d+)\s*Used\s*(cars|vehicles|trucks)/i);
+        const totalVehicles2 = countMatch2 ? parseInt(countMatch2[1]) : 0;
+        const perPage2 = links.length || 16;
+        vehicaPagination = totalVehicles2 > perPage2 ? Math.ceil(totalVehicles2 / perPage2) : vehicaPageDivs2.length;
+      }
       return { type: 'listing', links, pageLinks, vehicaPagination, url };
     }
   }
