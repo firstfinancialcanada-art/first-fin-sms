@@ -3533,15 +3533,48 @@ function handleFileDrop(e){
 function handleFileSelect(e){ const file = e.target.files[0]; if(file) parseCSVFile(file); }
 
 function parseCSVFile(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  // Excel files — use SheetJS to convert to CSV lines
+  if (ext === 'xlsx' || ext === 'xls') {
+    if (typeof XLSX === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+      s.onload = () => parseExcelContactFile(file);
+      s.onerror = () => toast('Could not load Excel parser');
+      document.head.appendChild(s);
+      return;
+    }
+    return parseExcelContactFile(file);
+  }
+
+  // CSV files — read as text
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result.split('\n');
+    processContactLines(e.target.result.split('\n'));
+  };
+  reader.readAsText(file);
+}
+
+function parseExcelContactFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    const lines = rows.map(r => r.join(','));
+    processContactLines(lines);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processContactLines(lines) {
     const contacts=[], errors=[], seen=new Set();
     const BLACKLIST=['2899688778','12899688778'];
     let start=0;
-    if(lines[0]&&lines[0].toLowerCase().includes('name')) start=1;
+    if(lines[0]&&String(lines[0]).toLowerCase().includes('name')) start=1;
     for(let i=start;i<lines.length;i++){
-      const line=lines[i].trim(); if(!line) continue;
+      const line=String(lines[i]).trim(); if(!line) continue;
       const parts=line.split(',');
       if(parts.length<2){ errors.push('Row '+(i+1)+': Missing data'); continue; }
       const name=parts[0].trim().replace(/"/g,'');

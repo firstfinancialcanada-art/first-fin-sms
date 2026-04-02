@@ -2276,13 +2276,13 @@ select option{background:#0d1526;color:var(--text);}
     <div class="two-col" style="align-items:start;">
       <div>
         <div class="card">
-          <div class="card-title"><i data-lucide="upload" class="ico"></i>Upload CSV List</div>
+          <div class="card-title"><i data-lucide="upload" class="ico"></i>Upload Contact List</div>
           <div class="bulk-zone" id="bulkDropZone" onclick="document.getElementById('csvFileInput').click()" ondrop="handleFileDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-            <div style="font-size:22px;margin-bottom:8px;color:var(--muted);font-weight:700;">CSV</div>
-            <div style="font-weight:700;color:var(--text);">Drop CSV here or click to browse</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Format: Name, Phone (one per row)</div>
+            <div style="font-size:22px;margin-bottom:8px;color:var(--muted);font-weight:700;">CSV / Excel</div>
+            <div style="font-weight:700;color:var(--text);">Drop file here or click to browse</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Format: Name, Phone (one per row) · .csv .xlsx .xls</div>
           </div>
-          <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleFileSelect(event)">
+          <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)">
           <div id="contactPreview" style="display:none;margin-top:12px;">
             <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:6px;" id="contactCountDisplay"></div>
             <div id="contactList" style="font-size:11px;color:var(--muted);max-height:150px;overflow-y:auto;"></div>
