@@ -399,7 +399,18 @@ function scrapeCurrentPage() {
         }
       });
       if (vdpLinks.length > 0) {
-        return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url: location.href };
+        // D2C pagination: detect total results and calculate pages
+        // D2C shows "74 Results" or similar text, and uses JS pagination (no real links)
+        let d2cTotalPages = 0;
+        const resultsText = document.body.innerText.match(/(\d+)\s*Results/i);
+        if (resultsText) {
+          const totalResults = parseInt(resultsText[1]);
+          const perPage = vdpLinks.length || 36;
+          if (totalResults > perPage) {
+            d2cTotalPages = Math.ceil(totalResults / perPage);
+          }
+        }
+        return { type: 'listing', links: vdpLinks, pageLinks: [], d2cPagination: d2cTotalPages, vehicaPagination: 0, url: location.href };
       }
     }
   }

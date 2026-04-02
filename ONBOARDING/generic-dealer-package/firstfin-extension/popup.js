@@ -407,6 +407,41 @@ async function runScan() {
         }
       }
 
+      // D2C Media (Renfrew, etc.) — JS pagination, click next arrow in foreground
+      if (result.d2cPagination && result.d2cPagination > 1) {
+        log(`Found ${allLinks.length} vehicles on page 1 — collecting ${result.d2cPagination} pages...`, 'hi');
+        setProgress(18);
+        try {
+          const collected = await chrome.scripting.executeScript({
+            target: { tabId: currentTab.id },
+            func: async (totalPages) => {
+              const VDP_RE = /\/(vehicle-details\/|inventory\/(Used|New)-|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+              const allLinks = new Set();
+              document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              for (let p = 2; p <= totalPages; p++) {
+                // Click the "next" arrow or the page number
+                const nextBtn = document.querySelector('a.next, .paging-next, [class*="next-page"]') ||
+                  [...document.querySelectorAll('a, button, span')].find(el => el.textContent.trim() === '>' || el.textContent.trim() === '›');
+                if (!nextBtn) break;
+                nextBtn.click();
+                await new Promise(r => setTimeout(r, 3000));
+                document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              }
+              return [...allLinks];
+            },
+            args: [result.d2cPagination]
+          });
+          const d2cLinks = collected?.[0]?.result || [];
+          if (d2cLinks.length > allLinks.length) {
+            log(`Collected ${d2cLinks.length} vehicles across ${result.d2cPagination} pages`, 'ok');
+            allLinks = d2cLinks;
+          }
+          pageLinks = [];
+        } catch (e) {
+          log(`Could not collect all pages: ${e.message}`, 'err');
+        }
+      }
+
       // Delegate multi-VDP crawl to background.js so it survives popup close
       log(`Found ${allLinks.length} vehicle pages — handing off to background...`, 'hi');
       bgScanActive  = true;
