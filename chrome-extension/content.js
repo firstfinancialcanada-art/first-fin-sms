@@ -387,7 +387,7 @@ function scrapeCurrentPage() {
           // Find the VDP link (not Carfax/external)
           let link = url;
           for (const a of card.querySelectorAll('a[href]')) {
-            if (/\/inventory\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
+            if (/\/(inventory|vehicles)\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
           }
           if (link === url) link = card.querySelector('a[href]')?.href || url;
           const img      = card.querySelector('img')?.src || '';
@@ -404,7 +404,14 @@ function scrapeCurrentPage() {
           });
         } catch (_) {}
       });
-      if (vehicles.length > 0) return { type: 'listing_cards', vehicles };
+      // Sunridge has VDP links — use VDP crawl to get full photo galleries
+      if (vehicles.length > 0) {
+        const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
+        if (vdpLinks.length > 0) {
+          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url };
+        }
+        return { type: 'listing_cards', vehicles };
+      }
     }
 
     // Sunridge VDP — parse body text
