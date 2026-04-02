@@ -3600,8 +3600,6 @@ function processContactLines(lines) {
     if(preview) preview.style.display='block';
     document.getElementById('campaignForm').style.display='block';
     toast(contacts.length+' contacts ready');
-  };
-  reader.readAsText(file);
 }
 
 async function launchBulkCampaign(){
