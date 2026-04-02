@@ -64,7 +64,9 @@ function parseMileage(t) {
   return 0;
 }
 function parseFromSlug(url) {
-  const slug   = (url || '').split('/').filter(Boolean).pop() || '';
+  let slug   = (url || '').split('/').filter(Boolean).pop() || '';
+  // Strip .html extension and D2C Media ID suffix (e.g., -id13273287.html)
+  slug = slug.replace(/\.html?$/i, '').replace(/-id\d+$/i, '');
   // Decode URL-encoded chars: + → space, %20 → space, _ → space
   const decoded = slug.replace(/\+/g, ' ').replace(/%20/g, ' ').replace(/_/g, ' ');
   const s      = decoded.replace(/^(used|new|pre-?owned)[- ]/i, '');
@@ -176,7 +178,8 @@ function parseVdpDetail(url) {
     '.gallery-container', '.photo-gallery', '.slider-for', '.main-slider',
     '.slick-slider', '[class*="carousel"]',
     '.vehica-gallery-main', '.vehica-car-gallery', '[class*="vehica-gallery"]',
-    '.swiper-wrapper', '[class*="swiper-container"]'
+    '.swiper-wrapper', '[class*="swiper-container"]',
+    '.advanced-slider', '.slider-main'
   ];
   let galleryEl = null;
   for (const sel of GALLERY_SELS) {
@@ -238,7 +241,7 @@ function parseVdpDetail(url) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
       // Only accept images that look like vehicle photos (large CDN images)
-      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|cdn.*\/(640|800|1024|1280)/i.test(src)) {
+      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|cdn.*\/(640|800|1024|1280)/i.test(src)) {
         addPhoto(src);
       }
     });
@@ -372,10 +375,31 @@ function scrapeCurrentPage() {
   }
 
   // ── 2. Auto-detect VDP listing pages by link pattern ──────────────────
-  //    Works for House of Cars, Automaxx, Stampede Auto, and similar sites.
+  //    Works for House of Cars, Automaxx, Stampede Auto, D2C Media (Renfrew), and similar sites.
   //    Matches: /inventory/Used-2023-, /vehicle-details/2023-, /vehicle/2023-, /vehicles/2023-
-  const VDP_LINK_RE = /\/(inventory\/(Used|New)-|vehicle-details\/|vehicle\/|vehicles\/)\d{4}[-\/]/i;
+  //    D2C Media: /demos/2026-RAM-, /used/2024-Ford-, /new/inventory/2026-RAM-
+  const VDP_LINK_RE = /\/(inventory\/(Used|New)-|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
   const isVdpDetail = VDP_LINK_RE.test(location.pathname);
+
+  // ── D2C Media (Renfrew Chrysler, etc.) — data-vin cards with rich attributes ──
+  if (!isVdpDetail) {
+    const d2cCards = document.querySelectorAll('div.carImage[data-vin][data-make]');
+    if (d2cCards.length >= 2) {
+      // D2C has data attributes on cards + VDP links — use VDP crawl for photos
+      const seen = new Set();
+      const vdpLinks = [];
+      d2cCards.forEach(card => {
+        const link = card.querySelector('a[href]')?.href;
+        if (link && !seen.has(link) && VDP_LINK_RE.test(link)) {
+          seen.add(link);
+          vdpLinks.push(link);
+        }
+      });
+      if (vdpLinks.length > 0) {
+        return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url: location.href };
+      }
+    }
+  }
 
   if (!isVdpDetail) {
     // ── Try listing card extraction first (fast, server-rendered, no JS issues) ─

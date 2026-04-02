@@ -100,7 +100,7 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
           });
           return out;
         },
-        args: ['\\/(inventory\\/(Used|New)-|vehicle-details\\/|vehicle\\/|vehicles\\/)\\d{4}[-\\/]']
+        args: ['\\/(inventory\\/(Used|New)-|vehicle-details\\/|vehicle\\/|vehicles\\/|demos\\/|used\\/|new\\/inventory\\/)\\d{4}[-\\/]']
       });
       const links = results?.[0]?.result || [];
       if (links.length > 0) return links;
