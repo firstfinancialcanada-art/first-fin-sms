@@ -495,8 +495,10 @@ function scrapeCurrentPage() {
           if (!seen.has(a.href) && VDP_LINK_RE.test(a.href)) { seen.add(a.href); vdpLinks.push(a.href); }
         });
         if (vdpLinks.length > 0) {
-          // VDP crawl gets full photos, prices, and details — always prefer it
-          return { type: 'listing', links: vdpLinks, pageLinks: extraPages, url: location.href };
+          // Detect Vehica Vue pagination (total page count) so popup can click through in foreground
+          const vehicaPageDivs = document.querySelectorAll('.vehica-pagination__page');
+          const vehicaPagination = vehicaPageDivs.length > 1 ? vehicaPageDivs.length : 0;
+          return { type: 'listing', links: vdpLinks, pageLinks: extraPages, vehicaPagination, url: location.href };
         }
         // No VDP links — use card data as-is (single photos)
         return { type: 'listing_cards', vehicles: cardVehicles };
@@ -581,7 +583,9 @@ function scrapeCurrentPage() {
           });
         }
       }
-      return { type: 'listing', links, pageLinks, url };
+      const vehicaPageDivs2 = document.querySelectorAll('.vehica-pagination__page');
+      const vehicaPagination = vehicaPageDivs2.length > 1 ? vehicaPageDivs2.length : 0;
+      return { type: 'listing', links, pageLinks, vehicaPagination, url };
     }
   }
 
