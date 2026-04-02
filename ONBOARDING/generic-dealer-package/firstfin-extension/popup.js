@@ -407,49 +407,46 @@ async function runScan() {
         }
       }
 
-      // D2C Media (Renfrew, etc.) — JS pagination, click next arrow in foreground
+      // D2C Media (Renfrew, etc.) — pagination causes full page navigation, so
+      // orchestrate from popup: click next, wait for load, scrape, repeat
       if (result.d2cPagination && result.d2cPagination > 1) {
         log(`Found ${allLinks.length} vehicles on page 1 — collecting ${result.d2cPagination} pages...`, 'hi');
         setProgress(18);
+        const allD2cLinks = new Set(allLinks);
         try {
-          const collected = await chrome.scripting.executeScript({
-            target: { tabId: currentTab.id },
-            func: async (totalPages) => {
-              // D2C VDP links always have -idNNNN.html — use that to filter out category pages
-              const D2C_VDP_RE = /-id\d+\.html/i;
-              const allLinks = new Set();
-              const collectD2cLinks = () => {
-                // Method 1: links from data-vin card elements (most reliable)
-                document.querySelectorAll('div.carImage[data-vin] a[href]').forEach(a => {
-                  if (D2C_VDP_RE.test(a.href)) allLinks.add(a.href);
-                });
-                // Method 2: any link with -idNNN.html pattern
-                document.querySelectorAll('a[href]').forEach(a => {
-                  if (D2C_VDP_RE.test(a.href)) allLinks.add(a.href);
-                });
-              };
-              collectD2cLinks();
-              for (let p = 2; p <= totalPages; p++) {
-                // D2C uses <button> with text "Next" or page numbers inside .divPaginationBox
+          for (let p = 2; p <= result.d2cPagination; p++) {
+            // Click next page button in the foreground tab
+            await chrome.scripting.executeScript({
+              target: { tabId: currentTab.id },
+              func: () => {
                 const nextBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Next') ||
                   [...document.querySelectorAll('.divPaginationBox:not(.selected) button')][0];
-                if (!nextBtn) break;
-                nextBtn.click();
-                await new Promise(r => setTimeout(r, 3000));
-                collectD2cLinks();
+                if (nextBtn) nextBtn.click();
               }
-              return [...allLinks];
-            },
-            args: [result.d2cPagination]
-          });
-          const d2cLinks = collected?.[0]?.result || [];
-          if (d2cLinks.length > allLinks.length) {
-            log(`Collected ${d2cLinks.length} vehicles across ${result.d2cPagination} pages`, 'ok');
-            allLinks = d2cLinks;
+            });
+            // Wait for D2C page navigation + render
+            await new Promise(r => setTimeout(r, 4000));
+            // Collect VDP links from the new page
+            const pageResult = await chrome.scripting.executeScript({
+              target: { tabId: currentTab.id },
+              func: () => {
+                const re = /-id\d+\.html/i;
+                return [...new Set([...document.querySelectorAll('a[href]')].filter(a => re.test(a.href)).map(a => a.href))];
+              }
+            });
+            const newLinks = pageResult?.[0]?.result || [];
+            newLinks.forEach(l => allD2cLinks.add(l));
+            log(`  Page ${p}: +${newLinks.length} vehicles (${allD2cLinks.size} total)`, '');
+          }
+          if (allD2cLinks.size > allLinks.length) {
+            allLinks = [...allD2cLinks];
+            log(`Collected ${allLinks.length} vehicles across ${result.d2cPagination} pages`, 'ok');
           }
           pageLinks = [];
         } catch (e) {
           log(`Could not collect all pages: ${e.message}`, 'err');
+          allLinks = [...allD2cLinks]; // use what we got
+          pageLinks = [];
         }
       }
 
