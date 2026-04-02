@@ -289,7 +289,15 @@ function parseVdpDetail(url) {
     });
   }
 
-  // Strategy 3: Still nothing? Take any non-junk image over 200px wide
+  // Strategy 3: Parse raw HTML source for photo URLs (background tabs may not render JS galleries)
+  if (photos.length < 3) {
+    const rawHtml = document.documentElement.innerHTML || '';
+    const rawUrls = rawHtml.match(/https?:\/\/[^"'\s<>]*(?:autotradercdn|homenet|dealerphoto|d2cmedia|imagescdn)[^"'\s<>]*\.(?:jpg|jpeg|png|webp)/gi) || [];
+    const uniqueRaw = [...new Set(rawUrls)];
+    uniqueRaw.forEach(src => addPhoto(src));
+  }
+
+  // Strategy 4: Still nothing? Take any non-junk image over 200px wide
   if (photos.length < 3) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
