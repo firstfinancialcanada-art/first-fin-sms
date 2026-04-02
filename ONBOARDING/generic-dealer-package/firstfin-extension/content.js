@@ -314,14 +314,36 @@ function parseVdpDetail(url) {
   const vehicleYear = slug.year || parseYear(title) || 0;
   if (price > 0 && price >= 1990 && price <= 2030 && Math.abs(price - vehicleYear) <= 2) price = 0;
 
+  // Fallback: if slug make is numeric-only or empty, parse from page title or h1
+  let finalMake  = slug.make  || '';
+  let finalModel = slug.model || '';
+  let finalTrim  = slug.trim  || '';
+  if (!finalMake || /^\d+$/.test(finalMake)) {
+    // Try page title: "2021 Tesla Model 3 Standard Plus - Navi / Glassroof - Luminous Luxury"
+    const pageTitle = (document.title || '').replace(/\s*[-|].*dealer.*$/i, '').replace(/\s*[-|]\s*[A-Z][a-z]+\s+[A-Z]/,'').trim();
+    const titleSlug = parseFromSlug('/' + pageTitle.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '') + '/');
+    if (titleSlug.make && !/^\d+$/.test(titleSlug.make)) {
+      finalMake  = titleSlug.make;
+      finalModel = titleSlug.model || finalModel;
+      finalTrim  = titleSlug.trim  || finalTrim;
+    }
+    // Also try h1 if available
+    if (!finalMake || /^\d+$/.test(finalMake)) {
+      const titleParts = (title || pageTitle).replace(/^(used|new|pre-?owned)\s+/i, '').replace(/^\d{4}\s+/, '').split(/\s+/);
+      if (titleParts[0]) finalMake  = normMake(titleParts[0]);
+      if (titleParts[1]) finalModel = titleWord(titleParts[1]);
+      if (titleParts.length > 2) finalTrim = titleParts.slice(2).map(p => titleWord(p)).join(' ');
+    }
+  }
+
   return {
     stock, vin, type,
     mileage,
     price,
     year:      vehicleYear || 2020,
-    make:      slug.make  || '',
-    model:     slug.model || '',
-    trim:      slug.trim  || '',
+    make:      finalMake,
+    model:     finalModel,
+    trim:      finalTrim,
     color,
     condition: 'Used',
     carfax:    0,
