@@ -224,6 +224,26 @@ function waitForTabLoad(tabId, timeoutMs=12000) {
 
 // Send SCRAPE message to content.js, auto-inject on first failure
 async function scrapeTab(tabId) {
+  // Try server-side parsing first (IP protected)
+  try {
+    const [{ result: capture }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => ({ html: document.documentElement.outerHTML, url: location.href })
+    });
+    if (capture?.html && capture.html.length > 500) {
+      const resp = await authFetch('/api/desk/scrape-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: capture.html, url: capture.url })
+      });
+      const data = await resp.json();
+      if (data.ok && data.result) return { ok: true, result: data.result };
+    }
+  } catch (e) {
+    console.log('[FF] Server scrape failed, using client fallback:', e.message);
+  }
+
+  // Fallback: client-side parsing via content.js
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });

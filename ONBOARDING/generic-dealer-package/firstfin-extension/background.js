@@ -53,6 +53,31 @@ function isRealVehicle(v) {
 }
 
 async function scrapeTabBg(tabId) {
+  // Try server-side parsing first (IP protected, better for JS-heavy sites)
+  try {
+    const token = (await chrome.storage.local.get('token')).token;
+    if (token) {
+      const [{ result: capture }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => ({ html: document.documentElement.outerHTML, url: location.href })
+      });
+      if (capture?.html && capture.html.length > 500) {
+        const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ html: capture.html, url: capture.url })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.ok && data.result?.vehicles?.length) return data;
+        }
+      }
+    }
+  } catch (e) {
+    console.log('[FF] Server scrape failed, falling back to client:', e.message);
+  }
+
+  // Fallback: client-side parsing via content.js
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
