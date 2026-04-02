@@ -224,12 +224,9 @@ function waitForTabLoad(tabId, timeoutMs=12000) {
 
 // Send SCRAPE message to content.js, auto-inject on first failure
 async function scrapeTab(tabId) {
-  // Step 1: Capture raw HTML from the page
-  let capture;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      capture = await chrome.tabs.sendMessage(tabId, { type: 'CAPTURE_HTML' });
-      break;
+      return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
     } catch (e) {
       if (attempt === 0) {
         try {
@@ -241,17 +238,6 @@ async function scrapeTab(tabId) {
       }
     }
   }
-  if (!capture?.html) throw new Error('Could not capture page HTML');
-
-  // Step 2: Send HTML to server for parsing (all scraping logic is server-side)
-  const resp = await authFetch('/api/desk/scrape-page', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ html: capture.html, url: capture.url })
-  });
-  const data = await resp.json();
-  if (!data.ok) throw new Error(data.error || 'Server scrape failed');
-  return { ok: true, result: data.result };
 }
 
 // ── Background scan progress handler ─────────────────────────────────────
