@@ -47,7 +47,7 @@ function waitForTabLoad(tabId, timeoutMs = 14000) {
 }
 
 function isRealVehicle(v) {
-  const junk = ['for sale in', 'under $', 'house of cars', 'inventory', 'alberta', 'calgary'];
+  const junk = ['for sale in', 'under $', 'house of cars', 'inventory'];
   const tl   = (v._title || '').toLowerCase();
   return !junk.some(j => tl.includes(j)) && (v.year || 0) >= 1950;
 }
