@@ -356,10 +356,23 @@ async function runScan() {
     setProgress(8);
     log('Scanning page for vehicles...', 'hi');
 
-    const response = await scrapeTab(currentTab.id);
+    let response = await scrapeTab(currentTab.id);
     if (!response || !response.ok) throw new Error(response?.error || 'Scraper returned no data');
 
-    const result = response.result;
+    let result = response.result;
+
+    // Retry for AJAX-rendered pages (Algolia, etc.) — if very few results, wait and re-scrape
+    if ((!result.links || result.links.length < 3) && (!result.vehicles || result.vehicles.length < 3)) {
+      for (let retry = 0; retry < 3; retry++) {
+        log('Waiting for page to finish loading...', '');
+        await new Promise(r => setTimeout(r, 2500));
+        response = await scrapeTab(currentTab.id);
+        if (response?.ok) result = response.result;
+        const count = (result.links?.length || 0) + (result.vehicles?.length || 0);
+        if (count >= 3) break;
+      }
+    }
+
     setProgress(15);
 
     if (result.type === 'listing' && result.links?.length > 0) {
