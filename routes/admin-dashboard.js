@@ -427,6 +427,22 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     }
   });
 
+  // ── POST /api/admin/wipe-inventory/:email — delete only inventory for a user ──
+  app.post('/api/admin/wipe-inventory/:email', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const u = await client.query('SELECT id FROM desk_users WHERE email = $1', [req.params.email]);
+      if (!u.rows.length) return res.status(404).json({ success: false, error: 'user not found' });
+      const uid = u.rows[0].id;
+      const result = await client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]);
+      res.json({ success: true, deleted: result.rowCount, message: `Wiped ${result.rowCount} inventory items for ${req.params.email}` });
+    } catch(e) {
+      res.status(500).json({ success: false, error: e.message });
+    } finally {
+      client.release();
+    }
+  });
+
   // ── GET /api/admin/system-status ──────────────────────────
   // ── TENANT HEALTH DASHBOARD ──────────────────────────────────────
   // Returns per-tenant usage stats, churn risk, feature adoption
