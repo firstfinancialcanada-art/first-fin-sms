@@ -426,14 +426,9 @@ function scrapeCurrentPage() {
           });
         } catch (_) {}
       });
-      // Use VDP crawl for full photo galleries — card data only has 1 thumbnail
-      if (vehicles.length > 0) {
-        const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
-        if (vdpLinks.length > 0) {
-          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url };
-        }
-        return { type: 'listing_cards', vehicles };
-      }
+      // Return card data directly — Sunridge VDP pages don't render prices/photos
+      // in background tabs (Convertus JS-dependent). Card data has correct internet prices.
+      if (vehicles.length > 0) return { type: 'listing_cards', vehicles };
     }
 
     // Sunridge VDP — parse body text
