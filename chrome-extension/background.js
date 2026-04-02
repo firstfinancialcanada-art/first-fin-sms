@@ -92,15 +92,20 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
     for (let attempt = 0; attempt < 3; attempt++) {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
-        func: (re_src) => {
-          const re = new RegExp(re_src, 'i');
+        func: () => {
           const seen = new Set(); const out = [];
+          // D2C-specific: links with -idNNN.html (most reliable for D2C pages)
+          const d2cRe = /-id\d+\.html/i;
+          const vdpRe = /\/(inventory\/(Used|New)-|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
           document.querySelectorAll('a[href]').forEach(a => {
-            if (!seen.has(a.href) && re.test(a.href)) { seen.add(a.href); out.push(a.href); }
+            if (!seen.has(a.href) && (d2cRe.test(a.href) || vdpRe.test(a.href))) {
+              // For D2C: skip category pages (no -id suffix)
+              if (/(demos|used|new\/inventory)\/\d{4}-/i.test(a.href) && !d2cRe.test(a.href)) return;
+              seen.add(a.href); out.push(a.href);
+            }
           });
           return out;
-        },
-        args: ['\\/(inventory\\/(Used|New)-|vehicle-details\\/|vehicle\\/|vehicles\\/|demos\\/|used\\/|new\\/inventory\\/)\\d{4}[-\\/]']
+        }
       });
       const links = results?.[0]?.result || [];
       if (links.length > 0) return links;

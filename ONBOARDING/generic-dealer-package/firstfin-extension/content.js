@@ -399,16 +399,19 @@ function scrapeCurrentPage() {
         }
       });
       if (vdpLinks.length > 0) {
-        // D2C pagination: detect .divPaginationBox buttons or "Next" button
-        let d2cTotalPages = 0;
+        // D2C pagination: construct page URLs by modifying the filterid param
+        // D2C uses filterid=...qN... where N is the 0-based page index
         const d2cPageBoxes = document.querySelectorAll('.divPaginationBox');
-        const d2cNextBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Next');
+        const d2cPageLinks = [];
         if (d2cPageBoxes.length > 1) {
-          d2cTotalPages = d2cPageBoxes.length;
-        } else if (d2cNextBtn) {
-          d2cTotalPages = 2; // at least 2 pages
+          const curUrl = location.href;
+          // D2C filterid contains 'q0' for page 1, 'q1' for page 2, etc.
+          for (let p = 1; p < d2cPageBoxes.length; p++) {
+            const pageUrl = curUrl.replace(/q\d+/, 'q' + p);
+            if (pageUrl !== curUrl) d2cPageLinks.push(pageUrl);
+          }
         }
-        return { type: 'listing', links: vdpLinks, pageLinks: [], d2cPagination: d2cTotalPages, vehicaPagination: 0, url: location.href };
+        return { type: 'listing', links: vdpLinks, pageLinks: d2cPageLinks, vehicaPagination: 0, url: location.href };
       }
     }
   }
