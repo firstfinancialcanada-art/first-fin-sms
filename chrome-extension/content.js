@@ -197,11 +197,13 @@ function parseVdpDetail(url) {
 
   function addPhoto(src) {
     if (!src || src.length < 20) return;
-    if (/logo|icon|placeholder|svg|badge|carfax|equifax|sprite|favicon/i.test(src)) return;
+    if (/logo|icon|placeholder|svg|badge|carfax|equifax|sprite|favicon|certified\.png/i.test(src)) return;
     // Skip small compressed thumbnails (e.g., 300x300, 150x150 in URL)
     if (/compressed\/\d+x\d+/i.test(src) || /\/\d+x\d+_/i.test(src)) return;
     // Skip known "similar vehicles" CDN patterns
     if (/foxdealer\.com.*compressed/i.test(src)) return;
+    // Skip D2C "similar vehicles" thumbnails (URL has /T/ instead of /1/, /2/ etc.)
+    if (/d2cmedia\.ca.*\/T\//i.test(src)) return;
     const clean = src.replace(/-\d+x\d+(\.\w+)$/, '$1');
     if (clean.startsWith('http') && !seen.has(clean)) { seen.add(clean); photos.push(clean); }
   }
