@@ -53,31 +53,6 @@ function isRealVehicle(v) {
 }
 
 async function scrapeTabBg(tabId) {
-  // Try server-side parsing first (IP protected, better for JS-heavy sites)
-  try {
-    const token = (await chrome.storage.local.get('token')).token;
-    if (token) {
-      const [{ result: capture }] = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: () => ({ html: document.documentElement.outerHTML, url: location.href })
-      });
-      if (capture?.html && capture.html.length > 500) {
-        const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ html: capture.html, url: capture.url })
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.ok && data.result?.vehicles?.length) return data;
-        }
-      }
-    }
-  } catch (e) {
-    console.log('[FF] Server scrape failed, falling back to client:', e.message);
-  }
-
-  // Fallback: client-side parsing via content.js
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
@@ -142,7 +117,7 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
+async function runBackgroundScan(links, pageLinks = []) {
   activeScan = {
     status:  'running',
     total:   links.length,
@@ -193,13 +168,7 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
         const vResp = await scrapeTabBg(bgTab.id);
 
         if (vResp?.result?.vehicles?.length) {
-          let v = vResp.result.vehicles[0];
-          // If card data was provided, use it for price/mileage/VIN and only take photos from VDP
-          if (cardVehicles && cardVehicles[i]) {
-            const card = cardVehicles[i];
-            const vdpPhotos = v._photos || [];
-            v = { ...card, _photos: vdpPhotos.length > 0 ? vdpPhotos : (card._photos || []) };
-          }
+          const v = vResp.result.vehicles[0];
           if (isRealVehicle(v)) {
             activeScan.vehicles.push(v);
             const photoCount = v._photos?.length || 0;
@@ -209,13 +178,6 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
             activeScan.log.push({ cls: '',
               text: `[${i+1}/${links.length}] ⏭ ${label} (skipped)` });
           }
-        } else if (cardVehicles && cardVehicles[i]) {
-          // VDP failed but we have card data — use it with card thumbnail
-          const v = cardVehicles[i];
-          activeScan.vehicles.push(v);
-          const photoCount = v._photos?.length || 0;
-          activeScan.log.push({ cls: 'ok',
-            text: `[${i+1}/${links.length}] ✓ ${v.year} ${v.make} ${v.model} — ${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()} · 📷${photoCount} (card)` });
         } else {
           activeScan.log.push({ cls: '',
             text: `[${i+1}/${links.length}] ⏭ ${label} (no data)` });
@@ -266,7 +228,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'START_SCAN') {
-    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null);
+    runBackgroundScan(msg.links, msg.pageLinks || []); // fire-and-forget; progress via SCAN_PROGRESS broadcasts
     sendResponse({ ok: true });
     return false;
   }

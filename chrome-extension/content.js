@@ -140,10 +140,9 @@ function parseVdpDetail(url) {
   // Priority 1: VDP-specific sale price selectors (avoids nav/category "Starting at" prices)
   const PRICE_SELS = [
     '#carPrice', '.priceDivPrice',
-    '.pricing-group__final-price', '[class*="price-block__price--lg"]',
     '.finalPrice', '.vdpPricing', '.sale-price', '.salePrice',
     '.vehicle-price', '.listing-price', '.price-current',
-    '[class*="salePrice"]', '[class*="finalPrice"]', '[class*="internet-price"]'
+    '[class*="salePrice"]', '[class*="finalPrice"]'
   ];
   for (const sel of PRICE_SELS) {
     const el = document.querySelector(sel);
@@ -156,9 +155,9 @@ function parseVdpDetail(url) {
       if (p >= 1000) { price = p; break; }
     }
   }
-  // Priority 2: "Sale Price" or "Internet Price" text in body (handles line breaks between $ and number)
+  // Priority 2: "Sale Price" text anywhere in the body
   if (!price) {
-    const saleM = body.match(/(?:sale|internet|final|cash)\s*price[\s:$]*\$?\s*([\d,]+)/i);
+    const saleM = body.match(/sale\s*price[:\s$]*\$?([\d,]+)/i);
     if (saleM) price = parseInt(saleM[1].replace(/,/g, ''));
   }
   // Priority 3: generic price element (but skip nav/category elements)
@@ -265,19 +264,6 @@ function parseVdpDetail(url) {
   try { document.documentElement.dataset.ffDebugPhotos = photos.length; } catch(_){}
   try { document.documentElement.dataset.ffDebugFirst = photos[0]?.substring(0, 80) || 'NONE'; } catch(_){}
 
-  // Strategy 1.5: D2C Media sequential photo generation
-  // D2C only puts photo #1 in the HTML; #2-#10+ are loaded by JS.
-  // If we found a d2cmedia URL with /1/, generate /2/ through /10/
-  if (photos.length < 3) {
-    const d2cBase = photos.find(p => /d2cmedia\.ca.*\/1\//i.test(p));
-    if (d2cBase) {
-      for (let n = 2; n <= 10; n++) {
-        const generated = d2cBase.replace(/\/1\//, '/' + n + '/');
-        addPhoto(generated);
-      }
-    }
-  }
-
   // Strategy 2: If gallery had < 3 photos, try all images but filter aggressively
   if (photos.length < 3) {
     document.querySelectorAll('img').forEach(img => {
@@ -289,15 +275,7 @@ function parseVdpDetail(url) {
     });
   }
 
-  // Strategy 3: Parse raw HTML source for photo URLs (background tabs may not render JS galleries)
-  if (photos.length < 3) {
-    const rawHtml = document.documentElement.innerHTML || '';
-    const rawUrls = rawHtml.match(/https?:\/\/[^"'\s<>]*(?:autotradercdn|homenet|dealerphoto|d2cmedia|imagescdn)[^"'\s<>]*\.(?:jpg|jpeg|png|webp)/gi) || [];
-    const uniqueRaw = [...new Set(rawUrls)];
-    uniqueRaw.forEach(src => addPhoto(src));
-  }
-
-  // Strategy 4: Still nothing? Take any non-junk image over 200px wide
+  // Strategy 3: Still nothing? Take any non-junk image over 200px wide
   if (photos.length < 3) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
@@ -409,7 +387,7 @@ function scrapeCurrentPage() {
           // Find the VDP link (not Carfax/external)
           let link = url;
           for (const a of card.querySelectorAll('a[href]')) {
-            if (/\/(inventory|vehicles)\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
+            if (/\/inventory\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
           }
           if (link === url) link = card.querySelector('a[href]')?.href || url;
           const img      = card.querySelector('img')?.src || '';
@@ -426,15 +404,7 @@ function scrapeCurrentPage() {
           });
         } catch (_) {}
       });
-      // Return card data with VDP links for photo-only crawl.
-      // Card data has correct internet prices. VDP crawl adds photos.
-      if (vehicles.length > 0) {
-        const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
-        if (vdpLinks.length > 0) {
-          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url, cardVehicles: vehicles };
-        }
-        return { type: 'listing_cards', vehicles };
-      }
+      if (vehicles.length > 0) return { type: 'listing_cards', vehicles };
     }
 
     // Sunridge VDP — parse body text

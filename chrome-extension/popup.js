@@ -224,42 +224,6 @@ function waitForTabLoad(tabId, timeoutMs=12000) {
 
 // Send SCRAPE message to content.js, auto-inject on first failure
 async function scrapeTab(tabId) {
-  // Try server-side parsing first (IP protected)
-  try {
-    // Scroll through the page to trigger lazy-loaded content (Convertus, etc.)
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: async () => {
-        const h = document.body.scrollHeight;
-        // Scroll in chunks to trigger intersection observers
-        for (let y = 0; y <= h; y += window.innerHeight) {
-          window.scrollTo(0, y);
-          await new Promise(r => setTimeout(r, 300));
-        }
-        window.scrollTo(0, h);
-        await new Promise(r => setTimeout(r, 1000));
-        window.scrollTo(0, 0);
-      }
-    });
-    await new Promise(r => setTimeout(r, 500));
-    const [{ result: capture }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => ({ html: document.documentElement.outerHTML, url: location.href })
-    });
-    if (capture?.html && capture.html.length > 500) {
-      const resp = await authFetch('/api/desk/scrape-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: capture.html, url: capture.url })
-      });
-      const data = await resp.json();
-      if (data.ok && data.result) return { ok: true, result: data.result };
-    }
-  } catch (e) {
-    console.log('[FF] Server scrape failed, using client fallback:', e.message);
-  }
-
-  // Fallback: client-side parsing via content.js
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
@@ -494,7 +458,7 @@ async function runScan() {
       bgScanActive  = true;
       bgLogRendered = 0;
 
-      chrome.runtime.sendMessage({ type: 'START_SCAN', links: allLinks, pageLinks, cardVehicles: result.cardVehicles || null })
+      chrome.runtime.sendMessage({ type: 'START_SCAN', links: allLinks, pageLinks })
         .catch(() => {
           bgScanActive = false;
           log('Could not start background scan — try again.', 'err');
