@@ -405,7 +405,14 @@ function scrapeCurrentPage() {
           });
         } catch (_) {}
       });
-      if (vehicles.length > 0) return { type: 'listing_cards', vehicles };
+      // VDP crawl for photos + cardVehicles for correct prices
+      if (vehicles.length > 0) {
+        const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
+        if (vdpLinks.length > 0) {
+          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url, cardVehicles: vehicles };
+        }
+        return { type: 'listing_cards', vehicles };
+      }
     }
 
     // Sunridge VDP — parse body text

@@ -153,7 +153,7 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-async function runBackgroundScan(links, pageLinks = []) {
+async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
   activeScan = {
     status:  'running',
     total:   links.length,
@@ -204,7 +204,13 @@ async function runBackgroundScan(links, pageLinks = []) {
         const vResp = await scrapeTabBg(bgTab.id);
 
         if (vResp?.result?.vehicles?.length) {
-          const v = vResp.result.vehicles[0];
+          let v = vResp.result.vehicles[0];
+          // If card data provided, use it for price/mileage/VIN — only take photos from VDP
+          if (cardVehicles && cardVehicles[i]) {
+            const card = cardVehicles[i];
+            const vdpPhotos = v._photos || [];
+            v = { ...card, _photos: vdpPhotos.length > (card._photos?.length || 0) ? vdpPhotos : (card._photos || []) };
+          }
           if (isRealVehicle(v)) {
             activeScan.vehicles.push(v);
             const photoCount = v._photos?.length || 0;
@@ -214,6 +220,13 @@ async function runBackgroundScan(links, pageLinks = []) {
             activeScan.log.push({ cls: '',
               text: `[${i+1}/${links.length}] ⏭ ${label} (skipped)` });
           }
+        } else if (cardVehicles && cardVehicles[i]) {
+          // VDP failed but card data exists — use card data
+          const v = cardVehicles[i];
+          activeScan.vehicles.push(v);
+          const photoCount = v._photos?.length || 0;
+          activeScan.log.push({ cls: 'ok',
+            text: `[${i+1}/${links.length}] ✓ ${v.year} ${v.make} ${v.model} — ${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()} · 📷${photoCount} (card)` });
         } else {
           activeScan.log.push({ cls: '',
             text: `[${i+1}/${links.length}] ⏭ ${label} (no data)` });
@@ -264,7 +277,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'START_SCAN') {
-    runBackgroundScan(msg.links, msg.pageLinks || []); // fire-and-forget; progress via SCAN_PROGRESS broadcasts
+    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null);
     sendResponse({ ok: true });
     return false;
   }
