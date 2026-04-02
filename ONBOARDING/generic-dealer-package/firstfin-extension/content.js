@@ -110,8 +110,10 @@ function parseFromSlug(url) {
   }
 
   // Strip trailing WordPress duplicate slug suffix (e.g., -2, -3 in /2018-ram-1500-2/)
+  // But NOT if preceding part is "Model" (Tesla Model 3, Model Y, Model S, Model X)
   if (parts.length > 2 && /^\d{1,2}$/.test(parts[parts.length - 1].trim()) &&
-      !/^\d{3,}$/.test(parts[parts.length - 1].trim())) {
+      !/^\d{3,}$/.test(parts[parts.length - 1].trim()) &&
+      !/^model$/i.test(parts[parts.length - 2]?.trim())) {
     parts.pop();
   }
 
@@ -331,8 +333,14 @@ function parseVdpDetail(url) {
     if (!finalMake || /^\d+$/.test(finalMake)) {
       const titleParts = (title || pageTitle).replace(/^(used|new|pre-?owned)\s+/i, '').replace(/^\d{4}\s+/, '').split(/\s+/);
       if (titleParts[0]) finalMake  = normMake(titleParts[0]);
-      if (titleParts[1]) finalModel = titleWord(titleParts[1]);
-      if (titleParts.length > 2) finalTrim = titleParts.slice(2).map(p => titleWord(p)).join(' ');
+      // Handle "Model 3", "Model Y", "Model S", "Model X" as a single model name
+      if (titleParts[1] && /^model$/i.test(titleParts[1]) && titleParts[2]) {
+        finalModel = titleParts[1] + ' ' + titleParts[2];
+        if (titleParts.length > 3) finalTrim = titleParts.slice(3).map(p => titleWord(p)).join(' ');
+      } else {
+        if (titleParts[1]) finalModel = titleWord(titleParts[1]);
+        if (titleParts.length > 2) finalTrim = titleParts.slice(2).map(p => titleWord(p)).join(' ');
+      }
     }
   }
 
