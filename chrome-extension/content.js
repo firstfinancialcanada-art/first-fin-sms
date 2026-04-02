@@ -404,14 +404,7 @@ function scrapeCurrentPage() {
           });
         } catch (_) {}
       });
-      // Sunridge has VDP links — use VDP crawl to get full photo galleries
-      if (vehicles.length > 0) {
-        const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
-        if (vdpLinks.length > 0) {
-          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url };
-        }
-        return { type: 'listing_cards', vehicles };
-      }
+      if (vehicles.length > 0) return { type: 'listing_cards', vehicles };
     }
 
     // Sunridge VDP — parse body text
