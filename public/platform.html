@@ -3131,6 +3131,7 @@ async function startLoginBuy() {
     <div class="fbp-sep"></div>
     <div class="fbp-sorts">
       <button class="fbp-sort active" onclick="fbpSort('cheapest',this)">Cheapest</button>
+      <button class="fbp-sort" onclick="fbpSort('premium',this)">Premium</button>
       <button class="fbp-sort" onclick="fbpSort('newest',this)">Newest</button>
       <button class="fbp-sort" onclick="fbpSort('default',this)">Listed</button>
     </div>
@@ -3177,6 +3178,7 @@ async function startLoginBuy() {
               <input type="text" id="fbp-search" placeholder="Search..." oninput="fbpFilter()" style="flex:1;padding:3px 7px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Outfit',sans-serif;font-size:9px;outline:none;">
               <div class="fbp-sorts" style="gap:3px;">
                 <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:8px;padding:2px 6px;">$</button>
+                <button class="fbp-sort" onclick="fbpSort('premium',this)" style="font-size:8px;padding:2px 6px;">$$$</button>
                 <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:8px;padding:2px 6px;">New</button>
               </div>
             </div>
@@ -3362,6 +3364,7 @@ async function startLoginBuy() {
       // queue view — unposted only, capped at daily limit
       list = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
       if (fbpSort_ === 'cheapest') list.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+      else if (fbpSort_ === 'premium') list.sort((a,b) => (parseInt(b.price)||0)-(parseInt(a.price)||0));
       else if (fbpSort_ === 'newest') list.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
       list = list.slice(0, slots);
     }
@@ -3369,6 +3372,7 @@ async function startLoginBuy() {
     // Apply sort to all/posted views too
     if (fbpView_ !== 'queue') {
       if (fbpSort_ === 'cheapest') list.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
+      else if (fbpSort_ === 'premium') list.sort((a,b) => (parseInt(b.price)||0)-(parseInt(a.price)||0));
       else if (fbpSort_ === 'newest') list.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
     }
 
