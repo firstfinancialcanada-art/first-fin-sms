@@ -1,6 +1,8 @@
 // content.js — FIRST-FIN Inventory Importer v2.3
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
+if (window.__FIRSTFIN_LOADED) { /* already injected — skip duplicate */ } else {
+window.__FIRSTFIN_LOADED = true;
 
 // ── Bridge relay (for platform page — bypasses Chrome PNA restrictions) ───
 window.addEventListener('message', (event) => {
@@ -121,6 +123,7 @@ function parseVdpDetail(url) {
   let price = 0;
   // Priority 1: VDP-specific sale price selectors (avoids nav/category "Starting at" prices)
   const PRICE_SELS = [
+    '#carPrice', '.priceDivPrice',
     '.finalPrice', '.vdpPricing', '.sale-price', '.salePrice',
     '.vehicle-price', '.listing-price', '.price-current',
     '[class*="salePrice"]', '[class*="finalPrice"]'
@@ -747,3 +750,5 @@ if (location.hostname === 'app.firstfinancialcanada.com') {
     }
   });
 }
+
+} // end __FIRSTFIN_LOADED guard
