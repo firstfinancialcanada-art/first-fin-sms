@@ -340,8 +340,8 @@ async function runScan() {
         const lockData = await lockResp.json();
         if (lockData.locked && lockData.scrape_domain) {
           const pageHost = new URL(currentTab.url).hostname.replace(/^www\./, '').toLowerCase();
-          const allowed = lockData.scrape_domain.toLowerCase();
-          if (!pageHost.includes(allowed) && !allowed.includes(pageHost)) {
+          const allowed = lockData.scrape_domain.replace(/^www\./, '').toLowerCase();
+          if (pageHost !== allowed) {
             throw new Error(`Scraper is locked to ${lockData.scrape_domain}. You are on ${pageHost}. Contact First-Fin to change.`);
           }
           log(`Domain verified: ${pageHost}`, 'ok');

@@ -5,7 +5,7 @@
 // The client receives results (pass/fail, payments, tips) — never the rules.
 // ═══════════════════════════════════════════════════════════════════════════
 
-module.exports = function compareRoutes(app, { requireAuth }) {
+module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   const { pool } = require('../lib/db');
 
   // ── Standard financial math ─────────────────────────────────────────────
@@ -372,7 +372,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
   });
 
   // ── POST /api/compare-all ───────────────────────────────────────────────
-  app.post('/api/compare-all', requireAuth, async (req, res) => {
+  app.post('/api/compare-all', requireAuth, requireBilling, async (req, res) => {
     try {
       const uid = req.user.userId;
       const {
@@ -463,7 +463,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
   });
 
   // ── POST /api/beacon-match ──────────────────────────────────────────────
-  app.post('/api/beacon-match', requireAuth, async (req, res) => {
+  app.post('/api/beacon-match', requireAuth, requireBilling, async (req, res) => {
     try {
       const uid = req.user.userId;
       const { stock, beacon = 0, income = 0, down = 0, trade = 0,
@@ -536,7 +536,7 @@ module.exports = function compareRoutes(app, { requireAuth }) {
   });
 
   // ── POST /api/beacon-simulator ──────────────────────────────────────────
-  app.post('/api/beacon-simulator', requireAuth, async (req, res) => {
+  app.post('/api/beacon-simulator', requireAuth, requireBilling, async (req, res) => {
     try {
       const uid = req.user.userId;
       const { stock, down = 0, trade = 0, fees = 0,
