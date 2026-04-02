@@ -66,7 +66,18 @@ function parseMileage(t) {
   return 0;
 }
 function parseFromSlug(url) {
-  let slug   = (url || '').split('/').filter(Boolean).pop() || '';
+  // Convertus/Stellantis: /vehicles/YEAR/MAKE/MODEL/CITY/PROV/ID/
+  const pathSegs = (url || '').replace(/\?.*/, '').split('/').filter(Boolean);
+  const vehIdx = pathSegs.indexOf('vehicles');
+  if (vehIdx >= 0 && pathSegs[vehIdx + 1] && /^\d{4}$/.test(pathSegs[vehIdx + 1])) {
+    return {
+      year:  parseInt(pathSegs[vehIdx + 1]) || 0,
+      make:  normMake(pathSegs[vehIdx + 2] || ''),
+      model: titleWord(pathSegs[vehIdx + 3] || ''),
+      trim:  ''
+    };
+  }
+  let slug   = pathSegs.pop() || '';
   // Strip .html extension and D2C Media ID suffix (e.g., -id13273287.html)
   slug = slug.replace(/\.html?$/i, '').replace(/-id\d+$/i, '');
   // Decode URL-encoded chars: + → space, %20 → space, _ → space
@@ -197,7 +208,9 @@ function parseVdpDetail(url) {
 
   function addPhoto(src) {
     if (!src || src.length < 20) return;
-    if (/logo|icon|placeholder|svg|badge|carfax|equifax|sprite|favicon|certified\.png/i.test(src)) return;
+    if (/logo|icon|placeholder|svg|badge|carfax|equifax|sprite|favicon|certified\.png|LIVE-CHAT|BANNER/i.test(src)) return;
+    // Skip dealer banner/overlay images from Convertus CDN (not vehicle photos)
+    if (/cdn-convertus\.com/i.test(src)) return;
     // Skip small compressed thumbnails (e.g., 300x300, 150x150 in URL)
     if (/compressed\/\d+x\d+/i.test(src) || /\/\d+x\d+_/i.test(src)) return;
     // Skip known "similar vehicles" CDN patterns
@@ -251,7 +264,7 @@ function parseVdpDetail(url) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
       // Only accept images that look like vehicle photos (large CDN images)
-      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|cdn.*\/(640|800|1024|1280)/i.test(src)) {
+      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|cdn.*\/(640|800|1024|1280)/i.test(src)) {
         addPhoto(src);
       }
     });
