@@ -226,6 +226,18 @@ function waitForTabLoad(tabId, timeoutMs=12000) {
 async function scrapeTab(tabId) {
   // Try server-side parsing first (IP protected)
   try {
+    // Scroll to bottom first to trigger lazy-loaded content (Convertus, etc.)
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => { window.scrollTo(0, document.body.scrollHeight); }
+    });
+    await new Promise(r => setTimeout(r, 1500));
+    // Scroll back to top
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => { window.scrollTo(0, 0); }
+    });
+    await new Promise(r => setTimeout(r, 500));
     const [{ result: capture }] = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => ({ html: document.documentElement.outerHTML, url: location.href })
