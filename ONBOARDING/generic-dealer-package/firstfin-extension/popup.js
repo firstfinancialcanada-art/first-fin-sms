@@ -356,6 +356,24 @@ async function runScan() {
     setProgress(8);
     log('Scanning page for vehicles...', 'hi');
 
+    // Scroll through the page to trigger lazy-loaded content (Convertus, etc.)
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: currentTab.id },
+        func: async () => {
+          const h = document.body.scrollHeight;
+          for (let y = 0; y <= h; y += window.innerHeight) {
+            window.scrollTo(0, y);
+            await new Promise(r => setTimeout(r, 300));
+          }
+          window.scrollTo(0, h);
+          await new Promise(r => setTimeout(r, 1000));
+          window.scrollTo(0, 0);
+        }
+      });
+      await new Promise(r => setTimeout(r, 500));
+    } catch (_) {}
+
     let response = await scrapeTab(currentTab.id);
     if (!response || !response.ok) throw new Error(response?.error || 'Scraper returned no data');
 
