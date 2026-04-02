@@ -3,6 +3,9 @@
   "version": "1.2.0",
   "description": "FIRST-FIN Dealer Platform — Unified Deal Desk + Sarah AI SMS + Cloud Sync",
   "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node scripts/minify.js && node index.js",
     "dev": "nodemon index.js",
