@@ -176,18 +176,23 @@ function parseVdpDetail(url) {
 
   // Strategy 1: Look for a dedicated vehicle gallery container
   const GALLERY_SELS = [
+    // D2C Media (Renfrew, etc.) — check first, most specific
+    '.advanced-slider', '.slider-main',
+    // Vehica (Stampede Auto, etc.)
+    '.vehica-gallery-main', '.vehica-car-gallery', '[class*="vehica-gallery"]',
+    // Common dealer platforms
     '.vehicleCarousel', '.vehicle-gallery', '.vdp-gallery', '.media-gallery',
     '[class*="vehicleCarousel"]', '[class*="vehicle-gallery"]', '[class*="vdp-photo"]',
     '.gallery-container', '.photo-gallery', '.slider-for', '.main-slider',
     '.slick-slider', '[class*="carousel"]',
-    '.vehica-gallery-main', '.vehica-car-gallery', '[class*="vehica-gallery"]',
-    '.swiper-wrapper', '[class*="swiper-container"]',
-    '.advanced-slider', '.slider-main'
+    '.swiper-wrapper', '[class*="swiper-container"]'
   ];
   let galleryEl = null;
   for (const sel of GALLERY_SELS) {
     const el = document.querySelector(sel);
-    if (el && el.querySelectorAll('img').length >= 3) { galleryEl = el; break; }
+    // Use >= 1 for D2C sliders (background tabs may only render 1-2 images initially)
+    const minImgs = (sel === '.advanced-slider' || sel === '.slider-main') ? 1 : 3;
+    if (el && el.querySelectorAll('img').length >= minImgs) { galleryEl = el; break; }
   }
 
   function addPhoto(src) {
