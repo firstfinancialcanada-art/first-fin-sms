@@ -140,9 +140,10 @@ function parseVdpDetail(url) {
   // Priority 1: VDP-specific sale price selectors (avoids nav/category "Starting at" prices)
   const PRICE_SELS = [
     '#carPrice', '.priceDivPrice',
+    '.pricing-group__final-price', '[class*="price-block__price--lg"]',
     '.finalPrice', '.vdpPricing', '.sale-price', '.salePrice',
     '.vehicle-price', '.listing-price', '.price-current',
-    '[class*="salePrice"]', '[class*="finalPrice"]'
+    '[class*="salePrice"]', '[class*="finalPrice"]', '[class*="internet-price"]'
   ];
   for (const sel of PRICE_SELS) {
     const el = document.querySelector(sel);
@@ -155,9 +156,9 @@ function parseVdpDetail(url) {
       if (p >= 1000) { price = p; break; }
     }
   }
-  // Priority 2: "Sale Price" text anywhere in the body
+  // Priority 2: "Sale Price" or "Internet Price" text anywhere in the body
   if (!price) {
-    const saleM = body.match(/sale\s*price[:\s$]*\$?([\d,]+)/i);
+    const saleM = body.match(/(?:sale|internet|final|cash)\s*price[\s:$]*\$?\s*([\d,]+)/i);
     if (saleM) price = parseInt(saleM[1].replace(/,/g, ''));
   }
   // Priority 3: generic price element (but skip nav/category elements)
@@ -387,7 +388,7 @@ function scrapeCurrentPage() {
           // Find the VDP link (not Carfax/external)
           let link = url;
           for (const a of card.querySelectorAll('a[href]')) {
-            if (/\/inventory\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
+            if (/\/(inventory|vehicles)\//i.test(a.href) && a.href.includes(location.hostname)) { link = a.href; break; }
           }
           if (link === url) link = card.querySelector('a[href]')?.href || url;
           const img      = card.querySelector('img')?.src || '';
