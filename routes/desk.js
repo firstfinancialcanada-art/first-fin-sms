@@ -1285,6 +1285,45 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════
+  // CALCULATE — server-side deal math (proprietary, not exposed to client)
+  // ═══════════════════════════════════════════════════════════
+  const finance = require('../lib/finance');
+
+  app.post('/api/desk/calculate', requireAuth, (req, res) => {
+    try {
+      const { action } = req.body;
+
+      if (action === 'deal-summary') {
+        const result = finance.calculateDeal(req.body);
+        return res.json({ success: true, ...result });
+      }
+
+      if (action === 'quick-calc') {
+        const { amount, apr, term } = req.body;
+        const payment = finance.quickCalc(parseFloat(amount) || 0, parseFloat(apr) || 0, parseInt(term) || 72);
+        return res.json({ success: true, payment });
+      }
+
+      if (action === 'reverse-calc') {
+        const { payment, apr, term } = req.body;
+        const maxLoan = finance.reverseCalc(parseFloat(payment) || 0, parseFloat(apr) || 0, parseInt(term) || 72);
+        return res.json({ success: true, maxLoan });
+      }
+
+      if (action === 'margin') {
+        const { cost, sell } = req.body;
+        const result = finance.calcMargin(parseFloat(cost) || 0, parseFloat(sell) || 0);
+        return res.json({ success: true, ...result });
+      }
+
+      return res.status(400).json({ success: false, error: 'Unknown action. Use: deal-summary, quick-calc, reverse-calc, margin' });
+    } catch (e) {
+      console.error('❌ /api/desk/calculate error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
   console.log('✅ Desk API routes mounted on /api/desk/*');  // ── Auto-create fintest account if missing ────────────────
   (async () => {
     const client = await pool.connect();

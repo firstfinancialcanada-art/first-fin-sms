@@ -236,7 +236,9 @@ const lenders = {
 };
 
 // ── MATH HELPERS ──────────────────────────────────────
+// PMT: standard amortization (public formula, kept client-side for instant payment grid)
 function PMT(rate,nper,pv){if(rate===0)return Math.abs(pv/nper);return Math.abs(pv*(rate*Math.pow(1+rate,nper))/(Math.pow(1+rate,nper)-1));}
+// PV: kept as fallback only — primary calculation is server-side
 function PV(rate,nper,pmt){if(rate===0)return pmt*nper;return pmt*((1-Math.pow(1+rate,-nper))/rate);}
 
 // ── BI-WEEKLY MODE ────────────────────────────────────────────────
@@ -1046,109 +1048,88 @@ function calcCustom(){
   });
 }
 
-function calculateProfit(){
-  const price = parseFloat(document.getElementById('sellingPrice').value)||0;
-  const acv   = parseFloat(document.getElementById('unitAcv').value)||0;
-  const recon = parseFloat(document.getElementById('recon').value)||0;
-  const pack  = parseFloat(document.getElementById('lotPack').value)||0;
-  const totalCost = acv+recon+pack;
-  const front = price - totalCost;
-  const vscP = (parseFloat(document.getElementById('vscPrice').value)||0)-(parseFloat(document.getElementById('vscCost').value)||0);
-  const gapP = (parseFloat(document.getElementById('gapPrice').value)||0)-(parseFloat(document.getElementById('gapCost').value)||0);
-  const twP  = (parseFloat(document.getElementById('twPrice').value)||0)-(parseFloat(document.getElementById('twCost').value)||0);
-  const waP  = (parseFloat(document.getElementById('waPrice').value)||0)-(parseFloat(document.getElementById('waCost').value)||0);
-  const total = front+vscP+gapP+twP+waP+500;
-  document.getElementById('totalCost').textContent  = $i(totalCost);
-  document.getElementById('frontGross').textContent = $i(front);
-  document.getElementById('vscProfit').textContent  = $i(vscP);
-  document.getElementById('gapProfit').textContent  = $i(gapP);
-  document.getElementById('twProfit').textContent   = $i(twP);
-  document.getElementById('waProfit').textContent   = $i(waP);
-  document.getElementById('totalGross').textContent = 'TOTAL GROSS: '+$i(total);
-  document.getElementById('fePercent').textContent  = total?((front/total)*100).toFixed(1)+'%':'0%';
-  document.getElementById('bePercent').textContent  = total?(((total-front)/total)*100).toFixed(1)+'%':'0%';
-  document.getElementById('pvr').textContent        = $i(total);
+// ── SERVER-SIDE DEAL MATH (proprietary logic hidden from client) ─────────
+// Single debounced call to /api/desk/calculate replaces all inline formulas.
+let _calcTimer = null;
+function calculateProfit(){ _debouncedServerCalc(); }
+function calculateReserve(){ _debouncedServerCalc(); }
+function calculateSubprime(){ _debouncedServerCalc(); }
+function calculatePTI(){ _debouncedServerCalc(); }
+function assessRisk(){ _debouncedServerCalc(); syncCompareFromDeal(); }
+function calculateTrade(){ _debouncedServerCalc(); }
+
+function _debouncedServerCalc(){
+  clearTimeout(_calcTimer);
+  _calcTimer = setTimeout(_runServerCalc, 150);
 }
 
-function calculateReserve(){
-  const contract = parseFloat(document.getElementById('contractRate').value)||0;
-  const buy      = parseFloat(document.getElementById('buyRate').value)||0;
-  const split    = parseFloat(document.getElementById('bankSplit').value)||75;
-  const term     = parseFloat(document.getElementById('reserveTerm').value)||72;
-  const price    = parseFloat(document.getElementById('sellingPrice').value)||0;
-  const spread   = contract - buy;
-  const reserve  = (price*(spread/100)*(term/12))*(split/100);
-  document.getElementById('rateSpread').textContent   = spread.toFixed(2)+'%';
-  document.getElementById('reserveProfit').textContent= $i(reserve);
-}
+async function _runServerCalc(){
+  const _v = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const _i = id => parseInt(document.getElementById(id)?.value) || 0;
+  try {
+    const r = await FF.apiFetch('/api/desk/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'deal-summary',
+        price: _v('sellingPrice'), doc: _v('docFee'), gst: _v('gstRate') || 5,
+        tradeAllow: _v('tradeAllow'), tradePayoff: _v('tradePayoff'),
+        down: _v('finalDown'), apr: _v('apr'), term: _i('reserveTerm') || 72,
+        income: _v('monthlyIncome'), existingPayments: _v('existingPayments'),
+        ptiLimit: _v('ptiLimit') || 20,
+        bookValue: _v('subNada'), beacon: _i('creditScore'),
+        contractRate: _v('contractRate'), buyRate: _v('buyRate'), bankSplit: _v('bankSplit') || 75,
+        vscPrice: _v('vscPrice'), vscCost: _v('vscCost'),
+        gapPrice: _v('gapPrice'), gapCost: _v('gapCost'),
+        twPrice: _v('twPrice'), twCost: _v('twCost'),
+        waPrice: _v('waPrice'), waCost: _v('waCost'),
+        acv: _v('unitAcv') || _v('acv'), recon: _v('recon') || _v('reconditionCost'),
+        lotPack: _v('lotPack'), condAdj: _v('conditionAdj'), safety: _v('safetyInspect'),
+        biweekly: window._biweekly
+      })
+    });
+    const d = await r.json();
+    if (!d.success) return;
 
-function calculateSubprime(){
-  const advance = parseFloat(document.getElementById('subAdvance').value)||0;
-  const nada    = parseFloat(document.getElementById('subNada').value)||0;
-  const ltv     = nada>0?((advance/nada)*100).toFixed(1)+'%':'N/A';
-  document.getElementById('dealLTV').textContent = ltv;
-}
+    // ── Profit display ───────────────────────────────────────────────
+    const el = id => document.getElementById(id);
+    const totalCost = (_v('unitAcv')||0) + (_v('recon')||0) + (_v('lotPack')||0);
+    if(el('totalCost'))  el('totalCost').textContent  = $i(totalCost);
+    if(el('frontGross')) el('frontGross').textContent = $i(d.frontGross);
+    if(el('vscProfit'))  el('vscProfit').textContent  = $i(d.vscGross);
+    if(el('gapProfit'))  el('gapProfit').textContent  = $i(d.gapGross);
+    if(el('twProfit'))   el('twProfit').textContent   = $i(d.twGross);
+    if(el('waProfit'))   el('waProfit').textContent   = $i(d.waGross);
+    if(el('totalGross')) el('totalGross').textContent = 'TOTAL GROSS: '+$i(d.totalGross);
+    if(el('fePercent'))  el('fePercent').textContent  = d.fePercent.toFixed(1)+'%';
+    if(el('bePercent'))  el('bePercent').textContent  = d.bePercent.toFixed(1)+'%';
+    if(el('pvr'))        el('pvr').textContent        = $i(d.totalGross);
 
-function calculatePTI(){
-  const income   = parseFloat(document.getElementById('monthlyIncome').value)||0;
-  const existing = parseFloat(document.getElementById('existingPayments').value)||0;
-  const ptiLimit = parseFloat(document.getElementById('ptiLimit').value)||20;
-  const price    = parseFloat(document.getElementById('sellingPrice').value)||0;
-  const doc      = parseFloat(document.getElementById('docFee').value)||0;
-  const tAllow   = parseFloat(document.getElementById('tradeAllow').value)||0;
-  const tPayoff  = parseFloat(document.getElementById('tradePayoff').value)||0;
-  const apr      = parseFloat(document.getElementById('apr').value)||0;
-  const gst      = parseFloat(document.getElementById('gstRate').value)||5;
-  // Use actual deal term from reserve term field if available, else 72
-  const termEl   = document.getElementById('reserveTerm');
-  const term     = termEl ? (parseInt(termEl.value)||72) : 72;
-  const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt;
-  const finalDown = parseFloat(document.getElementById('finalDown')?.value)||0;
-  const financed  = Math.max(0, otd - finalDown);
-  const mr        = apr > 0 ? apr/100/12 : 0;
-  const payment   = financed > 0 ? (mr > 0 ? PMT(mr, term, -financed) : (financed / term)) : 0;
-  const totalPayments = payment + existing;
-  const pti = income > 0 ? ((payment / income) * 100) : 0;
-  const dti = income > 0 ? ((totalPayments / income) * 100) : 0;
-  document.getElementById('ptiResult').textContent = pti.toFixed(1)+'%';
-  const ptiStatus = pti <= ptiLimit ? 'PASS' : 'EXCEEDS LIMIT';
-  document.getElementById('ptiStatus').textContent = ptiStatus;
-  document.getElementById('ptiStatus').style.color = pti <= ptiLimit ? 'var(--green)' : 'var(--red)';
-  // TDSR display (Total Debt Service Ratio — Canadian lender term for DTI)
-  const dtiEl = document.getElementById('dtiResult');
-  if(dtiEl){ dtiEl.textContent = dti.toFixed(1)+'%'; dtiEl.style.color = dti<=44 ? 'var(--green)':'var(--red)'; }
-  const dtiStatusEl = document.getElementById('dtiStatus');
-  if(dtiStatusEl){ dtiStatusEl.textContent = dti<=44 ? 'PASS':'EXCEEDS 44%'; dtiStatusEl.style.color = dti<=44?'var(--green)':'var(--red)'; }
-  syncCompareFromDeal();
-}
+    // ── Reserve display ──────────────────────────────────────────────
+    if(el('rateSpread'))    el('rateSpread').textContent    = d.rateSpread.toFixed(2)+'%';
+    if(el('reserveProfit')) el('reserveProfit').textContent = $i(d.spreadReserve);
 
-function assessRisk(){
-  const score = parseInt(document.getElementById('creditScore').value)||0;
-  const risk = document.getElementById('refiRisk');
-  const resStatus = document.getElementById('reserveStatus');
-  if(score>=750){risk.textContent='LOW';risk.style.color='var(--green)';resStatus.textContent='SECURE';resStatus.style.color='var(--green)';}
-  else if(score>=700){risk.textContent='MODERATE';risk.style.color='var(--amber)';resStatus.textContent='WATCH';resStatus.style.color='var(--amber)';}
-  else if(score>=650){risk.textContent='ELEVATED';risk.style.color='var(--amber)';resStatus.textContent='AT RISK';resStatus.style.color='var(--amber)';}
-  else{risk.textContent='HIGH';risk.style.color='var(--red)';resStatus.textContent='CHARGEBACKS';resStatus.style.color='var(--red)';}
-  syncCompareFromDeal();
-}
+    // ── LTV display ──────────────────────────────────────────────────
+    if(el('dealLTV')) el('dealLTV').textContent = d.ltv > 0 ? d.ltv.toFixed(1)+'%' : 'N/A';
 
-function calculateTrade(){
-  const acv   = parseFloat(document.getElementById('acv').value)||0;
-  const adj   = parseFloat(document.getElementById('conditionAdj').value)||0;
-  const safety= parseFloat(document.getElementById('safetyInspect').value)||0;
-  const recon = parseFloat(document.getElementById('reconditionCost').value)||0;
-  const totalRecon = safety+recon+adj;
-  const adjACV = acv-totalRecon;
-  const tAllow  = parseFloat(document.getElementById('tradeAllow').value)||0;
-  const tPayoff = parseFloat(document.getElementById('tradePayoff').value)||0;
-  const equity  = tAllow-tPayoff;
-  document.getElementById('totalRecon').value = $f(totalRecon);
-  document.getElementById('adjustedACV').value= $f(adjACV);
-  document.getElementById('tradeEquity').value= $f(equity);
-  document.getElementById('tradeEquity').style.color= equity>=0?'var(--green)':'var(--red)';
+    // ── PTI/DTI display ──────────────────────────────────────────────
+    if(el('ptiResult')) el('ptiResult').textContent = d.pti.toFixed(1)+'%';
+    if(el('ptiStatus')){ el('ptiStatus').textContent = d.ptiPass ? 'PASS' : 'EXCEEDS LIMIT'; el('ptiStatus').style.color = d.ptiPass ? 'var(--green)' : 'var(--red)'; }
+    if(el('dtiResult')){ el('dtiResult').textContent = d.dti.toFixed(1)+'%'; el('dtiResult').style.color = d.dtiPass ? 'var(--green)' : 'var(--red)'; }
+    if(el('dtiStatus')){ el('dtiStatus').textContent = d.dtiPass ? 'PASS' : 'EXCEEDS 44%'; el('dtiStatus').style.color = d.dtiPass ? 'var(--green)' : 'var(--red)'; }
+
+    // ── Risk display ─────────────────────────────────────────────────
+    const riskColor = d.riskLevel === 'LOW' ? 'var(--green)' : d.riskLevel === 'HIGH' ? 'var(--red)' : 'var(--amber)';
+    if(el('refiRisk'))      { el('refiRisk').textContent = d.riskLevel; el('refiRisk').style.color = riskColor; }
+    if(el('reserveStatus')) { el('reserveStatus').textContent = d.reserveStatus; el('reserveStatus').style.color = riskColor; }
+
+    // ── Trade display ────────────────────────────────────────────────
+    if(el('totalRecon'))  el('totalRecon').value = $f(d.totalReconCost);
+    if(el('adjustedACV')) el('adjustedACV').value = $f(d.adjustedAcv);
+    if(el('tradeEquity')){ el('tradeEquity').value = $f(d.tradeEquity); el('tradeEquity').style.color = d.tradeEquity >= 0 ? 'var(--green)' : 'var(--red)'; }
+
+    syncCompareFromDeal();
+  } catch(e) { /* silent — server unavailable, calculations just won't update */ }
 }
 
 // ── MANAGER TABS ──────────────────────────────────────
@@ -1160,24 +1141,34 @@ function showMgrTab(id,btn){
 }
 
 // ── QUICK TOOLS ───────────────────────────────────────
-function quickCalc(){
+async function quickCalc(){
   const a=parseFloat(document.getElementById('toolAmount').value)||0;
   const r=parseFloat(document.getElementById('toolRate').value)||0;
   const t=parseInt(document.getElementById('toolTerm').value)||72;
-  document.getElementById('quickResult').textContent = $f(PMT(r/100/12,t,-a))+' / month';
+  try {
+    const resp = await FF.apiFetch('/api/desk/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'quick-calc',amount:a,apr:r,term:t}) });
+    const d = await resp.json();
+    document.getElementById('quickResult').textContent = d.success ? $f(d.payment)+' / month' : '—';
+  } catch(e){ document.getElementById('quickResult').textContent = $f(PMT(r/100/12,t,-a))+' / month'; }
 }
-function reverseCalc(){
+async function reverseCalc(){
   const pmt=parseFloat(document.getElementById('revPayment').value)||0;
   const r=parseFloat(document.getElementById('revRate').value)||0;
   const t=parseInt(document.getElementById('revTerm').value)||72;
-  document.getElementById('reverseResult').textContent = 'Max: '+$f(PV(r/100/12,t,pmt));
+  try {
+    const resp = await FF.apiFetch('/api/desk/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'reverse-calc',payment:pmt,apr:r,term:t}) });
+    const d = await resp.json();
+    document.getElementById('reverseResult').textContent = d.success ? 'Max: '+$f(d.maxLoan) : '—';
+  } catch(e){ document.getElementById('reverseResult').textContent = 'Max: '+$f(PV(r/100/12,t,pmt)); }
 }
-function calcMargin(){
+async function calcMargin(){
   const cost=parseFloat(document.getElementById('mCost').value)||0;
   const sell=parseFloat(document.getElementById('mSell').value)||0;
-  const profit=sell-cost;
-  const pct=sell>0?((profit/sell)*100).toFixed(1):0;
-  document.getElementById('marginResult').textContent = $i(profit)+' profit — '+pct+'%';
+  try {
+    const resp = await FF.apiFetch('/api/desk/calculate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'margin',cost,sell}) });
+    const d = await resp.json();
+    document.getElementById('marginResult').textContent = d.success ? $i(d.profit)+' profit — '+d.percent+'%' : '—';
+  } catch(e){ document.getElementById('marginResult').textContent = $i(sell-cost)+' profit'; }
 }
 
 // ── BRIDGE: DEAL DESK → COMPARE ───────────────────────
