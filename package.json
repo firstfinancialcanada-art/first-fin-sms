@@ -1,6 +1,6 @@
 {
   "name": "firstfin-platform",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "FIRST-FIN Dealer Platform — Unified Deal Desk + Sarah AI SMS + Cloud Sync",
   "main": "index.js",
   "scripts": {
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

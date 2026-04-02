@@ -1286,6 +1286,36 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // SCRAPE PAGE — server-side HTML parsing (proprietary, not exposed to client)
+  // Extension sends raw HTML, server does all parsing. IP stays on server.
+  // ═══════════════════════════════════════════════════════════
+  const scraper = require('../lib/scraper');
+
+  app.post('/api/desk/scrape-page', requireAuth, requireBilling, (req, res) => {
+    try {
+      const { html, url } = req.body;
+      if (!html || !url) return res.status(400).json({ success: false, error: 'html and url required' });
+      const result = scraper.scrapePageHtml(html, url);
+      res.json({ ok: true, result });
+    } catch (e) {
+      console.error('❌ /api/desk/scrape-page error:', e.message);
+      res.status(500).json({ ok: false, error: 'Server scrape error' });
+    }
+  });
+
+  app.post('/api/desk/scrape-vdp', requireAuth, requireBilling, (req, res) => {
+    try {
+      const { html, url } = req.body;
+      if (!html || !url) return res.status(400).json({ success: false, error: 'html and url required' });
+      const vehicle = scraper.parseVdpDetailHtml(html, url);
+      res.json({ ok: true, result: { type: 'detail', vehicles: [vehicle] } });
+    } catch (e) {
+      console.error('❌ /api/desk/scrape-vdp error:', e.message);
+      res.status(500).json({ ok: false, error: 'Server VDP parse error' });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // CALCULATE — server-side deal math (proprietary, not exposed to client)
   // ═══════════════════════════════════════════════════════════
   const finance = require('../lib/finance');
