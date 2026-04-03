@@ -52,6 +52,7 @@ function isRealVehicle(v) {
   return !junk.some(j => tl.includes(j)) && (v.year || 0) >= 1950;
 }
 
+
 async function scrapeTabBg(tabId) {
   // Step 1: Client-side scrape (always works, reliable for data)
   let clientResult = null;
@@ -247,6 +248,46 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
   }
 
   if (bgTab) chrome.tabs.remove(bgTab.id).catch(() => {});
+
+  // ── Post-scan: ask server to detect shared dealer ad photos ────────────
+  if (activeScan.status !== 'error' && activeScan.vehicles.length >= 2) {
+    try {
+      const token = (await chrome.storage.local.get('token')).token;
+      if (token) {
+        const d2cVehicles = activeScan.vehicles
+          .filter(v => v._photos?.some(p => /d2cmedia\.ca/i.test(p)))
+          .map(v => ({ photos: v._photos.filter(p => /d2cmedia\.ca/i.test(p)) }));
+        if (d2cVehicles.length >= 2) {
+          activeScan.log.push({ cls: 'hi', text: '🔍 Checking for dealer ad photos...' });
+          broadcastProgress();
+          const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/filter-ad-photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ vehicles: d2cVehicles })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.ok && data.adUrls?.length) {
+              const adSet = new Set(data.adUrls);
+              let totalRemoved = 0;
+              for (const v of activeScan.vehicles) {
+                if (!v._photos?.length) continue;
+                const before = v._photos.length;
+                v._photos = v._photos.filter(p => !adSet.has(p));
+                totalRemoved += before - v._photos.length;
+              }
+              if (totalRemoved > 0) {
+                activeScan.log.push({ cls: 'hi', text: `🧹 Removed ${totalRemoved} dealer ad photos across ${activeScan.vehicles.length} vehicles` });
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      activeScan.log.push({ cls: '', text: `Ad filter skipped: ${e.message}` });
+    }
+  }
+
   if (activeScan.status !== 'error') activeScan.status = 'done';
   activeScan.log.push({ cls: activeScan.status === 'done' ? 'ok' : 'err',
     text: activeScan.status === 'done'

@@ -1316,6 +1316,53 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // FILTER-AD-PHOTOS — detect shared dealer marketing images
+  // Receives all vehicles' d2cmedia photo URLs, hashes first 1000 bytes,
+  // returns URLs that appear on 2+ vehicles (dealer ads, not vehicle photos).
+  // ═══════════════════════════════════════════════════════════
+  const crypto = require('crypto');
+
+  app.post('/api/desk/filter-ad-photos', requireAuth, async (req, res) => {
+    try {
+      // vehicles: [{photos: [url, url, ...]}]
+      const { vehicles } = req.body;
+      if (!vehicles?.length) return res.json({ ok: true, adUrls: [] });
+
+      // Hash first 1000 bytes of each d2cmedia photo
+      const hashToVehicles = new Map(); // hash -> Set of vehicle indices
+      const hashToUrls = new Map();     // hash -> [urls]
+
+      for (let vi = 0; vi < vehicles.length; vi++) {
+        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca/i.test(p));
+        for (const url of photos) {
+          try {
+            const resp = await fetch(url, { headers: { Range: 'bytes=0-999' } });
+            if (!resp.ok && resp.status !== 206) continue;
+            const buf = Buffer.from(await resp.arrayBuffer());
+            const data = buf.length > 1000 ? buf.slice(0, 1000) : buf;
+            if (data.length < 100) continue;
+            const hash = crypto.createHash('sha256').update(data).digest('hex');
+            if (!hashToVehicles.has(hash)) { hashToVehicles.set(hash, new Set()); hashToUrls.set(hash, []); }
+            hashToVehicles.get(hash).add(vi);
+            hashToUrls.get(hash).push(url);
+          } catch { /* skip failed fetches */ }
+        }
+      }
+
+      // Any hash on 2+ vehicles = dealer ad
+      const adUrls = [];
+      for (const [hash, vSet] of hashToVehicles) {
+        if (vSet.size >= 2) adUrls.push(...hashToUrls.get(hash));
+      }
+
+      res.json({ ok: true, adUrls, count: adUrls.length });
+    } catch (e) {
+      console.error('❌ /api/desk/filter-ad-photos error:', e.message);
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // CALCULATE — server-side deal math (proprietary, not exposed to client)
   // ═══════════════════════════════════════════════════════════
   const finance = require('../lib/finance');

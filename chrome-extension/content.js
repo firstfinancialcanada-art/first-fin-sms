@@ -212,7 +212,7 @@ function parseVdpDetail(url) {
     if (el && el.querySelectorAll('img').length >= minImgs) { galleryEl = el; break; }
   }
 
-  function addPhoto(src) {
+  function addPhoto(src, altText) {
     if (!src || src.length < 20) return;
     if (/logo|icon|placeholder|svg|badge|carfax|equifax|sprite|favicon|certified\.png|LIVE-CHAT|BANNER/i.test(src)) return;
     // Skip dealer banner/overlay images from Convertus CDN (not vehicle photos)
@@ -223,6 +223,9 @@ function parseVdpDetail(url) {
     if (/foxdealer\.com.*compressed/i.test(src)) return;
     // Skip D2C "similar vehicles" thumbnails (URL has /T/ instead of /1/, /2/ etc.)
     if (/d2cmedia\.ca.*\/T\//i.test(src)) return;
+    // Skip dealer-uploaded marketing graphics (CPO badges, warranty plans, reconditioned cards, etc.)
+    if (/capital.?secure|appearance.?plan|warranty.?plan|reconditioned|certified.?pre.?owned|cpo.?(badge|info|logo|graphic|banner)|work.?completed|coverage.?includes/i.test(src)) return;
+    if (altText && /capital.?secure|appearance.?plan|warranty|reconditioned|certified.?pre.?owned|cpo|coverage.?includes|work.?completed|first.?canadian.?financial/i.test(altText)) return;
     const clean = src.replace(/-\d+x\d+(\.\w+)$/, '$1');
     if (clean.startsWith('http') && !seen.has(clean)) { seen.add(clean); photos.push(clean); }
   }
@@ -257,8 +260,42 @@ function parseVdpDetail(url) {
   if (galleryEl) {
     // Gallery found — only take images from it
     galleryEl.querySelectorAll('img').forEach((img, idx) => {
-      addPhoto(getBestSrc(img));
+      addPhoto(getBestSrc(img), img.alt || img.title || '');
     });
+  }
+
+  // Strategy 1.5: D2C Media sequential photo generation
+  // D2C only puts photo #1 in the HTML; #2-#10+ are loaded by JS.
+  // If we found a d2cmedia URL with /1/, generate /2/ through /10/
+  if (photos.length < 3) {
+    const d2cBase = photos.find(p => /d2cmedia\.ca.*\/1\//i.test(p));
+    if (d2cBase) {
+      for (let n = 2; n <= 10; n++) {
+        addPhoto(d2cBase.replace(/\/1\//, '/' + n + '/'));
+      }
+    }
+  }
+
+  // D2C junk photo filter: marketing images use a different stock ID than the real vehicle photos.
+  // Find the most common d2cmedia stock ID — that's the real vehicle. Discard mismatches.
+  if (photos.length > 1) {
+    const d2cIdRe = /d2cmedia\.ca\/[^/]+\/\d+\/(\d+)\//i;
+    const idCounts = {};
+    for (const p of photos) {
+      const m = p.match(d2cIdRe);
+      if (m) idCounts[m[1]] = (idCounts[m[1]] || 0) + 1;
+    }
+    const ids = Object.entries(idCounts);
+    if (ids.length > 1) {
+      // Multiple stock IDs found — keep only the most common one (the real vehicle)
+      ids.sort((a, b) => b[1] - a[1]);
+      const realId = ids[0][0];
+      const before = photos.length;
+      for (let i = photos.length - 1; i >= 0; i--) {
+        const m = photos[i].match(d2cIdRe);
+        if (m && m[1] !== realId) { photos.splice(i, 1); }
+      }
+    }
   }
 
   // DEBUG: write photo count to DOM
@@ -271,7 +308,7 @@ function parseVdpDetail(url) {
       const src = getBestSrc(img);
       // Only accept images that look like vehicle photos (large CDN images)
       if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|cdn.*\/(640|800|1024|1280)/i.test(src)) {
-        addPhoto(src);
+        addPhoto(src, img.alt || img.title || '');
       }
     });
   }
@@ -281,7 +318,7 @@ function parseVdpDetail(url) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
       if (img.naturalWidth >= 200 || /\/(640|800|1024|1280)x/i.test(src)) {
-        addPhoto(src);
+        addPhoto(src, img.alt || img.title || '');
       }
     });
   }
