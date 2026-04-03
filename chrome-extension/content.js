@@ -277,8 +277,8 @@ function parseVdpDetail(url) {
   }
 
   // D2C junk photo filter: marketing images use a different stock ID than the real vehicle photos.
-  // Find the most common d2cmedia stock ID — that's the real vehicle. Discard mismatches.
-  if (photos.length > 1) {
+  // Only apply when we have enough photos (>5) to avoid stripping vehicles with few gallery images.
+  if (photos.length > 5) {
     const d2cIdRe = /d2cmedia\.ca\/[^/]+\/\d+\/(\d+)\//i;
     const idCounts = {};
     for (const p of photos) {
@@ -287,10 +287,8 @@ function parseVdpDetail(url) {
     }
     const ids = Object.entries(idCounts);
     if (ids.length > 1) {
-      // Multiple stock IDs found — keep only the most common one (the real vehicle)
       ids.sort((a, b) => b[1] - a[1]);
       const realId = ids[0][0];
-      const before = photos.length;
       for (let i = photos.length - 1; i >= 0; i--) {
         const m = photos[i].match(d2cIdRe);
         if (m && m[1] !== realId) { photos.splice(i, 1); }

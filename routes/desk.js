@@ -1350,11 +1350,40 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       // Any hash on 2+ vehicles = dealer ad
-      const adUrls = [];
+      const adUrlSet = new Set();
       for (const [hash, vSet] of hashToVehicles) {
-        if (vSet.size >= 2) adUrls.push(...hashToUrls.get(hash));
+        if (vSet.size >= 2) {
+          for (const url of hashToUrls.get(hash)) adUrlSet.add(url);
+        }
       }
 
+      // Position-based detection: if photo position N is an ad on 40%+ of vehicles, flag it on all.
+      // Catches custom-per-vehicle ads (e.g., recondition cards) at consistent positions.
+      const posRe = /d2cmedia\.ca\/[^/]+\/\d+\/\d+\/(\d+)\//i;
+      const posAdCount = {};  // position -> count of vehicles where it's an ad
+      const posTotal = {};    // position -> count of vehicles that have this position
+      const posUrlsByVehicle = {}; // position -> [{vi, url}]
+      for (let vi = 0; vi < vehicles.length; vi++) {
+        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca/i.test(p));
+        for (const url of photos) {
+          const pm = url.match(posRe);
+          if (!pm) continue;
+          const pos = pm[1];
+          posTotal[pos] = (posTotal[pos] || 0) + 1;
+          if (!posUrlsByVehicle[pos]) posUrlsByVehicle[pos] = [];
+          posUrlsByVehicle[pos].push({ vi, url });
+          if (adUrlSet.has(url)) posAdCount[pos] = (posAdCount[pos] || 0) + 1;
+        }
+      }
+      // Flag positions where 40%+ are ads and at least 3 vehicles confirm it
+      for (const [pos, adCount] of Object.entries(posAdCount)) {
+        const total = posTotal[pos] || 0;
+        if (adCount >= 3 && adCount / total >= 0.4) {
+          for (const { url } of posUrlsByVehicle[pos]) adUrlSet.add(url);
+        }
+      }
+
+      const adUrls = [...adUrlSet];
       console.log(`🔍 filter-ad-photos: ${vehicles.length} vehicles, ${hashToVehicles.size} unique hashes, ${adUrls.length} ad URLs found`);
       res.json({ ok: true, adUrls, count: adUrls.length });
     } catch (e) {
