@@ -201,7 +201,8 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
         await chrome.tabs.update(bgTab.id, { url: link });
         await waitForTabLoad(bgTab.id);
         // Extra wait for lazy-loaded gallery images to render
-        await new Promise(r => setTimeout(r, 1500));
+        const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
+        await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
         const vResp = await scrapeTabBg(bgTab.id);
 
         if (vResp?.result?.vehicles?.length) {
