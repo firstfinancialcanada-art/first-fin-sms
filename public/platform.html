@@ -3100,7 +3100,7 @@ async function startLoginBuy() {
 .fbp-desc-copy{padding:2px 9px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;}
 .fbp-desc-copy:hover{border-color:var(--primary);color:#93c5fd;}
 .fbp-desc-copy.ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green);}
-.fbp-desc-body{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.75;white-space:pre-wrap;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;max-height:130px;overflow-y:auto;}
+.fbp-desc-body{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.75;white-space:pre-wrap;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;max-height:130px;overflow-y:auto;width:100%;resize:vertical;outline:none;}.fbp-desc-body:focus{border-color:var(--primary);}
 .fbp-desc-body::-webkit-scrollbar{width:3px;}
 .fbp-desc-body::-webkit-scrollbar-thumb{background:var(--dim);}
 /* Not-activated state */
@@ -3230,7 +3230,7 @@ async function startLoginBuy() {
                   <div class="fbp-desc-lbl">Listing Description</div>
                   <button class="fbp-desc-copy" id="fbp-cdesc" onclick="fbpCopyDesc()">Copy All</button>
                 </div>
-                <div class="fbp-desc-body" id="fbp-desc-body"></div>
+                <textarea class="fbp-desc-body" id="fbp-desc-body" rows="6"></textarea>
               </div>
             </div>
           </div><!-- /fbpvc -->
@@ -3304,7 +3304,7 @@ async function startLoginBuy() {
   function fbpNorm(v) {
     const price = parseFloat(v.price) || 0;
     const mileage = parseInt(v.mileage) || 0;
-    const title = `${v.year||''} ${v.make||''} ${v.model||''} ${v.trim||''}`.replace(/\s+/g,' ').trim() || 'Unknown';
+    const title = `${v.year||''} ${v.make||''} ${v.model||''}`.replace(/\s+/g,' ').trim() || 'Unknown';
     const today = new Date().toISOString().split('T')[0];
     const postedDate = v.fb_posted_date ? v.fb_posted_date.split('T')[0] : null;
     const daysSince = postedDate ? Math.floor((Date.now() - new Date(postedDate).getTime()) / 86400000) : null;
@@ -3340,6 +3340,7 @@ async function startLoginBuy() {
 
   function fbpBuildDesc(v, title, price, mileage) {
     let lines = [title];
+    if (v.trim) lines.push('Trim: ' + v.trim);
     if (price) lines.push('Price: $' + price.toLocaleString());
     if (mileage) lines.push('Mileage: ' + mileage.toLocaleString() + ' km');
     if (v.color) lines.push('Colour: ' + v.color);
@@ -3526,7 +3527,7 @@ async function startLoginBuy() {
     }
 
     const db = document.getElementById('fbp-desc-body');
-    if (db) db.textContent = v.description||'';
+    if (db) db.value = v.description||'';
     const cb = document.getElementById('fbp-cdesc');
     if (cb) cb.className = 'fbp-desc-copy';
 
@@ -3591,7 +3592,7 @@ async function startLoginBuy() {
   }
 
   window.fbpCopyDesc = function() {
-    const txt=document.getElementById('fbp-desc-body')?.textContent||'';
+    const txt=document.getElementById('fbp-desc-body')?.value||'';
     navigator.clipboard.writeText(txt).then(()=>{
       const b=document.getElementById('fbp-cdesc'); if(b){b.textContent='Copied!';b.className='fbp-desc-copy ok';}
       fbpFlash('Description copied!'); fbpTick(14);
