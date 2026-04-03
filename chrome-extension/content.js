@@ -197,6 +197,8 @@ function parseVdpDetail(url) {
     '.advanced-slider', '.slider-main',
     // Vehica (Stampede Auto, etc.)
     '.vehica-gallery-main', '.vehica-car-gallery', '[class*="vehica-gallery"]',
+    // eDealer (Applewood Nissan, etc.)
+    '.gallery-images', '.vdp-media-gallery',
     // Common dealer platforms
     '.vehicleCarousel', '.vehicle-gallery', '.vdp-gallery', '.media-gallery',
     '[class*="vehicleCarousel"]', '[class*="vehicle-gallery"]', '[class*="vdp-photo"]',
@@ -305,7 +307,7 @@ function parseVdpDetail(url) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
       // Only accept images that look like vehicle photos (large CDN images)
-      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|cdn.*\/(640|800|1024|1280)/i.test(src)) {
+      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|getedealer|cdn.*\/(640|800|1024|1280)/i.test(src)) {
         addPhoto(src, img.alt || img.title || '');
       }
     });
@@ -479,6 +481,60 @@ function scrapeCurrentPage() {
   //    D2C Media: /demos/2026-RAM-, /used/2024-Ford-, /new/inventory/2026-RAM-
   const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
   const isVdpDetail = VDP_LINK_RE.test(location.pathname);
+
+  // ── eDealer (Applewood Nissan, etc.) — data-vin + data-slug cards ──────────
+  if (!isVdpDetail) {
+    const edCards = document.querySelectorAll('div.cell.card[data-vin][data-slug]');
+    if (edCards.length >= 2) {
+      const seenSlug = new Set();
+      const vdpLinks = [];
+      const cardVehicles = [];
+      edCards.forEach((card, idx) => {
+        const slug = card.dataset.slug;
+        if (!slug || seenSlug.has(slug)) return;
+        seenSlug.add(slug);
+        const link = location.origin + '/inventory/' + slug;
+        vdpLinks.push(link);
+        // Extract data from attributes + text
+        const text = card.innerText || '';
+        const kmM = text.replace(/,/g, '').match(/(\d+)\s*km/i);
+        const mileage = kmM ? parseInt(kmM[1]) : 0;
+        const img = card.querySelector('img');
+        const imgSrc = img ? (img.src || img.dataset.src || '') : '';
+        cardVehicles.push({
+          stock:    card.dataset.stocknumber || '',
+          vin:      card.dataset.vin || '',
+          year:     parseInt(card.dataset.year) || 2020,
+          make:     card.dataset.make || '',
+          model:    card.dataset.model || '',
+          trim:     card.dataset.trim || '',
+          mileage,
+          price:    parseInt(card.dataset.price) || 0,
+          color:    card.dataset.color || '',
+          type:     (card.dataset.condition || '').toUpperCase() === 'NEW' ? 'New' : 'Used',
+          condition: card.dataset.conditionname || card.dataset.condition || 'Used',
+          carfax: 0, book_value: 0,
+          _title: card.dataset.name || '',
+          _photos: imgSrc ? [imgSrc] : [],
+          _url: link
+        });
+      });
+      if (vdpLinks.length > 0) {
+        // eDealer pagination: ?page=N links
+        const pageSeen = new Set([location.href]);
+        const pageLinks = [];
+        document.querySelectorAll('a[href]').forEach(a => {
+          const href = a.href || '';
+          if (pageSeen.has(href)) return;
+          if (/[?&]page=\d+/.test(href) && href.includes(location.hostname)) {
+            pageSeen.add(href);
+            pageLinks.push(href);
+          }
+        });
+        return { type: 'listing', links: vdpLinks, pageLinks, vehicaPagination: 0, url: location.href, cardVehicles };
+      }
+    }
+  }
 
   // ── D2C Media (Renfrew Chrysler, etc.) — data-vin cards with rich attributes ──
   if (!isVdpDetail) {
