@@ -1375,10 +1375,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           if (adUrlSet.has(url)) posAdCount[pos] = (posAdCount[pos] || 0) + 1;
         }
       }
-      // Flag positions where 40%+ are ads and at least 3 vehicles confirm it
+      // Flag positions where 30%+ are ads and at least 2 vehicles confirm it
       for (const [pos, adCount] of Object.entries(posAdCount)) {
         const total = posTotal[pos] || 0;
-        if (adCount >= 3 && adCount / total >= 0.4) {
+        if (adCount >= 2 && adCount / total >= 0.3) {
           for (const { url } of posUrlsByVehicle[pos]) adUrlSet.add(url);
         }
       }
