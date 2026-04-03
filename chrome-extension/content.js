@@ -118,7 +118,15 @@ function parseFromSlug(url) {
   }
 
   if (parts[0]) result.make  = normMake(parts[0].trim());
-  if (parts[1]) result.model = titleWord(parts[1].trim());
+  if (parts[1]) {
+    // Handle "Model Y", "Model 3", "Model S", "Model X" as single model name
+    if (/^model$/i.test(parts[1].trim()) && parts[2] && /^[3ySX]$/i.test(parts[2].trim())) {
+      result.model = parts[1].trim() + ' ' + parts[2].trim().toUpperCase();
+      parts.splice(2, 1); // remove the letter so it doesn't end up in trim
+    } else {
+      result.model = titleWord(parts[1].trim());
+    }
+  }
   if (parts.length > 2)
     result.trim = parts.slice(2).map(p => titleWord(p.trim())).join(' ');
   return result;
