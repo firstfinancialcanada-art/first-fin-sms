@@ -1355,6 +1355,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         if (vSet.size >= 2) adUrls.push(...hashToUrls.get(hash));
       }
 
+      console.log(`🔍 filter-ad-photos: ${vehicles.length} vehicles, ${hashToVehicles.size} unique hashes, ${adUrls.length} ad URLs found`);
       res.json({ ok: true, adUrls, count: adUrls.length });
     } catch (e) {
       console.error('❌ /api/desk/filter-ad-photos error:', e.message);
