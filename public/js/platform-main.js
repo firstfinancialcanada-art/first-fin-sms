@@ -456,6 +456,11 @@ function showSection(id, btn){
     setTimeout(() => restoreCompareSession(), 60);
     setTimeout(() => syncCompareFromDeal(false), 120); // false = don't overwrite restored values
   }
+  // Refresh inventory from server when tab opens
+  if(id==='inventory') {
+    if (typeof loadAllData === 'function') loadAllData().then(() => { if (typeof initInventory === 'function') initInventory(); }).catch(()=>{});
+    else if (typeof initInventory === 'function') initInventory();
+  }
   // Init FB Poster when tab opens — detects local bridge
   if(id==='fbposter') {
     if (typeof window.initFbPoster === 'function') setTimeout(window.initFbPoster, 100);
