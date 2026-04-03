@@ -1333,7 +1333,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const hashToUrls = new Map();     // hash -> [urls]
 
       for (let vi = 0; vi < vehicles.length; vi++) {
-        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca/i.test(p));
+        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca|getedealer\.com/i.test(p));
         for (const url of photos) {
           try {
             const resp = await fetch(url, { headers: { Range: 'bytes=0-999' } });
@@ -1364,7 +1364,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const posTotal = {};    // position -> count of vehicles that have this position
       const posUrlsByVehicle = {}; // position -> [{vi, url}]
       for (let vi = 0; vi < vehicles.length; vi++) {
-        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca/i.test(p));
+        const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca|getedealer\.com/i.test(p));
         for (const url of photos) {
           const pm = url.match(posRe);
           if (!pm) continue;

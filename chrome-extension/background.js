@@ -256,8 +256,8 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
       const token = (await chrome.storage.local.get('token')).token;
       if (token) {
         const d2cVehicles = activeScan.vehicles
-          .filter(v => v._photos?.some(p => /d2cmedia\.ca/i.test(p)))
-          .map(v => ({ photos: v._photos.filter(p => /d2cmedia\.ca/i.test(p)) }));
+          .filter(v => v._photos?.some(p => /d2cmedia\.ca|getedealer\.com/i.test(p)))
+          .map(v => ({ photos: v._photos.filter(p => /d2cmedia\.ca|getedealer\.com/i.test(p)) }));
         if (d2cVehicles.length >= 2) {
           activeScan.log.push({ cls: 'hi', text: '🔍 Checking for dealer ad photos...' });
           broadcastProgress();
