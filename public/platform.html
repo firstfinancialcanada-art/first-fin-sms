@@ -3356,14 +3356,28 @@ async function startLoginBuy() {
   }
 
   function fbpBuildDesc(v, title, price, mileage) {
-    let lines = [title];
-    if (v.trim) lines.push('Trim: ' + v.trim);
-    if (price) lines.push('Price: $' + price.toLocaleString());
+    const dealer = settings.dealerName || getVal('dealerName') || '';
+    const dealerCity = settings.dealerCity || '';
+    const lines = [];
+
+    lines.push(title);
+    lines.push('');
+    if (price) lines.push('Sale Price: $' + price.toLocaleString() + ' + taxes & fees');
+    lines.push('');
     if (mileage) lines.push('Mileage: ' + mileage.toLocaleString() + ' km');
-    if (v.color) lines.push('Colour: ' + v.color);
+    if (v.trim) lines.push('Trim: ' + v.trim);
+    if (v.color) lines.push('Ext. Colour: ' + v.color);
+    if (v.type) lines.push('Body Style: ' + v.type);
+    if (v.condition) lines.push('Condition: ' + v.condition);
+    if (v.stock) lines.push('Stock #: ' + v.stock);
     if (v.vin) lines.push('VIN: ' + v.vin);
     lines.push('');
-    lines.push('Contact us today for more details!');
+    lines.push('Fully inspected & reconditioned');
+    lines.push('Financing available - all credit welcome');
+    lines.push('');
+    if (dealer) lines.push(dealer + (dealerCity ? ' | ' + dealerCity : ''));
+    lines.push('Call or text to book a test drive!');
+
     return lines.join('\n');
   }
 
