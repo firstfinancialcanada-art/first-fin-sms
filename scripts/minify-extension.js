@@ -33,17 +33,16 @@ async function run() {
       const result = await minify(src, {
         compress: {
           dead_code: true,
-          drop_console: false, // keep console.log for debugging
-          passes: 2,
-          booleans_as_integers: true
+          drop_console: false,
+          passes: 2
         },
         mangle: {
-          keep_fnames: false,
-          toplevel: true,        // mangle top-level variable names
-          properties: false      // don't mangle property names (breaks DOM/API calls)
+          keep_fnames: true,     // keep function names (Chrome APIs reference them)
+          toplevel: false,       // DO NOT mangle top-level — breaks chrome.* API callbacks
+          properties: false
         },
         format: {
-          comments: false,       // strip all comments
+          comments: false,
           beautify: false
         }
       });
