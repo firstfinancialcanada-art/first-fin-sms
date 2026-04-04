@@ -121,7 +121,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
 
   // ── Proprietary tier-matching logic ────────────────────────────────────
   function getQualifyingProgram(lid, beacon, tenantRates){
-  const defaultFee = LENDER_FEES[lid] || 0;
+  // Fee priority: tenant custom rate fee → hardcoded fee map → 0
+  const tenantFee = tenantRates?.[lid]?.[0]?.lender_fee;
+  const defaultFee = (tenantFee != null && tenantFee !== '') ? parseFloat(tenantFee) : (LENDER_FEES[lid] || 0);
   
   // Try tenant custom rates first
   if(tenantRates && tenantRates[lid] && tenantRates[lid].length){
@@ -143,8 +145,8 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   const l = lenders[lid];
   if(!l) return null;
   if(beacon === 0){
-    const prog = l.programs[l.programs.length-1]; // show lowest tier as estimate
-    return { tier: prog.tier, rate: parseFloat(prog.rate), isEstimate: true,
+    // Don't guess — return unknown tier so UI shows "Beacon required"
+    return { tier: null, rate: 0, isUnknown: true, beaconRequired: true,
              minFico: 0, maxLTV: l.maxLTV, minYear: l.minYear,
              maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
   }
@@ -224,8 +226,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     const atf        = taxableBase + gstAmt + lenderFee - down;
     const bvRaw      = parseFloat(v.book_value) || 0;
     const pRaw       = parseFloat(v.price) || 1;
-    // Sanity floor: book_value < 1% of price = corrupt import data, fall back to price
-    const bookVal    = bookValOver > 0 ? bookValOver : (bvRaw >= pRaw * 0.01 ? bvRaw : pRaw);
+    // Sanity floor: book_value < 40% of price = suspect data, fall back to price
+    const bookVal    = bookValOver > 0 ? bookValOver : (bvRaw >= pRaw * 0.40 ? bvRaw : pRaw);
+    const bookValueSuspect = (bookValOver <= 0 && bvRaw > 0 && bvRaw < pRaw * 0.40);
     const maxLTV     = prog ? prog.maxLTV : l.maxLTV;
     const ltvPct     = (atf / bookVal) * 100;
     const ltvOk      = ltvPct <= maxLTV;
@@ -259,6 +262,8 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       const pmt         = atf > 0 ? BPMT(buyRate, t, atf, biweekly) : 0;
       let ptiOkT = true, dtiOkT = true, payOkT = true;
       let ptiPctT = 0, dtiPctT = 0;
+      const incomeUnknown = (income === 0);
+      const debtUnknown = (income > 0 && existing === 0); // income known but debt not entered
       if (income > 0 && pmt > 0) {
         ptiPctT = (pmt / income) * 100;
         dtiPctT = ((pmt + existing) / income) * 100;
@@ -266,8 +271,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         dtiOkT  = dtiPctT <= lMaxDti;
         payOkT  = lMaxPay === null || pmt <= lMaxPay;
       }
-      const passes = ageOkT && ltvOk && incomeOk &&
-                     (income === 0 || (ptiOkT && dtiOkT && payOkT));
+      // If income unknown, don't assume pass — flag as conditional
+      const ratioPass = incomeUnknown ? false : (ptiOkT && dtiOkT && payOkT);
+      const passes = ageOkT && ltvOk && (incomeUnknown || (incomeOk && ratioPass));
       termResults[t] = { term: t, payment: pmt, ageAtPayoff, ageOk: ageOkT,
                          ptiOk: ptiOkT, dtiOk: dtiOkT, payOk: payOkT,
                          ptiPct: ptiPctT, dtiPct: dtiPctT, passes };
@@ -291,7 +297,10 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     totalGross = flatReserve;
     if (contractRate > 0 && contractRate > buyRate) {
       const spread = contractRate - buyRate;
-      spreadReserve = Math.round((spread / 100 / 12) * atf * optimalTerm * 0.82);
+      // Canadian dealer participation: dealer keeps bankSplit% of spread reserve
+      // bankSplit comes from deal params (default 75%), applied as decimal
+      const dealerShare = (params.bankSplit || 75) / 100;
+      spreadReserve = Math.round((spread / 100 / 12) * atf * optimalTerm * dealerShare);
       totalGross    = flatReserve + spreadReserve;
     }
 
@@ -342,6 +351,11 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       }
     }
 
+    // Add income/beacon unknown tips
+    if (incomeUnknown) structureTips.unshift('Income not provided — approval is conditional on income verification');
+    if (debtUnknown && income > 0) structureTips.push('Existing obligations not entered — DTI may be understated');
+    if (prog?.beaconRequired) structureTips.unshift('Beacon score required for accurate tier matching');
+
     return {
       lid, prog, atf, ltvPct, maxLTV, ltvOk, maxLoan, bookVal, downNeeded,
       yearOk, mileOk, cfxOk, ageOk, minYear, maxMile, maxCfx,
@@ -351,6 +365,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       flatReserve, spreadReserve, totalGross, contractRate, buyRate,
       beacon: params.beacon, income, primaryIncome, coIncome, hasCoApp, existing,
       lenderFee, hasBK, vehicleAgeAtPayoff, cond,
+      // Flags for conditional/unknown results
+      incomeUnknown, debtUnknown, bookValueSuspect,
+      beaconRequired: !!(prog?.beaconRequired || prog?.isUnknown),
       structureTip: structureTips[0] || null,
       allStructureTips: structureTips, coAppTip,
       // Display info (client needs these to render cards)

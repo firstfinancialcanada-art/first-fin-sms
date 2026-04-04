@@ -165,7 +165,60 @@ async function setup() {
     `);
     console.log('✅ desk_audit table');
 
-    console.log('\n🎉 Phase 1 migration complete!');
+    // ── 9. LENDER RATE HISTORY (versioning) ──────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lender_rate_history (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES desk_users(id),
+        lender_name VARCHAR(100) NOT NULL,
+        rates_json JSONB NOT NULL,
+        replaced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ lender_rate_history table');
+
+    // ── 10. ADMIN AUDIT LOG ────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id SERIAL PRIMARY KEY,
+        admin_email VARCHAR(255),
+        action VARCHAR(100) NOT NULL,
+        target_type VARCHAR(50),
+        target_id INTEGER,
+        details JSONB,
+        ip_address VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_audit_time ON admin_audit_log(created_at DESC);
+    `);
+    console.log('✅ admin_audit_log table');
+
+    // ── Safe migrations: deal_outcomes missing columns ─────────
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS approved_rate NUMERIC(5,2)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS approved_term INTEGER`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS approved_amount NUMERIC(12,2)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS stipulations TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS decline_reasons TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS conditions TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS stock VARCHAR(50)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS vehicle_price NUMERIC(12,2)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS book_value NUMERIC(12,2)`).catch(() => {});
+    await client.query(`ALTER TABLE deal_outcomes ADD COLUMN IF NOT EXISTS amount_to_finance NUMERIC(12,2)`).catch(() => {});
+    console.log('✅ deal_outcomes columns updated');
+
+    // ── Safe migrations: soft delete + RBAC ────────────────────
+    await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`).catch(() => {});
+    await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS admin_role VARCHAR(20)`).catch(() => {});
+    console.log('✅ desk_users soft delete + RBAC columns');
+
+    // ── Safe migrations: analytics (conversations) ─────────────
+    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source VARCHAR(100)`).catch(() => {});
+    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS stop_reason VARCHAR(100)`).catch(() => {});
+    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0`).catch(() => {});
+    console.log('✅ conversations analytics columns');
+
+    console.log('\n🎉 Phase 1 + Phase 2 migration complete!');
     console.log('ℹ️  Your existing SARAH tables are untouched.');
     console.log('ℹ️  Run: node seed-inventory.js  to load your inventory into the DB.\n');
 

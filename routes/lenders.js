@@ -632,9 +632,38 @@ module.exports = function (app, pool, requireBilling) {
     }
     const userId = req.user.userId;
     const lid    = lenderName.toLowerCase();
+    // Validate each tier
+    const curYear = new Date().getFullYear();
+    const errors = [];
+    tiers.forEach((t, i) => {
+      const label = t.tier || `Tier ${i+1}`;
+      const minF = parseInt(t.minFico) || 0;
+      const maxF = parseInt(t.maxFico) || 9999;
+      const rate = parseFloat(t.rate) || 0;
+      const ltv  = parseInt(t.maxLTV) || 0;
+      const yr   = parseInt(t.minYear) || 0;
+      const mi   = parseInt(t.maxMileage) || 0;
+      const fee  = parseFloat(t.fee) || 0;
+      if (minF > maxF && maxF > 0) errors.push(`${label}: minFico (${minF}) > maxFico (${maxF})`);
+      if (rate <= 0 || rate > 50) errors.push(`${label}: rate must be 0.01–50% (got ${rate})`);
+      if (ltv > 0 && ltv > 300) errors.push(`${label}: maxLTV must be ≤300% (got ${ltv})`);
+      if (yr > 0 && (yr < 2000 || yr > curYear + 2)) errors.push(`${label}: minYear must be 2000–${curYear+2} (got ${yr})`);
+      if (fee < 0) errors.push(`${label}: fee cannot be negative`);
+    });
+    if (errors.length) {
+      return res.status(400).json({ success: false, error: 'Validation errors', details: errors });
+    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Snapshot current rates before overwriting (rate sheet versioning)
+      const oldRates = await client.query('SELECT * FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2', [userId, lid]);
+      if (oldRates.rows.length) {
+        await client.query(
+          `INSERT INTO lender_rate_history (user_id, lender_name, rates_json) VALUES ($1, $2, $3)`,
+          [userId, lid, JSON.stringify(oldRates.rows)]
+        );
+      }
       await client.query(
         'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2',
         [userId, lid]
