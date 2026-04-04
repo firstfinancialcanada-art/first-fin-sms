@@ -104,6 +104,14 @@ async function setup() {
     `);
     console.log('✅ desk_crm table');
 
+    // Safe CRM column migrations
+    await client.query(`ALTER TABLE desk_crm ADD COLUMN IF NOT EXISTS vehicle_interest VARCHAR(100)`).catch(() => {});
+    await client.query(`ALTER TABLE desk_crm ADD COLUMN IF NOT EXISTS budget_range VARCHAR(50)`).catch(() => {});
+    await client.query(`ALTER TABLE desk_crm ADD COLUMN IF NOT EXISTS follow_up_date DATE`).catch(() => {});
+    await client.query(`ALTER TABLE desk_crm ADD COLUMN IF NOT EXISTS follow_up_note VARCHAR(255)`).catch(() => {});
+    await client.query(`ALTER TABLE desk_crm ADD COLUMN IF NOT EXISTS last_contact TIMESTAMP`).catch(() => {});
+    console.log('✅ desk_crm columns updated');
+
     // ── 5. DEAL LOG (replaces ffDealLog localStorage) ──────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS desk_deal_log (

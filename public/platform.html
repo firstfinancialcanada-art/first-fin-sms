@@ -171,6 +171,9 @@ select option{background:#0d1526;color:var(--text);}
 .data-table td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--text);}
 .data-table tr:hover td{background:rgba(30,90,246,0.07);cursor:pointer;}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;}
+.crm-overdue td{border-left:3px solid #ef4444!important;background:rgba(239,68,68,.05)!important;}
+.crm-due-today td{border-left:3px solid #f59e0b!important;background:rgba(245,158,11,.05)!important;}
+.crm-upcoming td{border-left:3px solid #10b981!important;}
 .badge-clean{background:rgba(16,185,129,.15);color:var(--green);}
 .badge-avg{background:rgba(245,158,11,.15);color:var(--amber);}
 .badge-rough{background:rgba(239,68,68,.15);color:var(--red);}
@@ -1819,6 +1822,7 @@ select option{background:#0d1526;color:var(--text);}
   <div id="atab-crm" class="mgr-content">
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
       <button class="btn btn-primary" onclick="promptAddCRM()"><i data-lucide="user-plus" class="ico-sm"></i>Add Customer</button>
+      <button class="btn btn-ghost" onclick="syncSarahToCRM()"><i data-lucide="refresh-cw" class="ico-sm"></i>Sync from SARAH</button>
       <button class="btn btn-ghost" onclick="exportJSON('crm')"><i data-lucide="download" class="ico-sm"></i>Export CRM</button>
     </div>
     <div class="table-wrap"><div id="crmContainer"></div></div>

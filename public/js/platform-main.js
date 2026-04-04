@@ -2626,19 +2626,104 @@ async function promptAddCRM(){
     }
   }catch(e){toast('CRM save failed');}
 }
+function crmFollowUpClass(c) {
+  if (!c.follow_up_date) return '';
+  const today = new Date().toISOString().split('T')[0];
+  if (c.follow_up_date < today) return 'crm-overdue';
+  if (c.follow_up_date === today) return 'crm-due-today';
+  return 'crm-upcoming';
+}
+function crmStatusBadge(status) {
+  const colors = { Lead:'#6b7280', Contacted:'#3b82f6', 'Test Drive':'#8b5cf6', Qualified:'#f59e0b', Negotiating:'#f59e0b', Proposal:'#f59e0b', Won:'#10b981', Sold:'#10b981', Lost:'#ef4444' };
+  const bg = colors[status] || '#6b7280';
+  return `background:${bg}22;color:${bg};border:1px solid ${bg}44`;
+}
 function renderCRM(){
   const container=document.getElementById('crmContainer');
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Email</th><th>Vehicle</th><th>Beacon</th><th>Status</th><th>Action</th></tr></thead><tbody>
-  ${crmData.map(c=>`<tr>
-    <td>${c.date}</td><td><strong>${c.name}</strong></td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td>
-    <td>${c.vehicle}${c.stock?' ('+c.stock+')':''}</td><td>${c.beacon||'—'}</td>
-    <td><select class="crm-status" onchange="updateCRM(${c.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-family:'Outfit',sans-serif;">
-      ${['Lead','Contacted','Test Drive','Negotiating','Sold','Lost'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}
-    </select></td>
-    <td><button class="btn btn-danger btn-sm" onclick="deleteCRM(${c.id})">Del</button></td>
-  </tr>`).join('')}
-  </tbody></table>`;
+  container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
+  ${crmData.map(c=>{
+    const fuClass = crmFollowUpClass(c);
+    const fuDisplay = c.follow_up_date ? new Date(c.follow_up_date+'T12:00:00').toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
+    const notesPreview = c.notes ? c.notes.substring(0,25)+(c.notes.length>25?'...':'') : '';
+    return `<tr class="${fuClass}">
+    <td style="font-size:9px;color:var(--muted)">${c.date||''}</td>
+    <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)">'+notesPreview+'</span>':''}</td>
+    <td>${c.phone||'—'}</td>
+    <td>${c.vehicle_interest||c.vehicle||'—'}${c.budget_range?' <span style="font-size:8px;color:var(--muted)">('+c.budget_range+')</span>':''}</td>
+    <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+c.follow_up_note.substring(0,20)+'</span>':''}</td>
+    <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
+    <td style="display:flex;gap:4px">
+      <button onclick="openCrmNotes(${c.id})" title="Notes" style="background:none;border:none;cursor:pointer;font-size:14px">&#128221;</button>
+      <select onchange="updateCRM(${c.id},this.value);this.blur()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 4px;font-size:8px;font-family:'Outfit',sans-serif;width:70px">
+        ${['Lead','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <button onclick="deleteCRM(${c.id})" title="Delete" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--dim)">&#10006;</button>
+    </td>
+  </tr>`}).join('')}
+  </tbody></table>
+  <div id="crmNotesPanel" style="display:none;position:fixed;right:0;top:0;width:340px;height:100vh;background:var(--surface);border-left:2px solid var(--border);z-index:999;padding:20px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div><strong id="crmNotesName"></strong><br><span id="crmNotesPhone" style="font-size:10px;color:var(--muted)"></span></div>
+      <button onclick="closeCrmNotes()" style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer">&#10005;</button>
+    </div>
+    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes</label>
+    <textarea id="crmNotesText" rows="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0 12px" placeholder="Add notes about this customer..."></textarea>
+    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Vehicle Interest</label>
+    <input id="crmNotesVehicle" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:4px 0 12px" placeholder="e.g., SUV, Truck, F-150">
+    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Follow-up Date</label>
+    <input type="date" id="crmNotesFU" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:4px 0 8px">
+    <input id="crmNotesFUNote" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:0 0 12px" placeholder="Follow-up reason...">
+    <button onclick="saveCrmNotes()" style="width:100%;padding:8px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer">Save</button>
+    <div id="crmNotesSaved" style="text-align:center;font-size:9px;color:var(--green);margin-top:6px;display:none">Saved!</div>
+  </div>`;
+}
+let _crmNotesId = null;
+function openCrmNotes(id) {
+  const c = crmData.find(x => x.id === id);
+  if (!c) return;
+  _crmNotesId = id;
+  document.getElementById('crmNotesName').textContent = c.name || 'Unknown';
+  document.getElementById('crmNotesPhone').textContent = c.phone || '';
+  document.getElementById('crmNotesText').value = c.notes || '';
+  document.getElementById('crmNotesVehicle').value = c.vehicle_interest || c.vehicle || '';
+  document.getElementById('crmNotesFU').value = c.follow_up_date || '';
+  document.getElementById('crmNotesFUNote').value = c.follow_up_note || '';
+  document.getElementById('crmNotesPanel').style.display = 'block';
+  document.getElementById('crmNotesSaved').style.display = 'none';
+}
+function closeCrmNotes() {
+  document.getElementById('crmNotesPanel').style.display = 'none';
+  _crmNotesId = null;
+}
+async function saveCrmNotes() {
+  if (!_crmNotesId) return;
+  const body = {
+    notes: document.getElementById('crmNotesText').value,
+    vehicle_interest: document.getElementById('crmNotesVehicle').value,
+    follow_up_date: document.getElementById('crmNotesFU').value || null,
+    follow_up_note: document.getElementById('crmNotesFUNote').value
+  };
+  try {
+    await FF.apiFetch('/api/desk/crm/' + _crmNotesId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const c = crmData.find(x => x.id === _crmNotesId);
+    if (c) { Object.assign(c, body); }
+    renderCRM();
+    openCrmNotes(_crmNotesId); // re-open to keep panel visible
+    document.getElementById('crmNotesSaved').style.display = 'block';
+    setTimeout(() => { const el = document.getElementById('crmNotesSaved'); if (el) el.style.display = 'none'; }, 2000);
+  } catch (e) { console.error('CRM notes save failed:', e); }
+}
+async function syncSarahToCRM() {
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/sync-sarah', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await r.json();
+    if (data.success) {
+      toast(`Synced from SARAH: ${data.created} new, ${data.updated} updated`);
+      if (window.FF?.loadAllData) await window.FF.loadAllData();
+      renderCRM();
+    } else { toast('Sync failed: ' + (data.error || 'unknown')); }
+  } catch (e) { toast('Sync failed'); }
 }
 async function updateCRM(id,status){
   const c=crmData.find(x=>x.id===id);if(c)c.status=status;

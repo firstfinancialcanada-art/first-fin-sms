@@ -927,23 +927,77 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.patch('/api/desk/crm/:id', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      const { status, phone, email, source, notes, name, beacon } = req.body;
+      const ALLOWED = ['status','phone','email','source','notes','name','beacon',
+                        'income','obligations','vehicle_interest','budget_range',
+                        'follow_up_date','follow_up_note','last_contact'];
       const sets = ['updated_at = NOW()'];
       const vals = [];
       let idx = 1;
-      if (status !== undefined) { sets.push(`status = $${idx++}`); vals.push(status); }
-      if (phone !== undefined)  { sets.push(`phone = $${idx++}`); vals.push(phone); }
-      if (email !== undefined)  { sets.push(`email = $${idx++}`); vals.push(email); }
-      if (source !== undefined) { sets.push(`source = $${idx++}`); vals.push(source); }
-      if (notes !== undefined)  { sets.push(`notes = $${idx++}`); vals.push(notes); }
-      if (name !== undefined)   { sets.push(`name = $${idx++}`); vals.push(name); }
-      if (beacon !== undefined) { sets.push(`beacon = $${idx++}`); vals.push(beacon); }
+      for (const field of ALLOWED) {
+        if (req.body[field] !== undefined) {
+          sets.push(`${field} = $${idx++}`);
+          vals.push(req.body[field] === '' ? null : req.body[field]);
+        }
+      }
       vals.push(req.params.id, req.user.userId);
       await client.query(
         `UPDATE desk_crm SET ${sets.join(', ')} WHERE id = $${idx++} AND user_id = $${idx}`,
         vals
       );
       res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── SYNC SARAH → CRM (pull qualified leads into CRM) ─────────
+  app.post('/api/desk/crm/sync-sarah', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      // Get all conversations with vehicle interest for this user
+      const convs = await client.query(`
+        SELECT customer_phone, customer_name, vehicle_type, budget, budget_amount, status, updated_at
+        FROM conversations
+        WHERE user_id = $1 AND customer_phone IS NOT NULL
+          AND (vehicle_type IS NOT NULL OR budget IS NOT NULL OR customer_name IS NOT NULL)
+        ORDER BY updated_at DESC
+      `, [req.user.userId]);
+
+      let created = 0, updated = 0;
+      for (const c of convs.rows) {
+        const phone = c.customer_phone;
+        // Check if already in CRM
+        const existing = await client.query(
+          'SELECT id, notes, vehicle_interest, budget_range FROM desk_crm WHERE user_id = $1 AND phone = $2',
+          [req.user.userId, phone]
+        );
+        if (existing.rows.length > 0) {
+          // Update only empty fields (don't overwrite dealer's manual entries)
+          const row = existing.rows[0];
+          const updates = {};
+          if (!row.vehicle_interest && c.vehicle_type) updates.vehicle_interest = c.vehicle_type;
+          if (!row.budget_range && c.budget) updates.budget_range = c.budget;
+          if (Object.keys(updates).length > 0) {
+            updates.last_contact = c.updated_at;
+            const sets = Object.entries(updates).map(([k], i) => `${k} = $${i+1}`);
+            const vals = Object.values(updates);
+            vals.push(existing.rows[0].id);
+            await client.query(`UPDATE desk_crm SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
+            updated++;
+          }
+        } else {
+          // Create new CRM entry from SARAH data
+          await client.query(
+            `INSERT INTO desk_crm (user_id, name, phone, vehicle_interest, budget_range, status, source, last_contact)
+             VALUES ($1, $2, $3, $4, $5, 'Lead', 'SARAH', $6)`,
+            [req.user.userId, c.customer_name || '', phone, c.vehicle_type, c.budget, c.updated_at]
+          );
+          created++;
+        }
+      }
+      res.json({ success: true, created, updated, total: convs.rows.length });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
