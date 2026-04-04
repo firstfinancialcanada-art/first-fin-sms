@@ -669,7 +669,7 @@ function scrapeCurrentPage() {
         // Check if there are additional pages — if so, tell popup to crawl them too
         const pageSeen = new Set([location.href]);
         const extraPages = [];
-        // Automaxx-style slug pagination + ?page=N links
+        // Automaxx-style slug pagination + ?page=N + Dealer.com ?start=N links
         document.querySelectorAll('a[href]').forEach(a => {
           const href = a.href || '';
           if (pageSeen.has(href)) return;
@@ -678,6 +678,14 @@ function scrapeCurrentPage() {
             try { if (new URL(href).hostname !== location.hostname) return; } catch { return; }
             pageSeen.add(href);
             extraPages.push(href);
+          }
+          // Dealer.com ?start=N — merge with current URL to preserve filters
+          const startM = href.match(/[?&]start=(\d+)/i);
+          if (startM && parseInt(startM[1]) > 0) {
+            const merged = new URL(location.href);
+            merged.searchParams.set('start', startM[1]);
+            const full = merged.toString();
+            if (!pageSeen.has(full)) { pageSeen.add(full); extraPages.push(full); }
           }
         });
         // Vehica Vue-rendered pagination (divs, not links) — always check, merge with above
