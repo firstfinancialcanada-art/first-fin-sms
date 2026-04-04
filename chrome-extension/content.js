@@ -745,10 +745,19 @@ function scrapeCurrentPage() {
       for (const sel of paginationSels) {
         document.querySelectorAll(sel).forEach(container => {
           container.querySelectorAll('a[href]').forEach(a => {
-            const href = a.href;
-            if (!href || pageSeen.has(href)) return;
+            let href = a.href;
+            if (!href) return;
             try { if (new URL(href).hostname !== location.hostname) return; } catch { return; }
             if (VDP_LINK_RE.test(href)) return; // skip VDP links
+            // Merge offset/start params with current URL to preserve filters
+            const startM = href.match(/[?&]start=(\d+)/i);
+            if (startM) {
+              if (parseInt(startM[1]) === 0) return; // skip page 1 duplicate
+              const merged = new URL(location.href);
+              merged.searchParams.set('start', startM[1]);
+              href = merged.toString();
+            }
+            if (pageSeen.has(href)) return;
             pageSeen.add(href);
             pageLinks.push(href);
             foundInContainer = true;
