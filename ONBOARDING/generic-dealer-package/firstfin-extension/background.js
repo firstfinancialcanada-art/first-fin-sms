@@ -52,6 +52,7 @@ function isRealVehicle(v) {
   return !junk.some(j => tl.includes(j)) && (v.year || 0) >= 1950;
 }
 
+
 async function scrapeTabBg(tabId) {
   // Step 1: Client-side scrape (always works, reliable for data)
   let clientResult = null;
@@ -153,13 +154,13 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
+async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
   activeScan = {
     status:  'running',
     total:   links.length,
     current: 0,
     vehicles: [],
-    log: [{ cls: 'hi', text: `Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : ''} — starting scan...` },
+    log: [{ cls: 'hi', text: `Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : (d2cSlugPages > 1 ? ` + ${d2cSlugPages - 1} more pages (button pagination)` : '')} — starting scan...` },
           { cls: 'hi', text: 'You can navigate away — scan runs in background.' }]
   };
   await persistState();
@@ -191,6 +192,53 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
       await persistState();
     }
 
+    // ── D2C slug URL pagination: click page buttons in background tab ──────
+    if (d2cSlugPages > 1 && scanUrl) {
+      const allLinks = [...links];
+      const seenLinks = new Set(links);
+      await chrome.tabs.update(bgTab.id, { url: scanUrl });
+      await waitForTabLoad(bgTab.id);
+      await new Promise(r => setTimeout(r, 2000));
+      for (let p = 1; p < d2cSlugPages; p++) {
+        activeScan.log.push({ cls: 'hi', text: `Collecting page ${p + 1} of ${d2cSlugPages} (clicking pagination)...` });
+        broadcastProgress();
+        // Click the pagination button for page p
+        await chrome.scripting.executeScript({
+          target: { tabId: bgTab.id },
+          func: (pageIdx) => {
+            const btn = document.querySelector(`.divPaginationBox[item-value="${pageIdx}"] button`);
+            if (btn) btn.click();
+          },
+          args: [p]
+        });
+        await new Promise(r => setTimeout(r, 3000)); // Wait for AJAX
+        // Scrape new VDP links
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: bgTab.id },
+          func: () => {
+            const seen = new Set(); const out = [];
+            const d2cRe = /-id\d+\.html/i;
+            document.querySelectorAll('a[href]').forEach(a => {
+              if (!seen.has(a.href) && d2cRe.test(a.href)) { seen.add(a.href); out.push(a.href); }
+            });
+            return out;
+          }
+        });
+        const moreLinks = results?.[0]?.result || [];
+        let added = 0;
+        for (const l of moreLinks) {
+          if (!seenLinks.has(l)) { seenLinks.add(l); allLinks.push(l); added++; }
+        }
+        activeScan.log.push({ cls: 'ok', text: `  Page ${p + 1}: found ${added} more vehicles` });
+        broadcastProgress();
+      }
+      links = allLinks;
+      activeScan.total = links.length;
+      activeScan.log.push({ cls: 'hi', text: `Total: ${links.length} vehicles across all pages — scanning each...` });
+      broadcastProgress();
+      await persistState();
+    }
+
     for (let i = 0; i < links.length; i++) {
       const link = links[i];
       activeScan.current = i + 1;
@@ -200,7 +248,8 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
         await chrome.tabs.update(bgTab.id, { url: link });
         await waitForTabLoad(bgTab.id);
         // Extra wait for lazy-loaded gallery images to render
-        await new Promise(r => setTimeout(r, 1500));
+        const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
+        await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
         const vResp = await scrapeTabBg(bgTab.id);
 
         if (vResp?.result?.vehicles?.length) {
@@ -247,6 +296,46 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
   }
 
   if (bgTab) chrome.tabs.remove(bgTab.id).catch(() => {});
+
+  // ── Post-scan: ask server to detect shared dealer ad photos ────────────
+  if (activeScan.status !== 'error' && activeScan.vehicles.length >= 2) {
+    try {
+      const token = (await chrome.storage.local.get('token')).token;
+      if (token) {
+        const d2cVehicles = activeScan.vehicles
+          .filter(v => v._photos?.some(p => /d2cmedia\.ca|getedealer\.com/i.test(p)))
+          .map(v => ({ photos: v._photos.filter(p => /d2cmedia\.ca|getedealer\.com/i.test(p)) }));
+        if (d2cVehicles.length >= 2) {
+          activeScan.log.push({ cls: 'hi', text: '🔍 Checking for dealer ad photos...' });
+          broadcastProgress();
+          const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/filter-ad-photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ vehicles: d2cVehicles })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.ok && data.adUrls?.length) {
+              const adSet = new Set(data.adUrls);
+              let totalRemoved = 0;
+              for (const v of activeScan.vehicles) {
+                if (!v._photos?.length) continue;
+                const before = v._photos.length;
+                v._photos = v._photos.filter(p => !adSet.has(p));
+                totalRemoved += before - v._photos.length;
+              }
+              if (totalRemoved > 0) {
+                activeScan.log.push({ cls: 'hi', text: `🧹 Removed ${totalRemoved} dealer ad photos across ${activeScan.vehicles.length} vehicles` });
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      activeScan.log.push({ cls: '', text: `Ad filter skipped: ${e.message}` });
+    }
+  }
+
   if (activeScan.status !== 'error') activeScan.status = 'done';
   activeScan.log.push({ cls: activeScan.status === 'done' ? 'ok' : 'err',
     text: activeScan.status === 'done'
@@ -276,8 +365,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true; // keep channel open for async response
   }
 
+  // Server-side scrape relay — content.js sends HTML, we forward to server
+  if (msg.type === 'FF_SERVER_SCRAPE') {
+    chrome.storage.local.get('token', (data) => {
+      if (!data.token) { sendResponse({ ok: false, error: 'No auth token' }); return; }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      fetch('https://app.firstfinancialcanada.com/api/desk/scrape-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + data.token },
+        body: JSON.stringify({ html: msg.html, url: msg.url }),
+        signal: controller.signal
+      })
+        .then(r => { clearTimeout(timeout); return r.json(); })
+        .then(d => { sendResponse(d.ok ? { ok: true, result: d.result } : { ok: false }); })
+        .catch(() => { clearTimeout(timeout); sendResponse({ ok: false }); });
+    });
+    return true;
+  }
+
   if (msg.type === 'START_SCAN') {
-    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null);
+    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null, msg.d2cSlugPages || 0, msg.scanUrl || '');
     sendResponse({ ok: true });
     return false;
   }

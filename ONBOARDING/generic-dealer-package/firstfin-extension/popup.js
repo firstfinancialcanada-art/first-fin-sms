@@ -476,7 +476,7 @@ async function runScan() {
       bgScanActive  = true;
       bgLogRendered = 0;
 
-      chrome.runtime.sendMessage({ type: 'START_SCAN', links: allLinks, pageLinks, cardVehicles: result.cardVehicles || null })
+      chrome.runtime.sendMessage({ type: 'START_SCAN', links: allLinks, pageLinks, cardVehicles: result.cardVehicles || null, d2cSlugPages: result.d2cSlugPages || 0, scanUrl: result.url || '' })
         .catch(() => {
           bgScanActive = false;
           log('Could not start background scan — try again.', 'err');
