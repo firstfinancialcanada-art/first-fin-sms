@@ -2748,9 +2748,21 @@ function openCrmNotes(id) {
   document.getElementById('crmNotesFUNote').value = c.follow_up_note || '';
   document.getElementById('crmNotesPanel').style.display = 'block';
   document.getElementById('crmNotesSaved').style.display = 'none';
+  // Click-outside overlay
+  let ov = document.getElementById('crmNotesOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'crmNotesOverlay';
+    ov.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:998;background:rgba(0,0,0,.3);';
+    ov.onclick = () => closeCrmNotes();
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'block';
 }
 function closeCrmNotes() {
   document.getElementById('crmNotesPanel').style.display = 'none';
+  const ov = document.getElementById('crmNotesOverlay');
+  if (ov) ov.style.display = 'none';
   _crmNotesId = null;
 }
 async function saveCrmNotes() {
@@ -2759,7 +2771,8 @@ async function saveCrmNotes() {
     notes: document.getElementById('crmNotesText').value,
     vehicle_interest: document.getElementById('crmNotesVehicle').value,
     follow_up_date: document.getElementById('crmNotesFU').value || null,
-    follow_up_note: document.getElementById('crmNotesFUNote').value
+    follow_up_note: document.getElementById('crmNotesFUNote').value,
+    last_contact: new Date().toISOString()
   };
   try {
     await FF.apiFetch('/api/desk/crm/' + _crmNotesId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
