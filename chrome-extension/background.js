@@ -365,6 +365,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true; // keep channel open for async response
   }
 
+  // Server-side scrape relay — content.js sends HTML, we forward to server
+  if (msg.type === 'FF_SERVER_SCRAPE') {
+    chrome.storage.local.get('token', (data) => {
+      if (!data.token) { sendResponse({ ok: false, error: 'No auth token' }); return; }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      fetch('https://app.firstfinancialcanada.com/api/desk/scrape-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + data.token },
+        body: JSON.stringify({ html: msg.html, url: msg.url }),
+        signal: controller.signal
+      })
+        .then(r => { clearTimeout(timeout); return r.json(); })
+        .then(d => { sendResponse(d.ok ? { ok: true, result: d.result } : { ok: false }); })
+        .catch(() => { clearTimeout(timeout); sendResponse({ ok: false }); });
+    });
+    return true;
+  }
+
   if (msg.type === 'START_SCAN') {
     runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null, msg.d2cSlugPages || 0, msg.scanUrl || '');
     sendResponse({ ok: true });

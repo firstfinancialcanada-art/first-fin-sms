@@ -989,18 +989,47 @@ function scrapeCurrentPage() {
   return { type: 'listing_cards', vehicles };
 }
 
-// ── Message listener ──────────────────────────────────────────────────────
+// ── Message listener (server-first with client fallback) ─────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== 'SCRAPE') return false;
-  try {
-    const result = scrapeCurrentPage();
-    console.log('[FF-DEBUG] SCRAPE response type:', result.type, 'vehicles:', result.vehicles?.length, 'photos:', result.vehicles?.[0]?._photos?.length);
-    sendResponse({ ok: true, result });
-  } catch (e) {
-    console.error('[FF-DEBUG] SCRAPE error:', e.message);
-    sendResponse({ ok: false, error: e.message });
+
+  // Client-side fallback — the original v2.5 scraper (always works)
+  function fallbackScrape() {
+    try {
+      const result = scrapeCurrentPage();
+      console.log('[FF] CLIENT scrape:', result.type, 'vehicles:', result.vehicles?.length);
+      sendResponse({ ok: true, result });
+    } catch (e) {
+      console.error('[FF] CLIENT scrape error:', e.message);
+      sendResponse({ ok: false, error: e.message });
+    }
   }
-  return false;
+
+  // Try server-first: capture HTML, send to server for parsing
+  try {
+    const html = document.documentElement.outerHTML;
+    const url = location.href;
+    // Only attempt server if page has enough content
+    if (html.length < 500) { fallbackScrape(); return false; }
+
+    chrome.runtime.sendMessage(
+      { type: 'FF_SERVER_SCRAPE', html, url },
+      (resp) => {
+        if (chrome.runtime.lastError || !resp?.ok || !resp?.result) {
+          console.log('[FF] Server scrape failed, using client fallback');
+          fallbackScrape();
+          return;
+        }
+        console.log('[FF] SERVER scrape:', resp.result.type, 'vehicles:', resp.result.vehicles?.length);
+        sendResponse({ ok: true, result: resp.result });
+      }
+    );
+  } catch (e) {
+    console.log('[FF] Server attempt error, using client fallback:', e.message);
+    fallbackScrape();
+    return false;
+  }
+  return true; // keep channel open for async server response
 });
 
 // ── FB Auto-Fill relay (only on the FIRST-FIN platform) ──────────────────
