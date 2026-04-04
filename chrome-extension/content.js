@@ -563,15 +563,21 @@ function scrapeCurrentPage() {
         // D2C uses filterid=...qN... where N is the 0-based page index
         const d2cPageBoxes = document.querySelectorAll('.divPaginationBox');
         const d2cPageLinks = [];
+        let d2cSlugPages = 0;
         if (d2cPageBoxes.length > 1) {
           const curUrl = location.href;
-          // D2C filterid contains 'q0' for page 1, 'q1' for page 2, etc.
-          for (let p = 1; p < d2cPageBoxes.length; p++) {
-            const pageUrl = curUrl.replace(/q\d+/, 'q' + p);
-            if (pageUrl !== curUrl) d2cPageLinks.push(pageUrl);
+          if (/filterid=.*q\d+/.test(curUrl)) {
+            // filterid URL — construct page URLs by replacing q0→q1, q2, etc.
+            for (let p = 1; p < d2cPageBoxes.length; p++) {
+              const pageUrl = curUrl.replace(/q\d+/, 'q' + p);
+              if (pageUrl !== curUrl) d2cPageLinks.push(pageUrl);
+            }
+          } else {
+            // Slug URL (/used/Jeep.html) — no filterid, need button-click pagination
+            d2cSlugPages = d2cPageBoxes.length;
           }
         }
-        return { type: 'listing', links: vdpLinks, pageLinks: d2cPageLinks, vehicaPagination: 0, url: location.href };
+        return { type: 'listing', links: vdpLinks, pageLinks: d2cPageLinks, d2cSlugPages, vehicaPagination: 0, url: location.href };
       }
     }
   }

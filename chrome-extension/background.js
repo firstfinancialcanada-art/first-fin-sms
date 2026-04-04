@@ -154,13 +154,13 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
+async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
   activeScan = {
     status:  'running',
     total:   links.length,
     current: 0,
     vehicles: [],
-    log: [{ cls: 'hi', text: `Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : ''} — starting scan...` },
+    log: [{ cls: 'hi', text: `Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : (d2cSlugPages > 1 ? ` + ${d2cSlugPages - 1} more pages (button pagination)` : '')} — starting scan...` },
           { cls: 'hi', text: 'You can navigate away — scan runs in background.' }]
   };
   await persistState();
@@ -183,6 +183,53 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null) {
           if (!seenLinks.has(l)) { seenLinks.add(l); allLinks.push(l); added++; }
         }
         activeScan.log.push({ cls: 'ok', text: `  Page ${pi + 2}: found ${added} more vehicles` });
+        broadcastProgress();
+      }
+      links = allLinks;
+      activeScan.total = links.length;
+      activeScan.log.push({ cls: 'hi', text: `Total: ${links.length} vehicles across all pages — scanning each...` });
+      broadcastProgress();
+      await persistState();
+    }
+
+    // ── D2C slug URL pagination: click page buttons in background tab ──────
+    if (d2cSlugPages > 1 && scanUrl) {
+      const allLinks = [...links];
+      const seenLinks = new Set(links);
+      await chrome.tabs.update(bgTab.id, { url: scanUrl });
+      await waitForTabLoad(bgTab.id);
+      await new Promise(r => setTimeout(r, 2000));
+      for (let p = 1; p < d2cSlugPages; p++) {
+        activeScan.log.push({ cls: 'hi', text: `Collecting page ${p + 1} of ${d2cSlugPages} (clicking pagination)...` });
+        broadcastProgress();
+        // Click the pagination button for page p
+        await chrome.scripting.executeScript({
+          target: { tabId: bgTab.id },
+          func: (pageIdx) => {
+            const btn = document.querySelector(`.divPaginationBox[item-value="${pageIdx}"] button`);
+            if (btn) btn.click();
+          },
+          args: [p]
+        });
+        await new Promise(r => setTimeout(r, 3000)); // Wait for AJAX
+        // Scrape new VDP links
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: bgTab.id },
+          func: () => {
+            const seen = new Set(); const out = [];
+            const d2cRe = /-id\d+\.html/i;
+            document.querySelectorAll('a[href]').forEach(a => {
+              if (!seen.has(a.href) && d2cRe.test(a.href)) { seen.add(a.href); out.push(a.href); }
+            });
+            return out;
+          }
+        });
+        const moreLinks = results?.[0]?.result || [];
+        let added = 0;
+        for (const l of moreLinks) {
+          if (!seenLinks.has(l)) { seenLinks.add(l); allLinks.push(l); added++; }
+        }
+        activeScan.log.push({ cls: 'ok', text: `  Page ${p + 1}: found ${added} more vehicles` });
         broadcastProgress();
       }
       links = allLinks;
@@ -319,7 +366,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'START_SCAN') {
-    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null);
+    runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null, msg.d2cSlugPages || 0, msg.scanUrl || '');
     sendResponse({ ok: true });
     return false;
   }
