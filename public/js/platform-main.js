@@ -259,29 +259,30 @@ function toggleHideLender(lid){
   // Re-run comparison if results are already showing
   runComparison();
 }   // F&I section active term (48/60/72/84)
-function toggleBiweekly(el){
-  window._biweekly = el.checked;
-  // Sync all toggles (grid + F&I) to same state
-  document.querySelectorAll('.bw-toggle').forEach(t=>{ t.checked = window._biweekly; });
-  const fiBwEl = document.getElementById('fi-biweekly-toggle');
-  if (fiBwEl) fiBwEl.checked = window._biweekly;
+// Payment frequency: monthly | biweekly | semimonthly | weekly
+window._payFreq = 'monthly';
+window._biweekly = false; // backwards compat
+const _freqLabels = { monthly:'/mo', biweekly:'/bi-wk', semimonthly:'/semi', weekly:'/wk' };
+const _freqPeriods = { monthly:12, biweekly:26, semimonthly:24, weekly:52 };
+
+function setPayFreq(freq) {
+  window._payFreq = freq;
+  window._biweekly = (freq === 'biweekly'); // backwards compat
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.toggle('active-term', b.dataset.freq === freq));
   calculate();
   updateRateComparison();
-  // Always refresh presentation cards — refreshPresentationCards() returns early
-  // if the presentation has never been opened, so this is always safe to call.
-  // Avoids a race where overlay.classList.contains('open') fails mid-event.
   refreshPresentationCards();
 }
-// BPMT: calculates payment based on current mode (monthly or bi-weekly)
+// Legacy toggle handler (backwards compat for any old checkboxes)
+function toggleBiweekly(el){ setPayFreq(el.checked ? 'biweekly' : 'monthly'); }
+
 function BPMT(apr, months, fin){
-  if(window._biweekly){
-    const r = apr/100/26;
-    const n = Math.round(months * 26/12);
-    return PMT(r, n, fin);
-  }
-  return PMT(apr/100/12, months, fin);
+  const ppy = _freqPeriods[window._payFreq] || 12;
+  const r = apr/100/ppy;
+  const n = Math.round(months * ppy/12);
+  return PMT(r, n, fin);
 }
-function _pmtLabel(){ return window._biweekly ? '/bi-wk' : '/mo'; }
+function _pmtLabel(){ return _freqLabels[window._payFreq] || '/mo'; }
 
 // ── F&I section term selector ────────────────────────────────────────────────
 function setFiTerm(term, btn) {
@@ -436,10 +437,10 @@ function updateFiSection() {
   }
 }
 function _biweeklyToggleHTML(id){
-  return `<label style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
-    <input type="checkbox" class="bw-toggle" id="${id}" onchange="toggleBiweekly(this)" ${window._biweekly?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--primary);">
-    <span style="letter-spacing:.5px;text-transform:uppercase;">Bi-Weekly Payments</span>
-  </label>`;
+  const btns = ['monthly','biweekly','semimonthly','weekly'].map(f =>
+    `<button class="freq-btn${window._payFreq===f?' active-term':''}" data-freq="${f}" onclick="setPayFreq('${f}')" style="padding:3px 8px;font-size:9px;font-weight:700;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:${window._payFreq===f?'var(--primary)':'var(--surface2)'};color:${window._payFreq===f?'white':'var(--muted)'};font-family:'Outfit',sans-serif;text-transform:uppercase;letter-spacing:.5px;">${{monthly:'Monthly',biweekly:'Bi-Weekly',semimonthly:'Semi-Mo',weekly:'Weekly'}[f]}</button>`
+  ).join('');
+  return `<div style="display:flex;gap:4px;align-items:center;" id="${id}">${btns}</div>`;
 }
 const $f = n => '$'+Number(n).toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const $i = n => '$'+Math.round(n).toLocaleString('en-CA');
@@ -1096,7 +1097,7 @@ async function _runServerCalc(){
     const d = await r.json();
     if (!d.success) return;
 
-    // ── Profit display ───────────────────────────────────────────────
+    // ── Profit display (enhanced with structured breakdown) ────────
     const el = id => document.getElementById(id);
     const totalCost = (_v('unitAcv')||0) + (_v('recon')||0) + (_v('lotPack')||0);
     if(el('totalCost'))  el('totalCost').textContent  = $i(totalCost);
@@ -1110,12 +1111,41 @@ async function _runServerCalc(){
     if(el('bePercent'))  el('bePercent').textContent  = d.bePercent.toFixed(1)+'%';
     if(el('pvr'))        el('pvr').textContent        = $i(d.totalGross);
 
+    // ── Deal grade + cost-to-market (new) ────────────────────────────
+    if(el('dealGrade')) {
+      const gradeColors = { A:'#10b981', B:'#3b82f6', C:'#f59e0b', D:'#ef4444' };
+      const g = d.dealTotal?.dealGrade || 'D';
+      el('dealGrade').textContent = g;
+      el('dealGrade').style.color = gradeColors[g] || 'var(--muted)';
+    }
+    if(el('costToMarket')) {
+      const ctm = d.dealTotal?.costToMarket || 0;
+      el('costToMarket').textContent = ctm.toFixed(1) + '%';
+      el('costToMarket').style.color = ctm > 90 ? 'var(--red)' : ctm > 70 ? 'var(--amber)' : 'var(--green)';
+    }
+    // Product margin badges
+    if(d.backEnd) {
+      for (const prod of ['vsc','gap','tw','wa']) {
+        const badge = el(prod+'Margin');
+        if (badge && d.backEnd[prod]) {
+          badge.textContent = d.backEnd[prod].marginPct.toFixed(0)+'%';
+          badge.style.color = d.backEnd[prod].marginPct >= 50 ? 'var(--green)' : 'var(--amber)';
+        }
+      }
+    }
+
     // ── Reserve display ──────────────────────────────────────────────
     if(el('rateSpread'))    el('rateSpread').textContent    = d.rateSpread.toFixed(2)+'%';
     if(el('reserveProfit')) el('reserveProfit').textContent = $i(d.spreadReserve);
 
-    // ── LTV display ──────────────────────────────────────────────────
-    if(el('dealLTV')) el('dealLTV').textContent = d.ltv > 0 ? d.ltv.toFixed(1)+'%' : 'N/A';
+    // ── LTV display (clean vs effective) ─────────────────────────────
+    if(el('dealLTV')) {
+      if (d.effectiveLtv && d.effectiveLtv !== d.cleanLtv) {
+        el('dealLTV').innerHTML = d.effectiveLtv.toFixed(1)+'% <span style="font-size:8px;color:var(--dim)">(clean: '+d.cleanLtv.toFixed(1)+'%)</span>';
+      } else {
+        el('dealLTV').textContent = d.ltv > 0 ? d.ltv.toFixed(1)+'%' : 'N/A';
+      }
+    }
 
     // ── PTI/DTI display ──────────────────────────────────────────────
     if(el('ptiResult')) el('ptiResult').textContent = d.pti.toFixed(1)+'%';
@@ -1128,10 +1158,19 @@ async function _runServerCalc(){
     if(el('refiRisk'))      { el('refiRisk').textContent = d.riskLevel; el('refiRisk').style.color = riskColor; }
     if(el('reserveStatus')) { el('reserveStatus').textContent = d.reserveStatus; el('reserveStatus').style.color = riskColor; }
 
-    // ── Trade display ────────────────────────────────────────────────
+    // ── Trade display (with negative equity badge) ───────────────────
     if(el('totalRecon'))  el('totalRecon').value = $f(d.totalReconCost);
     if(el('adjustedACV')) el('adjustedACV').value = $f(d.adjustedAcv);
     if(el('tradeEquity')){ el('tradeEquity').value = $f(d.tradeEquity); el('tradeEquity').style.color = d.tradeEquity >= 0 ? 'var(--green)' : 'var(--red)'; }
+    if(el('equityBadge')) {
+      if (d.rolledNegativeEquity > 0) {
+        el('equityBadge').innerHTML = `<span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);">-${$i(d.rolledNegativeEquity)} ROLLED</span>`;
+      } else if (d.tradeEquity > 0) {
+        el('equityBadge').innerHTML = `<span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3);">${$i(d.tradeEquity)} EQUITY</span>`;
+      } else {
+        el('equityBadge').innerHTML = '';
+      }
+    }
 
     syncCompareFromDeal();
   } catch(e) { /* silent — server unavailable, calculations just won't update */ }

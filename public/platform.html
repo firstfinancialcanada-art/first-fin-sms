@@ -1159,6 +1159,7 @@ select option{background:#0d1526;color:var(--text);}
           <label>Trade Equity / Deficit</label>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="text" id="tradeEquity" readonly style="flex:1;">
+            <span id="equityBadge"></span>
             <button class="btn btn-amber btn-sm" onclick="carryTradeEquity()" title="Apply trade allowance to Deal Structure" style="white-space:nowrap;">→ Apply to Deal</button>
           </div>
         </div>
@@ -1414,16 +1415,20 @@ select option{background:#0d1526;color:var(--text);}
           <div style="margin-top:10px;">
           <div class="cline"><span class="cl-label">Total Cost</span><span class="cl-value" id="totalCost">$0</span></div>
           <div class="cline"><span class="cl-label">Front Gross</span><span class="cl-value" id="frontGross">$0</span></div>
-          <div class="cline"><span class="cl-label">VSC Profit</span><span class="cl-value" id="vscProfit">$0</span></div>
-          <div class="cline"><span class="cl-label">GAP Profit</span><span class="cl-value" id="gapProfit">$0</span></div>
-          <div class="cline"><span class="cl-label">T&W Profit</span><span class="cl-value" id="twProfit">$0</span></div>
-          <div class="cline"><span class="cl-label">WA Profit</span><span class="cl-value" id="waProfit">$0</span></div>
-          <div class="cline"><span class="cl-label">F&I Reserve</span><span class="cl-value" style="color:var(--green);">$500</span></div>
+          <div class="cline"><span class="cl-label">VSC Profit <span id="vscMargin" style="font-size:8px;font-weight:700"></span></span><span class="cl-value" id="vscProfit">$0</span></div>
+          <div class="cline"><span class="cl-label">GAP Profit <span id="gapMargin" style="font-size:8px;font-weight:700"></span></span><span class="cl-value" id="gapProfit">$0</span></div>
+          <div class="cline"><span class="cl-label">T&W Profit <span id="twMargin" style="font-size:8px;font-weight:700"></span></span><span class="cl-value" id="twProfit">$0</span></div>
+          <div class="cline"><span class="cl-label">WA Profit <span id="waMargin" style="font-size:8px;font-weight:700"></span></span><span class="cl-value" id="waProfit">$0</span></div>
+          <div class="cline"><span class="cl-label">Rate Reserve</span><span class="cl-value" id="reserveProfit" style="color:var(--green);">$0</span></div>
           <div class="cline"><span class="cl-label">Front %</span><span class="cl-value" id="fePercent">0%</span></div>
           <div class="cline"><span class="cl-label">Back %</span><span class="cl-value" id="bePercent">0%</span></div>
+          <div class="cline"><span class="cl-label">Cost-to-Market</span><span class="cl-value" id="costToMarket">0%</span></div>
           </div>
           <div class="total-bar" id="totalGross">TOTAL GROSS: $0</div>
-          <div style="text-align:center;margin-top:8px;font-size:12px;color:var(--muted);">PVR: <strong style="color:var(--amber);" id="pvr">$0</strong></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:0 4px;">
+            <span style="font-size:12px;color:var(--muted);">PVR: <strong style="color:var(--amber);" id="pvr">$0</strong></span>
+            <span style="font-size:14px;font-weight:800;letter-spacing:1px;">Grade: <span id="dealGrade" style="font-size:18px;">—</span></span>
+          </div>
         </div>
 
         <div id="mgr-reserve" class="mgr-content">
