@@ -268,6 +268,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       const uid = req.user.userId;
       await getOrCreateCustomer(normalizedPhone, uid);
       const conversation = await getOrCreateConversation(normalizedPhone, uid);
+      if (!conversation.source) {
+        await pool.query('UPDATE conversations SET source = $1 WHERE id = $2', ['manual', conversation.id]).catch(() => {});
+      }
       await saveMessage(conversation.id, normalizedPhone, 'assistant', messageBody, uid);
       await logAnalytics('sms_sent', normalizedPhone, { messageBody }, uid);
       // Use tenant's twilio number for outbound
@@ -427,6 +430,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           }
 
           const conversation = await getOrCreateConversation(phone, WEBHOOK_USER_ID);
+          // Set source if new conversation (source will be null on first message)
+          if (!conversation.source) {
+            await pool.query('UPDATE conversations SET source = $1 WHERE id = $2', ['inbound', conversation.id]).catch(() => {});
+          }
 
           // Mark conversation as 'engaged' on first customer reply (was 'active' = outreach sent, no reply yet)
           if (conversation.status === 'active' && !isStopCmd && !isStartCmd) {

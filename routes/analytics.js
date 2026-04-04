@@ -218,6 +218,28 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
           AND deal_data->'vehicle'->>'type' != ''
         GROUP BY type ORDER BY count DESC LIMIT 6`, [uid]);
 
+      // Source attribution
+      const sourceBreakdown = await client.query(`
+        SELECT COALESCE(source, 'unknown') as source, COUNT(*) as count,
+               COUNT(*) FILTER (WHERE status = 'converted') as converted
+        FROM conversations WHERE user_id = $1
+        GROUP BY source ORDER BY count DESC`, [uid]);
+
+      // Win/loss reasons (stop_reason)
+      const stopReasons = await client.query(`
+        SELECT COALESCE(stop_reason, 'unknown') as reason, COUNT(*) as count
+        FROM conversations WHERE user_id = $1 AND status = 'stopped'
+        GROUP BY stop_reason ORDER BY count DESC`, [uid]);
+
+      // Product penetration rates
+      const totalDeals = parseInt(ds.total_deals || 0);
+      const productPenetration = totalDeals > 0 ? {
+        vsc: ((parseInt(ds.vsc_count || 0) / totalDeals) * 100).toFixed(0),
+        gap: ((parseInt(ds.gap_count || 0) / totalDeals) * 100).toFixed(0),
+        tw:  ((parseInt(ds.tw_count  || 0) / totalDeals) * 100).toFixed(0),
+        wa:  ((parseInt(ds.wa_count  || 0) / totalDeals) * 100).toFixed(0),
+      } : { vsc: '0', gap: '0', tw: '0', wa: '0' };
+
       res.json({
         conversionRate: totalConversations > 0 ? ((totalConverted / totalConversations) * 100).toFixed(1) : '0.0',
         totalConverted, totalConversations,
@@ -228,8 +250,11 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
         topVehicles: topVehicles.rows, budgetDist: budgets.rows,
         stageFunnel: funnel.rows,
         weeklyTrend: weeklyTrend.rows,
+        // Source attribution (new)
+        sourceBreakdown: sourceBreakdown.rows,
+        stopReasons: stopReasons.rows,
         dealStats: {
-          totalDeals:   parseInt(ds.total_deals  || 0),
+          totalDeals,
           monthDeals:   parseInt(ds.month_deals  || 0),
           weekDeals:    parseInt(ds.week_deals   || 0),
           todayDeals:   parseInt(ds.today_deals  || 0),
@@ -239,6 +264,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
           waCount:      parseInt(ds.wa_count     || 0),
           avgBackend:   parseFloat(ds.avg_backend || 0).toFixed(0),
           avgPvr:       parseFloat(ds.avg_pvr    || 0).toFixed(0),
+          productPenetration,
         },
         dealVehicleTypes: dealVehicleTypes.rows
       });

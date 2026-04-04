@@ -17,6 +17,16 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     next();
   }
 
+  // ── Audit logging helper ──────────────────────────────────
+  async function auditLog(action, targetType, targetId, details, req) {
+    try {
+      await pool.query(
+        `INSERT INTO admin_audit_log (admin_email, action, target_type, target_id, details, ip_address) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [req?.headers?.['x-admin-email'] || 'admin', action, targetType, targetId, JSON.stringify(details || {}), req?.ip || '']
+      );
+    } catch (e) { console.error('Audit log error:', e.message); }
+  }
+
   // Serve admin.html without server-side guard — browser navigation can't send headers.
   // All API routes below remain protected by adminAuth.
   app.get('/admin', (req, res) => {
@@ -138,69 +148,71 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
 
   // ── POST /api/admin/users/:id/suspend ─────────────────────
   app.post('/api/admin/users/:id/suspend', adminAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
-      try { await client.query('ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN DEFAULT FALSE'); } catch(e) {}
-      await client.query('UPDATE desk_users SET suspended = TRUE WHERE id = $1', [req.params.id]);
+      await pool.query('UPDATE desk_users SET suspended = TRUE WHERE id = $1', [req.params.id]);
+      await auditLog('suspend_user', 'user', parseInt(req.params.id), { reason: req.body.reason || '' }, req);
       res.json({ success: true });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
     }
   });
 
-  // ── POST /api/admin/users/:id/unsuspend ───────────────────
   app.post('/api/admin/users/:id/unsuspend', adminAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
-      await client.query('UPDATE desk_users SET suspended = FALSE WHERE id = $1', [req.params.id]);
+      await pool.query('UPDATE desk_users SET suspended = FALSE WHERE id = $1', [req.params.id]);
+      await auditLog('unsuspend_user', 'user', parseInt(req.params.id), {}, req);
       res.json({ success: true });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
     }
   });
 
   // ── DELETE /api/admin/users/:id ───────────────────────────
+  // Soft delete — marks user as deleted, data preserved for 30 days
   app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
-    const client = await pool.connect();
+    const uid = req.params.id;
     try {
-      // Fetch Twilio number before deleting — release it first to stop billing
-      const userRow = await client.query('SELECT twilio_number FROM desk_users WHERE id = $1', [req.params.id]);
-      const twilioNumber = userRow.rows[0]?.twilio_number;
-      if (twilioNumber && twilioClient) {
-        try {
-          const numbers = await twilioClient.incomingPhoneNumbers.list({ phoneNumber: twilioNumber, limit: 1 });
-          if (numbers.length > 0) {
-            await twilioClient.incomingPhoneNumbers(numbers[0].sid).remove();
-            console.log(`✅ Twilio number released on user delete: ${twilioNumber}`);
-          }
-        } catch(twilioErr) {
-          console.warn(`⚠️ Could not release Twilio number ${twilioNumber} on delete:`, twilioErr.message);
-          // Don't block deletion if Twilio release fails
-        }
-      }
-      // Cascade delete all tenant data
-      const uid = req.params.id;
-      await client.query('DELETE FROM desk_refresh_tokens   WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_inventory        WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_crm              WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_deal_log            WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM conversations         WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM appointments          WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM callbacks             WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM bulk_messages         WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM voicemails            WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM lender_rate_sheets    WHERE user_id = $1', [uid]).catch(() => {});
-      await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
-      res.json({ success: true, releasedNumber: twilioNumber || null });
+      const userRow = await pool.query('SELECT email, display_name FROM desk_users WHERE id = $1', [uid]);
+      if (!userRow.rows.length) return res.status(404).json({ success: false, error: 'User not found' });
+      await pool.query('UPDATE desk_users SET deleted_at = NOW(), suspended = TRUE WHERE id = $1', [uid]);
+      await auditLog('soft_delete_user', 'user', parseInt(uid), { email: userRow.rows[0].email, name: userRow.rows[0].display_name }, req);
+      res.json({ success: true, softDeleted: true, message: 'User soft-deleted. Can be restored within 30 days.' });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
     }
+  });
+
+  // Restore soft-deleted user
+  app.post('/api/admin/users/:id/restore', adminAuth, async (req, res) => {
+    const uid = req.params.id;
+    try {
+      await pool.query('UPDATE desk_users SET deleted_at = NULL, suspended = FALSE WHERE id = $1', [uid]);
+      await auditLog('restore_user', 'user', parseInt(uid), {}, req);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // Permanent purge — only for users deleted 30+ days ago
+  app.post('/api/admin/users/:id/purge', adminAuth, async (req, res) => {
+    const client = await pool.connect();
+    const uid = req.params.id;
+    try {
+      const check = await client.query('SELECT email, deleted_at FROM desk_users WHERE id = $1', [uid]);
+      if (!check.rows.length) return res.status(404).json({ success: false, error: 'User not found' });
+      if (!check.rows[0].deleted_at) return res.status(400).json({ success: false, error: 'User not soft-deleted. Delete first.' });
+      const daysDeleted = (Date.now() - new Date(check.rows[0].deleted_at).getTime()) / 86400000;
+      if (daysDeleted < 30 && !req.body.force) return res.status(400).json({ success: false, error: `Only ${Math.floor(daysDeleted)} days since deletion. Wait 30 days or pass force:true.` });
+      // Cascade delete all data
+      const tables = ['desk_refresh_tokens','desk_inventory','desk_crm','desk_deal_log','conversations','appointments','callbacks','bulk_messages','voicemails','lender_rate_sheets','desk_scenarios','deal_outcomes','feature_events'];
+      for (const t of tables) { await client.query(`DELETE FROM ${t} WHERE user_id = $1`, [uid]).catch(() => {}); }
+      await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
+      await auditLog('purge_user', 'user', parseInt(uid), { email: check.rows[0].email, daysDeleted: Math.floor(daysDeleted) }, req);
+      res.json({ success: true, purged: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally { client.release(); }
   });
 
   // ── GET /api/admin/inquiries ──────────────────────────────
@@ -285,6 +297,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
         'UPDATE desk_users SET subscription_status = $1 WHERE id = $2 RETURNING id, email, subscription_status',
         [status, req.params.id]
       );
+      await auditLog('set_subscription', 'user', parseInt(req.params.id), { status }, req);
       res.json({ success: true, user: result.rows[0] });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
