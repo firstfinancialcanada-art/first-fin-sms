@@ -204,9 +204,20 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       if (!check.rows[0].deleted_at) return res.status(400).json({ success: false, error: 'User not soft-deleted. Delete first.' });
       const daysDeleted = (Date.now() - new Date(check.rows[0].deleted_at).getTime()) / 86400000;
       if (daysDeleted < 30 && !req.body.force) return res.status(400).json({ success: false, error: `Only ${Math.floor(daysDeleted)} days since deletion. Wait 30 days or pass force:true.` });
-      // Cascade delete all data
-      const tables = ['desk_refresh_tokens','desk_inventory','desk_crm','desk_deal_log','conversations','appointments','callbacks','bulk_messages','voicemails','lender_rate_sheets','desk_scenarios','deal_outcomes','feature_events'];
-      for (const t of tables) { await client.query(`DELETE FROM ${t} WHERE user_id = $1`, [uid]).catch(() => {}); }
+      // Cascade delete all data — table names hardcoded (never from user input)
+      await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_deal_log WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM callbacks WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM bulk_messages WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM voicemails WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM lender_rate_sheets WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM desk_scenarios WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM deal_outcomes WHERE user_id = $1', [uid]).catch(() => {});
+      await client.query('DELETE FROM feature_events WHERE user_id = $1', [uid]).catch(() => {});
       await client.query('DELETE FROM desk_users WHERE id = $1', [uid]);
       await auditLog('purge_user', 'user', parseInt(uid), { email: check.rows[0].email, daysDeleted: Math.floor(daysDeleted) }, req);
       res.json({ success: true, purged: true });

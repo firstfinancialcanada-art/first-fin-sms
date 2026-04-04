@@ -4,6 +4,16 @@ const twilio  = require('twilio');
 const path    = require('path');
 require('dotenv').config();
 
+// ── Environment validation ───────────────────────────────────────
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
+const WARN_ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'STRIPE_SECRET_KEY', 'ADMIN_TOKEN'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) { console.error(`❌ FATAL: Missing required env var: ${key}`); process.exit(1); }
+}
+for (const key of WARN_ENV) {
+  if (!process.env[key]) console.warn(`⚠️ Missing env var: ${key} — some features will be disabled`);
+}
+
 // ── Inline rate limiter (no external dep) ─────────────────────────
 function makeRateLimit({ windowMs, max, message }) {
   const hits = new Map();
@@ -149,6 +159,16 @@ setInterval(async () => {
     if (result.rowCount > 0) console.log(`🧹 Purged ${result.rowCount} expired refresh tokens`);
   } catch(e) { console.error('Refresh token cleanup error:', e.message); }
 }, 6 * 60 * 60 * 1000).unref();
+
+// ── Graceful shutdown ────────────────────────────────────────────
+function shutdown(signal) {
+  console.log(`\n⚠️ ${signal} received — shutting down gracefully...`);
+  if (state.bulkSmsProcessor) { clearInterval(state.bulkSmsProcessor); state.bulkSmsProcessor = null; }
+  pool.end().then(() => { console.log('✅ DB pool closed'); process.exit(0); }).catch(() => process.exit(1));
+  setTimeout(() => { console.error('❌ Forced shutdown after 10s'); process.exit(1); }, 10000);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // ── Start ─────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {

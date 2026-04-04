@@ -981,8 +981,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           if (!row.budget_range && c.budget) updates.budget_range = c.budget;
           if (Object.keys(updates).length > 0) {
             updates.last_contact = c.updated_at;
-            const sets = Object.entries(updates).map(([k], i) => `${k} = $${i+1}`);
-            const vals = Object.values(updates);
+            const SAFE_FIELDS = new Set(['vehicle_interest','budget_range','last_contact']);
+            const safeUpdates = Object.entries(updates).filter(([k]) => SAFE_FIELDS.has(k));
+            const sets = safeUpdates.map(([k], i) => `${k} = $${i+1}`);
+            const vals = safeUpdates.map(([,v]) => v);
             vals.push(existing.rows[0].id);
             await client.query(`UPDATE desk_crm SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
             updated++;

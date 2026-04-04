@@ -218,6 +218,15 @@ async function setup() {
     await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0`).catch(() => {});
     console.log('✅ conversations analytics columns');
 
+    // ── Performance indexes for scale ──────────────────────────
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC)`).catch(() => {});
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at DESC)`).catch(() => {});
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_desk_crm_user_phone ON desk_crm(user_id, phone)`).catch(() => {});
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_bulk_user_status ON bulk_messages(user_id, status, scheduled_at) WHERE status = 'pending'`).catch(() => {});
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_deal_outcomes_user ON deal_outcomes(user_id, created_at DESC)`).catch(() => {});
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_desk_inventory_user ON desk_inventory(user_id, stock)`).catch(() => {});
+    console.log('✅ performance indexes ready');
+
     console.log('\n🎉 Phase 1 + Phase 2 migration complete!');
     console.log('ℹ️  Your existing SARAH tables are untouched.');
     console.log('ℹ️  Run: node seed-inventory.js  to load your inventory into the DB.\n');
