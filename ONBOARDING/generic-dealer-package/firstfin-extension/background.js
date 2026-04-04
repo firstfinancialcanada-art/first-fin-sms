@@ -70,7 +70,7 @@ async function scrapeTabBg(tabId) {
     }
   }
 
-  // Step 2: If client got few photos, try server for better photos (cheerio parses raw HTML)
+  // Step 2: If client got few photos, try server for better photos
   if (clientResult?.result?.vehicles?.length) {
     const v = clientResult.result.vehicles[0];
     if ((v._photos?.length || 0) < 3) {
