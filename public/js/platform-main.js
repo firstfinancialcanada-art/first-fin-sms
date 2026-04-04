@@ -2672,6 +2672,23 @@ function crmFollowUpClass(c) {
   if (c.follow_up_date === today) return 'crm-due-today';
   return 'crm-upcoming';
 }
+function calcLeadScore(c) {
+  let score = 0;
+  if (c.beacon && c.beacon > 0) { score += 20; if (c.beacon >= 650) score += 15; }
+  if (c.income && parseFloat(c.income) > 0) { score += 10; if (parseFloat(c.income) >= 3000) score += 10; }
+  if (c.vehicle_interest || c.vehicle) score += 10;
+  if (c.budget_range) score += 10;
+  if (c.phone) score += 5;
+  if (c.email) score += 5;
+  if (c.follow_up_date) score += 5;
+  if (c.status === 'Contacted' || c.status === 'Qualified' || c.status === 'Test Drive') score += 10;
+  return Math.min(100, score);
+}
+function leadScoreBadge(score) {
+  if (score >= 70) return `<span style="padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3)">${score}</span>`;
+  if (score >= 40) return `<span style="padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">${score}</span>`;
+  return `<span style="padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;background:rgba(107,114,128,.15);color:#6b7280;border:1px solid rgba(107,114,128,.3)">${score}</span>`;
+}
 function crmStatusBadge(status) {
   const colors = { Lead:'#6b7280', Contacted:'#3b82f6', 'Test Drive':'#8b5cf6', Qualified:'#f59e0b', Negotiating:'#f59e0b', Proposal:'#f59e0b', Won:'#10b981', Sold:'#10b981', Lost:'#ef4444' };
   const bg = colors[status] || '#6b7280';
@@ -2680,7 +2697,7 @@ function crmStatusBadge(status) {
 function renderCRM(){
   const container=document.getElementById('crmContainer');
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
+  container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
   ${crmData.map(c=>{
     const fuClass = crmFollowUpClass(c);
     const fuDisplay = c.follow_up_date ? new Date(c.follow_up_date+'T12:00:00').toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
@@ -2690,6 +2707,7 @@ function renderCRM(){
     <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)">'+notesPreview+'</span>':''}</td>
     <td>${c.phone||'—'}</td>
     <td>${c.vehicle_interest||c.vehicle||'—'}${c.budget_range?' <span style="font-size:8px;color:var(--muted)">('+c.budget_range+')</span>':''}</td>
+    <td>${leadScoreBadge(calcLeadScore(c))}</td>
     <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+c.follow_up_note.substring(0,20)+'</span>':''}</td>
     <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
     <td style="display:flex;gap:4px">
@@ -3376,6 +3394,38 @@ async function loadSarahDashboard(){
           ? an.budgetDist.map(b=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);"><span>${b.budget}</span><span style="color:var(--green);font-weight:700;">${b.count}</span></div>`).join('')
           : '<div style="padding:8px;color:var(--muted);">No data yet</div>';
         document.getElementById('sa-budgetDist').innerHTML = bdist;
+
+        // Source attribution (new)
+        if (an.sourceBreakdown?.length && document.getElementById('sa-sources')) {
+          const srcHtml = an.sourceBreakdown.map(s => {
+            const convRate = s.count > 0 ? ((s.converted / s.count) * 100).toFixed(0) : 0;
+            return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+              <span>${s.source}</span>
+              <span><strong style="color:var(--primary)">${s.count}</strong> <span style="font-size:9px;color:var(--muted)">(${convRate}% conv)</span></span>
+            </div>`;
+          }).join('');
+          document.getElementById('sa-sources').innerHTML = srcHtml;
+        }
+
+        // Stop reasons (new)
+        if (an.stopReasons?.length && document.getElementById('sa-stopReasons')) {
+          const stopHtml = an.stopReasons.map(r =>
+            `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+              <span>${r.reason}</span><span style="color:var(--red);font-weight:700">${r.count}</span>
+            </div>`
+          ).join('');
+          document.getElementById('sa-stopReasons').innerHTML = stopHtml;
+        }
+
+        // Server-side deal stats (product penetration from DB, supplements local dealLog)
+        if (an.dealStats?.productPenetration) {
+          const pp = an.dealStats.productPenetration;
+          const penEl = id => document.getElementById(id);
+          if (penEl('sa-penVSC')) penEl('sa-penVSC').textContent = pp.vsc + '%';
+          if (penEl('sa-penGAP')) penEl('sa-penGAP').textContent = pp.gap + '%';
+          if (penEl('sa-penTW'))  penEl('sa-penTW').textContent  = pp.tw + '%';
+          if (penEl('sa-penWA'))  penEl('sa-penWA').textContent  = pp.wa + '%';
+        }
       }
     } catch(e){ console.warn('Analytics load error', e); }
 
