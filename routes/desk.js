@@ -795,14 +795,31 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         }
 
       } else if (mode === 'add') {
+        // Batch VIN lookup — get all existing VINs in one query
+        const incomingVins = vehicles.map(v => v.vin?.toUpperCase()).filter(Boolean);
+        const existingVins = new Set();
+        if (incomingVins.length) {
+          const { rows } = await client.query(
+            'SELECT vin FROM desk_inventory WHERE user_id=$1 AND vin = ANY($2)',
+            [userId, incomingVins]
+          );
+          rows.forEach(r => existingVins.add(r.vin));
+        }
+        // Also get existing stocks
+        const incomingStocks = vehicles.map(v => makeStock(v));
+        const existingStocks = new Set();
+        if (incomingStocks.length) {
+          const { rows } = await client.query(
+            'SELECT stock FROM desk_inventory WHERE user_id=$1 AND stock = ANY($2)',
+            [userId, incomingStocks]
+          );
+          rows.forEach(r => existingStocks.add(r.stock));
+        }
         for (const v of vehicles) {
-          if (v.vin) {
-            const { rows } = await client.query(
-              'SELECT id FROM desk_inventory WHERE user_id=$1 AND vin=$2 LIMIT 1',
-              [userId, v.vin.toUpperCase()]
-            );
-            if (rows.length) { skipped++; continue; }
-          }
+          const vin = v.vin?.toUpperCase();
+          const stock = makeStock(v);
+          if (vin && existingVins.has(vin)) { skipped++; continue; }
+          if (existingStocks.has(stock)) { skipped++; continue; }
           await client.query(
             `INSERT INTO desk_inventory
                (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
