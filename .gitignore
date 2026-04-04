@@ -4,3 +4,6 @@ node_modules/
 dist/
 build/
 chrome-extension/.claude/
+
+# Extension source backups (readable versions — keep minified in repo)
+chrome-extension/*.src.js
