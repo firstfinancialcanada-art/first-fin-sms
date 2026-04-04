@@ -713,7 +713,6 @@ function scrapeCurrentPage() {
           const vehicaPageDivs = document.querySelectorAll('.vehica-pagination__page');
           let vehicaPagination = 0;
           if (vehicaPageDivs.length > 1) {
-            // Try to calculate from "N Used cars" text + per-page count
             const countMatch = document.body.innerText.match(/(\d+)\s*Used\s*(cars|vehicles|trucks)/i);
             const totalVehicles = countMatch ? parseInt(countMatch[1]) : 0;
             const perPage = vdpLinks.length || 16;
@@ -721,6 +720,22 @@ function scrapeCurrentPage() {
               vehicaPagination = Math.ceil(totalVehicles / perPage);
             } else {
               vehicaPagination = vehicaPageDivs.length;
+            }
+          }
+          // Vehica base URL fallback: no pagination divs but "NNN Used cars" text
+          if (vehicaPagination === 0 && !extraPages.length) {
+            const countFB = document.body.innerText.match(/(\d+)\s*Used\s*(cars|vehicles|trucks)/i);
+            if (countFB) {
+              const total = parseInt(countFB[1]);
+              const perPage = vdpLinks.length || 16;
+              if (total > perPage) {
+                const base = new URL(location.href);
+                const totalPages = Math.ceil(total / perPage);
+                for (let p = 2; p <= totalPages; p++) {
+                  base.searchParams.set('page', p);
+                  extraPages.push(base.toString());
+                }
+              }
             }
           }
           return { type: 'listing', links: vdpLinks, pageLinks: extraPages, vehicaPagination, url: location.href };
@@ -836,6 +851,24 @@ function scrapeCurrentPage() {
         const totalVehicles2 = countMatch2 ? parseInt(countMatch2[1]) : 0;
         const perPage2 = links.length || 16;
         vehicaPagination = totalVehicles2 > perPage2 ? Math.ceil(totalVehicles2 / perPage2) : vehicaPageDivs2.length;
+      }
+      // Vehica base URL fallback: no pagination divs rendered but "NNN Used cars" text exists
+      // Calculate pages from total count ÷ per-page and generate ?page=N links
+      if (vehicaPagination === 0 && !pageLinks.length) {
+        const countFallback = document.body.innerText.match(/(\d+)\s*Used\s*(cars|vehicles|trucks)/i);
+        if (countFallback) {
+          const total = parseInt(countFallback[1]);
+          const perPage = links.length || 16;
+          if (total > perPage) {
+            const totalPages = Math.ceil(total / perPage);
+            const base = new URL(location.href);
+            for (let p = 2; p <= totalPages; p++) {
+              base.searchParams.set('page', p);
+              const href = base.toString();
+              if (!pageSeen.has(href)) { pageSeen.add(href); pageLinks.push(href); }
+            }
+          }
+        }
       }
       // Detect "load more" / infinite scroll buttons (Algolia, etc.)
       const hasLoadMore = !!document.querySelector('.ais-InfiniteHits-loadMore, [class*="load-more"], [class*="loadmore"]');
