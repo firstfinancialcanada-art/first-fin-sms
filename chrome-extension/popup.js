@@ -1,1 +1,768 @@
-"use strict";console.log("[FIRST-FIN] popup.js loaded");const e="https://app.firstfinancialcanada.com",t="https://app.firstfinancialcanada.com/platform#inventory",n="https://app.firstfinancialcanada.com/platform#fbposter";let o=[],a="add",r=null,i=null,c=null,s={name:"",score:0},d=0,l=0;function m(){}function u(){return(new Date).toTimeString().slice(0,8)}function g(e,t=""){const n=document.getElementById("logBox");if(!n)return;n.classList.remove("hidden");const o=document.createElement("div");t&&(o.className=t),o.textContent=`[${u()}] ${e}`,n.appendChild(o),n.scrollTop=n.scrollHeight}function h(e){["viewLogin","viewMain","viewPreview","viewDone"].forEach(e=>document.getElementById(e).classList.add("hidden")),document.getElementById(e).classList.remove("hidden")}function y(e){document.getElementById("progressWrap").classList.remove("hidden"),document.getElementById("progressFill").style.width=e+"%"}function p(){document.getElementById("progressFill").style.width="0%",document.getElementById("progressWrap").classList.add("hidden")}function v(e,t){document.getElementById("siteDot").className="site-dot"+("ok"===e?" green":"err"===e?" red":""),document.getElementById("siteLabel").textContent=t}function f(e,t){const n=document.getElementById(e);n.textContent=t,n.classList.remove("hidden")}const w={add:"Add vehicles — skip any VINs already in your inventory",replace:"Replace entire inventory with this scan",consolidate:"Update existing VIN matches, add new ones, keep the rest"};function E(e){a=e,["Add","Replace","Consolidate"].forEach(t=>document.getElementById("mode"+t).classList.toggle("active",t.toLowerCase()===e)),document.getElementById("modeDesc").textContent=w[e]||""}async function I(t,n){try{const o=await fetch(`${e}/api/desk/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:t,password:n})});let a;try{a=await o.json()}catch(e){return{ok:0,error:`Server error (HTTP ${o.status}) — try again`}}const c=a.accessToken||a.token;if(o.ok&&c){r=c,i=a.refreshToken||null;const e=a.user||{},n=e.name||e.display_name||t,o=e.tenantBranding?.dealerName||"";return await chrome.storage.local.set({token:c,refreshToken:i,email:t,userName:n,userEmail:t,dealerName:o}),{ok:1,name:n,email:t,dealerName:o}}return{ok:0,error:a.error||a.message||`Login failed (HTTP ${o.status})`}}catch(e){return{ok:0,error:"Could not reach FIRST-FIN server. Check your internet connection."}}}async function k(){try{const e=await chrome.storage.local.get(["token","refreshToken","email","userName","userEmail","dealerName"]);if(e.token)return r=e.token,i=e.refreshToken||null,e}catch(e){}return null}async function L(){if(!i)return 0;try{const t=await fetch(`${e}/api/desk/refresh`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refreshToken:i})}),n=await t.json();if(t.ok&&n.accessToken)return r=n.accessToken,n.refreshToken&&(i=n.refreshToken),await chrome.storage.local.set({token:r,refreshToken:i}),console.log("[FIRST-FIN] Token refreshed successfully"),1}catch(e){console.warn("[FIRST-FIN] Token refresh failed:",e.message)}return 0}async function B(t,n={}){n.headers=n.headers||{},n.headers.Authorization=`Bearer ${r}`;let o=await fetch(`${e}${t}`,n);if(401===o.status){if(!i)throw h("viewLogin"),new Error("Session expired — please sign in again. Your scan data is saved.");if(!await L())throw h("viewLogin"),new Error("Session expired — please sign in again. Your scan data is saved.");n.headers.Authorization=`Bearer ${r}`,o=await fetch(`${e}${t}`,n)}return o}async function S(){chrome.runtime.sendMessage({type:"CLEAR_SCAN"}).catch(()=>{}),d=0,l=0,await chrome.storage.local.remove(["token","refreshToken","email","userName","userEmail","dealerName"]).catch(()=>{}),r=null,i=null,document.getElementById("loginEmail").value="",document.getElementById("loginPw").value="",document.getElementById("btnLogout").classList.add("hidden"),document.getElementById("userBadge").classList.add("hidden"),document.getElementById("logBox").innerHTML="",p(),h("viewLogin")}function b(e){if(!e)return{name:"Unknown page",score:0};const t=e.toLowerCase();return t.includes("houseofcars.com")?{name:"House of Cars",score:10}:t.includes("automaxx")?{name:"Automaxx",score:9}:t.includes("universalford")?{name:"Universal Ford",score:9}:t.includes("autotrader.ca")?{name:"AutoTrader Canada",score:8}:t.includes("kijiji.ca")?{name:"Kijiji Autos",score:7}:t.includes("cargurus.com")?{name:"CarGurus",score:7}:t.includes("/inventory")||t.includes("/vehicles")||t.includes("/used-")?{name:"Dealer Inventory Page",score:6}:{name:e.split("/")[2]||"Current page",score:3}}function T(e,t=12e3){return new Promise((n,o)=>{const a=setTimeout(()=>{chrome.tabs.onUpdated.removeListener(r),n()},t);function r(t,o){t===e&&"complete"===o.status&&(clearTimeout(a),chrome.tabs.onUpdated.removeListener(r),setTimeout(n,500))}chrome.tabs.onUpdated.addListener(r),chrome.tabs.get(e,e=>{if(chrome.runtime.lastError)return clearTimeout(a),chrome.tabs.onUpdated.removeListener(r),void n();"complete"===e.status&&(clearTimeout(a),chrome.tabs.onUpdated.removeListener(r),setTimeout(n,200))})})}async function C(e){for(let t=0;t<2;t++)try{return await chrome.tabs.sendMessage(e,{type:"SCRAPE"})}catch(n){if(0!==t)throw new Error("Could not communicate with page. Try refreshing the tab and scanning again.");try{await chrome.scripting.executeScript({target:{tabId:e},files:["content.js"]}),await new Promise(e=>setTimeout(e,400))}catch(e){}}}function x(e){if(!e)return;const t=document.getElementById("btnScan");(e.log||[]).slice(l).forEach(e=>g(e.text,e.cls||"")),l=(e.log||[]).length;const n=e.total>0?20+Math.round(e.current/e.total*72):5;if(y(Math.min(n,98)),"running"===e.status&&(document.getElementById("scanLabel").textContent=`Scanning ${e.current}/${e.total}...`),"done"===e.status){if(d=0,l=0,o=e.vehicles||[],t.disabled=0,document.getElementById("scanLabel").textContent="Scan This Page",0===o.length)return y(0),p(),void g("No valid vehicles were found — check the page and try again.","err");y(100),N(o),E("add"),h("viewPreview")}"error"===e.status&&(d=0,l=0,chrome.runtime.sendMessage({type:"CLEAR_SCAN"}).catch(()=>{}),t.disabled=0,document.getElementById("scanLabel").textContent="Scan This Page",p())}function N(e){document.getElementById("previewCount").textContent=e.length;const t=document.getElementById("vehicleList");if(t.innerHTML="",e.slice(0,8).forEach(e=>{const n=document.createElement("div");n.className="vehicle-item";const o=[e.year,e.make,e.model,e.trim].filter(Boolean).join(" ")||e._title||"Unknown Vehicle",a=e.mileage?e.mileage.toLocaleString()+" km":"",r=e.price?"$"+Number(e.price).toLocaleString():"";n.innerHTML=`<span class="vi-title">${o}</span><span class="vi-details">${[a,r].filter(Boolean).join(" · ")}</span>`,t.appendChild(n)}),e.length>8){const n=document.createElement("div");n.className="vehicle-more",n.textContent=`+ ${e.length-8} more vehicles`,t.appendChild(n)}}async function $(){if(!c)return void g("No active tab detected — try reopening the extension.","err");o=[],d=0,chrome.storage.local.remove("activeScan").catch(()=>{}),chrome.runtime.sendMessage({type:"CLEAR_SCAN"}).catch(()=>{});const e=document.getElementById("btnScan");e.disabled=1,document.getElementById("scanLabel").textContent="Checking...",document.getElementById("logBox").innerHTML="",document.getElementById("logBox").classList.add("hidden"),y(5);try{if(r&&c?.url)try{const e=await B("/api/desk/scrape-domain"),t=await e.json();if(t.locked&&t.scrape_domain){const e=new URL(c.url).hostname.replace(/^www\./,"").toLowerCase();if(e!==t.scrape_domain.replace(/^www\./,"").toLowerCase())throw new Error(`Scraper is locked to ${t.scrape_domain}. You are on ${e}. Contact First-Fin to change.`);g(`Domain verified: ${e}`,"ok")}}catch(e){if(e.message.includes("locked to"))throw e}document.getElementById("scanLabel").textContent="Scanning...",y(8),g("Scanning page for vehicles...","hi");try{await chrome.scripting.executeScript({target:{tabId:c.id},func:async()=>{const e=document.body.scrollHeight;for(let t=0;t<=e;t+=window.innerHeight)window.scrollTo(0,t),await new Promise(e=>setTimeout(e,300));window.scrollTo(0,e),await new Promise(e=>setTimeout(e,1e3)),window.scrollTo(0,0)}}),await new Promise(e=>setTimeout(e,500))}catch(e){}let t=await C(c.id);if(!t||!t.ok)throw new Error(t?.error||"Scraper returned no data");let n=t.result;if((!n.links||n.links.length<3)&&(!n.vehicles||n.vehicles.length<3))for(let e=0;e<3&&(g("Waiting for page to finish loading...",""),await new Promise(e=>setTimeout(e,2500)),t=await C(c.id),t?.ok&&(n=t.result),!((n.links?.length||0)+(n.vehicles?.length||0)>=3));e++);if(y(15),"listing"===n.type&&n.links?.length>0){let t=n.links,o=n.pageLinks||[];if(n.vehicaPagination){g(`Found ${t.length} vehicles on page 1 — collecting ${n.vehicaPagination} more pages...`,"hi"),y(18);try{const e=await chrome.scripting.executeScript({target:{tabId:c.id},func:async e=>{const t=/\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i,n=new Set;document.querySelectorAll("a[href]").forEach(e=>{t.test(e.href)&&n.add(e.href)});for(let o=2;o<=e;o++){let e=[...document.querySelectorAll(".vehica-pagination__page")].find(e=>e.textContent.trim()===String(o));if(e||(e=document.querySelector(".vehica-pagination__arrow--right")),!e)break;e.click(),await new Promise(e=>setTimeout(e,2500)),document.querySelectorAll("a[href]").forEach(e=>{t.test(e.href)&&n.add(e.href)})}return[...n]},args:[n.vehicaPagination]}),a=e?.[0]?.result||[];a.length>t.length&&(g(`Collected ${a.length} vehicles across ${n.vehicaPagination} pages`,"ok"),t=a),o=[]}catch(e){g(`Could not collect all pages: ${e.message}`,"err")}}if(n.hasLoadMore){g(`Found ${t.length} vehicles — clicking "Load more" to get all...`,"hi"),y(18);try{const e=await chrome.scripting.executeScript({target:{tabId:c.id},func:async()=>{const e=/\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;for(let e=0;e<50;e++){const e=document.querySelector('.ais-InfiniteHits-loadMore:not([disabled]), [class*="load-more"]:not([disabled]), [class*="loadmore"]:not([disabled])');if(!e||e.disabled)break;e.click(),await new Promise(e=>setTimeout(e,2e3))}const t=new Set;return document.querySelectorAll("a[href]").forEach(n=>{e.test(n.href)&&t.add(n.href)}),[...t]}}),n=e?.[0]?.result||[];n.length>t.length&&(g(`Loaded ${n.length} vehicles total (was ${t.length})`,"ok"),t=n),o=[]}catch(e){g(`Could not load all: ${e.message}`,"err")}}return g(`Found ${t.length} vehicle pages — handing off to background...`,"hi"),d=1,l=0,void chrome.runtime.sendMessage({type:"START_SCAN",links:t,pageLinks:o,cardVehicles:n.cardVehicles||null,d2cSlugPages:n.d2cSlugPages||0,scanUrl:n.url||""}).catch(()=>{d=0,g("Could not start background scan — try again.","err"),e.disabled=0,document.getElementById("scanLabel").textContent="Scan This Page"})}if(!(n.vehicles?.length>0))throw new Error("No vehicles found on this page. Make sure you're on an inventory/listing page.");if(o=n.vehicles.filter(F),y(90),o.forEach(e=>g(`  ✓ ${e.year} ${e.make} ${e.model} — ${(e.mileage||0).toLocaleString()} km · $${(e.price||0).toLocaleString()}`,"ok")),0===o.length)throw new Error("No valid vehicles were found — check the page and try again.");chrome.storage.local.set({activeScan:{status:"done",vehicles:o,total:o.length,current:o.length,log:[]}}).catch(()=>{}),y(100),g(`✅ ${o.length} vehicles ready to sync`,"ok"),N(o),E("add"),h("viewPreview"),e.disabled=0,document.getElementById("scanLabel").textContent="Scan This Page"}catch(t){g(`❌ ${t.message}`,"err"),e.disabled=0,document.getElementById("scanLabel").textContent="Scan This Page",p()}}function F(e){const t=(e._title||"").toLowerCase();return["for sale in","under $","house of cars","inventory","alberta","calgary","wholesale"].some(e=>t.includes(e))||(e.year||0)<1990||(e.year||0)>(new Date).getFullYear()+2||"Used"===e.make||"New"===e.make||/^GEN\d+$/i.test(e.stock)&&!e.make?0:1}async function P(){if(!o.length)return;const e=document.getElementById("btnSync");e.disabled=1,e.innerHTML='<span class="spin">⏳</span> Syncing...';try{const e=o.map(e=>{const t=Object.fromEntries(Object.entries(e).filter(([e])=>!e.startsWith("_")));return e._photos&&e._photos.length&&(t.photos=e._photos.slice(0,10)),t}),t=await B("/api/desk/inventory/sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:a,vehicles:e})});let n;try{n=await t.json()}catch(e){n={}}if(!t.ok||!n.success)throw new Error(n.error||`Server error (HTTP ${t.status})`);const r=[];n.inserted&&r.push(`${n.inserted} added`),n.updated&&r.push(`${n.updated} updated`),n.skipped&&r.push(`${n.skipped} skipped`),document.getElementById("doneNum").textContent=(n.inserted||0)+(n.updated||0),document.getElementById("doneDetail").textContent=r.join(" · ")||`Mode: ${a}`,chrome.storage.local.remove("activeScan").catch(()=>{}),h("viewDone")}catch(t){e.disabled=0,e.innerHTML="<span>↑</span> Sync to FIRST-FIN";const n=document.getElementById("syncError");n&&n.remove();const o=document.createElement("div");o.id="syncError",o.style.cssText="color:#e74c3c;font-size:11px;margin-top:8px;padding:8px 10px;background:rgba(231,76,60,.1);border-radius:5px;border:1px solid rgba(231,76,60,.3);",o.textContent=t.message,e.insertAdjacentElement("afterend",o),setTimeout(()=>o.remove(),8e3)}}function M(){console.log("[FIRST-FIN] Attaching listeners"),chrome.runtime.onMessage.addListener(e=>{"SCAN_PROGRESS"===e.type&&x(e.state)}),document.getElementById("btnLogin").addEventListener("click",async()=>{console.log("[FIRST-FIN] Login button clicked");const e=document.getElementById("loginEmail").value.trim(),t=document.getElementById("loginPw").value,n=document.getElementById("loginError");if(n.classList.add("hidden"),n.textContent="",!e||!t)return void f("loginError","Please enter your email and password.");const o=document.getElementById("btnLogin");o.disabled=1,o.innerHTML='<span class="spin">⏳</span> Signing in...';try{const n=await I(e,t);if(console.log("[FIRST-FIN] Login result:",n.ok,n.error||""),n.ok){document.getElementById("userName").textContent=n.name,document.getElementById("userEmail").textContent=n.email;const e=document.getElementById("dealerBadge");e&&n.dealerName&&(e.textContent=n.dealerName),document.getElementById("userBadge").classList.remove("hidden"),document.getElementById("btnLogout").classList.remove("hidden"),document.getElementById("pageDesc").textContent=s.score>=5?`Ready to scan ${s.name} inventory.`:"Navigate to a dealer inventory page, then click Scan.",h("viewMain")}else f("loginError",n.error),o.disabled=0,o.innerHTML="<span>▶</span> Sign In to FIRST-FIN"}catch(e){f("loginError",e.message||"Unexpected error — please try again."),o.disabled=0,o.innerHTML="<span>▶</span> Sign In to FIRST-FIN"}}),document.getElementById("loginPw").addEventListener("keydown",e=>{"Enter"===e.key&&document.getElementById("btnLogin").click()}),document.getElementById("btnScan").addEventListener("click",$),document.getElementById("modeAdd").addEventListener("click",()=>E("add")),document.getElementById("modeReplace").addEventListener("click",()=>E("replace")),document.getElementById("modeConsolidate").addEventListener("click",()=>E("consolidate")),document.getElementById("btnSync").addEventListener("click",P),document.getElementById("btnRescan").addEventListener("click",()=>{o=[],d=0,chrome.storage.local.remove("activeScan").catch(()=>{}),chrome.runtime.sendMessage({type:"CLEAR_SCAN"}).catch(()=>{}),document.getElementById("logBox").innerHTML="",document.getElementById("logBox").classList.add("hidden"),document.getElementById("scanLabel").textContent="Scan This Page",document.getElementById("btnScan").disabled=0,p(),h("viewMain")}),document.getElementById("btnOpenPlatform").addEventListener("click",()=>chrome.tabs.create({url:t})),document.getElementById("btnOpenFBPoster").addEventListener("click",()=>chrome.tabs.create({url:n})),document.getElementById("btnScanAnother").addEventListener("click",()=>{o=[],document.getElementById("logBox").innerHTML="",document.getElementById("logBox").classList.add("hidden"),document.getElementById("scanLabel").textContent="Scan This Page",document.getElementById("btnScan").disabled=0,p(),h("viewMain")}),document.getElementById("btnLogout").addEventListener("click",S),console.log("[FIRST-FIN] All listeners attached")}async function R(){try{const[e]=await chrome.tabs.query({active:1,currentWindow:1});c=e,s=b(e?.url||""),s.score>=5?v("ok",`Inventory page: ${s.name}`):v("","Navigate to a dealer inventory page")}catch(e){console.warn("[FIRST-FIN] tabs.query failed:",e.message),v("","Could not detect current page")}try{const e=await k();if(!e)return void h("viewLogin");{document.getElementById("userName").textContent=e.userName||"",document.getElementById("userEmail").textContent=e.userEmail||"";const t=document.getElementById("dealerBadge");t&&e.dealerName&&(t.textContent=e.dealerName),document.getElementById("userBadge").classList.remove("hidden"),document.getElementById("btnLogout").classList.remove("hidden"),document.getElementById("pageDesc").textContent=s.score>=5?`Ready to scan ${s.name} inventory.`:"Navigate to a dealer inventory page, then click Scan.",h("viewMain")}}catch(e){return console.warn("[FIRST-FIN] loadAuth failed:",e.message),void h("viewLogin")}try{const e=(await chrome.storage.local.get("activeScan")).activeScan;if(!e)return;if("running"===e.status){h("viewMain"),d=1,l=0,document.getElementById("btnScan").disabled=1,(e.log||[]).forEach(e=>g(e.text,e.cls||"")),l=(e.log||[]).length;const t=e.total>0?20+Math.round(e.current/e.total*72):5;y(Math.min(t,98)),document.getElementById("scanLabel").textContent=`Scanning ${e.current}/${e.total}...`}else"done"===e.status&&e.vehicles?.length>0?(o=e.vehicles,N(o),E("add"),h("viewPreview")):chrome.storage.local.remove("activeScan").catch(()=>{})}catch(e){console.warn("[FIRST-FIN] scan reconnect check failed:",e.message)}}document.addEventListener("DOMContentLoaded",()=>{console.log("[FIRST-FIN] DOMContentLoaded fired"),m(),M(),R()});
+// popup.js — FIRST-FIN Inventory Importer v2.2
+'use strict';
+console.log('[FIRST-FIN] popup.js loaded');
+
+const API          = 'https://app.firstfinancialcanada.com';
+const PLATFORM_URL = 'https://app.firstfinancialcanada.com/platform#inventory';
+const FB_URL       = 'https://app.firstfinancialcanada.com/platform#fbposter';
+
+// ── State ─────────────────────────────────────────────────────────────────
+let scraped          = [];
+let syncMode         = 'add';
+let authToken        = null;
+let refreshToken     = null;
+let currentTab       = null;
+let currentSite      = { name: '', score: 0 };
+let bgScanActive     = false;     // true while background.js is running a scan
+let bgLogRendered    = 0;         // how many background log entries we've already shown
+
+// ── Logo ──────────────────────────────────────────────────────────────────
+// Logo is rendered via <img src="icons/logo.png"> in popup.html
+function drawLogo() {}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function ts() { return new Date().toTimeString().slice(0,8); }
+
+function log(msg, cls='') {
+  const box = document.getElementById('logBox');
+  if (!box) return;
+  box.classList.remove('hidden');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `[${ts()}] ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function showView(id) {
+  ['viewLogin','viewMain','viewPreview','viewDone'].forEach(v =>
+    document.getElementById(v).classList.add('hidden')
+  );
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function setProgress(pct) {
+  document.getElementById('progressWrap').classList.remove('hidden');
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+function resetProgress() {
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressWrap').classList.add('hidden');
+}
+
+function setSiteDot(state, label) {
+  const dot = document.getElementById('siteDot');
+  dot.className = 'site-dot' + (state==='ok' ? ' green' : state==='err' ? ' red' : '');
+  document.getElementById('siteLabel').textContent = label;
+}
+
+function showError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ── Sync mode ─────────────────────────────────────────────────────────────
+const MODE_DESCS = {
+  add:         'Add vehicles — skip any VINs already in your inventory',
+  replace:     'Replace entire inventory with this scan',
+  consolidate: 'Update existing VIN matches, add new ones, keep the rest'
+};
+function selectMode(mode) {
+  syncMode = mode;
+  ['Add','Replace','Consolidate'].forEach(m =>
+    document.getElementById('mode'+m).classList.toggle('active', m.toLowerCase()===mode)
+  );
+  document.getElementById('modeDesc').textContent = MODE_DESCS[mode] || '';
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+async function tryLogin(email, pw) {
+  try {
+    const r = await fetch(`${API}/api/desk/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password: pw })
+    });
+    let d;
+    try { d = await r.json(); }
+    catch (_) { return { ok: false, error: `Server error (HTTP ${r.status}) — try again` }; }
+
+    const token = d.accessToken || d.token;
+    if (r.ok && token) {
+      authToken = token;
+      refreshToken = d.refreshToken || null;
+      const user = d.user || {};
+      const name = user.name || user.display_name || email;
+      const dealerName = user.tenantBranding?.dealerName || '';
+      await chrome.storage.local.set({ token, refreshToken: refreshToken, email, userName: name, userEmail: email, dealerName });
+      return { ok: true, name, email, dealerName };
+    }
+    return { ok: false, error: d.error || d.message || `Login failed (HTTP ${r.status})` };
+  } catch (e) {
+    return { ok: false, error: 'Could not reach FIRST-FIN server. Check your internet connection.' };
+  }
+}
+
+async function loadAuth() {
+  try {
+    const s = await chrome.storage.local.get(['token','refreshToken','email','userName','userEmail','dealerName']);
+    if (s.token) { authToken = s.token; refreshToken = s.refreshToken || null; return s; }
+  } catch (_) {}
+  return null;
+}
+
+// Auto-refresh access token using refresh token
+async function refreshAccessToken() {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(`${API}/api/desk/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    const d = await r.json();
+    if (r.ok && d.accessToken) {
+      authToken = d.accessToken;
+      if (d.refreshToken) refreshToken = d.refreshToken;
+      await chrome.storage.local.set({ token: authToken, refreshToken });
+      console.log('[FIRST-FIN] Token refreshed successfully');
+      return true;
+    }
+  } catch (e) {
+    console.warn('[FIRST-FIN] Token refresh failed:', e.message);
+  }
+  return false;
+}
+
+// Authenticated fetch with auto-refresh on 401
+async function authFetch(path, opts = {}) {
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = `Bearer ${authToken}`;
+  let r = await fetch(`${API}${path}`, opts);
+  if (r.status === 401) {
+    if (refreshToken) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        opts.headers['Authorization'] = `Bearer ${authToken}`;
+        r = await fetch(`${API}${path}`, opts);
+      } else {
+        // Refresh failed — force re-login but keep scan data
+        showView('viewLogin');
+        throw new Error('Session expired — please sign in again. Your scan data is saved.');
+      }
+    } else {
+      // No refresh token (old login) — force re-login but keep scan data
+      showView('viewLogin');
+      throw new Error('Session expired — please sign in again. Your scan data is saved.');
+    }
+  }
+  return r;
+}
+
+async function logout() {
+  // Cancel any in-progress background scan
+  chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+  bgScanActive  = false;
+  bgLogRendered = 0;
+
+  await chrome.storage.local.remove(['token','refreshToken','email','userName','userEmail','dealerName']).catch(()=>{});
+  authToken = null;
+  refreshToken = null;
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPw').value    = '';
+  document.getElementById('btnLogout').classList.add('hidden');
+  document.getElementById('userBadge').classList.add('hidden');
+  document.getElementById('logBox').innerHTML = '';
+  resetProgress();
+  showView('viewLogin');
+}
+
+// ── Site detection ────────────────────────────────────────────────────────
+function detectSite(url) {
+  if (!url) return { name: 'Unknown page', score: 0 };
+  const u = url.toLowerCase();
+  if (u.includes('houseofcars.com'))  return { name: 'House of Cars',    score: 10 };
+  if (u.includes('automaxx'))         return { name: 'Automaxx',          score: 9  };
+  if (u.includes('universalford'))    return { name: 'Universal Ford',    score: 9  };
+  if (u.includes('autotrader.ca'))    return { name: 'AutoTrader Canada', score: 8  };
+  if (u.includes('kijiji.ca'))        return { name: 'Kijiji Autos',      score: 7  };
+  if (u.includes('cargurus.com'))     return { name: 'CarGurus',          score: 7  };
+  if (u.includes('/inventory') || u.includes('/vehicles') || u.includes('/used-'))
+    return { name: 'Dealer Inventory Page', score: 6 };
+  return { name: url.split('/')[2] || 'Current page', score: 3 };
+}
+
+// ── Tab helpers ───────────────────────────────────────────────────────────
+function waitForTabLoad(tabId, timeoutMs=12000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, timeoutMs);
+
+    function listener(id, info) {
+      if (id !== tabId) return;
+      if (info.status === 'complete') {
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+        setTimeout(resolve, 500);
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+
+    chrome.tabs.get(tabId, tab => {
+      if (chrome.runtime.lastError) { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener); resolve(); return; }
+      if (tab.status === 'complete') {
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+        setTimeout(resolve, 200);
+      }
+    });
+  });
+}
+
+// Send SCRAPE message to content.js, auto-inject on first failure
+async function scrapeTab(tabId) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
+    } catch (e) {
+      if (attempt === 0) {
+        try {
+          await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+          await new Promise(r => setTimeout(r, 400));
+        } catch (_) {}
+      } else {
+        throw new Error('Could not communicate with page. Try refreshing the tab and scanning again.');
+      }
+    }
+  }
+}
+
+// ── Background scan progress handler ─────────────────────────────────────
+function handleBgScanProgress(state) {
+  if (!state) return;
+
+  const btn = document.getElementById('btnScan');
+
+  // Append only new log entries (avoid duplicates on reconnect)
+  const newEntries = (state.log || []).slice(bgLogRendered);
+  newEntries.forEach(entry => log(entry.text, entry.cls || ''));
+  bgLogRendered = (state.log || []).length;
+
+  // Update progress bar
+  const pct = state.total > 0 ? 20 + Math.round((state.current / state.total) * 72) : 5;
+  setProgress(Math.min(pct, 98));
+
+  if (state.status === 'running') {
+    document.getElementById('scanLabel').textContent =
+      `Scanning ${state.current}/${state.total}...`;
+  }
+
+  if (state.status === 'done') {
+    bgScanActive  = false;
+    bgLogRendered = 0;
+    scraped = state.vehicles || [];
+    // Don't clear scan from storage here — keep it until sync completes
+
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+
+    if (scraped.length === 0) {
+      setProgress(0);
+      resetProgress();
+      log('No valid vehicles were found — check the page and try again.', 'err');
+      return;
+    }
+    setProgress(100);
+    buildPreview(scraped);
+    selectMode('add');
+    showView('viewPreview');
+  }
+
+  if (state.status === 'error') {
+    bgScanActive  = false;
+    bgLogRendered = 0;
+    chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+    resetProgress();
+  }
+}
+
+// ── Preview builder ───────────────────────────────────────────────────────
+function buildPreview(vehicles) {
+  document.getElementById('previewCount').textContent = vehicles.length;
+  const list = document.getElementById('vehicleList');
+  list.innerHTML = '';
+  vehicles.slice(0, 8).forEach(v => {
+    const item = document.createElement('div');
+    item.className = 'vehicle-item';
+    const title  = [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') || v._title || 'Unknown Vehicle';
+    const km     = v.mileage ? v.mileage.toLocaleString() + ' km' : '';
+    const price  = v.price   ? '$' + Number(v.price).toLocaleString() : '';
+    item.innerHTML =
+      `<span class="vi-title">${title}</span>` +
+      `<span class="vi-details">${[km,price].filter(Boolean).join(' · ')}</span>`;
+    list.appendChild(item);
+  });
+  if (vehicles.length > 8) {
+    const more = document.createElement('div');
+    more.className = 'vehicle-more';
+    more.textContent = `+ ${vehicles.length - 8} more vehicles`;
+    list.appendChild(more);
+  }
+}
+
+// ── Scan flow ─────────────────────────────────────────────────────────────
+async function runScan() {
+  if (!currentTab) { log('No active tab detected — try reopening the extension.', 'err'); return; }
+
+  // Clear any stale scan data from previous runs
+  scraped = [];
+  bgScanActive = false;
+  chrome.storage.local.remove('activeScan').catch(() => {});
+  chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true;
+  document.getElementById('scanLabel').textContent = 'Checking...';
+  document.getElementById('logBox').innerHTML = '';
+  document.getElementById('logBox').classList.add('hidden');
+  setProgress(5);
+
+  try {
+    // ── Domain lock check ─────────────────────────────────────
+    if (authToken && currentTab?.url) {
+      try {
+        const lockResp = await authFetch('/api/desk/scrape-domain');
+        const lockData = await lockResp.json();
+        if (lockData.locked && lockData.scrape_domain) {
+          const pageHost = new URL(currentTab.url).hostname.replace(/^www\./, '').toLowerCase();
+          const allowed = lockData.scrape_domain.replace(/^www\./, '').toLowerCase();
+          if (pageHost !== allowed) {
+            throw new Error(`Scraper is locked to ${lockData.scrape_domain}. You are on ${pageHost}. Contact First-Fin to change.`);
+          }
+          log(`Domain verified: ${pageHost}`, 'ok');
+        }
+      } catch(lockErr) {
+        if (lockErr.message.includes('locked to')) throw lockErr;
+        // If domain check fails (network etc), allow scan to proceed
+      }
+    }
+
+    document.getElementById('scanLabel').textContent = 'Scanning...';
+    setProgress(8);
+    log('Scanning page for vehicles...', 'hi');
+
+    // Scroll through the page to trigger lazy-loaded content (Convertus, etc.)
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: currentTab.id },
+        func: async () => {
+          const h = document.body.scrollHeight;
+          for (let y = 0; y <= h; y += window.innerHeight) {
+            window.scrollTo(0, y);
+            await new Promise(r => setTimeout(r, 300));
+          }
+          window.scrollTo(0, h);
+          await new Promise(r => setTimeout(r, 1000));
+          window.scrollTo(0, 0);
+        }
+      });
+      await new Promise(r => setTimeout(r, 500));
+    } catch (_) {}
+
+    let response = await scrapeTab(currentTab.id);
+    if (!response || !response.ok) throw new Error(response?.error || 'Scraper returned no data');
+
+    let result = response.result;
+
+    // Retry for AJAX-rendered pages (Algolia, etc.) — if very few results, wait and re-scrape
+    if ((!result.links || result.links.length < 3) && (!result.vehicles || result.vehicles.length < 3)) {
+      for (let retry = 0; retry < 3; retry++) {
+        log('Waiting for page to finish loading...', '');
+        await new Promise(r => setTimeout(r, 2500));
+        response = await scrapeTab(currentTab.id);
+        if (response?.ok) result = response.result;
+        const count = (result.links?.length || 0) + (result.vehicles?.length || 0);
+        if (count >= 3) break;
+      }
+    }
+
+    setProgress(15);
+
+    if (result.type === 'listing' && result.links?.length > 0) {
+      let allLinks = result.links;
+      let pageLinks = result.pageLinks || [];
+
+      // Vehica (WordPress theme) — pagination is Vue-rendered, background tab can't see it.
+      // Collect all VDP links by clicking through pages in the foreground tab.
+      if (result.vehicaPagination) {
+        log(`Found ${allLinks.length} vehicles on page 1 — collecting ${result.vehicaPagination} more pages...`, 'hi');
+        setProgress(18);
+        try {
+          const collected = await chrome.scripting.executeScript({
+            target: { tabId: currentTab.id },
+            func: async (totalPages) => {
+              const VDP_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+              const allLinks = new Set();
+              // Collect from current page
+              document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              // Click through remaining pages using the right arrow (handles sliding window pagination)
+              for (let p = 2; p <= totalPages; p++) {
+                // Try direct page number first, then fall back to right arrow
+                let pageDiv = [...document.querySelectorAll('.vehica-pagination__page')].find(d => d.textContent.trim() === String(p));
+                if (!pageDiv) {
+                  // Page number not visible — use right arrow to advance
+                  pageDiv = document.querySelector('.vehica-pagination__arrow--right');
+                }
+                if (!pageDiv) break;
+                pageDiv.click();
+                await new Promise(r => setTimeout(r, 2500));
+                document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              }
+              return [...allLinks];
+            },
+            args: [result.vehicaPagination]
+          });
+          const vehicaLinks = collected?.[0]?.result || [];
+          if (vehicaLinks.length > allLinks.length) {
+            log(`Collected ${vehicaLinks.length} vehicles across ${result.vehicaPagination} pages`, 'ok');
+            allLinks = vehicaLinks;
+          }
+          pageLinks = []; // All links collected — no need for background pagination crawl
+        } catch (e) {
+          log(`Could not collect all pages: ${e.message}`, 'err');
+        }
+      }
+
+      // "Load more" / infinite scroll (Algolia, etc.) — click button in foreground until all loaded
+      if (result.hasLoadMore) {
+        log(`Found ${allLinks.length} vehicles — clicking "Load more" to get all...`, 'hi');
+        setProgress(18);
+        try {
+          const collected = await chrome.scripting.executeScript({
+            target: { tabId: currentTab.id },
+            func: async () => {
+              const VDP_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+              // Click "load more" repeatedly until button disappears or no new links
+              for (let i = 0; i < 50; i++) {
+                const btn = document.querySelector('.ais-InfiniteHits-loadMore:not([disabled]), [class*="load-more"]:not([disabled]), [class*="loadmore"]:not([disabled])');
+                if (!btn || btn.disabled) break;
+                btn.click();
+                await new Promise(r => setTimeout(r, 2000));
+              }
+              // Collect all VDP links
+              const allLinks = new Set();
+              document.querySelectorAll('a[href]').forEach(a => { if (VDP_RE.test(a.href)) allLinks.add(a.href); });
+              return [...allLinks];
+            }
+          });
+          const loadedLinks = collected?.[0]?.result || [];
+          if (loadedLinks.length > allLinks.length) {
+            log(`Loaded ${loadedLinks.length} vehicles total (was ${allLinks.length})`, 'ok');
+            allLinks = loadedLinks;
+          }
+          pageLinks = [];
+        } catch (e) {
+          log(`Could not load all: ${e.message}`, 'err');
+        }
+      }
+
+      // Delegate multi-VDP crawl to background.js so it survives popup close
+      log(`Found ${allLinks.length} vehicle pages — handing off to background...`, 'hi');
+      bgScanActive  = true;
+      bgLogRendered = 0;
+
+      chrome.runtime.sendMessage({ type: 'START_SCAN', links: allLinks, pageLinks, cardVehicles: result.cardVehicles || null, d2cSlugPages: result.d2cSlugPages || 0, scanUrl: result.url || '' })
+        .catch(() => {
+          bgScanActive = false;
+          log('Could not start background scan — try again.', 'err');
+          btn.disabled = false;
+          document.getElementById('scanLabel').textContent = 'Scan This Page';
+        });
+      // UI updates come through the SCAN_PROGRESS listener
+      return;
+
+    } else if (result.vehicles?.length > 0) {
+      scraped = result.vehicles.filter(isRealVehicle);
+      setProgress(90);
+      scraped.forEach(v =>
+        log(`  ✓ ${v.year} ${v.make} ${v.model} — ${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()}`, 'ok')
+      );
+    } else {
+      throw new Error('No vehicles found on this page. Make sure you\'re on an inventory/listing page.');
+    }
+
+    if (scraped.length === 0) throw new Error('No valid vehicles were found — check the page and try again.');
+
+    // Persist scan results so they survive popup close/reopen
+    chrome.storage.local.set({ activeScan: { status: 'done', vehicles: scraped, total: scraped.length, current: scraped.length, log: [] } }).catch(() => {});
+
+    setProgress(100);
+    log(`✅ ${scraped.length} vehicles ready to sync`, 'ok');
+    buildPreview(scraped);
+    selectMode('add');
+    showView('viewPreview');
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+
+  } catch (e) {
+    log(`❌ ${e.message}`, 'err');
+    btn.disabled = false;
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+    resetProgress();
+  }
+}
+
+function isRealVehicle(v) {
+  const junk = ['for sale in','under $','house of cars','inventory','alberta','calgary','wholesale'];
+  const tl   = (v._title || '').toLowerCase();
+  if (junk.some(j => tl.includes(j))) return false;
+  if ((v.year||0) < 1990 || (v.year||0) > new Date().getFullYear() + 2) return false;
+  if (v.make === 'Used' || v.make === 'New') return false;
+  if (/^GEN\d+$/i.test(v.stock) && !v.make) return false;
+  return true;
+}
+
+// ── Sync flow ─────────────────────────────────────────────────────────────
+async function runSync() {
+  if (!scraped.length) return;
+  const btn = document.getElementById('btnSync');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⏳</span> Syncing...';
+
+  try {
+    const clean = scraped.map(v => {
+      const obj = Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')));
+      // Include photos (stored as _photos by the scraper)
+      if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 10);
+      return obj;
+    });
+    const r = await authFetch('/api/desk/inventory/sync', {
+      method:  'POST',
+      headers: { 'Content-Type':'application/json' },
+      body:    JSON.stringify({ mode: syncMode, vehicles: clean })
+    });
+    let d;
+    try { d = await r.json(); } catch (_) { d = {}; }
+    if (!r.ok || !d.success) throw new Error(d.error || `Server error (HTTP ${r.status})`);
+
+    const parts = [];
+    if (d.inserted) parts.push(`${d.inserted} added`);
+    if (d.updated)  parts.push(`${d.updated} updated`);
+    if (d.skipped)  parts.push(`${d.skipped} skipped`);
+    document.getElementById('doneNum').textContent    = (d.inserted||0) + (d.updated||0);
+    document.getElementById('doneDetail').textContent = parts.join(' · ') || `Mode: ${syncMode}`;
+    chrome.storage.local.remove('activeScan').catch(() => {}); // safe to clear — sync complete
+    showView('viewDone');
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<span>↑</span> Sync to FIRST-FIN';
+    const old = document.getElementById('syncError');
+    if (old) old.remove();
+    const errEl = document.createElement('div');
+    errEl.id = 'syncError';
+    errEl.style.cssText = 'color:#e74c3c;font-size:11px;margin-top:8px;padding:8px 10px;background:rgba(231,76,60,.1);border-radius:5px;border:1px solid rgba(231,76,60,.3);';
+    errEl.textContent = e.message;
+    btn.insertAdjacentElement('afterend', errEl);
+    setTimeout(() => errEl.remove(), 8000);
+  }
+}
+
+// ── Event listeners (synchronous — wired before any await) ────────────────
+function initListeners() {
+  console.log('[FIRST-FIN] Attaching listeners');
+
+  // ── Background scan progress (popup can close and reopen mid-scan)
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'SCAN_PROGRESS') {
+      handleBgScanProgress(msg.state);
+    }
+  });
+
+  // ── Login
+  document.getElementById('btnLogin').addEventListener('click', async () => {
+    console.log('[FIRST-FIN] Login button clicked');
+    const email = document.getElementById('loginEmail').value.trim();
+    const pw    = document.getElementById('loginPw').value;
+    const errEl = document.getElementById('loginError');
+    errEl.classList.add('hidden');
+    errEl.textContent = '';
+
+    if (!email || !pw) {
+      showError('loginError', 'Please enter your email and password.');
+      return;
+    }
+
+    const btn = document.getElementById('btnLogin');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">⏳</span> Signing in...';
+
+    try {
+      const result = await tryLogin(email, pw);
+      console.log('[FIRST-FIN] Login result:', result.ok, result.error || '');
+      if (result.ok) {
+        document.getElementById('userName').textContent  = result.name;
+        document.getElementById('userEmail').textContent = result.email;
+        const db = document.getElementById('dealerBadge');
+        if (db && result.dealerName) db.textContent = result.dealerName;
+        document.getElementById('userBadge').classList.remove('hidden');
+        document.getElementById('btnLogout').classList.remove('hidden');
+        document.getElementById('pageDesc').textContent =
+          currentSite.score >= 5
+            ? `Ready to scan ${currentSite.name} inventory.`
+            : 'Navigate to a dealer inventory page, then click Scan.';
+        showView('viewMain');
+      } else {
+        showError('loginError', result.error);
+        btn.disabled = false;
+        btn.innerHTML = '<span>▶</span> Sign In to FIRST-FIN';
+      }
+    } catch (e) {
+      showError('loginError', e.message || 'Unexpected error — please try again.');
+      btn.disabled = false;
+      btn.innerHTML = '<span>▶</span> Sign In to FIRST-FIN';
+    }
+  });
+
+  document.getElementById('loginPw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btnLogin').click();
+  });
+
+  // ── Scan
+  document.getElementById('btnScan').addEventListener('click', runScan);
+
+  // ── Mode buttons
+  document.getElementById('modeAdd').addEventListener('click',         () => selectMode('add'));
+  document.getElementById('modeReplace').addEventListener('click',     () => selectMode('replace'));
+  document.getElementById('modeConsolidate').addEventListener('click', () => selectMode('consolidate'));
+
+  // ── Sync
+  document.getElementById('btnSync').addEventListener('click', runSync);
+
+  // ── Rescan
+  document.getElementById('btnRescan').addEventListener('click', () => {
+    scraped = [];
+    bgScanActive = false;
+    chrome.storage.local.remove('activeScan').catch(() => {});
+    chrome.runtime.sendMessage({ type: 'CLEAR_SCAN' }).catch(() => {});
+    document.getElementById('logBox').innerHTML = '';
+    document.getElementById('logBox').classList.add('hidden');
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+    document.getElementById('btnScan').disabled = false;
+    resetProgress();
+    showView('viewMain');
+  });
+
+  // ── Done view
+  document.getElementById('btnOpenPlatform').addEventListener('click', () =>
+    chrome.tabs.create({ url: PLATFORM_URL })
+  );
+  document.getElementById('btnOpenFBPoster').addEventListener('click', () =>
+    chrome.tabs.create({ url: FB_URL })
+  );
+  document.getElementById('btnScanAnother').addEventListener('click', () => {
+    scraped = [];
+    document.getElementById('logBox').innerHTML = '';
+    document.getElementById('logBox').classList.add('hidden');
+    document.getElementById('scanLabel').textContent = 'Scan This Page';
+    document.getElementById('btnScan').disabled = false;
+    resetProgress();
+    showView('viewMain');
+  });
+
+  // ── Logout
+  document.getElementById('btnLogout').addEventListener('click', logout);
+
+  console.log('[FIRST-FIN] All listeners attached');
+}
+
+// ── Init: async setup (tab detection + saved auth + scan reconnect) ────────
+async function initAsync() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    currentTab  = tab;
+    currentSite = detectSite(tab?.url || '');
+    if (currentSite.score >= 5) {
+      setSiteDot('ok', `Inventory page: ${currentSite.name}`);
+    } else {
+      setSiteDot('', 'Navigate to a dealer inventory page');
+    }
+  } catch (e) {
+    console.warn('[FIRST-FIN] tabs.query failed:', e.message);
+    setSiteDot('', 'Could not detect current page');
+  }
+
+  try {
+    const auth = await loadAuth();
+    if (auth) {
+      document.getElementById('userName').textContent  = auth.userName  || '';
+      document.getElementById('userEmail').textContent = auth.userEmail || '';
+      const db = document.getElementById('dealerBadge');
+      if (db && auth.dealerName) db.textContent = auth.dealerName;
+      document.getElementById('userBadge').classList.remove('hidden');
+      document.getElementById('btnLogout').classList.remove('hidden');
+      document.getElementById('pageDesc').textContent =
+        currentSite.score >= 5
+          ? `Ready to scan ${currentSite.name} inventory.`
+          : 'Navigate to a dealer inventory page, then click Scan.';
+      showView('viewMain');
+    } else {
+      showView('viewLogin');
+      return; // don't check scan state if not logged in
+    }
+  } catch (e) {
+    console.warn('[FIRST-FIN] loadAuth failed:', e.message);
+    showView('viewLogin');
+    return;
+  }
+
+  // ── Reconnect to background scan if one was running when popup was closed ──
+  try {
+    const stored = await chrome.storage.local.get('activeScan');
+    const state  = stored.activeScan;
+    if (!state) return;
+
+    if (state.status === 'running') {
+      // Scan is still in progress — show the main view with progress
+      showView('viewMain');
+      bgScanActive  = true;
+      bgLogRendered = 0;
+      document.getElementById('btnScan').disabled = true;
+
+      // Render all log entries accumulated so far
+      (state.log || []).forEach(entry => log(entry.text, entry.cls || ''));
+      bgLogRendered = (state.log || []).length;
+
+      const pct = state.total > 0 ? 20 + Math.round((state.current / state.total) * 72) : 5;
+      setProgress(Math.min(pct, 98));
+      document.getElementById('scanLabel').textContent =
+        `Scanning ${state.current}/${state.total}...`;
+
+    } else if (state.status === 'done' && state.vehicles?.length > 0) {
+      // Scan completed while popup was closed — go straight to preview
+      // Keep activeScan in storage until sync completes so closing popup doesn't lose results
+      scraped = state.vehicles;
+      buildPreview(scraped);
+      selectMode('add');
+      showView('viewPreview');
+    } else {
+      // Error or empty result — clean up
+      chrome.storage.local.remove('activeScan').catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[FIRST-FIN] scan reconnect check failed:', e.message);
+  }
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[FIRST-FIN] DOMContentLoaded fired');
+  drawLogo();
+  initListeners(); // sync — buttons are live before any network call
+  initAsync();     // async — tab/auth/scan-reconnect, isolated so failures can't break buttons
+});
