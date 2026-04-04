@@ -2732,6 +2732,7 @@ function renderCRM(){
     <input type="date" id="crmNotesFU" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:4px 0 8px">
     <input id="crmNotesFUNote" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:0 0 12px" placeholder="Follow-up reason...">
     <button onclick="saveCrmNotes()" style="width:100%;padding:8px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer">Save</button>
+    <button onclick="closeCrmNotes()" style="width:100%;padding:8px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:5px;font-weight:600;cursor:pointer;margin-top:6px;">Close</button>
     <div id="crmNotesSaved" style="text-align:center;font-size:9px;color:var(--green);margin-top:6px;display:none">Saved!</div>
   </div>`;
 }
