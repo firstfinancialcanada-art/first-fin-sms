@@ -101,7 +101,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       const lastLoginSel = hasLastLogin ? 'u.last_login,' : '';
       const orderBy      = hasCreatedAt ? 'ORDER BY u.created_at DESC' : 'ORDER BY u.id DESC';
 
-      // Try full JOIN query
+      // Use LATERAL subqueries instead of multi-table JOIN (avoids cartesian explosion)
       try {
         const result = await client.query(`
           SELECT u.id, u.email, u.display_name, u.role,
@@ -114,20 +114,20 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  u.settings_json,
                  u.scrape_domain,
                  COALESCE(u.features, '{}') AS features,
-                 COUNT(DISTINCT i.id)    AS inventory_count,
-                 COUNT(DISTINCT c.id)    AS crm_count,
-                 COUNT(DISTINCT conv.id) AS conversation_count,
-                 COUNT(DISTINCT appt.id) AS appointment_count
+                 COALESCE(ic.cnt, 0) AS inventory_count,
+                 COALESCE(cc.cnt, 0) AS crm_count,
+                 COALESCE(vc.cnt, 0) AS conversation_count,
+                 COALESCE(ac.cnt, 0) AS appointment_count
           FROM desk_users u
-          LEFT JOIN desk_inventory  i    ON i.user_id    = u.id
-          LEFT JOIN desk_crm        c    ON c.user_id    = u.id
-          LEFT JOIN conversations   conv ON conv.user_id = u.id
-          LEFT JOIN appointments    appt ON appt.user_id = u.id
-          GROUP BY u.id ${orderBy}
+          LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM desk_inventory WHERE user_id = u.id) ic ON true
+          LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM desk_crm WHERE user_id = u.id) cc ON true
+          LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM conversations WHERE user_id = u.id) vc ON true
+          LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM appointments WHERE user_id = u.id) ac ON true
+          ${orderBy}
         `);
         return res.json({ success: true, users: result.rows });
       } catch(joinErr) {
-        console.warn('Admin users JOIN failed, bare query:', joinErr.message);
+        console.warn('Admin users query failed, bare fallback:', joinErr.message);
       }
 
       // Last resort — no joins at all
@@ -498,27 +498,24 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           COALESCE(cv.converted,   0) AS total_conversions,
           COALESCE(cv.appts,       0) AS total_appointments
         FROM desk_users u
-        LEFT JOIN (
+        LEFT JOIN LATERAL (
           SELECT
-            user_id,
             COUNT(*) FILTER (WHERE feature = 'deal_desk')   AS deal_count,
             COUNT(*) FILTER (WHERE feature = 'inventory')   AS inv_count,
             COUNT(*) FILTER (WHERE feature = 'crm')         AS crm_count,
             COUNT(*) FILTER (WHERE feature = 'settings')    AS set_count,
             COUNT(*) FILTER (WHERE feature = 'lenders')     AS pdf_count
           FROM feature_events
-          WHERE created_at > NOW() - INTERVAL '30 days'
-          GROUP BY user_id
-        ) fe ON fe.user_id = u.id
-        LEFT JOIN (
+          WHERE user_id = u.id AND created_at > NOW() - INTERVAL '30 days'
+        ) fe ON true
+        LEFT JOIN LATERAL (
           SELECT
-            user_id,
             COUNT(*)                                           AS total_convs,
             COUNT(*) FILTER (WHERE status = 'converted')       AS converted,
             0                                                  AS appts
           FROM conversations
-          GROUP BY user_id
-        ) cv ON cv.user_id = u.id
+          WHERE user_id = u.id
+        ) cv ON true
         WHERE u.role != 'admin'
         AND u.email NOT IN ('fintest@fintest.com', 'kevlarkarz@gmail.com')
         ORDER BY u.last_active DESC NULLS LAST
