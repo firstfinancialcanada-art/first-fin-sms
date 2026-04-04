@@ -109,6 +109,29 @@ function parseFromSlug(url) {
     }
   }
 
+  // Rejoin known multi-word models that get split by hyphens
+  // "Grand-Caravan" → ["Grand","Caravan"] → rejoin as "Grand Caravan"
+  const MULTI_WORD_MODELS = ['grand caravan','grand cherokee','grand cherokee l','grand wagoneer',
+    'santa fe','santa cruz','model 3','model y','model s','model x',
+    'cr v','hr v','br v','rav4','land cruiser','range rover','town country',
+    'pt cruiser','monte carlo','el camino','la crosse'];
+  for (let i = 0; i < parts.length - 1; i++) {
+    const joined2 = (parts[i] + ' ' + parts[i+1]).trim().toLowerCase();
+    if (MULTI_WORD_MODELS.includes(joined2)) {
+      parts[i] = parts[i].trim() + ' ' + parts[i+1].trim();
+      parts.splice(i+1, 1);
+      // Check 3-word models (Grand Cherokee L)
+      if (i < parts.length - 1) {
+        const joined3 = (parts[i] + ' ' + parts[i+1]).trim().toLowerCase();
+        if (MULTI_WORD_MODELS.includes(joined3)) {
+          parts[i] = parts[i].trim() + ' ' + parts[i+1].trim();
+          parts.splice(i+1, 1);
+        }
+      }
+      break;
+    }
+  }
+
   // Strip trailing WordPress duplicate slug suffix (e.g., -2, -3 in /2018-ram-1500-2/)
   // But NOT if preceding part is "Model" (Tesla Model 3, Model Y, Model S, Model X)
   if (parts.length > 2 && /^\d{1,2}$/.test(parts[parts.length - 1].trim()) &&
