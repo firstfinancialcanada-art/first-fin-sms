@@ -487,7 +487,7 @@ function scrapeCurrentPage() {
   //    Works for House of Cars, Automaxx, Stampede Auto, D2C Media (Renfrew), and similar sites.
   //    Matches: /inventory/Used-2023-, /vehicle-details/2023-, /vehicle/2023-, /vehicles/2023-
   //    D2C Media: /demos/2026-RAM-, /used/2024-Ford-, /new/inventory/2026-RAM-
-  const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/([^/]+\/)?|new\/inventory\/)\d{4}[-\/]/i;
+  const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/([^/]+\/)?|certified\/([^/]+\/)?|new\/inventory\/)\d{4}[-\/]/i;
   const isVdpDetail = VDP_LINK_RE.test(location.pathname);
 
   // ── eDealer (Applewood Nissan, etc.) — data-vin + data-slug cards ──────────
@@ -756,16 +756,28 @@ function scrapeCurrentPage() {
         });
         if (foundInContainer) break;
       }
-      // Fallback: ?page= or /page/ URL patterns anywhere on page
+      // Fallback: ?page= or /page/ or ?start= URL patterns anywhere on page
       if (!foundInContainer) {
+        const curBase = new URL(location.href);
         document.querySelectorAll('a[href]').forEach(a => {
           const href = a.href || '';
           if (pageSeen.has(href)) return;
-          if (/[?&](page|pg|p|pagenumber|start)=\d+/i.test(href) || /\/page\/\d+/i.test(href)) {
+          if (/[?&](page|pg|p|pagenumber)=\d+/i.test(href) || /\/page\/\d+/i.test(href)) {
             try { if (new URL(href).hostname !== location.hostname) return; } catch { return; }
             if (VDP_LINK_RE.test(href)) return;
             pageSeen.add(href);
             pageLinks.push(href);
+          }
+          // Dealer.com ?start=N pagination — merge with current URL params, skip start=0
+          const startM = href.match(/[?&]start=(\d+)/i);
+          if (startM && parseInt(startM[1]) > 0) {
+            const merged = new URL(location.href);
+            merged.searchParams.set('start', startM[1]);
+            const full = merged.toString();
+            if (!pageSeen.has(full)) {
+              pageSeen.add(full);
+              pageLinks.push(full);
+            }
           }
         });
       }
