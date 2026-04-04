@@ -1,7 +1,8 @@
 // routes/sarah.js
 const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveMessage, hasActiveConversation, deleteConversation,
-        saveAppointment, saveCallback, logAnalytics } = require('../lib/db');
+        saveAppointment, saveCallback, logAnalytics,
+        addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const validateTwilio = makeTwilioWebhookValidator();
@@ -195,7 +196,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     try {
       const { phone, message } = req.body;
       if (!phone || !message) return res.json({ success: false, error: 'Phone and message required' });
-      // CASL: block replies to opted-out customers
+      // CASL: block replies to opted-out customers (global opt-out table + conversation status)
+      if (await isOptedOut(phone)) {
+        return res.json({ success: false, error: 'This number is on the global opt-out list. They must reply START to re-subscribe.' });
+      }
       const stoppedCheck = await pool.query(
         `SELECT status FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1`,
         [phone, req.user.userId]
@@ -283,6 +287,22 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       console.error('❌ Error sending SMS:', error);
       res.json({ success: false, error: error.message });
     }
+  });
+
+  // ── SMS Delivery Status Callback (Twilio) ─────────────────────
+  app.post('/api/sms-status', async (req, res) => {
+    try {
+      const { MessageSid, MessageStatus } = req.body;
+      if (MessageSid && MessageStatus) {
+        await pool.query(
+          'UPDATE bulk_messages SET delivery_status = $1 WHERE twilio_sid = $2',
+          [MessageStatus, MessageSid]
+        );
+      }
+    } catch (e) {
+      console.error('❌ sms-status callback error:', e.message);
+    }
+    res.status(200).send('<Response></Response>');
   });
 
   // ── SMS Webhook (Twilio) ──────────────────────────────────────
@@ -523,6 +543,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
         lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
       await updateConversation(conversation.id, { status: 'stopped' });
+      await addOptOut(phone, 'sms_stop');
       await logAnalytics('conversation_stopped', phone, {}, userId);
       return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
     }
@@ -530,6 +551,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // ── START / RESUBSCRIBE ───────────────────────────────────
     if (lowerMsg === 'start' || lowerMsg.includes('resubscribe') || lowerMsg.includes('opt in')) {
       await updateConversation(conversation.id, { status: 'active', stage: 'greeting' });
+      await removeOptOut(phone);
       await logAnalytics('conversation_restarted', phone, {}, userId);
       return `Welcome back! I'm Sarah from ${dealerName}. Are you still looking for a vehicle? Car, Truck, Van, or SUV?`;
     }

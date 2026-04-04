@@ -1,5 +1,5 @@
 // routes/bulk-sms.js
-const { pool } = require('../lib/db');
+const { pool, filterOptedOut } = require('../lib/db');
 const { state, saveBulkCampaign, getBulkCampaignStats } = require('../lib/bulk');
 const { normalizePhone } = require('../lib/helpers');
 
@@ -34,7 +34,17 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
         seenPhones.add(phone);
         contacts.push({ name, phone: '+' + phone, row: i + 1 });
       }
-      res.json({ success: true, contacts, errors, total: contacts.length, errorCount: errors.length });
+      // CASL: filter out opted-out numbers
+      const optedOutSet = await filterOptedOut(contacts.map(c => c.phone));
+      const filtered = [];
+      for (const c of contacts) {
+        if (optedOutSet.has(c.phone)) {
+          errors.push({ row: c.row, name: c.name || '', phone: c.phone, error: 'Previously opted out (STOP)' });
+        } else {
+          filtered.push(c);
+        }
+      }
+      res.json({ success: true, contacts: filtered, errors, total: filtered.length, errorCount: errors.length, optedOut: optedOutSet.size });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -55,6 +65,19 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       }
       if (messageTemplate.length > 1600) {
         return res.status(400).json({ error: 'Message too long (max 1600 characters)' });
+      }
+      // Cross-campaign duplicate check (last 30 days)
+      const phones = contacts.map(c => c.phone);
+      const dupResult = await pool.query(
+        `SELECT DISTINCT recipient_phone FROM bulk_messages
+         WHERE user_id = $1 AND recipient_phone = ANY($2)
+         AND status IN ('sent','pending') AND created_at > NOW() - INTERVAL '30 days'`,
+        [req.user.userId, phones]
+      );
+      const recentlySent = new Set(dupResult.rows.map(r => r.recipient_phone));
+      if (recentlySent.size > 0) {
+        // Warn but don't block — let dealer decide
+        console.log(`⚠️ Campaign "${campaignName}": ${recentlySent.size} contacts already contacted in last 30 days`);
       }
       const placeholderCount = (messageTemplate.match(/{name}/g) || []).length;
       if (placeholderCount > 3) {

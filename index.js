@@ -106,7 +106,9 @@ const notifyOwner         = makeNotifyOwner(twilioClient);
 
 // ── Bulk SMS processor ────────────────────────────────────────────
 const { createBulkMessagesTable, makeBulkProcessor } = require('./lib/bulk');
+const { createOptOutTable } = require('./lib/db');
 createBulkMessagesTable();
+createOptOutTable();
 const { startBulkProcessor } = makeBulkProcessor(twilioClient);
 startBulkProcessor();
 
