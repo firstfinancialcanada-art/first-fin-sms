@@ -458,7 +458,7 @@ function showSection(id, btn){
   }
   // Refresh inventory from server when tab opens
   if(id==='inventory') {
-    if (typeof loadAllData === 'function') loadAllData().then(() => { if (typeof initInventory === 'function') initInventory(); }).catch(()=>{});
+    if (window.FF?.loadAllData) window.FF.loadAllData().then(() => { if (typeof initInventory === 'function') initInventory(); }).catch(()=>{});
     else if (typeof initInventory === 'function') initInventory();
   }
   // Init FB Poster when tab opens — detects local bridge
