@@ -315,7 +315,7 @@ function parseVdpDetail(url) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
       // Only accept images that look like vehicle photos (large CDN images)
-      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|getedealer|cdn.*\/(640|800|1024|1280)/i.test(src)) {
+      if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|getedealer|pictures\.dealer\.com|cdn.*\/(640|800|1024|1280)/i.test(src)) {
         addPhoto(src, img.alt || img.title || '');
       }
     });
@@ -487,7 +487,7 @@ function scrapeCurrentPage() {
   //    Works for House of Cars, Automaxx, Stampede Auto, D2C Media (Renfrew), and similar sites.
   //    Matches: /inventory/Used-2023-, /vehicle-details/2023-, /vehicle/2023-, /vehicles/2023-
   //    D2C Media: /demos/2026-RAM-, /used/2024-Ford-, /new/inventory/2026-RAM-
-  const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
+  const VDP_LINK_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/([^/]+\/)?|new\/inventory\/)\d{4}[-\/]/i;
   const isVdpDetail = VDP_LINK_RE.test(location.pathname);
 
   // ── eDealer (Applewood Nissan, etc.) — data-vin + data-slug cards ──────────
@@ -761,7 +761,7 @@ function scrapeCurrentPage() {
         document.querySelectorAll('a[href]').forEach(a => {
           const href = a.href || '';
           if (pageSeen.has(href)) return;
-          if (/[?&](page|pg|p|pagenumber)=\d+/i.test(href) || /\/page\/\d+/i.test(href)) {
+          if (/[?&](page|pg|p|pagenumber|start)=\d+/i.test(href) || /\/page\/\d+/i.test(href)) {
             try { if (new URL(href).hostname !== location.hostname) return; } catch { return; }
             if (VDP_LINK_RE.test(href)) return;
             pageSeen.add(href);
