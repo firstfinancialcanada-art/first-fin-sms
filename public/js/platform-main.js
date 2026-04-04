@@ -2722,7 +2722,7 @@ function renderCRM(){
   <div id="crmNotesPanel" style="display:none;position:fixed;right:0;top:0;width:340px;height:100vh;background:var(--surface);border-left:2px solid var(--border);z-index:999;padding:20px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div><strong id="crmNotesName"></strong><br><span id="crmNotesPhone" style="font-size:10px;color:var(--muted)"></span></div>
-      <button onclick="closeCrmNotes()" style="background:none;border:none;color:var(--text);font-size:18px;cursor:pointer">&#10005;</button>
+      <button onclick="closeCrmNotes()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:5px;">&#10005; Close</button>
     </div>
     <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes</label>
     <textarea id="crmNotesText" rows="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0 12px" placeholder="Add notes about this customer..."></textarea>
