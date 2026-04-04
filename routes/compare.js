@@ -356,6 +356,33 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     if (debtUnknown && income > 0) structureTips.push('Existing obligations not entered — DTI may be understated');
     if (prog?.beaconRequired) structureTips.unshift('Beacon score required for accurate tier matching');
 
+    // ── F&I Product Room (headroom in approval for back-end products) ────
+    // maxLoan = max amount lender will finance at their LTV cap
+    // atf = amount to finance (current deal structure)
+    // fiRoom = how much MORE can be added to the loan for VSC/GAP/etc.
+    const fiRoom = Math.max(0, Math.round(maxLoan - atf));
+    const fiRoomAdequate = fiRoom >= 2000; // $2k minimum for meaningful F&I
+    let fiRoomGrade;
+    if (fiRoom >= 4000) fiRoomGrade = 'A'; // plenty of room
+    else if (fiRoom >= 2000) fiRoomGrade = 'B'; // adequate
+    else if (fiRoom >= 500) fiRoomGrade = 'C'; // tight — maybe GAP only
+    else fiRoomGrade = 'D'; // no room — thin approval
+
+    // If tight approval, add structuring tip
+    if (ltvOk && fiRoom < 2000 && fiRoom > 0) {
+      structureTips.push(`Thin approval — only $${fiRoom.toLocaleString()} room for F&I products. Add $${Math.max(500, 2000 - fiRoom).toLocaleString()} down to open back-end.`);
+    }
+    if (ltvOk && fiRoom === 0) {
+      structureTips.push('No room for F&I products at current LTV. Increase down payment or use a higher-LTV lender.');
+    }
+
+    // PTI room: how much MORE monthly payment can fit before PTI limit
+    let fiPtiRoom = 0;
+    if (income > 0 && ptiOk) {
+      const maxPtiPayment = income * lMaxPti / 100;
+      fiPtiRoom = Math.max(0, round2(maxPtiPayment - payment));
+    }
+
     return {
       lid, prog, atf, ltvPct, maxLTV, ltvOk, maxLoan, bookVal, downNeeded,
       yearOk, mileOk, cfxOk, ageOk, minYear, maxMile, maxCfx,
@@ -365,6 +392,8 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       flatReserve, spreadReserve, totalGross, contractRate, buyRate,
       beacon: params.beacon, income, primaryIncome, coIncome, hasCoApp, existing,
       lenderFee, hasBK, vehicleAgeAtPayoff, cond,
+      // F&I product room
+      fiRoom, fiRoomAdequate, fiRoomGrade, fiPtiRoom,
       // Flags for conditional/unknown results
       incomeUnknown, debtUnknown, bookValueSuspect,
       beaconRequired: !!(prog?.beaconRequired || prog?.isUnknown),
@@ -472,7 +501,26 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         return ptB - ptA;
       });
 
-      res.json({ success: true, eligible, ineligible, vehicle: v });
+      // ── Cross-lender F&I room ranking ──────────────────────────────
+      // Find which eligible lender gives the most room for back-end products
+      const fiRanking = eligible
+        .filter(r => r.fiRoom > 0)
+        .sort((a, b) => b.fiRoom - a.fiRoom)
+        .slice(0, 3)
+        .map(r => ({ lid: r.lid, lender: r.lName, fiRoom: r.fiRoom, fiGrade: r.fiRoomGrade, rate: r.prog?.rate || 0 }));
+
+      // Best F&I lender (most room for back-end)
+      const bestFiLender = fiRanking.length ? fiRanking[0] : null;
+
+      // Cash deal analysis: if no financing, F&I products must be sold at full price
+      const isCashDeal = !req.body.beacon && !req.body.income && eligible.length === 0;
+      const cashFiOptions = isCashDeal ? {
+        note: 'Cash deal — F&I products sold at full retail, no financing markup',
+        vscAvailable: true, gapAvailable: false, // GAP requires a lien
+        twAvailable: true, waAvailable: true
+      } : null;
+
+      res.json({ success: true, eligible, ineligible, vehicle: v, fiRanking, bestFiLender, cashFiOptions });
     } catch (e) {
       console.error('❌ /api/compare-all error:', e.message);
       res.status(500).json({ success: false, error: 'Server error' });
