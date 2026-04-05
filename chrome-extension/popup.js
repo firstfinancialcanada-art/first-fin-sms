@@ -356,18 +356,31 @@ async function runScan() {
     setProgress(8);
     log('Scanning page for vehicles...', 'hi');
 
-    // Scroll through the page to trigger lazy-loaded content (Convertus, etc.)
+    // Scroll through the page to trigger lazy-loaded / infinite scroll content
     try {
       await chrome.scripting.executeScript({
         target: { tabId: currentTab.id },
         func: async () => {
-          const h = document.body.scrollHeight;
-          for (let y = 0; y <= h; y += window.innerHeight) {
-            window.scrollTo(0, y);
-            await new Promise(r => setTimeout(r, 300));
+          let prevHeight = 0;
+          let stableRounds = 0;
+          // Keep scrolling until page stops growing (max 30 rounds ≈ 30s safety limit)
+          for (let round = 0; round < 30; round++) {
+            const h = document.body.scrollHeight;
+            for (let y = prevHeight; y <= h; y += window.innerHeight) {
+              window.scrollTo(0, y);
+              await new Promise(r => setTimeout(r, 300));
+            }
+            window.scrollTo(0, document.body.scrollHeight);
+            await new Promise(r => setTimeout(r, 1000));
+            const newHeight = document.body.scrollHeight;
+            if (newHeight === prevHeight) {
+              stableRounds++;
+              if (stableRounds >= 2) break; // page stopped growing
+            } else {
+              stableRounds = 0;
+            }
+            prevHeight = newHeight;
           }
-          window.scrollTo(0, h);
-          await new Promise(r => setTimeout(r, 1000));
           window.scrollTo(0, 0);
         }
       });
