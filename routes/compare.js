@@ -7,20 +7,7 @@
 
 module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   const { pool } = require('../lib/db');
-
-  // ── Standard financial math ─────────────────────────────────────────────
-  function PMT(rate, nper, pv) {
-    if (rate === 0) return Math.abs(pv / nper);
-    return Math.abs(pv * (rate * Math.pow(1 + rate, nper)) / (Math.pow(1 + rate, nper) - 1));
-  }
-  function BPMT(apr, months, fin, biweekly) {
-    if (biweekly) {
-      const r = apr / 100 / 26;
-      const n = Math.round(months * 26 / 12);
-      return PMT(r, n, fin);
-    }
-    return PMT(apr / 100 / 12, months, fin);
-  }
+  const { PMT, BPMT } = require('../lib/finance');
 
   // ── Proprietary lender data ─────────────────────────────────────────────
   const lenders = {
@@ -216,14 +203,16 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     const {
       combinedIncome, primaryIncome, coIncome, hasCoApp, existing,
       v, curYear, term, bookValOver, condOverride, contractRate,
-      gstRate, hasBK, fees, down, trade, biweekly
+      gstRate, hasBK, fees, down, trade, payFreq
     } = params;
 
     const income     = combinedIncome;
     const lenderFee  = prog ? (prog.fee || 0) : 0;
-    const taxableBase = parseFloat(v.price) + fees - trade;
+    const tradeCredit = Math.max(0, trade);               // positive equity reduces tax base
+    const rolledNegEquity = Math.max(0, -trade);           // negative equity rolls into loan
+    const taxableBase = Math.max(0, parseFloat(v.price) + fees - tradeCredit);
     const gstAmt     = taxableBase * (gstRate / 100);
-    const atf        = taxableBase + gstAmt + lenderFee - down;
+    const atf        = parseFloat(v.price) + fees + gstAmt - tradeCredit + rolledNegEquity + lenderFee - down;
     const bvRaw      = parseFloat(v.book_value) || 0;
     const pRaw       = parseFloat(v.price) || 1;
     // Sanity floor: book_value < 40% of price = suspect data, fall back to price
@@ -259,14 +248,16 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     ALL_TERMS.forEach(t => {
       const ageAtPayoff = (curYear - v.year) + (t / 12);
       const ageOkT      = ageAtPayoff <= 14;
-      const pmt         = atf > 0 ? BPMT(buyRate, t, atf, biweekly) : 0;
+      const pmt         = atf > 0 ? BPMT(buyRate, t, atf, payFreq) : 0;
+      // PTI/DTI always evaluated on monthly payment (lender standard)
+      const monthlyPmt  = atf > 0 ? BPMT(buyRate, t, atf, 'monthly') : 0;
       let ptiOkT = true, dtiOkT = true, payOkT = true;
       let ptiPctT = 0, dtiPctT = 0;
       const incomeUnknown = (income === 0);
       const debtUnknown = (income > 0 && existing === 0); // income known but debt not entered
-      if (income > 0 && pmt > 0) {
-        ptiPctT = (pmt / income) * 100;
-        dtiPctT = ((pmt + existing) / income) * 100;
+      if (income > 0 && monthlyPmt > 0) {
+        ptiPctT = (monthlyPmt / income) * 100;
+        dtiPctT = ((monthlyPmt + existing) / income) * 100;
         ptiOkT  = ptiPctT <= lMaxPti;
         dtiOkT  = dtiPctT <= lMaxDti;
         payOkT  = lMaxPay === null || pmt <= lMaxPay;
@@ -300,13 +291,13 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       // Canadian dealer participation: dealer keeps bankSplit% of spread reserve
       // bankSplit comes from deal params (default 75%), applied as decimal
       const dealerShare = (params.bankSplit || 75) / 100;
-      spreadReserve = Math.round((spread / 100 / 12) * atf * optimalTerm * dealerShare);
+      spreadReserve = Math.round((spread / 100 / 12) * atf * term * dealerShare);
       totalGross    = flatReserve + spreadReserve;
     }
 
     const structureTips = [];
     if (!ltvOk && downNeeded > 0) {
-      const fixedPmt = BPMT(buyRate, optimalTerm, atf - downNeeded, biweekly);
+      const fixedPmt = BPMT(buyRate, optimalTerm, atf - downNeeded, payFreq);
       structureTips.push(`Add $${downNeeded.toLocaleString()} down → LTV passes (${fixedPmt.toFixed(2)}/mo at ${optimalTerm}mo)`);
     }
     if (income > 0 && !ptiOk) {
@@ -426,8 +417,10 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         income = 0, term = 72, existing = 0, bookVal = 0,
         coBeacon = 0, coIncome = 0, hasBK = false,
         gstEnabled = false, gstRate: gstRateIn = 5, contractRate = 0,
-        condOverride = '', biweekly = false
+        condOverride = '', biweekly = false, payFreq: payFreqIn
       } = req.body;
+      // Support payFreq string; fall back to biweekly boolean for backwards compat
+      const payFreq = payFreqIn || (biweekly ? 'biweekly' : 'monthly');
 
       if (!stock) return res.status(400).json({ success: false, error: 'Stock required' });
 
@@ -467,7 +460,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         condOverride, contractRate: parseFloat(contractRate)||0,
         gstRate, hasBK, fees: parseFloat(fees)||0,
         down: parseFloat(down)||0, trade: parseFloat(trade)||0,
-        beacon: parseInt(beacon)||0, biweekly: !!biweekly
+        beacon: parseInt(beacon)||0, payFreq
       };
 
       const eligible = [], ineligible = [];

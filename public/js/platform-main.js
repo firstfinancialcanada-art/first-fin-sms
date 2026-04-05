@@ -122,8 +122,10 @@ function applyApproved(approvedAtf, approvedRate, approvedTerm, approvedDown) {
   const tPayoff = parseFloat(getVal('tradePayoff'))  || 0;
   const gst     = parseFloat(getVal('gstRate'))      || 5;
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst / 100);
-  const otd      = price + doc - netTrade + gstAmt;
+  const tradeCredit = Math.max(0, netTrade);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt   = taxableBase * (gst / 100);
+  const otd      = price + doc + gstAmt - tradeCredit;
 
   // If caller provided explicit down use it, otherwise derive from ATF
   const derivedDown = approvedDown > 0 ? approvedDown : Math.max(0, otd - approvedAtf);
@@ -269,6 +271,7 @@ function setPayFreq(freq) {
   window._payFreq = freq;
   window._biweekly = (freq === 'biweekly'); // backwards compat
   document.querySelectorAll('.freq-btn').forEach(b => b.classList.toggle('active-term', b.dataset.freq === freq));
+  document.querySelectorAll('.fi-freq-btn').forEach(b => b.classList.toggle('active-term', b.dataset.freq === freq));
   calculate();
   updateRateComparison();
   refreshPresentationCards();
@@ -295,10 +298,8 @@ function setFiTerm(term, btn) {
 }
 
 function fiBiweeklyToggle(el) {
-  // Sync F&I biweekly toggle with the global toggle
-  window._biweekly = el.checked;
-  document.querySelectorAll('.bw-toggle').forEach(t => { if (t !== el) t.checked = el.checked; });
-  calculate(); // recalculates everything including F&I
+  // Legacy — now handled by fi-freq-btn buttons calling setPayFreq
+  setPayFreq(el.checked ? 'biweekly' : 'monthly');
 }
 
 // Helper: get confirmed (sold + price > 0) product total
@@ -333,14 +334,18 @@ function updateFiSection() {
   const finalDown= parseFloat(document.getElementById('finalDown')?.value) || 0;
 
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst / 100);
-  const otd      = price + doc - netTrade + gstAmt;
-  const finAmt   = Math.max(0, otd - finalDown);
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst / 100);
+  const otd    = price + doc + gstAmt - tradeCredit;
+  const finAmt = Math.max(0, otd - finalDown) + rolledNegEquity;
 
   const term    = window._fiTerm || 72;
-  const bw      = window._biweekly;
-  const periods = bw ? Math.round(term * 26 / 12) : term;
-  const lbl     = bw ? '/bi-wk' : '/mo';
+  const freq    = window._payFreq || 'monthly';
+  const ppy     = _freqPeriods[freq] || 12;
+  const periods = Math.round(term * ppy / 12);
+  const lbl     = _freqLabels[freq] || '/mo';
   const baseP   = BPMT(apr, term, finAmt);
 
   const vsc = parseFloat(document.getElementById('vscPrice')?.value) || 0;
@@ -381,13 +386,13 @@ function updateFiSection() {
   // ── Header label ─────────────────────────────────────────────────────────
   const hdr = document.getElementById('fi-pay-header');
   if (hdr) {
-    const termLabel = bw ? `${periods} Bi-Wkly Periods` : `${term} Months`;
+    const freqNames = { monthly:'Months', biweekly:'Bi-Wkly Periods', semimonthly:'Semi-Mo Periods', weekly:'Weekly Periods' };
+    const termLabel = freq === 'monthly' ? `${term} Months` : `${periods} ${freqNames[freq] || 'Periods'}`;
     hdr.textContent = `Payment @ ${termLabel}`;
   }
 
-  // ── Sync biweekly checkbox + term buttons ─────────────────────────────────
-  const fiBwEl = document.getElementById('fi-biweekly-toggle');
-  if (fiBwEl) fiBwEl.checked = bw;
+  // ── Sync frequency buttons + term buttons ──────────────────────────────────
+  document.querySelectorAll('.fi-freq-btn').forEach(b => b.classList.toggle('active-term', b.dataset.freq === freq));
   document.querySelectorAll('.fi-term-btn').forEach(b => {
     b.classList.toggle('active-term', parseInt(b.dataset.term) === term);
   });
@@ -417,10 +422,11 @@ function updateFiSection() {
       const terms = [48, 60, 72, 84];
       let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">';
       terms.forEach(t => {
-        const periods_t = bw ? Math.round(t * 26 / 12) : t;
+        const periods_t = Math.round(t * ppy / 12);
         const pmt = BPMT(apr, t, confirmedFinanced);
         const isActive = t === term;
-        const termLbl = bw ? `${periods_t}×` : `${t}mo`;
+        const termSuffix = { monthly:'mo', biweekly:'×', semimonthly:'×', weekly:'×' };
+        const termLbl = freq === 'monthly' ? `${t}mo` : `${periods_t}${termSuffix[freq] || '×'}`;
         html += `<div style="text-align:center;background:${isActive?'rgba(245,158,11,.12)':'rgba(0,0,0,.15)'};border:1px solid ${isActive?'rgba(245,158,11,.4)':'rgba(255,255,255,.06)'};border-radius:6px;padding:8px 4px;">
           <div style="font-size:9px;font-weight:700;color:${isActive?'var(--amber)':'var(--muted)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">${termLbl}</div>
           <div style="font-size:14px;font-weight:900;color:${isActive?'var(--amber)':'white'};">${$f(pmt)}</div>
@@ -956,8 +962,11 @@ function calculate(){
   const gst    = parseFloat(document.getElementById('gstRate').value)||5;
 
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt;
+  const tradeCredit = Math.max(0, netTrade);               // positive equity reduces tax base & OTD
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);   // negative equity rolls into financed amount
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst/100);
+  const otd    = price + doc + gstAmt - tradeCredit;
 
   const finalDown = parseFloat(document.getElementById('finalDown').value)||0;
 
@@ -965,7 +974,7 @@ function calculate(){
   document.getElementById('totalOTD').textContent = $f(otd);
 
   // Update final down / finance amount summary boxes
-  const finAmt = Math.max(0, otd - finalDown);
+  const finAmt = Math.max(0, otd - finalDown) + rolledNegEquity;
   const fdEl = document.getElementById('finalDownDisplay');
   const faEl = document.getElementById('financeAmountDisplay');
   if(fdEl) fdEl.textContent = '$' + finalDown.toLocaleString();
@@ -977,7 +986,7 @@ function calculate(){
   let html = '';
 
   // Update table headers to reflect monthly vs bi-weekly
-  const pmtLbl = window._biweekly ? 'Bi-Wkly' : 'Monthly';
+  const pmtLbl = {monthly:'Monthly',biweekly:'Bi-Wkly',semimonthly:'Semi-Mo',weekly:'Weekly'}[window._payFreq||'monthly'];
   const thEl = document.querySelector('.payment-table thead tr');
   if(thEl) thEl.innerHTML = `<th>Down Payment</th><th>48 ${pmtLbl}</th><th>60 ${pmtLbl}</th><th>72 ${pmtLbl}</th><th>84 ${pmtLbl}</th>`;
 
@@ -1045,9 +1054,12 @@ function calcCustom(){
   const apr    = parseFloat(document.getElementById('apr').value)||0;
   const gst    = parseFloat(document.getElementById('gstRate').value)||5;
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt;
-  const fin = otd - down;
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst/100);
+  const otd    = price + doc + gstAmt - tradeCredit;
+  const fin = Math.max(0, otd - down) + rolledNegEquity;
   [48,60,72,84].forEach(t=>{
     const el = document.getElementById('c'+t);
     if(el) el.textContent = fin>0?$f(BPMT(apr,t,fin)):'—';
@@ -1091,7 +1103,7 @@ async function _runServerCalc(){
         waPrice: _v('waPrice'), waCost: _v('waCost'),
         acv: _v('unitAcv') || _v('acv'), recon: _v('recon') || _v('reconditionCost'),
         lotPack: _v('lotPack'), condAdj: _v('conditionAdj'), safety: _v('safetyInspect'),
-        biweekly: window._biweekly
+        frequency: window._payFreq || 'monthly'
       })
     });
     const d = await r.json();
@@ -1802,7 +1814,7 @@ async function runComparison(){
       stock, down, trade, fees, beacon, income, term, existing,
       bookVal: bookValOver, coBeacon, coIncome, hasBK,
       gstEnabled, gstRate, contractRate, condOverride,
-      biweekly: window._biweekly, hiddenLenders
+      payFreq: window._payFreq || 'monthly', hiddenLenders
     };
 
     const data = await FF.apiFetch('/api/compare-all', {
@@ -2422,8 +2434,10 @@ function applyApproved(approvedAtf, approvedRate, approvedTerm, approvedDown) {
   const tPayoff = parseFloat(getVal('tradePayoff'))  || 0;
   const gst     = parseFloat(getVal('gstRate'))      || 5;
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst / 100);
-  const otd      = price + doc - netTrade + gstAmt;
+  const tradeCredit = Math.max(0, netTrade);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt   = taxableBase * (gst / 100);
+  const otd      = price + doc + gstAmt - tradeCredit;
 
   // If caller provided explicit down use it, otherwise derive from ATF
   const derivedDown = approvedDown > 0 ? approvedDown : Math.max(0, otd - approvedAtf);
@@ -4144,9 +4158,12 @@ function copyDealPackage(lenderName) {
   const down    = parseFloat(f.finalDown) || 0;
   const apr     = parseFloat(f.apr)       || 0;
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst / 100);
-  const otd      = price + doc - netTrade + gstAmt;
-  const atf      = Math.max(0, otd - down);
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst / 100);
+  const otd    = price + doc + gstAmt - tradeCredit;
+  const atf    = Math.max(0, otd - down) + rolledNegEquity;
 
   const vsc = parseFloat(document.getElementById('vscPrice')?.value) || 0;
   const gap = parseFloat(document.getElementById('gapPrice')?.value) || 0;
@@ -5055,12 +5072,15 @@ function openPresentation(){
   const tPayoff  = parseFloat(getVal('tradePayoff'))||0;
   const gst      = parseFloat(getVal('gstRate'))||5;
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt;
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst/100);
+  const otd    = price + doc + gstAmt - tradeCredit;
 
   // Use CONFIRMED (checked + price > 0) products only — not everything offered
   const { confirmed: confirmedProds, total: confirmedProdTotal } = getFiConfirmedProducts();
-  const finance  = otd + confirmedProdTotal;
+  const finance  = Math.max(0, otd) + rolledNegEquity + confirmedProdTotal;
   const mr       = apr / 100 / 12;
 
   // Build F&I line for footer display
@@ -5137,8 +5157,12 @@ function refreshPresentationCards(){
     const fin = Math.max(0, finance - finalDown);
     const pmt = BPMT(apr, term, fin);
     const featured = term === featured_term;
-    const termLabel = window._biweekly ? `${Math.round(term*26/12)} BI-WEEKLY` : `${term} MONTHS`;
-    const pmtFreq   = window._biweekly ? '/bi-weekly' : '/month';
+    const _freq = window._payFreq || 'monthly';
+    const _ppy = _freqPeriods[_freq] || 12;
+    const _termNames = {monthly:`${term} MONTHS`, biweekly:`${Math.round(term*_ppy/12)} BI-WEEKLY`, semimonthly:`${Math.round(term*_ppy/12)} SEMI-MO`, weekly:`${Math.round(term*_ppy/12)} WEEKLY`};
+    const _pmtFreqs = {monthly:'/month', biweekly:'/bi-weekly', semimonthly:'/semi-monthly', weekly:'/week'};
+    const termLabel = _termNames[_freq] || `${term} MONTHS`;
+    const pmtFreq   = _pmtFreqs[_freq] || '/month';
     cardsHTML += `
     <div class="pres-pmt-card ${featured?'featured':''}">
       <div class="pres-term">${termLabel}</div>
@@ -5381,8 +5405,11 @@ function updateRateComparison(){
   if(!tbody || !price) return;
 
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt + vsc + gap + tw + wa;
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst/100);
+  const otd    = price + doc + gstAmt - tradeCredit + rolledNegEquity + vsc + gap + tw + wa;
 
   const terms = [48, 60, 72, 84];
   let html = '';
@@ -5396,12 +5423,14 @@ function updateRateComparison(){
   }
   rcToggleWrap.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">${_biweeklyToggleHTML('bw-toggle-rc')}</div>`;
 
-  const pmtSuffix = window._biweekly ? '/bi-wk' : '/mo';
+  const _rcFreq = window._payFreq || 'monthly';
+  const _rcPpy = _freqPeriods[_rcFreq] || 12;
+  const _rcSuffix = {monthly:'mo', biweekly:'bi-wk', semimonthly:'semi', weekly:'wk'};
   terms.forEach(t => {
     const pBuy = BPMT(buyRate, t, otd);
     const pCon = BPMT(conRate, t, otd);
     const pMax = BPMT(maxRate, t, otd);
-    const tLabel = window._biweekly ? `${Math.round(t*26/12)} bi-wk` : `${t} mo`;
+    const tLabel = _rcFreq === 'monthly' ? `${t} mo` : `${Math.round(t*_rcPpy/12)} ${_rcSuffix[_rcFreq]}`;
     html += `<tr>
       <td><strong>${tLabel}</strong></td>
       <td class="rc-buy">${$f(pBuy)}</td>
@@ -5453,18 +5482,25 @@ function updateWizSummary(){
   const term     = window._fiTerm || 72;
 
   const netTrade = tAllow - tPayoff;
-  const gstAmt   = (price + doc - netTrade) * (gst/100);
-  const otd      = price + doc - netTrade + gstAmt;
+  const tradeCredit = Math.max(0, netTrade);
+  const rolledNegEquity = Math.max(0, tPayoff - tAllow);
+  const taxableBase = Math.max(0, price + doc - tradeCredit);
+  const gstAmt = taxableBase * (gst/100);
+  const otd    = price + doc + gstAmt - tradeCredit;
   const { total: fiTotal } = typeof getFiConfirmedProducts === 'function'
     ? getFiConfirmedProducts() : { total: 0 };
-  const financed = Math.max(0, otd - finalDown + fiTotal);
+  const financed = Math.max(0, otd - finalDown) + rolledNegEquity + fiTotal;
   const pmt = financed > 0 && apr > 0
     ? BPMT(apr, term, financed)
     : (financed / (term || 72));
 
-  const pmtLabel = window._biweekly
-    ? `per bi-weekly payment · ${Math.round(term*26/12)} payments`
-    : `per month · ${term}-month term`;
+  const freq = window._payFreq || 'monthly';
+  const freqNames = { monthly:'month', biweekly:'bi-weekly payment', semimonthly:'semi-monthly payment', weekly:'weekly payment' };
+  const ppy = _freqPeriods[freq] || 12;
+  const periods = Math.round(term * ppy / 12);
+  const pmtLabel = freq === 'monthly'
+    ? `per month · ${term}-month term`
+    : `per ${freqNames[freq]} · ${periods} payments`;
   const rateLabel = apr > 0 ? `${apr.toFixed(2)}% APR` : '';
 
   const el_pay  = document.getElementById('sum-payment');
@@ -5564,7 +5600,7 @@ function printWorksheet(){
   // Build print payment grid
   const downs = [0, 2000, 5000];
   const terms = [48, 60, 72, 84];
-  const pwPmtLbl = window._biweekly ? 'Bi-Wkly' : 'Months';
+  const pwPmtLbl = {monthly:'Monthly',biweekly:'Bi-Wkly',semimonthly:'Semi-Mo',weekly:'Weekly'}[window._payFreq||'monthly'];
   let pgHTML = '<div class="pw-payment-grid">';
   // Header row
   pgHTML += '<div class="pw-pg-cell header">Down</div>';

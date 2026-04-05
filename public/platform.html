@@ -603,7 +603,10 @@ select option{background:#0d1526;color:var(--text);}
   .otd-amount{font-size:26px;}
 
   /* F&I products */
-  .fi-term-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;cursor:pointer;transition:all .13s;}
+  .fi-freq-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;text-transform:uppercase;letter-spacing:.5px;}
+  .fi-freq-btn.active-term{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .fi-freq-btn:hover:not(.active-term){border-color:rgba(30,90,246,.4);color:#93c5fd;}
+  .fi-term-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;text-transform:uppercase;letter-spacing:.5px;}
   .fi-term-btn.active-term{background:var(--primary);border-color:var(--primary);color:#fff;}
   .fi-term-btn:hover:not(.active-term){border-color:rgba(30,90,246,.4);color:#93c5fd;}
   .product-box{padding:10px;margin-bottom:8px;}
@@ -1213,11 +1216,13 @@ select option{background:#0d1526;color:var(--text);}
         <div style="background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(30,90,246,.06));border:1px solid rgba(16,185,129,.25);border-radius:10px;padding:16px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
             <div style="font-size:11px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:1.5px;" id="fi-pay-header">Payment @ 72 Months</div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <label style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;">
-                <input type="checkbox" id="fi-biweekly-toggle" onchange="fiBiweeklyToggle(this)" style="width:13px;height:13px;cursor:pointer;accent-color:var(--primary);">
-                <span style="letter-spacing:.5px;text-transform:uppercase;">Bi-Weekly</span>
-              </label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="display:flex;gap:3px;" id="fi-freq-btns">
+                <button class="fi-freq-btn active-term" data-freq="monthly" onclick="setPayFreq('monthly')">Monthly</button>
+                <button class="fi-freq-btn" data-freq="biweekly" onclick="setPayFreq('biweekly')">Bi-Weekly</button>
+                <button class="fi-freq-btn" data-freq="semimonthly" onclick="setPayFreq('semimonthly')">Semi-Mo</button>
+                <button class="fi-freq-btn" data-freq="weekly" onclick="setPayFreq('weekly')">Weekly</button>
+              </div>
               <div style="display:flex;gap:3px;">
                 <button class="fi-term-btn" data-term="48" onclick="setFiTerm(48,this)">48</button>
                 <button class="fi-term-btn" data-term="60" onclick="setFiTerm(60,this)">60</button>
