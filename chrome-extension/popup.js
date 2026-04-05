@@ -399,7 +399,9 @@ async function runScan() {
 
       // Vehica (WordPress theme) — pagination is Vue-rendered, background tab can't see it.
       // Collect all VDP links by clicking through pages in the foreground tab.
+      let vehicaPaginationRan = false;
       if (result.vehicaPagination) {
+        vehicaPaginationRan = true;
         log(`Found ${allLinks.length} vehicles on page 1 — collecting ${result.vehicaPagination} more pages...`, 'hi');
         setProgress(18);
         try {
@@ -439,8 +441,8 @@ async function runScan() {
       }
 
       // "Load more" / infinite scroll (Algolia, etc.) — click button in foreground until all loaded
-      // Skip if Vehica pagination already collected all pages (no load-more button left)
-      if (result.hasLoadMore && !result.vehicaPagination) {
+      // Skip if any pagination already collected all pages
+      if (result.hasLoadMore && !vehicaPaginationRan && !result.vehicaPagination && !pageLinks.length) {
         log(`Found ${allLinks.length} vehicles — clicking "Load more" to get all...`, 'hi');
         setProgress(18);
         try {
