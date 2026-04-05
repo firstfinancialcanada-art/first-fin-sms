@@ -439,7 +439,8 @@ async function runScan() {
       }
 
       // "Load more" / infinite scroll (Algolia, etc.) — click button in foreground until all loaded
-      if (result.hasLoadMore) {
+      // Skip if Vehica pagination already collected all pages (no load-more button left)
+      if (result.hasLoadMore && !result.vehicaPagination) {
         log(`Found ${allLinks.length} vehicles — clicking "Load more" to get all...`, 'hi');
         setProgress(18);
         try {
@@ -447,12 +448,18 @@ async function runScan() {
             target: { tabId: currentTab.id },
             func: async () => {
               const VDP_RE = /\/(inventory\/((Used|New)-)?|vehicle-details\/|vehicle\/|vehicles\/|demos\/|used\/|new\/inventory\/)\d{4}[-\/]/i;
-              // Click "load more" repeatedly until button disappears or no new links
-              for (let i = 0; i < 50; i++) {
+              // Click "load more" repeatedly until button disappears or no new results
+              let prevCount = 0;
+              let staleRounds = 0;
+              for (let i = 0; i < 30; i++) {
                 const btn = document.querySelector('.ais-InfiniteHits-loadMore:not([disabled]), [class*="load-more"]:not([disabled]), [class*="loadmore"]:not([disabled])');
                 if (!btn || btn.disabled) break;
                 btn.click();
                 await new Promise(r => setTimeout(r, 2000));
+                const curCount = document.querySelectorAll('a[href]').length;
+                if (curCount === prevCount) { staleRounds++; if (staleRounds >= 2) break; }
+                else { staleRounds = 0; }
+                prevCount = curCount;
               }
               // Collect all VDP links
               const allLinks = new Set();
