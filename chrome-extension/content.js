@@ -551,17 +551,34 @@ function scrapeCurrentPage() {
         });
       });
       if (vdpLinks.length > 0) {
-        // eDealer pagination: ?page=N links
-        const pageSeen = new Set([location.href]);
+        // eDealer pagination: generate all ?page=N URLs from total count
         const pageLinks = [];
-        document.querySelectorAll('a[href]').forEach(a => {
-          const href = a.href || '';
-          if (pageSeen.has(href)) return;
-          if (/[?&]page=\d+/.test(href) && href.includes(location.hostname)) {
-            pageSeen.add(href);
-            pageLinks.push(href);
+        const perPage = vdpLinks.length;
+        // Try to find total count from page text (e.g., "46 Results", "46 Vehicles")
+        const countEl = document.querySelector('.results-count, .inventory-count, [class*="result"]');
+        const countText = (countEl ? countEl.textContent : document.body.innerText.slice(0, 3000)) || '';
+        const countMatch = countText.match(/(\d+)\s*(Results?|Vehicles?|Found|Cars?|listings?)/i);
+        const totalVehicles = countMatch ? parseInt(countMatch[1]) : 0;
+        if (totalVehicles > perPage) {
+          const totalPages = Math.ceil(totalVehicles / perPage);
+          const baseUrl = new URL(location.href);
+          for (let p = 1; p <= totalPages; p++) {
+            baseUrl.searchParams.set('page', p);
+            const pageUrl = baseUrl.toString();
+            if (pageUrl !== location.href) pageLinks.push(pageUrl);
           }
-        });
+        } else {
+          // Fallback: find ?page=N links on the page
+          const pageSeen = new Set([location.href]);
+          document.querySelectorAll('a[href]').forEach(a => {
+            const href = a.href || '';
+            if (pageSeen.has(href)) return;
+            if (/[?&]page=\d+/.test(href) && href.includes(location.hostname)) {
+              pageSeen.add(href);
+              pageLinks.push(href);
+            }
+          });
+        }
         return { type: 'listing', links: vdpLinks, pageLinks, vehicaPagination: 0, url: location.href, cardVehicles };
       }
     }
