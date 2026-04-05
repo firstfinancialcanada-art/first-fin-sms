@@ -991,6 +991,17 @@ function scrapeCurrentPage() {
 
 // ── Message listener (server-first with client fallback) ─────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // SCRAPE_LOCAL: client-only scrape — used by background.js to avoid server relay deadlock
+  if (msg.type === 'SCRAPE_LOCAL') {
+    try {
+      const result = scrapeCurrentPage();
+      sendResponse({ ok: true, result });
+    } catch (e) {
+      sendResponse({ ok: false, error: e.message });
+    }
+    return false;
+  }
+
   if (msg.type !== 'SCRAPE') return false;
 
   // Client-side fallback — the original v2.5 scraper (always works)

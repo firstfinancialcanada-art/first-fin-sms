@@ -89,11 +89,11 @@ async function scrapeTabBg(tabId) {
     } catch (_) {}
   }
 
-  // Step 3: Fallback to client-side scrape if server unavailable
-  let clientResult = null;
+  // Step 3: Fallback — ask content.js to scrape client-side only (skip server relay)
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      clientResult = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE' });
+      const clientResult = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_LOCAL' });
+      if (clientResult) return clientResult;
       break;
     } catch (e) {
       if (attempt === 0) {
@@ -105,7 +105,6 @@ async function scrapeTabBg(tabId) {
     }
   }
 
-  if (clientResult) return clientResult;
   throw new Error('Could not scrape page');
 }
 
