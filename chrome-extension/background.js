@@ -54,46 +54,11 @@ function isRealVehicle(v) {
 
 
 async function scrapeTabBg(tabId) {
-  // Step 1: Capture raw HTML from the tab (thin client — no parsing logic)
-  let capture = null;
+  // Step 1: Client-side scrape via SCRAPE_LOCAL (no server relay — avoids deadlock)
+  let clientResult = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const [{ result }] = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: () => ({ html: document.documentElement.outerHTML, url: location.href })
-      });
-      capture = result;
-      break;
-    } catch (e) {
-      if (attempt === 0) await new Promise(r => setTimeout(r, 400));
-    }
-  }
-
-  if (!capture?.html || capture.html.length < 500) throw new Error('Could not capture page');
-
-  // Step 2: Send HTML to server for parsing (all logic server-side — IP protected)
-  const token = (await chrome.storage.local.get('token')).token;
-  if (token) {
-    try {
-      const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ html: capture.html, url: capture.url })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.ok && data.result?.vehicles?.length) {
-          return { ok: true, result: data.result };
-        }
-      }
-    } catch (_) {}
-  }
-
-  // Step 3: Fallback — ask content.js to scrape client-side only (skip server relay)
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const clientResult = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_LOCAL' });
-      if (clientResult) return clientResult;
+      clientResult = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_LOCAL' });
       break;
     } catch (e) {
       if (attempt === 0) {
@@ -105,6 +70,38 @@ async function scrapeTabBg(tabId) {
     }
   }
 
+  // Step 2: If client got few photos, try server for better photos (cheerio parses raw HTML)
+  if (clientResult?.result?.vehicles?.length) {
+    const v = clientResult.result.vehicles[0];
+    if ((v._photos?.length || 0) < 3) {
+      try {
+        const token = (await chrome.storage.local.get('token')).token;
+        if (token) {
+          const [{ result: capture }] = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: () => ({ html: document.documentElement.outerHTML, url: location.href })
+          });
+          if (capture?.html && capture.html.length > 500) {
+            const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ html: capture.html, url: capture.url })
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.ok && data.result?.vehicles?.[0]?._photos?.length > v._photos?.length) {
+                v._photos = data.result.vehicles[0]._photos;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Server failed — keep client photos, no harm done
+      }
+    }
+  }
+
+  if (clientResult) return clientResult;
   throw new Error('Could not scrape page');
 }
 
