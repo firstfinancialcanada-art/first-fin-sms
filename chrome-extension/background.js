@@ -120,6 +120,23 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
     await waitForTabLoad(tabId);
     // Extra wait for Vue/AJAX-rendered pages (Vehica, etc.) to load content
     await new Promise(r => setTimeout(r, 3000));
+    // Scroll through page to trigger lazy-loaded cards
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: async () => {
+          let prev = 0;
+          for (let r = 0; r < 15; r++) {
+            window.scrollTo(0, document.body.scrollHeight);
+            await new Promise(w => setTimeout(w, 800));
+            if (document.body.scrollHeight === prev) break;
+            prev = document.body.scrollHeight;
+          }
+          window.scrollTo(0, 0);
+        }
+      });
+      await new Promise(r => setTimeout(r, 500));
+    } catch (_) {}
     const resp = await scrapeTabBg(tabId);
     if (resp?.result?.type === 'listing' && resp.result.links?.length) {
       return resp.result.links;
