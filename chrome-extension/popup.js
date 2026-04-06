@@ -95,7 +95,7 @@ async function tryLogin(email, pw) {
       const user = d.user || {};
       const name = user.name || user.display_name || email;
       const dealerName = user.tenantBranding?.dealerName || '';
-      await chrome.storage.local.set({ token, refreshToken: refreshToken, email, userName: name, userEmail: email, dealerName });
+      await chrome.storage.local.set({ token, refreshToken: refreshToken, email, userName: name, userEmail: email, dealerName, loginAt: Date.now() });
       return { ok: true, name, email, dealerName };
     }
     return { ok: false, error: d.error || d.message || `Login failed (HTTP ${r.status})` };
@@ -106,8 +106,16 @@ async function tryLogin(email, pw) {
 
 async function loadAuth() {
   try {
-    const s = await chrome.storage.local.get(['token','refreshToken','email','userName','userEmail','dealerName']);
-    if (s.token) { authToken = s.token; refreshToken = s.refreshToken || null; return s; }
+    const s = await chrome.storage.local.get(['token','refreshToken','email','userName','userEmail','dealerName','loginAt']);
+    if (s.token) {
+      // Auto-logout after 2.5 hours
+      const SESSION_MS = 2.5 * 60 * 60 * 1000;
+      if (s.loginAt && (Date.now() - s.loginAt) > SESSION_MS) {
+        await logout();
+        return null;
+      }
+      authToken = s.token; refreshToken = s.refreshToken || null; return s;
+    }
   } catch (_) {}
   return null;
 }
