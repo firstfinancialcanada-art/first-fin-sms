@@ -524,6 +524,14 @@ select option{background:#0d1526;color:var(--text);}
 /* Phone input formatter */
 .phone-fmt{font-family:'JetBrains Mono',monospace;letter-spacing:.5px;}
 
+/* F&I frequency + term buttons (all screen sizes) */
+.fi-freq-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;text-transform:uppercase;letter-spacing:.5px;}
+.fi-freq-btn.active-term{background:var(--primary);border-color:var(--primary);color:#fff;}
+.fi-freq-btn:hover:not(.active-term){border-color:rgba(30,90,246,.4);color:#93c5fd;}
+.fi-term-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Outfit',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .13s;text-transform:uppercase;letter-spacing:.5px;}
+.fi-term-btn.active-term{background:var(--primary);border-color:var(--primary);color:#fff;}
+.fi-term-btn:hover:not(.active-term){border-color:rgba(30,90,246,.4);color:#93c5fd;}
+
 @media(max-width:900px){
   .sarah-stat-grid{grid-template-columns:repeat(3,1fr);}
   .insight-grid{grid-template-columns:repeat(2,1fr);}
