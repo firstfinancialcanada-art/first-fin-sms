@@ -2795,7 +2795,9 @@ async function startLoginBuy() {
       <div class="ob-step" id="wstep-2">2</div><div class="ob-line" id="wline-2"></div>
       <div class="ob-step" id="wstep-3">3</div><div class="ob-line" id="wline-3"></div>
       <div class="ob-step" id="wstep-4">4</div><div class="ob-line" id="wline-4"></div>
-      <div class="ob-step" id="wstep-5">5</div>
+      <div class="ob-step" id="wstep-5">5</div><div class="ob-line" id="wline-5"></div>
+      <div class="ob-step" id="wstep-6">6</div><div class="ob-line" id="wline-6"></div>
+      <div class="ob-step" id="wstep-7">7</div>
     </div>
 
     <!-- ── STEP 1: Identity ── -->
@@ -2830,7 +2832,8 @@ async function startLoginBuy() {
           <div id="wiz-selected-display" style="font-family:'DM Mono',monospace;font-size:18px;color:#e2e8f0;letter-spacing:2px;"></div>
         </div>
         <button onclick="wizProvisionNumber()" id="wiz-provision-btn" disabled style="width:100%;padding:13px;background:rgba(30,90,246,.1);border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#475569;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;cursor:not-allowed;transition:all .2s;">Claim This Number →</button>
-        <div style="text-align:center;margin-top:10px;"><button onclick="wizGoTo(3)" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip — I'll add my number manually in Settings</button></div>
+        <div style="text-align:center;margin-top:10px;"><button onclick="wizGoTo(3)" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;">Skip — I'll add my number later</button></div>
+        <div style="text-align:center;margin-top:8px;font-size:11px;color:#475569;">Can't find a number? Call us at <strong style="color:#60a5fa;">587-306-6133</strong> and we'll set one up for you.</div>
       </div>
     </div>
 
@@ -2847,51 +2850,153 @@ async function startLoginBuy() {
       </div>
     </div>
 
-    <!-- ── STEP 4: Quick Start Guide ── -->
+    <!-- ── STEP 4: Import Inventory ── -->
     <div id="wiz-panel-4" class="ob-panel" style="display:none;">
       <div style="background:#0d1526;border:1px solid rgba(30,90,246,0.2);border-radius:14px;padding:28px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Quick Start Guide</div>
-        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Your platform is almost ready. Here's what to do next to get fully set up:</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Import Your Inventory</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Your vehicles power everything — Sarah's responses, the Deal Desk, Facebook Poster, and Compare All.</div>
 
-        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
-          <div style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-size:22px;flex-shrink:0;">🚗</div>
-            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Your Inventory</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Inventory</strong> tab → Import CSV or add vehicles manually. Sarah uses your live inventory to answer customer questions.</div></div>
+        <div style="background:rgba(30,90,246,.06);border:1px solid rgba(30,90,246,.15);border-radius:10px;padding:20px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+            <div style="width:48px;height:48px;background:rgba(30,90,246,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">
+              <i data-lucide="scan-line" style="width:24px;height:24px;color:#4a7fff;"></i>
+            </div>
+            <div>
+              <div style="font-size:15px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">FIRST-FIN Chrome Extension</div>
+              <div style="font-size:11px;color:#64748b;">Scans your dealership website and imports vehicles automatically</div>
+            </div>
           </div>
-          <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-size:22px;flex-shrink:0;">🏦</div>
-            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Lender Rate Sheets</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Lenders</strong> tab → Upload PDF rate sheets for each lender. This powers the Compare All engine with your actual rates.</div></div>
-          </div>
-          <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-size:22px;flex-shrink:0;">👥</div>
-            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Import Your CRM Contacts</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Analytics → CRM</strong> tab → Import CSV with your existing customer list. Use Bulk SMS to re-engage them with Sarah.</div></div>
-          </div>
-          <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-size:22px;flex-shrink:0;">🖼</div>
-            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Upload Your Logo</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Settings</strong> → upload your dealership logo. It appears on the customer-facing Deal Presentation.</div></div>
-          </div>
-          <div style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:10px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;">
-            <div style="font-size:22px;flex-shrink:0;">📱</div>
-            <div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:3px;">Launch Sarah — Send Your First Outreach</div><div style="font-size:12px;color:#64748b;line-height:1.5;">Go to <strong style="color:#94a3b8;">Sarah AI → Launch SMS</strong>. Enter a customer's number and Sarah will start the conversation automatically.</div></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:rgba(30,90,246,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#4a7fff;flex-shrink:0;">1</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Install the extension from your setup package (included with your account)</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:rgba(30,90,246,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#4a7fff;flex-shrink:0;">2</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Navigate to your dealership website's inventory page</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:rgba(30,90,246,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#4a7fff;flex-shrink:0;">3</div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Click <strong style="color:#e2e8f0;">Scan This Page</strong> — vehicles sync to your platform with photos, pricing, and VINs</div>
+            </div>
           </div>
         </div>
+        <div style="text-align:center;font-size:11px;color:#475569;margin-bottom:20px;">Your account rep will walk you through this on your onboarding call.</div>
 
-        <button onclick="wizFinish()" id="wiz-finish-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer;">I'm Ready — Enter the Platform →</button>
+        <button onclick="wizGoTo(5)" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Continue →</button>
       </div>
     </div>
 
-    <!-- ── STEP 5: Password (skipped Twilio) ── -->
+    <!-- ── STEP 5: How Sarah Works ── -->
     <div id="wiz-panel-5" class="ob-panel" style="display:none;">
-      <!-- This panel is unused — password is step 3. Kept for step counter alignment. -->
+      <div style="background:#0d1526;border:1px solid rgba(16,185,129,0.2);border-radius:14px;padding:28px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Meet Sarah — Your AI Sales Assistant</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Sarah handles customer conversations 24/7 so you never miss a lead.</div>
+
+        <!-- Mock SMS conversation -->
+        <div style="background:#080f20;border:1px solid rgba(16,185,129,.15);border-radius:12px;padding:16px;margin-bottom:20px;">
+          <div style="font-size:10px;color:#475569;text-align:center;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Sample Conversation</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="align-self:flex-start;background:rgba(100,116,139,.15);border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:80%;font-size:13px;color:#cbd5e1;">Hi, I saw the 2022 RAV4 online. Is it still available?</div>
+            <div style="align-self:flex-end;background:rgba(16,185,129,.15);border-radius:12px 12px 4px 12px;padding:10px 14px;max-width:80%;font-size:13px;color:#6ee7b7;">Hi! Yes, the 2022 Toyota RAV4 LE is available — 28,000 km, $34,500. Would you like to schedule a test drive? We have openings tomorrow at 11am or 2pm.</div>
+            <div style="align-self:flex-start;background:rgba(100,116,139,.15);border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:80%;font-size:13px;color:#cbd5e1;">Tomorrow at 2pm works!</div>
+            <div style="align-self:flex-end;background:rgba(16,185,129,.15);border-radius:12px 12px 4px 12px;padding:10px 14px;max-width:80%;font-size:13px;color:#6ee7b7;">You're booked for 2pm tomorrow. Ask for Jake when you arrive. See you then!</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">💬</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Customers text your dealership number — Sarah responds instantly, 24/7</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">📋</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;">She answers inventory questions, books appointments, and qualifies leads automatically</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">🔔</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;">You get notified on every new lead — she never sleeps, never misses a message</div>
+          </div>
+        </div>
+
+        <button onclick="wizGoTo(6)" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Continue →</button>
+      </div>
     </div>
 
-    <!-- ── DONE ── -->
-    <div id="wiz-panel-done" class="ob-panel" style="display:none;">
-      <div style="background:#0d1526;border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:40px 28px;text-align:center;">
-        <div style="font-size:52px;margin-bottom:14px;">✅</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:#10b981;margin-bottom:10px;">You're All Set!</div>
-        <div style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:28px;max-width:380px;margin-left:auto;margin-right:auto;">Platform configured and ready. Start by uploading inventory, then run your first deal through the wizard.</div>
-        <button onclick="wizClose()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Enter Platform →</button>
+    <!-- ── STEP 6: How the Deal Desk Works ── -->
+    <div id="wiz-panel-6" class="ob-panel" style="display:none;">
+      <div style="background:#0d1526;border:1px solid rgba(245,158,11,0.2);border-radius:14px;padding:28px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;">Your Deal Desk</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Structure deals, compare lenders, and present payment options — all in one place.</div>
+
+        <!-- Deal flow visual -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:24px;flex-wrap:wrap;">
+          <div style="background:rgba(30,90,246,.12);border:1px solid rgba(30,90,246,.25);border-radius:8px;padding:10px 14px;text-align:center;flex:1;min-width:80px;">
+            <div style="font-size:18px;margin-bottom:4px;">🚗</div>
+            <div style="font-size:10px;font-weight:700;color:#4a7fff;text-transform:uppercase;letter-spacing:.5px;">Vehicle</div>
+          </div>
+          <div style="color:#475569;">→</div>
+          <div style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:10px 14px;text-align:center;flex:1;min-width:80px;">
+            <div style="font-size:18px;margin-bottom:4px;">👤</div>
+            <div style="font-size:10px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.5px;">Customer</div>
+          </div>
+          <div style="color:#475569;">→</div>
+          <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 14px;text-align:center;flex:1;min-width:80px;">
+            <div style="font-size:18px;margin-bottom:4px;">🏦</div>
+            <div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;">Structure</div>
+          </div>
+          <div style="color:#475569;">→</div>
+          <div style="background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);border-radius:8px;padding:10px 14px;text-align:center;flex:1;min-width:80px;">
+            <div style="font-size:18px;margin-bottom:4px;">📊</div>
+            <div style="font-size:10px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;">F&I & Pay</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">⚡</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;">Select a vehicle from inventory, enter customer info and credit score</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">🏦</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;"><strong style="color:#e2e8f0;">Compare All</strong> — instantly see which lenders approve, at what rate, with payment breakdowns</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <div style="font-size:16px;flex-shrink:0;">📱</div>
+            <div style="font-size:13px;color:#94a3b8;line-height:1.5;"><strong style="color:#e2e8f0;">Present</strong> — send a professional payment presentation to your customer's phone in one click</div>
+          </div>
+        </div>
+
+        <button onclick="wizGoTo(7)" style="width:100%;padding:13px;background:linear-gradient(135deg,#1e5af6,#2d6cff);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:.5px;cursor:pointer;">Continue →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 7: You're Live ── -->
+    <div id="wiz-panel-7" class="ob-panel" style="display:none;">
+      <div style="background:#0d1526;border:1px solid rgba(16,185,129,0.3);border-radius:14px;padding:32px 28px;text-align:center;">
+        <img src="/images/logo.png" alt="FIRST-FIN" style="width:56px;height:auto;margin-bottom:12px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:#10b981;margin-bottom:16px;">You're All Set!</div>
+
+        <!-- Config summary -->
+        <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:10px;padding:16px;margin-bottom:20px;text-align:left;">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+            <span style="font-size:12px;color:#64748b;">Dealership</span>
+            <span style="font-size:12px;font-weight:700;color:#e2e8f0;" id="wiz-summary-dealer">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+            <span style="font-size:12px;color:#64748b;">Sales Rep</span>
+            <span style="font-size:12px;font-weight:700;color:#e2e8f0;" id="wiz-summary-name">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0;">
+            <span style="font-size:12px;color:#64748b;">Sarah's Number</span>
+            <span style="font-size:12px;font-weight:700;color:#e2e8f0;" id="wiz-summary-number">Not yet configured</span>
+          </div>
+        </div>
+
+        <div style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:8px;">Your account rep will contact you within <strong style="color:#e2e8f0;">24 hours</strong> to complete your setup.</div>
+        <div style="font-size:12px;color:#475569;margin-bottom:24px;">Questions? Call <strong style="color:#60a5fa;">587-306-6133</strong></div>
+
+        <button onclick="wizFinish()" id="wiz-finish-btn" style="width:100%;padding:14px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;letter-spacing:.5px;cursor:pointer;">Enter Platform →</button>
       </div>
     </div>
 

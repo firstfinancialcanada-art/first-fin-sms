@@ -5796,19 +5796,24 @@ function wizCheckAndShow() {
     return;
   }
   // Show wizard
-  document.getElementById('wiz-salesName').value  = settings.salesName  || '';
-  document.getElementById('wiz-dealerName').value = settings.dealerName || '';
+  _wizPrefill();
   wizGoTo(1);
   document.getElementById('sarah-wizard').style.display = 'block';
   document.body.style.overflow = 'hidden';
 }
 
 function wizOpen() {
-  document.getElementById('wiz-salesName').value  = settings.salesName  || '';
-  document.getElementById('wiz-dealerName').value = settings.dealerName || '';
+  _wizPrefill();
   wizGoTo(1);
   document.getElementById('sarah-wizard').style.display = 'block';
   document.body.style.overflow = 'hidden';
+}
+
+function _wizPrefill() {
+  document.getElementById('wiz-salesName').value   = settings.salesName   || '';
+  document.getElementById('wiz-dealerName').value  = settings.dealerName  || '';
+  document.getElementById('wiz-dealerCity').value  = settings.dealerCity  || '';
+  document.getElementById('wiz-notifyPhone').value = settings.notifyPhone || '';
 }
 
 function wizClose() {
@@ -5826,24 +5831,39 @@ function wizSkip() {
 }
 
 function wizGoTo(step) {
-  [1, 2, 3, 'done'].forEach(s => {
+  [1, 2, 3, 4, 5, 6, 7].forEach(s => {
     const p = document.getElementById('wiz-panel-' + s);
     if (p) p.style.display = (s == step) ? 'block' : 'none';
   });
-  [1, 2, 3].forEach(s => {
+  [1, 2, 3, 4, 5, 6, 7].forEach(s => {
     const el = document.getElementById('wstep-' + s);
     const ln = document.getElementById('wline-' + s);
     if (el) el.className = 'ob-step' + (s < step ? ' done' : s == step ? ' active' : '');
     if (ln) ln.className = 'ob-line' + (s < step ? ' done' : '');
   });
+  // Populate summary on final step
+  if (step === 7) {
+    const sd = document.getElementById('wiz-summary-dealer');
+    const sn = document.getElementById('wiz-summary-name');
+    const st = document.getElementById('wiz-summary-number');
+    if (sd) sd.textContent = settings.dealerName || '—';
+    if (sn) sn.textContent = settings.salesName || '—';
+    if (st) st.textContent = settings.twilioNumber || 'Not yet configured';
+  }
+  // Render lucide icons for new panels
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function wizNext(step) {
   if (step === 1) {
     const name   = document.getElementById('wiz-salesName').value.trim();
     const dealer = document.getElementById('wiz-dealerName').value.trim();
-    settings.salesName  = name   || settings.salesName;
-    settings.dealerName = dealer || settings.dealerName;
+    const city   = document.getElementById('wiz-dealerCity').value.trim();
+    const notify = document.getElementById('wiz-notifyPhone').value.trim().replace(/[\s\-\(\)]/g, '');
+    settings.salesName   = name   || settings.salesName;
+    settings.dealerName  = dealer || settings.dealerName;
+    settings.dealerCity  = city   || settings.dealerCity;
+    if (notify) settings.notifyPhone = notify;
     if (window.FF && FF.isLoggedIn) {
       FF.apiFetch('/api/desk/settings', { method: 'PUT', body: JSON.stringify({ settings }) })
         .then(r => r.json())
@@ -5934,23 +5954,9 @@ async function wizProvisionNumber() {
 }
 
 async function wizFinish() {
-  const notify = document.getElementById('wiz-notifyPhone').value.trim();
-  const errEl  = document.getElementById('wiz-step3-err');
-  errEl.style.display = 'none';
-  // Allow empty (optional) or valid +1XXXXXXXXXX format
-  const cleaned = notify.replace(/[\s\-\(\)]/g, '');
-  if (notify && !/^\+1\d{10}$/.test(cleaned)) {
-    errEl.textContent = 'Use format +14031234567 or leave blank';
-    errEl.style.display = 'block';
-    return;
-  }
   const btn = document.getElementById('wiz-finish-btn');
   btn.textContent = 'Saving...';
   btn.disabled = true;
-  if (notify) {
-    settings.notifyPhone = cleaned;
-    setVal('setNotifyPhone', cleaned);
-  }
   try {
     if (window.FF && FF.isLoggedIn) {
       const res  = await FF.apiFetch('/api/desk/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
@@ -5960,11 +5966,9 @@ async function wizFinish() {
     document.getElementById('sarah-setup-banner').style.display = 'none';
     localStorage.setItem('ff_wiz_done', '1');
     sessionStorage.removeItem('ff_wiz_skipped');
-    wizGoTo('done');
+    wizClose();
   } catch(e) {
-    errEl.textContent = e.message || 'Save failed — try again';
-    errEl.style.display = 'block';
-    btn.textContent = 'Finish Setup →';
+    btn.textContent = 'Enter Platform →';
     btn.disabled = false;
   }
 }
