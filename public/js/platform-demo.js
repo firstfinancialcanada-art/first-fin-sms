@@ -21,14 +21,31 @@ const DEMO_CRM = [
   {id:'d6',name:'Rachel Torres',phone:'+14035550106',email:'rtorres@email.com',status:'Test Drive',score:740,income:8200,vehicle:'2019 Jeep Wrangler',date:'2024-01-12',beacon:740,stock:'MAG-1006',created_at:new Date(Date.now()-4*86400000).toISOString()},
   {id:'d7',name:'Kevin OBrien',phone:'+14035550107',email:'kobrien@email.com',status:'Sold',score:780,income:10500,vehicle:'2023 Chevrolet Silverado',date:'2024-01-09',beacon:780,stock:'MAG-1004',created_at:new Date(Date.now()-6*86400000).toISOString()},
   {id:'d8',name:'Priya Sharma',phone:'+14035550108',email:'psharma@email.com',status:'Contacted',score:660,income:5900,vehicle:'2022 Toyota RAV4',date:'2024-01-11',beacon:660,stock:'MAG-1002',created_at:new Date(Date.now()-4*86400000+3600000).toISOString()},
+  {id:'d9',name:'Amanda Cole',phone:'+14035550109',email:'acole@email.com',status:'Sold',score:710,income:7200,vehicle:'2020 Honda Civic Sport',date:'2024-01-08',beacon:710,stock:'MAG-1003',created_at:new Date(Date.now()-5*86400000).toISOString()},
+  {id:'d10',name:'Derek Haines',phone:'+14035550110',email:'dhaines@email.com',status:'Negotiating',score:690,income:6500,vehicle:'2021 Ford F-150 XLT',date:'2024-01-15',beacon:690,stock:'MAG-1001',created_at:new Date(Date.now()-1*86400000).toISOString()},
+  {id:'d11',name:'Jason Firth',phone:'+14035550111',email:'jfirth@email.com',status:'Test Drive',score:650,income:5800,vehicle:'2021 Hyundai Tucson',date:'2024-01-14',beacon:650,stock:'MAG-1005',created_at:new Date(Date.now()-2*86400000).toISOString()},
+  {id:'d12',name:'Samira Youssef',phone:'+14035550112',email:'syoussef@email.com',status:'Lead',score:735,income:8900,vehicle:'2019 Jeep Wrangler',date:'2024-01-16',beacon:735,stock:'MAG-1006',created_at:new Date(Date.now()-0.5*86400000).toISOString()},
 ];
 
 const DEMO_DEAL_LOG = [
-  {id:'dl1',ts:new Date(Date.now()-1*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'David Park'},financial:{price:51200,doc:998,apr:7.99,gst:5,finalDown:3000},products:{vscPrice:2400,gapPrice:895}},
-  {id:'dl2',ts:new Date(Date.now()-3*86400000).toISOString(),vehicle:{stock:'MAG-1002',desc:'2022 Toyota RAV4'},customer:{name:'Maria Santos'},financial:{price:34500,doc:998,apr:8.49,gst:5,finalDown:2000},products:{vscPrice:1800,gapPrice:795}},
-  {id:'dl3',ts:new Date(Date.now()-7*86400000).toISOString(),vehicle:{stock:'MAG-1001',desc:'2021 Ford F-150'},customer:{name:'Tyler Brooks'},financial:{price:38900,doc:998,apr:6.99,gst:5,finalDown:4000},products:{vscPrice:2100,gapPrice:895}},
-  {id:'dl4',ts:new Date(Date.now()-10*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'Kevin OBrien'},financial:{price:51200,doc:998,apr:7.49,gst:5,finalDown:5000},products:{vscPrice:2500,gapPrice:895,twPrice:595}},
-  {id:'dl5',ts:new Date(Date.now()-14*86400000).toISOString(),vehicle:{stock:'MAG-1006',desc:'2019 Jeep Wrangler'},customer:{name:'Rachel Torres'},financial:{price:31500,doc:998,apr:8.99,gst:5,finalDown:1500},products:{vscPrice:1995,gapPrice:795}},
+  {id:'dl1',ts:new Date(Date.now()-0.5*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'David Park'},financial:{price:51200,doc:998,apr:7.99,gst:5,finalDown:3000},products:{vscPrice:2400,gapPrice:895}},
+  {id:'dl2',ts:new Date(Date.now()-1*86400000).toISOString(),vehicle:{stock:'MAG-1002',desc:'2022 Toyota RAV4'},customer:{name:'Maria Santos'},financial:{price:34500,doc:998,apr:8.49,gst:5,finalDown:2000},products:{vscPrice:1800,gapPrice:795}},
+  {id:'dl3',ts:new Date(Date.now()-2*86400000).toISOString(),vehicle:{stock:'MAG-1001',desc:'2021 Ford F-150'},customer:{name:'Tyler Brooks'},financial:{price:38900,doc:998,apr:6.99,gst:5,finalDown:4000},products:{vscPrice:2100,gapPrice:895}},
+  {id:'dl4',ts:new Date(Date.now()-3*86400000).toISOString(),vehicle:{stock:'MAG-1005',desc:'2021 Hyundai Tucson'},customer:{name:'Jason Firth'},financial:{price:27800,doc:998,apr:9.49,gst:5,finalDown:1000},products:{vscPrice:1695,gapPrice:795,twPrice:495}},
+  {id:'dl5',ts:new Date(Date.now()-4*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'Kevin OBrien'},financial:{price:51200,doc:998,apr:7.49,gst:5,finalDown:5000},products:{vscPrice:2500,gapPrice:895,twPrice:595}},
+  {id:'dl6',ts:new Date(Date.now()-5*86400000).toISOString(),vehicle:{stock:'MAG-1003',desc:'2020 Honda Civic Sport'},customer:{name:'Amanda Cole'},financial:{price:22900,doc:998,apr:7.99,gst:5,finalDown:2500},products:{vscPrice:1495,gapPrice:695}},
+  {id:'dl7',ts:new Date(Date.now()-6*86400000).toISOString(),vehicle:{stock:'MAG-1006',desc:'2019 Jeep Wrangler'},customer:{name:'Rachel Torres'},financial:{price:31500,doc:998,apr:8.99,gst:5,finalDown:1500},products:{vscPrice:1995,gapPrice:795}},
+  {id:'dl8',ts:new Date(Date.now()-7*86400000).toISOString(),vehicle:{stock:'MAG-1001',desc:'2021 Ford F-150 XLT'},customer:{name:'Derek Haines'},financial:{price:38900,doc:998,apr:8.49,gst:5,finalDown:3500},products:{vscPrice:2295,gapPrice:895,twPrice:595,waPrice:395}},
+  {id:'dl9',ts:new Date(Date.now()-9*86400000).toISOString(),vehicle:{stock:'MAG-1002',desc:'2022 Toyota RAV4 LE'},customer:{name:'Priya Sharma'},financial:{price:34500,doc:998,apr:7.99,gst:5,finalDown:4000},products:{vscPrice:1800,gapPrice:795}},
+  {id:'dl10',ts:new Date(Date.now()-11*86400000).toISOString(),vehicle:{stock:'MAG-1005',desc:'2021 Hyundai Tucson'},customer:{name:'Chris Nolan'},financial:{price:27800,doc:998,apr:8.99,gst:5,finalDown:0},products:{gapPrice:795}},
+  {id:'dl11',ts:new Date(Date.now()-13*86400000).toISOString(),vehicle:{stock:'MAG-1003',desc:'2020 Honda Civic Sport'},customer:{name:'Tina Belmont'},financial:{price:22900,doc:998,apr:9.49,gst:5,finalDown:1000},products:{vscPrice:1495,gapPrice:695,twPrice:395}},
+  {id:'dl12',ts:new Date(Date.now()-15*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'Ryan Michaels'},financial:{price:51200,doc:998,apr:7.49,gst:5,finalDown:6000},products:{vscPrice:2500,gapPrice:895}},
+  {id:'dl13',ts:new Date(Date.now()-18*86400000).toISOString(),vehicle:{stock:'MAG-1006',desc:'2019 Jeep Wrangler'},customer:{name:'Samira Youssef'},financial:{price:31500,doc:998,apr:8.49,gst:5,finalDown:2000},products:{vscPrice:1995,gapPrice:795,twPrice:495}},
+  {id:'dl14',ts:new Date(Date.now()-21*86400000).toISOString(),vehicle:{stock:'MAG-1001',desc:'2021 Ford F-150 XLT'},customer:{name:'Ben Harper'},financial:{price:38900,doc:998,apr:7.99,gst:5,finalDown:5000},products:{vscPrice:2100,gapPrice:895}},
+  {id:'dl15',ts:new Date(Date.now()-24*86400000).toISOString(),vehicle:{stock:'MAG-1002',desc:'2022 Toyota RAV4 LE'},customer:{name:'Nicole Fraser'},financial:{price:34500,doc:998,apr:8.99,gst:5,finalDown:3000},products:{vscPrice:1800,gapPrice:795,waPrice:295}},
+  {id:'dl16',ts:new Date(Date.now()-27*86400000).toISOString(),vehicle:{stock:'MAG-1005',desc:'2021 Hyundai Tucson'},customer:{name:'Omar Khalid'},financial:{price:27800,doc:998,apr:7.49,gst:5,finalDown:2000},products:{vscPrice:1695,gapPrice:795}},
+  {id:'dl17',ts:new Date(Date.now()-29*86400000).toISOString(),vehicle:{stock:'MAG-1003',desc:'2020 Honda Civic Sport'},customer:{name:'Laura Chen'},financial:{price:22900,doc:998,apr:8.49,gst:5,finalDown:1500},products:{vscPrice:1495}},
+  {id:'dl18',ts:new Date(Date.now()-30*86400000).toISOString(),vehicle:{stock:'MAG-1004',desc:'2023 Chevrolet Silverado'},customer:{name:'Greg Parsons'},financial:{price:51200,doc:998,apr:7.99,gst:5,finalDown:4000},products:{vscPrice:2500,gapPrice:895,twPrice:595,waPrice:395}},
 ];
 
 
@@ -123,7 +140,14 @@ function startDemo() {
     vehicle: c.vehicle || '—',
     stock:   c.stock   || '',
   }));
-  window.dealLog     = DEMO_DEAL_LOG;
+  // Hydrate deal log with computed fields that renderDealLog/refreshAllAnalytics expect
+  window.dealLog     = DEMO_DEAL_LOG.map(d => {
+    const ts = new Date(d.ts);
+    const p = d.products || {};
+    const pvr = (parseFloat(p.vscPrice)||0) + (parseFloat(p.gapPrice)||0) + (parseFloat(p.twPrice)||0) + (parseFloat(p.waPrice)||0);
+    return { ...d, loggedAt: ts.toLocaleDateString('en-CA'), loggedTime: ts.toLocaleTimeString('en-CA'),
+      loggedMonth: ts.getMonth(), loggedYear: ts.getFullYear(), loggedDay: ts.toDateString(), pvr };
+  });
   Object.assign(window.settings, {salesName:'Demo User', dealerName:'Maple Auto Group', docFee:998, gst:5, apr:8.99, target:30, logoUrl:''});
   if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
 
