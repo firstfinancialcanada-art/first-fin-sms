@@ -2709,6 +2709,7 @@ function crmStatusBadge(status) {
   return `background:${bg}22;color:${bg};border:1px solid ${bg}44`;
 }
 function renderCRM(){
+  if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   const container=document.getElementById('crmContainer');
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
   container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
@@ -2957,6 +2958,7 @@ async function logDeal(){
   renderScenarios();
 }
 function renderDealLog(){
+  if(window.DEMO_MODE && window.dealLog?.length && !dealLog.length) dealLog = window.dealLog;
   const c=document.getElementById('dealLogContainer');
   if(!dealLog.length){c.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No deals logged yet. Use the LOG THIS DEAL button from the Deal Desk.</div>';return;}
   c.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Vehicle</th><th>Stock #</th><th>Products</th><th>PVR</th><th>Actions</th></tr></thead><tbody>
@@ -3016,6 +3018,8 @@ async function loadDealLog(){
 }
 
 function refreshAllAnalytics(){
+  if(window.DEMO_MODE && window.dealLog?.length && !dealLog.length) dealLog = window.dealLog;
+  if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   renderDealLog();loadCRM();
   const now=new Date();const today=now.toDateString();const m=now.getMonth();const y=now.getFullYear();
   const sw=new Date(now);sw.setDate(now.getDate()-now.getDay());sw.setHours(0,0,0,0);
