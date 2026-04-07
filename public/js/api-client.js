@@ -155,6 +155,7 @@
     _rawSet('ffCRM',         JSON.stringify(data.crm         || []));
     _rawSet('ffDealLog',     JSON.stringify(data.dealLog     || []));
     _rawSet('ffLenderRates', JSON.stringify(data.lenderRates || {}));
+    _origSetItem('ffLenderRates', JSON.stringify(data.lenderRates || {}));
     _rawSet('ffScenarios',   JSON.stringify(data.scenarios   || [null, null, null]));
     if (data.currentDeal) {
       _rawSet('ffCurrentDeal', JSON.stringify(data.currentDeal));
@@ -376,6 +377,7 @@
       // 4. Other modules
       if (typeof renderCRM             === 'function') renderCRM();
       if (typeof refreshAllAnalytics   === 'function') refreshAllAnalytics();
+      if (typeof applyLenderRateOverrides === 'function') applyLenderRateOverrides();
       if (typeof loadTenantRates       === 'function') loadTenantRates().then(() => {
         if (typeof buildLenderRateEditor === 'function') buildLenderRateEditor();
       });
