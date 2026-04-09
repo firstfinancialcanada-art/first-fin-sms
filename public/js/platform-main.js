@@ -2560,7 +2560,7 @@ async function saveSettings(){
   const rawNotify = (getVal('setNotifyPhone')  || '').trim();
   const phoneRx   = /^\+1\d{10}$/;
   if (rawTwilio && !phoneRx.test(rawTwilio)) {
-    toast('⚠️ Twilio Number must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+    toast('⚠️ Phone number must be in +1XXXXXXXXXX format (e.g. +14031234567)');
     return;
   }
   if (rawNotify && !phoneRx.test(rawNotify)) {
@@ -3884,15 +3884,15 @@ async function resumeBulkSMS(){
   if(d.success){ toast('Bulk SMS resumed'); checkBulkStatus(); } else toast(d.error);
 }
 async function nuclearClear(event){
-  if(!confirm('CANCEL ALL OUTGOING SMS?\n\n\u2022 Cancel every queued/sending Twilio message\n\u2022 Wipe all pending bulk messages\n\nEverything auto-resumes after flush. Proceed?')) return;
+  if(!confirm('CANCEL ALL OUTGOING SMS?\n\n\u2022 Cancel every queued/sending SMS\n\u2022 Wipe all pending bulk messages\n\nEverything auto-resumes after flush. Proceed?')) return;
   const btn=event?.target?.closest('button');
   if(btn){btn.disabled=true;btn.textContent='Flushing...';}
   try{
     const d=await adminFetch('/api/nuclear-clear');
     if(!d) return;
     alert('FLUSH COMPLETE \u2014 systems resumed.\n\n'
-      +'Twilio queued: '+d.twilioQueued+'\n'
-      +'Twilio sending: '+d.twilioSending+'\n'
+      +'SMS queued: '+d.twilioQueued+'\n'
+      +'SMS sending: '+d.twilioSending+'\n'
       +'Bulk wiped: '+d.bulkCancelled);
     loadSarahDashboard();
   }catch(e){alert('Failed: '+e.message);}
@@ -4077,7 +4077,7 @@ async function loadVoicemails(){
     const data  = await FF.apiFetch('/api/voicemails').then(r=>r.json());
     if(!data.success) throw new Error(data.error);
     if(!data.voicemails.length){
-      el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No voicemails yet. Once your Twilio number is configured for inbound calls, voicemails will appear here.</div>';
+      el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No voicemails yet. Once your phone number is configured for inbound calls, voicemails will appear here.</div>';
       return;
     }
     el.innerHTML = data.voicemails.map(v => {
