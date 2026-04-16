@@ -2477,6 +2477,103 @@ function openSettingsModal(){
   setVal('setGoogleReviewUrl', settings.googleReviewUrl || '');
   openModal('settingsModal');
 }
+
+// ── USAGE & BILLING ──────────────────────────────────
+// Pulls /api/tenant/usage and paints the header pill + the usage modal.
+// Colors: green < 80%, amber 80-99%, red ≥ 100%.
+function _usageFmt(cents){ return '$' + ((cents||0)/100).toFixed(2); }
+function _usageColor(pct){ return pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#10b981'; }
+
+async function refreshUsage(){
+  try {
+    const res = await FF.apiFetch('/api/tenant/usage');
+    if(!res.ok) return;
+    const d = await res.json();
+    if(!d.success) return;
+    const s   = d.spend     || {};
+    const inv = d.inventory || {};
+    const crm = d.crm       || {};
+
+    // Header pill dot — reflects worst of (spend / inventory / crm)
+    const maxPct = Math.max(s.pct||0, inv.pct||0, crm.pct||0);
+    const dot    = document.getElementById('usage-pill-dot');
+    if(dot) dot.style.background = _usageColor(maxPct);
+
+    // Modal fields (only touched if modal exists in DOM)
+    const setTxt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    setTxt('usage-total-dollars',   _usageFmt(s.totalSpendCents));
+    setTxt('usage-cap-dollars',     _usageFmt(s.capCents));
+    setTxt('usage-sms-dollars',     _usageFmt(s.smsSpendCents));
+    setTxt('usage-voice-dollars',   _usageFmt(s.voiceSpendCents));
+    setTxt('usage-overage-dollars', _usageFmt(s.overageBalanceCents));
+    setTxt('usage-inv-count',       inv.count || 0);
+    setTxt('usage-inv-cap',         inv.cap   || 500);
+    setTxt('usage-crm-count',       crm.count || 0);
+    setTxt('usage-crm-cap',         crm.cap   || 500);
+
+    const setBar = (id, pct) => {
+      const bar = document.getElementById(id);
+      if(!bar) return;
+      bar.style.width      = Math.min(100, pct||0) + '%';
+      bar.style.background = _usageColor(pct||0);
+    };
+    setBar('usage-spend-bar', s.pct);
+    setBar('usage-inv-bar',   inv.pct);
+    setBar('usage-crm-bar',   crm.pct);
+
+    // Reset date (first of next month after period_start)
+    if(s.periodStart){
+      const start = new Date(s.periodStart);
+      const next  = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+      setTxt('usage-reset-date', 'Resets ' + next.toLocaleDateString(undefined, { month:'short', day:'numeric' }));
+    }
+  } catch(e) { console.warn('Usage refresh failed:', e.message); }
+}
+
+function openUsageModal(){
+  openModal('usageModal');
+  refreshUsage();
+}
+
+async function startTopup(cents){
+  try {
+    const btns = document.querySelectorAll('#usageModal .btn');
+    btns.forEach(b => b.disabled = true);
+    const res = await FF.apiFetch('/api/billing/topup/create-checkout', {
+      method: 'POST', body: JSON.stringify({ cents })
+    });
+    const d = await res.json();
+    if(d.success && d.url){
+      window.location = d.url;  // redirect to Stripe Checkout
+    } else {
+      alert('Top-up failed: ' + (d.error || 'unknown error'));
+      btns.forEach(b => b.disabled = false);
+    }
+  } catch(e) {
+    alert('Top-up error: ' + e.message);
+    document.querySelectorAll('#usageModal .btn').forEach(b => b.disabled = false);
+  }
+}
+
+// Handle return from Stripe Checkout + kick off initial usage load.
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('topup') === 'success'){
+    const amount = parseInt(params.get('amount') || '0', 10);
+    const dollars = (amount/100).toFixed(2);
+    if(typeof toast === 'function') toast(`✓ Top-up successful: $${dollars} added`);
+    else alert('Top-up successful: $' + dollars + ' added to overage balance.');
+    window.history.replaceState({}, '', window.location.pathname);
+  } else if(params.get('topup') === 'cancelled'){
+    if(typeof toast === 'function') toast('Top-up cancelled — no charge made.');
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  // Kick off after app settles — wait for FF.apiFetch to exist + tokens to load
+  setTimeout(() => { if(window.FF && FF.isLoggedIn !== false) refreshUsage(); }, 1500);
+  // Refresh pill every 60s so it reflects reality
+  setInterval(() => { if(window.FF && FF.isLoggedIn !== false) refreshUsage(); }, 60000);
+});
+
 function updateHeaderDealer(){
   const name = settings.dealerName || '';
   const el = document.getElementById('header-dealer-name');

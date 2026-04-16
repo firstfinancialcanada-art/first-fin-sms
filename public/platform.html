@@ -990,6 +990,11 @@ select option{background:#0d1526;color:var(--text);}
     <button class="hbtn amber" onclick="openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i>Email</button>
     <button class="hbtn theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()"><i data-lucide="sun" class="ico-sm"></i>Light</button>
     <button class="hbtn" onclick="openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i>Rates</button>
+    <button class="hbtn" id="usage-pill-btn" onclick="openUsageModal()" title="Monthly usage &amp; billing">
+      <i data-lucide="activity" class="ico-sm"></i>
+      <span id="usage-pill-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#64748b;margin-right:4px;vertical-align:middle;"></span>
+      <span id="usage-pill-text">Usage</span>
+    </button>
     <button class="hbtn" onclick="openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
     <button class="hbtn" onclick="if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
   </div>
@@ -2511,6 +2516,74 @@ select option{background:#0d1526;color:var(--text);}
     <div><div class="pw-sig-line">Sales Representative / Date</div></div>
   </div>
   <div class="pw-disclaimer">Payments are estimates. Actual rate and terms subject to lender approval. All prices in CAD. GST included. Additional fees may apply. This worksheet does not constitute a binding agreement.</div>
+</div>
+
+<!-- ═══ USAGE & BILLING MODAL ═══ -->
+<div class="modal-overlay" id="usageModal" onclick="closeModalOutside(event,'usageModal')">
+  <div class="modal-box" style="max-width:540px;">
+    <button class="modal-close" onclick="closeModal('usageModal')">×</button>
+    <div class="modal-title"><i data-lucide="activity" class="ico-lg"></i>Monthly Usage &amp; Billing</div>
+
+    <!-- Twilio spend card -->
+    <div style="margin-top:8px;padding:18px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
+        <div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;">Twilio Spend</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;" id="usage-reset-date">Resets —</div>
+      </div>
+      <div style="font-size:26px;font-weight:700;color:var(--text);font-family:'DM Mono',monospace;line-height:1;">
+        <span id="usage-total-dollars">$0.00</span>
+        <span style="color:var(--muted);font-size:15px;font-weight:400;"> / <span id="usage-cap-dollars">$18.50</span></span>
+      </div>
+      <div style="margin-top:12px;height:8px;background:var(--border);border-radius:5px;overflow:hidden;">
+        <div id="usage-spend-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s ease;border-radius:5px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:10px;">
+        <span>SMS <span id="usage-sms-dollars" style="color:var(--text);">$0.00</span></span>
+        <span>Voice <span id="usage-voice-dollars" style="color:var(--text);">$0.00</span></span>
+        <span>Overage <span id="usage-overage-dollars" style="color:#10b981;">$0.00</span></span>
+      </div>
+    </div>
+
+    <!-- Capacity bars (inventory + CRM) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;">Inventory</div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-inv-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-inv-cap">500</span></span></div>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div id="usage-inv-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s ease;"></div>
+        </div>
+      </div>
+      <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;">CRM Contacts</div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-crm-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-crm-cap">500</span></span></div>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div id="usage-crm-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s ease;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top-up section -->
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(6,182,212,0.25);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#06b6d4;font-family:'DM Mono',monospace;">Top Up Overage</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">Secure via Stripe</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;">
+        Pre-purchase extra capacity that applies after your $18.50 monthly allowance. Balance carries forward, never expires.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <button class="btn" onclick="startTopup(1000)" style="padding:14px 8px;font-weight:700;font-size:14px;">$10</button>
+        <button class="btn" onclick="startTopup(2500)" style="padding:14px 8px;font-weight:700;font-size:14px;">$25</button>
+        <button class="btn" onclick="startTopup(5000)" style="padding:14px 8px;font-weight:700;font-size:14px;">$50</button>
+        <button class="btn btn-primary" onclick="startTopup(10000)" style="padding:14px 8px;font-weight:700;font-size:14px;">$100</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.4;text-align:center;margin-top:10px;">Credit applied immediately on successful payment. Questions? <a href="mailto:support@firstfinancialcanada.com" style="color:#06b6d4;">Contact support</a>.</div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ LENDER RATE EDITOR MODAL ═══ -->

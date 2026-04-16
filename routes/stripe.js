@@ -176,6 +176,76 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     }
   });
 
+  // ── POST /api/billing/topup/create-checkout ──────────────────────
+  // One-time Stripe Checkout Session for tenant Twilio overage top-ups.
+  // Body: { cents } — integer cents ($5–$500 range). Stripe fires a
+  // webhook on success; the checkout.session.completed handler detects
+  // metadata.kind === 'topup' and calls addOverage(userId, cents).
+  app.post('/api/billing/topup/create-checkout', requireAuth, async (req, res) => {
+    const stripe = getStripe();
+    if (!stripe) return res.status(503).json({ success: false, error: 'Billing not configured' });
+
+    const cents = parseInt(req.body?.cents, 10);
+    if (!Number.isFinite(cents) || cents < 500 || cents > 50000) {
+      return res.status(400).json({ success: false, error: 'Top-up must be between $5 and $500' });
+    }
+
+    // ── ONBOARDING TEST BYPASS (dev/test only — never enable in prod) ────
+    if (process.env.ONBOARDING_TEST_MODE === 'true') {
+      const { addOverage } = require('../lib/spend-cap');
+      await addOverage(req.user.userId, cents);
+      const baseUrl = process.env.BASE_URL || '';
+      return res.json({ success: true, url: `${baseUrl}/platform?topup=success&test=1` });
+    }
+
+    const client = await pool.connect();
+    try {
+      const userRes = await client.query(
+        'SELECT email, stripe_customer_id FROM desk_users WHERE id = $1',
+        [req.user.userId]
+      );
+      const user = userRes.rows[0];
+      if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+      const baseUrl = process.env.BASE_URL || '';
+      const sessionOpts = {
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency:     'cad',
+            unit_amount:  cents,
+            product_data: {
+              name:        'Twilio overage top-up',
+              description: `One-time top-up credited to your spend balance — $${(cents/100).toFixed(2)} CAD`
+            }
+          },
+          quantity: 1
+        }],
+        success_url: `${baseUrl}/platform?topup=success&amount=${cents}`,
+        cancel_url:  `${baseUrl}/platform?topup=cancelled`,
+        metadata: {
+          kind:    'topup',
+          userId:  String(req.user.userId),
+          cents:   String(cents),
+        }
+      };
+      if (user.stripe_customer_id) {
+        sessionOpts.customer = user.stripe_customer_id;
+      } else {
+        sessionOpts.customer_email = user.email;
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionOpts);
+      res.json({ success: true, url: session.url });
+    } catch (e) {
+      console.error('Top-up checkout error:', e.message);
+      res.status(500).json({ success: false, error: 'Top-up session failed — please try again' });
+    } finally {
+      client.release();
+    }
+  });
+
   // ── POST /api/billing/portal ─────────────────────────────────────
   app.post('/api/billing/portal', requireAuth, async (req, res) => {
     const stripe = getStripe();
@@ -269,6 +339,23 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
         case 'checkout.session.completed': {
           const session    = event.data.object;
+
+          // ── Top-up path: credit tenant overage balance and return ──
+          if (session.metadata?.kind === 'topup') {
+            const topupUserId = parseInt(session.metadata.userId, 10);
+            const topupCents  = parseInt(session.metadata.cents, 10);
+            if (topupUserId && topupCents > 0) {
+              try {
+                const { addOverage } = require('../lib/spend-cap');
+                await addOverage(topupUserId, topupCents);
+                console.log(`💰 Overage top-up: user ${topupUserId} +$${(topupCents/100).toFixed(2)}`);
+              } catch (err) {
+                console.error('Top-up credit failed:', err.message);
+              }
+            }
+            break;
+          }
+
           const userId     = session.subscription_data?.metadata?.userId;
           const buyerEmail = (session.customer_email || session.metadata?.email || '').toLowerCase().trim();
           const buyerName  = session.metadata?.name        || 'New Customer';
