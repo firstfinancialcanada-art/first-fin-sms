@@ -165,15 +165,8 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
                maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
                maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
     }
-    // Range with rate range like "9.99%–14.99%" — use lower end
-    if(ficoStr && /\d{3}/.test(ficoStr)){
-      const rateNum = parseFloat(prog.rate);
-      if(!isNaN(rateNum) && beacon > 0){
-        return { tier: prog.tier, rate: rateNum, minFico: 0,
-                 maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-                 maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
-      }
-    }
+    // No catch-all: if no FICO pattern matched, this program doesn't qualify.
+    // Continuing to next program preserves tier ordering (680+ → 620-679 → <540).
   }
   // Credit-based lenders (hard:false — CIBC, RBC, etc.) don't use FICO tiers.
   // They underwrite on full credit profile outside the platform.
