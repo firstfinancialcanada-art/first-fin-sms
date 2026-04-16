@@ -370,6 +370,113 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // ── SETUP TOKEN — one-time link for new-account password activation ───
+  // Webhook creates a user with a random (never-revealed) password + inserts
+  // a setup token. Buyer receives SMS with /setup?token=X link instead of
+  // plaintext credentials. /api/desk/setup/verify checks validity without
+  // consuming; /api/desk/setup/complete sets the chosen password, marks the
+  // token consumed, and returns JWT access+refresh tokens for auto-login.
+  ;(async () => {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS setup_tokens (
+          token       TEXT PRIMARY KEY,
+          user_id     INTEGER NOT NULL REFERENCES desk_users(id) ON DELETE CASCADE,
+          expires_at  TIMESTAMPTZ NOT NULL,
+          consumed_at TIMESTAMPTZ,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_setup_user ON setup_tokens(user_id)`);
+      console.log('✅ setup_tokens table ready');
+    } catch (e) { console.error('⚠️ setup_tokens migration:', e.message); }
+  })();
+
+  // GET /api/desk/setup/verify?token=XXX — returns the associated email
+  //   if the token is valid, unexpired, and unconsumed. No side effects.
+  app.get('/api/desk/setup/verify', async (req, res) => {
+    const token = String(req.query?.token || '');
+    if (!token) return res.status(400).json({ success: false, error: 'Token required' });
+    try {
+      const { rows } = await pool.query(
+        `SELECT u.email, t.expires_at, t.consumed_at
+           FROM setup_tokens t JOIN desk_users u ON u.id = t.user_id
+          WHERE t.token = $1`,
+        [token]
+      );
+      if (!rows.length)            return res.status(404).json({ success: false, error: 'Setup link not found' });
+      if (rows[0].consumed_at)     return res.status(410).json({ success: false, error: 'Setup link already used' });
+      if (new Date(rows[0].expires_at) < new Date())
+                                   return res.status(410).json({ success: false, error: 'Setup link expired' });
+      res.json({ success: true, email: rows[0].email });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // POST /api/desk/setup/complete  body: { token, password }
+  //   Validates token, hashes password, consumes token, issues access +
+  //   refresh tokens so the client can redirect straight into /platform.
+  app.post('/api/desk/setup/complete', async (req, res) => {
+    const { token, password } = req.body || {};
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ success: false, error: 'Token required' });
+    }
+    if (!password || password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tok = await client.query(
+        `SELECT t.user_id, t.expires_at, t.consumed_at, u.email, u.display_name, u.role
+           FROM setup_tokens t JOIN desk_users u ON u.id = t.user_id
+          WHERE t.token = $1 FOR UPDATE`,
+        [token]
+      );
+      if (!tok.rows.length)          { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Setup link not found' }); }
+      if (tok.rows[0].consumed_at)   { await client.query('ROLLBACK'); return res.status(410).json({ success: false, error: 'Setup link already used' }); }
+      if (new Date(tok.rows[0].expires_at) < new Date())
+                                     { await client.query('ROLLBACK'); return res.status(410).json({ success: false, error: 'Setup link expired' }); }
+
+      const uid      = tok.rows[0].user_id;
+      const passHash = await bcrypt.hash(password, 12);
+
+      // Clear onboardingPending + tempPassword from settings_json (in case an
+      // earlier flow stored it); keep all other settings.
+      await client.query(
+        `UPDATE desk_users
+            SET password_hash  = $1,
+                settings_json  = COALESCE(settings_json, '{}'::jsonb)
+                                 - 'tempPassword' - 'onboardingPending'
+          WHERE id = $2`,
+        [passHash, uid]
+      );
+      await client.query(
+        `UPDATE setup_tokens SET consumed_at = NOW() WHERE token = $1`,
+        [token]
+      );
+
+      // Issue auth tokens so the client can jump straight to /platform
+      const userRow   = { id: uid, email: tok.rows[0].email, display_name: tok.rows[0].display_name, role: tok.rows[0].role };
+      const accessTok  = generateAccessToken(userRow);
+      const refreshTok = generateRefreshToken(userRow);
+      const rtHash     = crypto.createHash('sha256').update(refreshTok).digest('hex');
+      await client.query(
+        `INSERT INTO desk_refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '${REFRESH_TTL_DAYS} days')`,
+        [uid, rtHash]
+      );
+      await client.query('COMMIT');
+      res.json({ success: true, accessToken: accessTok, refreshToken: refreshTok });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
   // ── CHANGE PASSWORD ─────────────────────────────────────
   // ── FIRST-LOGIN PASSWORD SET (onboarding only — no current password required) ──────────
   app.post('/api/desk/set-password', requireAuth, async (req, res) => {

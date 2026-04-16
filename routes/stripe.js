@@ -395,14 +395,16 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               const bcrypt = require('bcryptjs');
               const crypto = require('crypto');
 
-              // Generate a temporary random password — dealer must reset
-              const tempPass = crypto.randomBytes(8).toString('hex');
-              const passHash = await bcrypt.hash(tempPass, 12);
+              // Stash a random password the user never sees — real password
+              // is set via the /setup magic-link flow. Leaving the hash in
+              // place means the account is never password-less even if the
+              // setup link expires unused.
+              const stashPass = crypto.randomBytes(24).toString('hex');
+              const passHash  = await bcrypt.hash(stashPass, 12);
 
               const initSettings = {
                 dealerName: dealership || 'My Dealership',
                 salesName: buyerName,
-                tempPassword: tempPass,          // shown in admin panel until dealer logs in
                 onboardingPending: true,          // triggers first-login wizard
                 stripeCustomerId: session.customer,
                 plan: plan,
@@ -437,30 +439,46 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
 
               console.log('✅ New dealer account created — ' + buyerEmail + ' (user ' + newUserId + ')');
 
-              // ── SMS credentials to buyer if phone provided ─────────
-              if (buyerPhone) {
+              // ── Generate one-time setup link + SMS to buyer ──────────
+              // Token is 32 bytes (64 hex chars), 24h expiry, single-use.
+              // Replaces the legacy flow that texted a plaintext password
+              // (which persisted in Twilio logs + settings_json indefinitely).
+              let setupUrl = null;
+              if (newUserId) {
+                try {
+                  const setupToken = crypto.randomBytes(32).toString('hex');
+                  await client.query(
+                    `INSERT INTO setup_tokens (token, user_id, expires_at)
+                     VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
+                    [setupToken, newUserId]
+                  );
+                  const baseUrl = process.env.BASE_URL
+                    ? process.env.BASE_URL.replace(/\/$/, '')
+                    : 'https://app.firstfinancialcanada.com';
+                  setupUrl = `${baseUrl}/setup?token=${setupToken}`;
+                } catch (tokErr) {
+                  console.error('Setup token insert failed:', tokErr.message);
+                }
+              }
+
+              if (buyerPhone && setupUrl) {
                 try {
                   const twilioC = require('twilio')(
                     process.env.TWILIO_ACCOUNT_SID,
                     process.env.TWILIO_AUTH_TOKEN
                   );
-                  const platformUrl = process.env.BASE_URL
-                    ? process.env.BASE_URL.replace(/\/$/, '') + '/platform'
-                    : 'https://app.firstfinancialcanada.com/platform';
                   await twilioC.messages.create({
                     body:
                       `Welcome to FIRST-FIN, ${buyerName.split(' ')[0]}! 🎉\n\n` +
-                      `Your account is ready. Log in here:\n${platformUrl}\n\n` +
-                      `Email: ${buyerEmail}\n` +
-                      `Temp password: ${tempPass}\n\n` +
-                      `Change your password in Settings after logging in.\n` +
+                      `Your account is ready. Complete setup here (link expires in 24h):\n\n` +
+                      `${setupUrl}\n\n` +
                       `Questions? Call/text 587-306-6133`,
                     from: process.env.TWILIO_PHONE_NUMBER,
                     to:   buyerPhone
                   });
-                  console.log('📱 Credentials SMS sent to buyer: ' + buyerPhone);
+                  console.log('📱 Setup link SMS sent to buyer: ' + buyerPhone);
                 } catch (smsErr) {
-                  console.error('Buyer credentials SMS failed:', smsErr.message);
+                  console.error('Buyer setup-link SMS failed:', smsErr.message);
                 }
               }
             }
@@ -480,7 +498,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                     `Email: ${buyerEmail}\n` +
                     `Phone: ${buyerPhone}\n` +
                     `Plan: ${plan}\n` +
-                    (source === 'public_modal' ? `✅ Account auto-created — check admin panel for temp password` : `✅ Existing account activated`) + `\n` +
+                    (source === 'public_modal' ? `✅ Account auto-created — setup link SMS'd to buyer` : `✅ Existing account activated`) + `\n` +
                     `🔗 ${process.env.BASE_URL}/admin`,
               from: process.env.TWILIO_PHONE_NUMBER,
               to:   process.env.FORWARD_PHONE

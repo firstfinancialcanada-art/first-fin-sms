@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Complete Setup — First Fin</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --border: rgba(255,255,255,.08);
+    --text: #e2e8f0; --muted: #64748b; --primary: #06b6d4;
+    --primary-hover: #0891b2; --red: #ef4444; --green: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1e3a5f 0%, var(--bg) 55%);
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 32px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .logo {
+    text-align: center;
+    font-family: 'Bebas Neue', 'Outfit', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .logo span { color: var(--primary); }
+  .tagline {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+  input[type="password"], input[type="text"] {
+    width: 100%;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 14px;
+    transition: border-color .2s;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  button {
+    width: 100%;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+    font-family: 'Outfit', sans-serif;
+    margin-top: 8px;
+  }
+  button:hover:not(:disabled) { background: var(--primary-hover); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .msg {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .msg.err { background: rgba(239,68,68,.12); color: var(--red); border: 1px solid rgba(239,68,68,.3); display: block; }
+  .msg.ok  { background: rgba(16,185,129,.12); color: var(--green); border: 1px solid rgba(16,185,129,.3); display: block; }
+  .help {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 10px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+  }
+  .help a { color: var(--primary); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">FIRST&#8209;FIN<span> ◆</span> DEALER</div>
+    <div class="tagline">Complete your account setup</div>
+
+    <div id="loadingState">
+      <div class="sub">Verifying your setup link…</div>
+    </div>
+
+    <div id="setupForm" style="display:none;">
+      <h1>Set your password</h1>
+      <div class="sub">You're almost there, <span id="userEmail" style="color:#06b6d4;font-family:DM Mono,monospace;"></span>. Choose a password of at least 8 characters to finish setting up your account.</div>
+
+      <div id="msg" class="msg"></div>
+
+      <label>New password</label>
+      <input type="password" id="pw1" autocomplete="new-password" minlength="8" required>
+
+      <label>Confirm password</label>
+      <input type="password" id="pw2" autocomplete="new-password" minlength="8" required>
+
+      <button id="submitBtn" onclick="submitSetup()">Activate account →</button>
+
+      <div class="help">Link expires 24 hours after purchase. Questions? <a href="mailto:support@firstfinancialcanada.com">support@firstfinancialcanada.com</a></div>
+    </div>
+
+    <div id="errorState" style="display:none;">
+      <h1>Setup link unavailable</h1>
+      <div class="sub" id="errorMsg">This setup link is invalid, expired, or already used.</div>
+      <div class="help">Need a new link? <a href="mailto:support@firstfinancialcanada.com">Contact support</a>.</div>
+    </div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('token');
+
+  async function verifyToken() {
+    if (!token) return showError('No setup token in URL.');
+    try {
+      const res = await fetch('/api/desk/setup/verify?token=' + encodeURIComponent(token));
+      const d   = await res.json();
+      if (!d.success) return showError(d.error || 'Setup link invalid.');
+      document.getElementById('userEmail').textContent = d.email;
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('setupForm').style.display    = 'block';
+    } catch (e) { showError('Could not verify link. Try again.'); }
+  }
+
+  function showError(msg) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display   = 'block';
+    document.getElementById('errorMsg').textContent       = msg;
+  }
+
+  async function submitSetup() {
+    const pw1 = document.getElementById('pw1').value;
+    const pw2 = document.getElementById('pw2').value;
+    const msg = document.getElementById('msg');
+    msg.className = 'msg';
+    if (pw1.length < 8) { msg.className = 'msg err'; msg.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw1 !== pw2)    { msg.className = 'msg err'; msg.textContent = 'Passwords do not match.'; return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Activating…';
+
+    try {
+      const res = await fetch('/api/desk/setup/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password: pw1 })
+      });
+      const d = await res.json();
+      if (!d.success) {
+        msg.className = 'msg err';
+        msg.textContent = d.error || 'Setup failed. Try again.';
+        btn.disabled = false;
+        btn.textContent = 'Activate account →';
+        return;
+      }
+      msg.className = 'msg ok';
+      msg.textContent = 'Account activated — redirecting…';
+      sessionStorage.setItem('ff_access',  d.accessToken);
+      sessionStorage.setItem('ff_refresh', d.refreshToken);
+      setTimeout(() => { window.location = '/platform'; }, 800);
+    } catch (e) {
+      msg.className = 'msg err';
+      msg.textContent = 'Network error. Try again.';
+      btn.disabled = false;
+      btn.textContent = 'Activate account →';
+    }
+  }
+
+  document.getElementById('pw2').addEventListener('keypress', e => {
+    if (e.key === 'Enter') submitSetup();
+  });
+
+  verifyToken();
+</script>
+</body>
+</html>
