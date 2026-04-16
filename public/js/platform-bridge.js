@@ -125,8 +125,18 @@
           var phone=c.mobile_phone||c.phone||'—';
           var email=c.email||'—';
           var isCo=c.applicant_type==='CO-APPLICANT';
-          row.innerHTML='<div><div class="dt-feed-name">'+name+'</div><div class="dt-feed-detail">'+phone+'</div><div class="dt-feed-detail">'+email+'</div></div>'
-            +'<span class="dt-badge-src'+(isCo?' dt-badge-co':'')+'">'+(isCo?'CO':'PRIMARY')+'</span>';
+          // Build DOM with textContent — name/phone/email come from external
+          // bridge data (potentially attacker-controlled) and MUST NOT be
+          // interpolated into innerHTML.
+          var info=document.createElement('div');
+          var nameEl=document.createElement('div'); nameEl.className='dt-feed-name'; nameEl.textContent=name;
+          var phoneEl=document.createElement('div'); phoneEl.className='dt-feed-detail'; phoneEl.textContent=phone;
+          var emailEl=document.createElement('div'); emailEl.className='dt-feed-detail'; emailEl.textContent=email;
+          info.appendChild(nameEl); info.appendChild(phoneEl); info.appendChild(emailEl);
+          var badge=document.createElement('span');
+          badge.className='dt-badge-src'+(isCo?' dt-badge-co':'');
+          badge.textContent=isCo?'CO':'PRIMARY';
+          row.appendChild(info); row.appendChild(badge);
           feed.prepend(row);
           // Cap feed DOM too
           while(feed.children.length>150){feed.removeChild(feed.lastChild);}

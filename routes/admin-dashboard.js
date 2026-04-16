@@ -35,22 +35,21 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   });
 
   // ── GET /api/admin/stats ──────────────────────────────────
+  // Uses pool.query (not a single client) — Promise.all on one client would
+  // trigger pg's "client is already executing a query" deprecation warning.
   app.get('/api/admin/stats', adminAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
-      const [users, inventory, deals, inquiries, conversations, appointments, bulk, sarahActive] = await Promise.all([
-        client.query('SELECT COUNT(*) FROM desk_users'),
-        client.query('SELECT COUNT(*) FROM desk_inventory').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query('SELECT COUNT(*) FROM desk_deal_log').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query("SELECT COUNT(*) FROM platform_inquiries WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
-        client.query('SELECT COUNT(*) FROM conversations').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query('SELECT COUNT(*) FROM appointments').catch(() => ({ rows: [{ count: 0 }] })),
-        client.query("SELECT COUNT(*) FROM bulk_messages WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
-        client.query("SELECT COUNT(*) FROM desk_users WHERE subscription_status = 'active'").catch(() => ({ rows: [{ count: 0 }] })),
+      const [users, inventory, deals, inquiries, conversations, appointments, bulk, sarahActive, subBreakdown] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM desk_users'),
+        pool.query('SELECT COUNT(*) FROM desk_inventory').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query('SELECT COUNT(*) FROM desk_deal_log').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query("SELECT COUNT(*) FROM platform_inquiries WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query('SELECT COUNT(*) FROM conversations').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query('SELECT COUNT(*) FROM appointments').catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query("SELECT COUNT(*) FROM bulk_messages WHERE status = 'pending'").catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query("SELECT COUNT(*) FROM desk_users WHERE subscription_status = 'active'").catch(() => ({ rows: [{ count: 0 }] })),
+        pool.query("SELECT subscription_status, COUNT(*) as count FROM desk_users GROUP BY subscription_status").catch(() => ({ rows: [] })),
       ]);
-      const subBreakdown = await client.query(
-        "SELECT subscription_status, COUNT(*) as count FROM desk_users GROUP BY subscription_status"
-      ).catch(() => ({ rows: [] }));
 
       res.json({
         success: true,
@@ -69,8 +68,6 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     } catch(e) {
       console.error('Admin stats error:', e.message);
       res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
     }
   });
 
@@ -428,26 +425,25 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   });
 
   // ── POST /api/admin/fintest/reset ─────────────────────────
+  // Uses pool.query (not a single client) — Promise.all on one client would
+  // trigger pg's "client is already executing a query" deprecation warning.
   app.post('/api/admin/fintest/reset', adminAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
-      const u = await client.query("SELECT id FROM desk_users WHERE email = 'fintest@fintest.com'");
+      const u = await pool.query("SELECT id FROM desk_users WHERE email = 'fintest@fintest.com'");
       if (!u.rows.length) return res.status(404).json({ success: false, error: 'fintest account not found' });
       const uid = u.rows[0].id;
       await Promise.all([
-        client.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]),
-        client.query('DELETE FROM desk_deal_log WHERE user_id = $1', [uid]).catch(() => {}),
-        client.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {}),
-        client.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {}),
-        client.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {}),
-        client.query('DELETE FROM callbacks WHERE user_id = $1', [uid]).catch(() => {}),
-        client.query('DELETE FROM messages WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM desk_inventory WHERE user_id = $1', [uid]),
+        pool.query('DELETE FROM desk_deal_log WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM desk_crm WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM conversations WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM appointments WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM callbacks WHERE user_id = $1', [uid]).catch(() => {}),
+        pool.query('DELETE FROM messages WHERE user_id = $1', [uid]).catch(() => {}),
       ]);
       res.json({ success: true, message: 'fintest account reset — all data cleared' });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
-    } finally {
-      client.release();
     }
   });
 
