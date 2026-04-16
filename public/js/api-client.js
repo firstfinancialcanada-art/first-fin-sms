@@ -22,6 +22,65 @@
     }
   });
 
+  // ── Spend-cap / capacity modal (shown on HTTP 402) ──────────────
+  let _capModalShownAt = 0;
+  function _showCapModal(payload) {
+    if (Date.now() - _capModalShownAt < 3000) return;  // debounce
+    _capModalShownAt = Date.now();
+
+    const isSpend = payload.code === 'SPEND_CAP_EXCEEDED';
+    const usage   = payload.usage || {};
+    const totalDollars = ((usage.totalSpendCents || 0) / 100).toFixed(2);
+    const capDollars   = ((usage.capCents || 0) / 100).toFixed(2);
+    const needDollars  = ((payload.needCents || 0) / 100).toFixed(2);
+
+    let title, body, cta;
+    if (isSpend) {
+      title = 'Monthly Twilio cap reached';
+      body  = `Your plan covers $${capDollars}/mo in SMS + voice. You've used $${totalDollars}. ` +
+              `This send needs about $${needDollars} more — top up overage to continue, or wait for the monthly reset.`;
+      cta   = 'Contact us to top up';
+    } else if (payload.code === 'CAPACITY_EXCEEDED') {
+      const kind = payload.kind === 'inventory' ? 'vehicles' : 'CRM contacts';
+      title = kind.charAt(0).toUpperCase() + kind.slice(1) + ' limit reached';
+      body  = `You've hit the ${payload.cap} ${kind} limit on your current plan (${payload.count} used). ` +
+              `Remove some to free space, or contact us to upgrade.`;
+      cta   = 'Contact us to upgrade';
+    } else {
+      return;
+    }
+
+    let overlay = document.getElementById('ff-cap-modal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ff-cap-modal';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,sans-serif;';
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border-radius:12px;max-width:440px;width:100%;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+      const h = document.createElement('div'); h.id = 'ff-cap-title';
+      h.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:12px;color:#111;';
+      const b = document.createElement('div'); b.id = 'ff-cap-body';
+      b.style.cssText = 'font-size:14px;line-height:1.5;color:#444;margin-bottom:20px;';
+      const bar = document.createElement('div');
+      bar.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+      const close = document.createElement('button');
+      close.textContent = 'Close';
+      close.style.cssText = 'padding:10px 18px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer;font-weight:600;';
+      close.onclick = () => overlay.remove();
+      const ctaBtn = document.createElement('a'); ctaBtn.id = 'ff-cap-cta';
+      ctaBtn.href = 'mailto:support@firstfinancialcanada.com';
+      ctaBtn.style.cssText = 'padding:10px 18px;background:#f59e0b;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;';
+      bar.appendChild(close); bar.appendChild(ctaBtn);
+      card.appendChild(h); card.appendChild(b); card.appendChild(bar);
+      overlay.appendChild(card);
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      document.body.appendChild(overlay);
+    }
+    document.getElementById('ff-cap-title').textContent = title;
+    document.getElementById('ff-cap-body').textContent  = body;
+    document.getElementById('ff-cap-cta').textContent   = cta;
+  }
+
   // ── FETCH WITH AUTH ─────────────────────────────────────
   async function apiFetch(path, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
@@ -33,6 +92,15 @@
         headers['Authorization'] = 'Bearer ' + _accessToken;
         res = await fetch(API_BASE + path, { ...opts, headers });
       }
+    }
+    if (res.status === 402) {
+      try {
+        const cloned = res.clone();
+        const data   = await cloned.json();
+        if (data && (data.code === 'SPEND_CAP_EXCEEDED' || data.code === 'CAPACITY_EXCEEDED')) {
+          _showCapModal(data);
+        }
+      } catch {}
     }
     return res;
   }

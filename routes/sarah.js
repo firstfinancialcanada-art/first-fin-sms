@@ -5,6 +5,7 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
+const { guardedSmsSend, recordSpend } = require('../lib/spend-cap');
 const validateTwilio = makeTwilioWebhookValidator();
 
 module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireBilling, notifyOwner }) {
@@ -220,11 +221,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const sp = typeof ts.rows[0]?.settings_json === 'string' ? JSON.parse(ts.rows[0].settings_json) : (ts.rows[0]?.settings_json || {});
         if (sp.twilioNumber) manualFromNumber = sp.twilioNumber;
       } catch(e) {}
-      await twilioClient.messages.create({
-        body: message,
-        from: manualFromNumber,
-        to: phone
+      const sendResult = await guardedSmsSend(twilioClient, req.user.userId, {
+        body: message, from: manualFromNumber, to: phone
       });
+      if (!sendResult.ok && sendResult.reason === 'SPEND_CAP_EXCEEDED') {
+        return res.status(402).json({
+          success: false, code: 'SPEND_CAP_EXCEEDED',
+          error: 'Monthly Twilio cap reached. Top up overage balance to continue sending.',
+          usage: sendResult.usage, needCents: sendResult.needCents,
+        });
+      }
+      if (!sendResult.ok) throw sendResult.error || new Error('SMS send failed');
       console.log('✅ Manual reply sent to:', phone);
       res.json({ success: true, message: 'Reply sent!' });
     } catch (error) {
@@ -279,11 +286,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const ts = await getTenantSettings(uid);
         if (ts?.twilioNumber) startFromNumber = ts.twilioNumber;
       } catch(e) {}
-      await twilioClient.messages.create({
-        body: messageBody,
-        from: startFromNumber,
-        to: normalizedPhone
+      const startResult = await guardedSmsSend(twilioClient, uid, {
+        body: messageBody, from: startFromNumber, to: normalizedPhone
       });
+      if (!startResult.ok && startResult.reason === 'SPEND_CAP_EXCEEDED') {
+        return res.status(402).json({
+          success: false, code: 'SPEND_CAP_EXCEEDED',
+          error: 'Monthly Twilio cap reached. Top up overage balance to continue sending.',
+          usage: startResult.usage, needCents: startResult.needCents,
+        });
+      }
+      if (!startResult.ok) throw startResult.error || new Error('SMS send failed');
       console.log('✅ SMS sent to:', normalizedPhone);
       res.json({ success: true, message: 'SMS sent!' });
     } catch (error) {
@@ -448,22 +461,31 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
           try {
-            await twilioClient.messages.create({
-              body: aiResponse,
-              from: TENANT_FROM_NUMBER,
-              to: phone
+            const sarahSend = await guardedSmsSend(twilioClient, WEBHOOK_USER_ID, {
+              body: aiResponse, from: TENANT_FROM_NUMBER, to: phone
             });
-            console.log('✅ Sarah replied:', aiResponse);
-          } catch (twilioErr) {
-            console.error(`❌ Sarah send FAILED to ${phone} — Code: ${twilioErr.code} Status: ${twilioErr.status} Msg: ${twilioErr.message}`);
-            // Log failed send to analytics so dealer can see it
-            try {
-              await logAnalytics('sms_send_failed', phone, {
-                error_code: twilioErr.code,
-                error_message: twilioErr.message,
-                attempted_message: aiResponse.substring(0, 100)
-              }, WEBHOOK_USER_ID);
-            } catch(e) {}
+            if (sarahSend.ok) {
+              console.log('✅ Sarah replied:', aiResponse);
+            } else if (sarahSend.reason === 'SPEND_CAP_EXCEEDED') {
+              console.warn(`⚠️ SARAH reply BLOCKED by spend cap for user ${WEBHOOK_USER_ID} → ${phone}`);
+              try {
+                await logAnalytics('sms_cap_blocked', phone, {
+                  usage: sarahSend.usage, need_cents: sarahSend.needCents,
+                  attempted_message: aiResponse.substring(0, 100)
+                }, WEBHOOK_USER_ID);
+              } catch(e) {}
+            } else {
+              const err = sarahSend.error || {};
+              console.error(`❌ Sarah send FAILED to ${phone} — Code: ${err.code} Status: ${err.status} Msg: ${err.message}`);
+              try {
+                await logAnalytics('sms_send_failed', phone, {
+                  error_code: err.code, error_message: err.message,
+                  attempted_message: aiResponse.substring(0, 100)
+                }, WEBHOOK_USER_ID);
+              } catch(e) {}
+            }
+          } catch (outerErr) {
+            console.error(`❌ Sarah outer send error to ${phone}:`, outerErr.message);
           }
 
           const custName  = conversation.customer_name || 'Unknown';
@@ -478,14 +500,16 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
               [conversation.id]
             )).rows[0]?.cnt <= 2;
           if (TENANT_NOTIFY_PHONE && isFirstContact) {
-            twilioClient.messages.create({
+            guardedSmsSend(twilioClient, WEBHOOK_USER_ID, {
               body: `💬 New lead from ${custName}\n📞 ${custPhone}\n\n"${preview}"\n\nReply via: app.firstfinancialcanada.com`,
               from: TENANT_FROM_NUMBER,
               to: TENANT_NOTIFY_PHONE
-            }).then(() => {
-              console.log(`✅ New lead notify sent to ${TENANT_NOTIFY_PHONE}`);
+            }).then(r => {
+              if (r.ok) console.log(`✅ New lead notify sent to ${TENANT_NOTIFY_PHONE}`);
+              else if (r.reason === 'SPEND_CAP_EXCEEDED') console.warn(`⚠️ Notify skipped (spend cap) for user ${WEBHOOK_USER_ID}`);
+              else console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE}: ${r.error?.message} (code ${r.error?.code})`);
             }).catch(err => {
-              console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE}: ${err.message} (code ${err.code})`);
+              console.error(`❌ Notify send error: ${err.message}`);
             });
           } else if (!TENANT_NOTIFY_PHONE) {
             console.warn('⚠️ No notify phone configured — skipping lead alert');

@@ -151,6 +151,7 @@ require('./routes/probability')(app, pool, requireAuth, requireBilling);  // Use
 require('./routes/outcomes-admin')(app, pool);                 // Admin: log/manage outcomes
 app.use('/api/fb-license', require('./routes/fb-license'));     // FB Poster license management
 require('./routes/compare')(app, { requireAuth, requireBilling }); // Compare All engine (server-side)
+require('./routes/tenant-usage')(app, { requireAuth });            // Per-tenant spend + capacity usage
 
 // ── L1: Periodic refresh token cleanup (every 6 hours) ──────────
 setInterval(async () => {

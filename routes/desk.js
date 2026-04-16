@@ -13,7 +13,8 @@ const {
   REFRESH_TTL_DAYS
 } = require('../middleware/auth');
 
-const { EXEMPT_EMAILS } = require('../lib/constants');
+const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
+const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -598,7 +599,22 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.post('/api/desk/inventory', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      // ON CONFLICT treats this as upsert — only count-check if it's a true insert.
       const v = req.body;
+      const existing = await client.query(
+        'SELECT 1 FROM desk_inventory WHERE user_id = $1 AND stock = $2',
+        [req.user.userId, v.stock]
+      );
+      if (!existing.rows.length) {
+        const cap = await checkInventoryCap(req.user.userId);
+        if (!cap.ok) {
+          return res.status(402).json({
+            success: false, code: 'CAPACITY_EXCEEDED', kind: 'inventory',
+            error: `Inventory limit reached (${cap.count}/${cap.cap}). Remove vehicles or upgrade tier.`,
+            count: cap.count, cap: cap.cap,
+          });
+        }
+      }
       const result = await client.query(
         `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -619,6 +635,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     try {
       const { vehicles } = req.body;
       if (!Array.isArray(vehicles)) return res.status(400).json({ success: false, error: 'vehicles[] required' });
+
+      // Bulk replaces all existing inventory — check incoming size against cap.
+      // Exempt users bypass; checkInventoryCap handles that.
+      if (vehicles.length > TENANT_CAPS.inventoryMax) {
+        const cap = await checkInventoryCap(req.user.userId);
+        if (!cap.exempt) {
+          return res.status(402).json({
+            success: false, code: 'CAPACITY_EXCEEDED', kind: 'inventory',
+            error: `Inventory upload exceeds limit (${vehicles.length} > ${TENANT_CAPS.inventoryMax}). Trim the file or upgrade tier.`,
+            count: vehicles.length, cap: TENANT_CAPS.inventoryMax,
+          });
+        }
+      }
 
       await client.query('BEGIN');
       await client.query("DELETE FROM desk_inventory WHERE user_id = $1", [req.user.userId]);
@@ -903,6 +932,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const { crm } = req.body;
       if (!Array.isArray(crm)) return res.status(400).json({ success: false, error: 'crm[] required' });
 
+      // Bulk replaces all existing CRM — check incoming size against cap.
+      if (crm.length > TENANT_CAPS.crmMax) {
+        const cap = await checkCrmCap(req.user.userId, 0);
+        if (!cap.exempt) {
+          return res.status(402).json({
+            success: false, code: 'CAPACITY_EXCEEDED', kind: 'crm',
+            error: `CRM upload exceeds limit (${crm.length} > ${TENANT_CAPS.crmMax}). Trim the file or upgrade tier.`,
+            count: crm.length, cap: TENANT_CAPS.crmMax,
+          });
+        }
+      }
+
       await client.query('BEGIN');
       await client.query('DELETE FROM desk_crm WHERE user_id = $1', [req.user.userId]);
 
@@ -927,6 +968,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.post('/api/desk/crm', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      const cap = await checkCrmCap(req.user.userId, 1);
+      if (!cap.ok) {
+        return res.status(402).json({
+          success: false, code: 'CAPACITY_EXCEEDED', kind: 'crm',
+          error: `CRM limit reached (${cap.count}/${cap.cap}). Remove contacts or upgrade tier.`,
+          count: cap.count, cap: cap.cap,
+        });
+      }
       const c = req.body;
       const result = await client.query(
         `INSERT INTO desk_crm (user_id, name, phone, email, beacon, income, obligations, status, source, notes)

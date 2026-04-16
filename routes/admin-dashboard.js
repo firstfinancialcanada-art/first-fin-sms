@@ -1,5 +1,7 @@
 // routes/admin-dashboard.js — FIRST-FIN Admin Panel API
 const { pool } = require('../lib/db');
+const { TENANT_CAPS } = require('../lib/constants');
+const { addOverage } = require('../lib/spend-cap');
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -67,6 +69,75 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       });
     } catch(e) {
       console.error('Admin stats error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── GET /api/admin/tenant-usage ──────────────────────────────────
+  // Returns all tenants with their current Twilio spend, inventory count,
+  // CRM count, and cap status. Used by the admin panel's usage-tracking
+  // table. Joins tenant_usage (spend data) with desk_users (identity) and
+  // counts desk_inventory + desk_crm on the fly.
+  app.get('/api/admin/tenant-usage', adminAuth, async (req, res) => {
+    try {
+      const q = await pool.query(`
+        SELECT
+          u.id                AS user_id,
+          u.email,
+          u.subscription_status,
+          COALESCE(tu.period_start,          CURRENT_DATE) AS period_start,
+          COALESCE(tu.sms_spend_cents,       0)            AS sms_spend_cents,
+          COALESCE(tu.voice_spend_cents,     0)            AS voice_spend_cents,
+          COALESCE(tu.overage_balance_cents, 0)            AS overage_balance_cents,
+          (SELECT COUNT(*)::int FROM desk_inventory WHERE user_id = u.id) AS inventory_count,
+          (SELECT COUNT(*)::int FROM desk_crm      WHERE user_id = u.id) AS crm_count
+        FROM desk_users u
+        LEFT JOIN tenant_usage tu ON tu.user_id = u.id
+        ORDER BY (COALESCE(tu.sms_spend_cents, 0) + COALESCE(tu.voice_spend_cents, 0)) DESC,
+                 u.email ASC
+      `);
+      const capCents = TENANT_CAPS.smsVoiceCombinedCents;
+      const tenants = q.rows.map(r => {
+        const total = (r.sms_spend_cents || 0) + (r.voice_spend_cents || 0);
+        return {
+          userId:              r.user_id,
+          email:               r.email,
+          subscriptionStatus:  r.subscription_status,
+          periodStart:         r.period_start,
+          smsSpendCents:       r.sms_spend_cents,
+          voiceSpendCents:     r.voice_spend_cents,
+          totalSpendCents:     total,
+          capCents,
+          spendPct:            Math.min(100, Math.round((total / capCents) * 100)),
+          overageBalanceCents: r.overage_balance_cents,
+          inventoryCount:      r.inventory_count,
+          inventoryCap:        TENANT_CAPS.inventoryMax,
+          crmCount:            r.crm_count,
+          crmCap:              TENANT_CAPS.crmMax,
+        };
+      });
+      res.json({ success: true, tenants, caps: TENANT_CAPS });
+    } catch(e) {
+      console.error('Admin tenant-usage error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── POST /api/admin/tenant-usage/:userId/topup ───────────────────
+  // Admin-grant overage balance (cents). Mirrors what a Stripe top-up
+  // purchase would eventually do but manually for now.
+  app.post('/api/admin/tenant-usage/:userId/topup', adminAuth, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId, 10);
+      const cents  = parseInt(req.body?.cents, 10);
+      if (!userId || !cents || cents <= 0) {
+        return res.status(400).json({ success: false, error: 'userId and positive cents required' });
+      }
+      await addOverage(userId, cents);
+      await auditLog('TOPUP_OVERAGE', 'desk_users', userId, { cents }, req);
+      res.json({ success: true, addedCents: cents });
+    } catch(e) {
+      console.error('Admin topup error:', e.message);
       res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
