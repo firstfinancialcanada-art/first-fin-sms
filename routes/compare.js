@@ -279,7 +279,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         dtiPctT = ((monthlyPmt + existing) / income) * 100;
         ptiOkT  = ptiPctT <= lMaxPti;
         dtiOkT  = dtiPctT <= lMaxDti;
-        payOkT  = lMaxPay === null || pmt <= lMaxPay;
+        payOkT  = lMaxPay === null || monthlyPmt <= lMaxPay;
       }
       // If income unknown, don't assume pass — flag as conditional
       const ratioPass = incomeUnknown ? false : (ptiOkT && dtiOkT && payOkT);
