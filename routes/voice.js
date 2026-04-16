@@ -1,7 +1,7 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
 const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator } = require('../lib/helpers');
-const { guardedVoiceCall } = require('../lib/spend-cap');
+const { guardedVoiceCall, reconcileSpend } = require('../lib/spend-cap');
 const validateTwilio = makeTwilioWebhookValidator();
 
 // ── Voice table setup ─────────────────────────────────────────────
@@ -671,6 +671,26 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     } else {
       res.type('text/xml').send(`<Response><Say voice="Polly.Joanna">Thank you! Feel free to text us anytime. Goodbye!</Say><Hangup/></Response>`);
     }
+  });
+
+  // ── Voice Call Status Callback (Twilio) ──────────────────────
+  // Fires when a call transitions (we subscribe only to 'completed' to
+  // minimize noise). Completed events carry Price (negative decimal string,
+  // account currency) — we reconcile it against the at-send-time 2¢/min
+  // estimate so tenant_usage.voice_spend_cents reflects actual Twilio cost.
+  app.post('/api/voice-status', async (req, res) => {
+    try {
+      const { CallSid, Price } = req.body;
+      if (CallSid && Price) {
+        const actualCents = Math.round(Math.abs(parseFloat(Price)) * 100);
+        if (Number.isFinite(actualCents)) {
+          await reconcileSpend(CallSid, actualCents);
+        }
+      }
+    } catch (e) {
+      console.error('❌ voice-status callback error:', e.message);
+    }
+    res.type('text/xml').send('<Response></Response>');
   });
 
 };

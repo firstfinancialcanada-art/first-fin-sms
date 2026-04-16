@@ -5,7 +5,7 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
-const { guardedSmsSend, recordSpend } = require('../lib/spend-cap');
+const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-cap');
 const validateTwilio = makeTwilioWebhookValidator();
 
 module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireBilling, notifyOwner }) {
@@ -306,14 +306,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   });
 
   // ── SMS Delivery Status Callback (Twilio) ─────────────────────
+  // Twilio POSTs here after each message status transition. Final 'delivered'
+  // or 'failed' events typically include Price (negative decimal string in
+  // account currency), which we reconcile against the at-send-time estimate
+  // stored in tenant_spend_events so tenant_usage.sms_spend_cents reflects
+  // actual Twilio billing rather than our 1¢/segment approximation.
   app.post('/api/sms-status', async (req, res) => {
     try {
-      const { MessageSid, MessageStatus } = req.body;
+      const { MessageSid, MessageStatus, Price } = req.body;
       if (MessageSid && MessageStatus) {
         await pool.query(
           'UPDATE bulk_messages SET delivery_status = $1 WHERE twilio_sid = $2',
           [MessageStatus, MessageSid]
         );
+      }
+      if (MessageSid && Price) {
+        const actualCents = Math.round(Math.abs(parseFloat(Price)) * 100);
+        if (Number.isFinite(actualCents)) {
+          await reconcileSpend(MessageSid, actualCents);
+        }
       }
     } catch (e) {
       console.error('❌ sms-status callback error:', e.message);
