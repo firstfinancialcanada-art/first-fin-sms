@@ -107,6 +107,29 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   iauto: 699
 };
 
+  // ── Synthesize lender object from tenant rate sheet ────────────────────
+  // Used when a dealer uploads rates for a lender not in the hardcoded
+  // list. Tier-specific data (FICO, LTV, year, mileage, carfax) comes from
+  // tenant rate rows via getQualifyingProgram. Approval gates default to
+  // Canadian norms (maxPti 20, maxDti 44); these can be made per-tenant
+  // later by adding columns to lender_rate_sheets.
+  function synthesizeLenderFromRates(lid, tierRows) {
+    const displayName = lid.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const minYears     = tierRows.map(r => parseInt(r.min_year)    || 2015);
+    const maxMiles     = tierRows.map(r => parseInt(r.max_mileage) || 200000);
+    const maxCarfaxes  = tierRows.map(r => parseInt(r.max_carfax)  || 7500);
+    const maxLtvs      = tierRows.map(r => parseInt(r.max_ltv)     || 140);
+    return {
+      name: displayName, phone: null, web: null,
+      hard: true,                          // default to hard; dealer can override via future column
+      minYear:    Math.min(...minYears),
+      maxMileage: Math.max(...maxMiles),
+      maxCarfax:  Math.max(...maxCarfaxes),
+      maxLTV:     Math.max(...maxLtvs),
+      maxPti: 20, maxDti: 44, minIncome: 0, maxPayment: null,
+      programs: []
+    };
+  }
 
   // ── Proprietary tier-matching logic ────────────────────────────────────
   function getQualifyingProgram(lid, beacon, tenantRates){
@@ -461,8 +484,13 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
 
       const eligible = [], ineligible = [];
 
-      Object.entries(lenders).forEach(([lid, l]) => {
+      // Union of hardcoded lender keys and tenant-uploaded lender keys.
+      // Extra lenders (in tenantRates but not hardcoded) get a synthetic
+      // lender object built from their uploaded rate sheet data.
+      const allLids = new Set([...Object.keys(lenders), ...Object.keys(tenantRates)]);
+      allLids.forEach(lid => {
         if (req.body.hiddenLenders && req.body.hiddenLenders.includes(lid)) return;
+        const l    = lenders[lid] || synthesizeLenderFromRates(lid, tenantRates[lid]);
         const prog = getQualifyingProgram(lid, params.beacon, tenantRates);
         const r    = evaluateLender(lid, l, prog, params);
 
@@ -476,6 +504,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         r.approved    = l.hard
           ? vehiclePass && beaconPass && (income === 0 || dealPass) && r.ltvOk
           : beaconPass && (income === 0 || dealPass) && r.ltvOk;
+        r.isCustomLender = !lenders[lid];
 
         (r.approved ? eligible : ineligible).push(r);
       });
@@ -561,13 +590,16 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       const primeLenders = new Set(['cibc', 'rbc', 'servus', 'wsleasing']);
 
       const badges = [];
-      Object.entries(lenders).forEach(([lid, l]) => {
+      const allLids = new Set([...Object.keys(lenders), ...Object.keys(tenantRates)]);
+      allLids.forEach(lid => {
+        const l    = lenders[lid] || synthesizeLenderFromRates(lid, tenantRates[lid]);
         const prog = getQualifyingProgram(lid, beacon, tenantRates);
         const shortName = l.name.split(' ')[0];
         const pMin = profileMin[lid] ?? 0;
         const pMax = profileMax[lid] ?? 850;
         const inProfile = beacon >= pMin && beacon <= pMax;
         const isPrime = primeLenders.has(lid);
+        const isCustom = !lenders[lid];
         let label, cls;
 
         if (!l.hard) {
@@ -596,7 +628,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
           label = `${shortName} ✗`;
           cls   = 'badge-red';
         }
-        badges.push({ lid, label, cls, rate: prog ? prog.rate : null, prime: isPrime });
+        badges.push({ lid, label, cls, rate: prog ? prog.rate : null, prime: isPrime, custom: isCustom });
       });
 
       res.json({ success: true, badges });
@@ -657,10 +689,12 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   ];
 
 
+      const simLids = new Set([...Object.keys(lenders), ...Object.keys(tenantRates)]);
       const rows = BEACON_RANGES.map(range => {
         const testBeacon = range.min === 0 ? 0 : range.min + 10;
         let approved = 0, bestRate = 99;
-        Object.entries(lenders).forEach(([lid, l]) => {
+        simLids.forEach(lid => {
+          const l    = lenders[lid] || synthesizeLenderFromRates(lid, tenantRates[lid]);
           const prog = getQualifyingProgram(lid, testBeacon, tenantRates);
           if (!prog) return;
           const lenderFee = prog.fee || LENDER_FEES[lid] || 0;
