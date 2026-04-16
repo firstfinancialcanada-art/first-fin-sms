@@ -23,7 +23,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       {tier:"Tier 5 — Poor",rate:"21.49%",fico:"540–559",minYear:2020,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"},
       {tier:"Tier 6 — Subprime",rate:"23.49%",fico:"<540",minYear:2015,maxMile:"195,000",maxCfx:"$7,500",maxLtv:"150%"}
     ]},
-  cibc:{name:"CIBC AUTO FINANCE",phone:"1-855-598-1856",web:"cibc.com/auto",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  cibc:{name:"CIBC AUTO FINANCE",phone:"1-855-598-1856",web:"cibc.com/auto",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,minBeacon:680,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Chequing Acct Program",rate:"6.36%",fico:"N/A",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"2023–2026 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2023,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
@@ -56,7 +56,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       {tier:"Tier C",rate:"25.95%",fico:"550–579",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"150%"},
       {tier:"Tier D",rate:"30.95%",fico:"<550",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"}
     ]},
-  rbc:{name:"RBC AUTO FINANCE",phone:"1-888-529-6999",web:"rbcautofinance.ca",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
+  rbc:{name:"RBC AUTO FINANCE",phone:"1-888-529-6999",web:"rbcautofinance.ca",minYear:2015,maxMileage:null,maxCarfax:null,maxLTV:96,hard:false,minBeacon:700,maxPti:null,maxDti:null,minIncome:null,maxPayment:null,
     programs:[
       {tier:"Prime Program",rate:"5.79%–7.99%",fico:"720+",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"Standard Program",rate:"7.99%–9.99%",fico:"650–719",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"90%"}
@@ -92,6 +92,44 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     ]}
 };
 
+
+  // ── Parse tier-level limit strings (from programs[]) into numbers ──────
+  // "Unlimited" → 999999, "$5,000" → 5000, "195,000" → 195000,
+  // "Credit-based" / missing → null (caller falls back to lender-wide cap).
+  function parseTierMile(str) {
+    if (!str) return null;
+    const s = String(str);
+    if (/unlimited/i.test(s)) return 999999;
+    if (/credit/i.test(s))    return null;
+    const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  function parseTierCfx(str) {
+    if (!str) return null;
+    const s = String(str);
+    if (/credit/i.test(s)) return null;
+    const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // Builds the standard result for a hardcoded programs[] match. Tier-specific
+  // maxMile/maxCfx parsed from the program override the lender-wide defaults —
+  // previously these strings were silently ignored and every tier used the
+  // lender's widest cap, inflating F&I forecasts on prime-tier deals.
+  function buildProgResult(prog, l, defaultFee, overrides) {
+    const progMile = parseTierMile(prog.maxMile);
+    const progCfx  = parseTierCfx(prog.maxCfx);
+    return Object.assign({
+      tier:       prog.tier,
+      rate:       parseFloat(prog.rate) || 0,
+      minFico:    0,
+      maxLTV:     parseInt(prog.maxLtv) || l.maxLTV,
+      minYear:    parseInt(prog.minYear) || l.minYear,
+      maxMileage: progMile ?? (l.maxMileage || 999999),
+      maxCarfax:  progCfx  ?? (l.maxCarfax  || 999999),
+      fee:        defaultFee,
+    }, overrides || {});
+  }
 
   // ── Synthesize lender object from tenant rate sheet ────────────────────
   // Used when a dealer uploads rates for a lender not in the hardcoded
@@ -148,31 +186,30 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
              minFico: 0, maxLTV: l.maxLTV, minYear: l.minYear,
              maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
   }
+  // Lender-level beacon floor. Must run before tier iteration: CIBC's first
+  // program has fico:"N/A" which would otherwise match and quote Chequing Acct
+  // 6.36% to a 420-beacon applicant. minBeacon rejects these before they hit
+  // the N/A shortcut or the credit-based fallback.
+  if (l.minBeacon && beacon < l.minBeacon) {
+    return null;
+  }
   // Match beacon against program FICO strings like "680+", "620–679", "<540"
   for(const prog of l.programs){
     const ficoStr = prog.fico || '';
     if(ficoStr === 'N/A' || ficoStr === 'No min' || /credit.based/i.test(ficoStr)){
-      return { tier: prog.tier, rate: parseFloat(prog.rate)||0, minFico: 0,
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
+      return buildProgResult(prog, l, defaultFee);
     }
     const plusM = ficoStr.match(/^(\d+)\+$/);
     if(plusM && beacon >= parseInt(plusM[1])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: parseInt(plusM[1]),
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
+      return buildProgResult(prog, l, defaultFee, { minFico: parseInt(plusM[1]) });
     }
     const rangeM = ficoStr.match(/^(\d+)[–\-](\d+)$/);
     if(rangeM && beacon >= parseInt(rangeM[1]) && beacon <= parseInt(rangeM[2])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: parseInt(rangeM[1]),
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
+      return buildProgResult(prog, l, defaultFee, { minFico: parseInt(rangeM[1]) });
     }
     const ltM = ficoStr.match(/^<(\d+)$/);
     if(ltM && beacon < parseInt(ltM[1])){
-      return { tier: prog.tier, rate: parseFloat(prog.rate), minFico: 0,
-               maxLTV: parseInt(prog.maxLtv)||l.maxLTV, minYear: parseInt(prog.minYear)||l.minYear,
-               maxMileage: l.maxMileage||999999, maxCarfax: l.maxCarfax||999999, fee: defaultFee };
+      return buildProgResult(prog, l, defaultFee);
     }
     // No catch-all: if no FICO pattern matched, this program doesn't qualify.
     // Continuing to next program preserves tier ordering (680+ → 620-679 → <540).
@@ -182,6 +219,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   // Return a synthetic pass so Compare All shows them; LTV/income gates filter.
   const lenderObj = lenders[lid];
   if (lenderObj && !lenderObj.hard) {
+    // minBeacon floor already enforced up front; here just build the pass.
     const firstRate = lenderObj.programs?.length
       ? parseFloat(String(lenderObj.programs[0].rate).split('–')[0].replace('%','')) || 7.99
       : 7.99;
@@ -270,7 +308,8 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       // If income unknown, don't assume pass — flag as conditional
       const ratioPass = incomeUnknown ? false : (ptiOkT && dtiOkT && payOkT);
       const passes = ageOkT && ltvOk && (incomeUnknown || (incomeOk && ratioPass));
-      termResults[t] = { term: t, payment: pmt, ageAtPayoff, ageOk: ageOkT,
+      termResults[t] = { term: t, payment: pmt, monthlyPayment: monthlyPmt,
+                         ageAtPayoff, ageOk: ageOkT,
                          ptiOk: ptiOkT, dtiOk: dtiOkT, payOk: payOkT,
                          ptiPct: ptiPctT, dtiPct: dtiPctT, passes };
     });
@@ -341,7 +380,11 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
 
     let coAppTip = null;
     if (hasCoApp && primaryIncome > 0 && !ptiOk) {
-      const primaryPti = payment > 0 ? (payment / primaryIncome) * 100 : 0;
+      // PTI is monthly-based on the lender side. Previously used payment (the
+      // user's payFreq payment) which understated PTI on biweekly/weekly views
+      // and mis-fired the co-app tip. Always compare monthly-to-monthly.
+      const selMonthly = selResult.monthlyPayment || 0;
+      const primaryPti = selMonthly > 0 ? (selMonthly / primaryIncome) * 100 : 0;
       if (primaryPti > lMaxPti && ptiPct <= lMaxPti) {
         coAppTip = `Co-app income required — primary PTI ${primaryPti.toFixed(1)}% exceeds ${lMaxPti}%, combined ${ptiPct.toFixed(1)}% ✓`;
       }
