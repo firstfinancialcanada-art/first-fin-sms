@@ -244,6 +244,9 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     const ALL_TERMS   = [48, 60, 72, 84];
     const buyRate     = prog && prog.rate > 0 ? prog.rate : 8.99;
     const termResults = {};
+    // Declared at function scope — also referenced outside the forEach below (structureTips + returned object)
+    const incomeUnknown = (income === 0);
+    const debtUnknown = (income > 0 && existing === 0); // income known but debt not entered
 
     ALL_TERMS.forEach(t => {
       const ageAtPayoff = (curYear - v.year) + (t / 12);
@@ -253,8 +256,6 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       const monthlyPmt  = atf > 0 ? BPMT(buyRate, t, atf, 'monthly') : 0;
       let ptiOkT = true, dtiOkT = true, payOkT = true;
       let ptiPctT = 0, dtiPctT = 0;
-      const incomeUnknown = (income === 0);
-      const debtUnknown = (income > 0 && existing === 0); // income known but debt not entered
       if (income > 0 && monthlyPmt > 0) {
         ptiPctT = (monthlyPmt / income) * 100;
         dtiPctT = ((monthlyPmt + existing) / income) * 100;
