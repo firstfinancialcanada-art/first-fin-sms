@@ -862,6 +862,9 @@ function _showTourStep() {
     if(step.diff) { diffEl.style.display='block'; diffEl.textContent = step.diff; }
     else { diffEl.style.display='none'; }
 
+    const entEl = document.getElementById('tour-enterprise-note');
+    if(entEl) entEl.style.display = step.final ? 'block' : 'none';
+
     const contactEl = document.getElementById('tour-contact');
     if(step.contact) { contactEl.style.display='block'; }
     else { contactEl.style.display='none'; }
