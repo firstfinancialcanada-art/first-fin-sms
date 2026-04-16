@@ -250,6 +250,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
             <div class="card-title">TENANTS <span id="tenant-count"></span></div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="act" style="background:rgba(16,185,129,.15);color:#10b981;border-color:rgba(16,185,129,.3);" onclick="loadTenantHealth()">📊 Health</button>
+              <button class="act" style="background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.3);" onclick="loadTenantUsage()">💸 Usage</button>
               <button class="act blue" onclick="document.getElementById('createModal').classList.add('open')">+ New Tenant</button>
             </div>
           </div>
@@ -292,6 +293,42 @@ tr:hover td{background:rgba(30,90,246,.03);}
           </div>
           <div class="card-body" style="padding:0;">
             <div id="healthGrid" style="padding:16px;"></div>
+          </div>
+        </div>
+
+        <!-- TENANT SPEND + CAPACITY USAGE PANEL -->
+        <div class="card" id="usageCard" style="display:none;">
+          <div class="card-header">
+            <div class="card-title">TENANT USAGE <span id="usage-summary" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);font-weight:400;margin-left:10px;"></span></div>
+            <div style="display:flex;gap:8px;">
+              <select id="usageFilter" onchange="filterUsage(this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:5px 10px;font-size:12px;">
+                <option value="all">All Tenants</option>
+                <option value="over">🔴 Over Cap</option>
+                <option value="warn">🟠 80%+ of Cap</option>
+                <option value="invfull">📦 Inventory ≥ 80%</option>
+                <option value="crmfull">👥 CRM ≥ 80%</option>
+                <option value="healthy">🟢 Healthy</option>
+              </select>
+              <button class="act" onclick="document.getElementById('usageCard').style.display='none'">✕ Close</button>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Twilio Spend</th>
+                  <th>SMS / Voice</th>
+                  <th>Inventory</th>
+                  <th>CRM</th>
+                  <th>Overage</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usage-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-family:'DM Mono',monospace;font-size:12px;">Loading usage...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -642,6 +679,121 @@ function renderHealth(tenants) {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── TENANT USAGE (spend + capacity) ─────────────────────────────
+let allUsageData = [];
+
+async function loadTenantUsage() {
+  document.getElementById('usageCard').style.display = 'block';
+  document.getElementById('usageCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('usage-tbody').innerHTML =
+    '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;font-family:DM Mono,monospace;font-size:12px;">Loading usage data...</td></tr>';
+  try {
+    const d = await api('/api/admin/tenant-usage');
+    if (!d.success) throw new Error(d.error || 'Load failed');
+    allUsageData = d.tenants || [];
+    const overCap  = allUsageData.filter(t => t.spendPct >= 100).length;
+    const warnCap  = allUsageData.filter(t => t.spendPct >= 80 && t.spendPct < 100).length;
+    const invFull  = allUsageData.filter(t => t.inventoryCount >= t.inventoryCap * 0.8).length;
+    const crmFull  = allUsageData.filter(t => t.crmCount >= t.crmCap * 0.8).length;
+    document.getElementById('usage-summary').textContent =
+      `${allUsageData.length} tenants · ${overCap} over cap · ${warnCap} approaching · ${invFull} inv ≥80% · ${crmFull} CRM ≥80%`;
+    renderUsageTable(allUsageData);
+  } catch(e) {
+    document.getElementById('usage-tbody').innerHTML =
+      `<tr><td colspan="7" style="color:var(--red);padding:16px;text-align:center;">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function filterUsage(filter) {
+  let filtered;
+  if (filter === 'all')            filtered = allUsageData;
+  else if (filter === 'over')      filtered = allUsageData.filter(t => t.spendPct >= 100);
+  else if (filter === 'warn')      filtered = allUsageData.filter(t => t.spendPct >= 80);
+  else if (filter === 'invfull')   filtered = allUsageData.filter(t => t.inventoryCount >= t.inventoryCap * 0.8);
+  else if (filter === 'crmfull')   filtered = allUsageData.filter(t => t.crmCount >= t.crmCap * 0.8);
+  else if (filter === 'healthy')   filtered = allUsageData.filter(t => t.spendPct < 80 && t.inventoryCount < t.inventoryCap * 0.8 && t.crmCount < t.crmCap * 0.8);
+  else                             filtered = allUsageData;
+  renderUsageTable(filtered);
+}
+
+function _usageDollars(cents) { return '$' + ((cents||0)/100).toFixed(2); }
+
+function _spendBar(pct) {
+  const p     = Math.min(100, Math.max(0, pct || 0));
+  const color = p >= 100 ? '#ef4444' : p >= 80 ? '#f59e0b' : '#10b981';
+  return `
+    <div style="min-width:130px;">
+      <div style="display:flex;justify-content:space-between;font-family:DM Mono,monospace;font-size:11px;margin-bottom:3px;">
+        <span style="color:${color};font-weight:600;">${p}%</span>
+      </div>
+      <div style="width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="width:${p}%;height:100%;background:${color};"></div>
+      </div>
+    </div>`;
+}
+
+function _countChip(count, cap) {
+  const pct   = cap > 0 ? (count/cap)*100 : 0;
+  const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : 'var(--muted)';
+  return `<span style="font-family:DM Mono,monospace;font-size:12px;color:${color};">${count}/${cap}</span>`;
+}
+
+function renderUsageTable(tenants) {
+  const tb = document.getElementById('usage-tbody');
+  if (!tenants.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;font-family:DM Mono,monospace;font-size:12px;">No tenants match this filter.</td></tr>';
+    return;
+  }
+  tb.innerHTML = tenants.map(t => {
+    const statusBadge = t.subscriptionStatus
+      ? `<span style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);">${t.subscriptionStatus}</span>`
+      : '';
+    const totalSpend = _usageDollars(t.totalSpendCents) + ' / ' + _usageDollars(t.capCents);
+    const breakdown  = `SMS ${_usageDollars(t.smsSpendCents)} · Voice ${_usageDollars(t.voiceSpendCents)}`;
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:600;">${t.email || '—'}</div>
+          ${statusBadge}
+        </td>
+        <td>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:var(--muted);margin-bottom:3px;">${totalSpend}</div>
+          ${_spendBar(t.spendPct)}
+        </td>
+        <td><div style="font-family:DM Mono,monospace;font-size:11px;color:var(--muted);">${breakdown}</div></td>
+        <td>${_countChip(t.inventoryCount, t.inventoryCap)}</td>
+        <td>${_countChip(t.crmCount, t.crmCap)}</td>
+        <td>
+          <span style="font-family:DM Mono,monospace;font-size:12px;color:${t.overageBalanceCents > 0 ? '#10b981' : 'var(--muted)'};">
+            ${_usageDollars(t.overageBalanceCents)}
+          </span>
+        </td>
+        <td>
+          <button class="act blue" onclick="topupOverage(${t.userId}, ${JSON.stringify(t.email||'').replace(/"/g,'&quot;')})">+ Top up</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function topupOverage(userId, email) {
+  const dollars = prompt(`Top up overage for ${email}\n\nEnter dollar amount (e.g. 10, 25, 50):`, '10');
+  if (dollars === null) return;
+  const n = parseFloat(dollars);
+  if (!n || n <= 0) { toast('Invalid amount'); return; }
+  const cents = Math.round(n * 100);
+  try {
+    const d = await api(`/api/admin/tenant-usage/${userId}/topup`, {
+      method: 'POST',
+      body: JSON.stringify({ cents })
+    });
+    if (!d.success) throw new Error(d.error || 'Top-up failed');
+    toast(`✓ Added $${n.toFixed(2)} overage for ${email}`);
+    loadTenantUsage();  // reload to show new balance
+  } catch(e) {
+    toast('❌ ' + e.message);
+  }
 }
 
 async function loadStats() {

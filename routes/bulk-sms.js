@@ -2,6 +2,7 @@
 const { pool, filterOptedOut } = require('../lib/db');
 const { state, saveBulkCampaign, getBulkCampaignStats } = require('../lib/bulk');
 const { normalizePhone } = require('../lib/helpers');
+const { checkSpend, estimateSmsCost, getUsage } = require('../lib/spend-cap');
 
 module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
 
@@ -66,6 +67,27 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       if (messageTemplate.length > 1600) {
         return res.status(400).json({ error: 'Message too long (max 1600 characters)' });
       }
+
+      // Spend-cap preflight: estimate entire campaign cost (STOP footer auto-
+      // appended by processor adds ~30 chars, accounted for via ceil in
+      // estimateSmsCost) × contact count. Block upfront if tenant can't afford
+      // the whole campaign (cap + overage balance) — better UX than silently
+      // pausing halfway through.
+      const perMsgCost   = estimateSmsCost(messageTemplate + ' (Reply STOP to opt out)');
+      const totalCost    = perMsgCost * contacts.length;
+      const capCheck     = await checkSpend(req.user.userId, totalCost);
+      if (!capCheck.ok && capCheck.reason === 'SPEND_CAP_EXCEEDED') {
+        const usage       = capCheck.usage || {};
+        const remaining   = Math.max(0, (usage.capCents || 0) - (usage.totalSpendCents || 0)) + (usage.overageBalanceCents || 0);
+        const affordable  = perMsgCost > 0 ? Math.floor(remaining / perMsgCost) : 0;
+        return res.status(402).json({
+          success: false, code: 'SPEND_CAP_EXCEEDED', kind: 'sms',
+          error: `Campaign of ${contacts.length} costs about \$${(totalCost/100).toFixed(2)}, but only \$${(remaining/100).toFixed(2)} remains this month. Trim to ≤${affordable} recipients or top up overage.`,
+          usage, needCents: capCheck.needCents,
+          campaignEstimateCents: totalCost, affordableContacts: affordable,
+        });
+      }
+
       // Cross-campaign duplicate check (last 30 days)
       const phones = contacts.map(c => c.phone);
       const dupResult = await pool.query(

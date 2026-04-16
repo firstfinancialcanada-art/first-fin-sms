@@ -1,6 +1,7 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
 const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator } = require('../lib/helpers');
+const { guardedVoiceCall } = require('../lib/spend-cap');
 const validateTwilio = makeTwilioWebhookValidator();
 
 // ── Voice table setup ─────────────────────────────────────────────
@@ -477,7 +478,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
         if (p.twilioNumber) fromNumber = p.twilioNumber;
       } catch(e) { console.warn('⚠️ voice drop tenant lookup:', e.message); }
 
-      const call = await twilioClient.calls.create({
+      const dropResult = await guardedVoiceCall(twilioClient, uid, {
         to: normalized,
         from: fromNumber,
         twiml: `<?xml version="1.0" encoding="UTF-8"?>
@@ -487,7 +488,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   <Pause length="1"/>
   <Gather numDigits="1" action="${baseUrl}/api/voice/drop-keypress" timeout="8" method="POST">
     <Say voice="Polly.Joanna" language="en-CA">
-      To speak with us right now, press 1. 
+      To speak with us right now, press 1.
       To opt out of future calls, press 9.
       Or simply reply to this number by text anytime.
     </Say>
@@ -495,7 +496,16 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   <Say voice="Polly.Joanna" language="en-CA">Thanks for listening. Have a great day!</Say>
   <Hangup/>
 </Response>`
-      });
+      }, 1);  // est 1 minute per drop
+      if (!dropResult.ok && dropResult.reason === 'SPEND_CAP_EXCEEDED') {
+        return res.status(402).json({
+          success: false, code: 'SPEND_CAP_EXCEEDED', kind: 'voice',
+          error: 'Monthly Twilio cap reached. Top up overage to continue voice drops.',
+          usage: dropResult.usage, needCents: dropResult.needCents,
+        });
+      }
+      if (!dropResult.ok) throw dropResult.error || new Error('Voice call failed');
+      const call = { sid: dropResult.sid };
 
       await logAnalytics('voice_drop_v2', normalized, { callSid: call.sid, customerName });
       await saveVoiceEvent(normalized, `📵 VOICE_DROP | sid:${call.sid} | name:${customerName||''}`, 'assistant');
@@ -630,14 +640,18 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
         const normalized = normalizePhone(contacts[i].phone);
         if (!normalized) continue;
         setTimeout(async () => {
-          try {
-            const personalizedMsg = message.replace(/{name}/gi, contacts[i].name || 'there');
-            await twilioClient.calls.create({
-              to: normalized, from: fromNumber,
-              twiml: `<Response><Say voice="Polly.Joanna">${personalizedMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</Say><Pause length="1"/><Say voice="Polly.Joanna">Press 1 to speak with us or reply by text. Thank you!</Say><Gather numDigits="1" action="${process.env.BASE_URL || ''}/api/voice/keypress"><Pause length="5"/></Gather></Response>`
-            });
+          const personalizedMsg = message.replace(/{name}/gi, contacts[i].name || 'there');
+          const r = await guardedVoiceCall(twilioClient, uid, {
+            to: normalized, from: fromNumber,
+            twiml: `<Response><Say voice="Polly.Joanna">${personalizedMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</Say><Pause length="1"/><Say voice="Polly.Joanna">Press 1 to speak with us or reply by text. Thank you!</Say><Gather numDigits="1" action="${process.env.BASE_URL || ''}/api/voice/keypress"><Pause length="5"/></Gather></Response>`
+          }, 1);
+          if (r.ok) {
             console.log('📞 Voice drop sent:', normalized);
-          } catch (err) { console.error('❌ Voice drop failed for', normalized, err.message); }
+          } else if (r.reason === 'SPEND_CAP_EXCEEDED') {
+            console.warn(`⚠️ Voice drop BLOCKED by spend cap for user ${uid} → ${normalized}`);
+          } else {
+            console.error('❌ Voice drop failed for', normalized, r.error?.message);
+          }
         }, i * delay * 1000);
         scheduled++;
       }
