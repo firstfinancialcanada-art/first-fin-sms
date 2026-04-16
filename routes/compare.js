@@ -8,6 +8,8 @@
 module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   const { pool } = require('../lib/db');
   const { PMT, BPMT } = require('../lib/finance');
+  // Local rounding helper (round2 lives in lib/finance.js but isn't exported)
+  const round2 = n => Math.round(n * 100) / 100;
 
   // ── Proprietary lender data ─────────────────────────────────────────────
   const lenders = {
