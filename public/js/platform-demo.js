@@ -216,6 +216,13 @@ function startDemo() {
       toast('Welcome to Maple Auto Group — Demo Mode 🚀');
     } catch(e) { console.warn('Demo setup:', e.message); }
   }, 400);
+
+  // Auto-start tour for first-time demo visitors (2s after welcome toast)
+  setTimeout(() => {
+    if (!localStorage.getItem('ff_demo_tour_seen') && window.DEMO_MODE) {
+      if (typeof startTour === 'function') startTour();
+    }
+  }, 2000);
 }
 
 
@@ -930,6 +937,7 @@ function tourPrev() {
 }
 
 function tourSkip() {
+  localStorage.setItem('ff_demo_tour_seen', '1');
   document.getElementById('tour-tooltip').style.display = 'none';
   document.getElementById('tour-spotlight').style.display = 'none';
   document.getElementById('tour-overlay').style.display = 'none';
