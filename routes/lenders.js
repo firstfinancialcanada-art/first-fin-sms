@@ -4,6 +4,7 @@
 // Mounts: /api/lenders/*
 // ============================================================
 const { requireAuth } = require('../middleware/auth');
+const { LENDER_FEES } = require('../lib/constants');
 
 // multer is lazy-loaded inside the upload route — missing dep won't crash the server
 function getUpload() {
@@ -21,21 +22,6 @@ function getUpload() {
     return null;
   }
 }
-
-// ── Lender fee defaults (added to ATF before LTV calc) ────────────────────
-const DEFAULT_LENDER_FEES = {
-  autocapital: 895,
-  cibc: 0,
-  edenpark: 695,
-  iceberg: 695,
-  northlake: 695,
-  prefera: 695,
-  rbc: 0,
-  santander: 595,
-  sda: 995,
-  servus: 0,
-  wsleasing: 0
-};
 
 // ── Lender detection from PDF text ────────────────────────────────────────
 function detectLender(text) {
@@ -599,7 +585,7 @@ module.exports = function (app, pool, requireBilling) {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
             [userId, lenderName, item.tier, item.minFico, item.maxFico,
              item.rate||0, item.maxLTV, item.minYear, item.maxMileage,
-             item.maxCarfax, item.fee || DEFAULT_LENDER_FEES[lenderName] || 0]
+             item.maxCarfax, item.fee || LENDER_FEES[lenderName] || 0]
           );
         }
         await client.query('COMMIT');
@@ -679,7 +665,7 @@ module.exports = function (app, pool, requireBilling) {
            parseFloat(t.rate)||0, parseInt(t.maxLTV)||140,
            parseInt(t.minYear)||2015, parseInt(t.maxMileage)||200000,
            parseInt(t.maxCarfax)||9999,
-           parseFloat(t.fee) || DEFAULT_LENDER_FEES[lid] || 0]
+           parseFloat(t.fee) || LENDER_FEES[lid] || 0]
         );
       }
       await client.query('COMMIT');
@@ -709,6 +695,6 @@ module.exports = function (app, pool, requireBilling) {
   // ── GET /api/lenders/defaults ─────────────────────────────────────────
   // Returns the lender fee map for use in frontend
   app.get('/api/lenders/defaults', requireAuth, (req, res) => {
-    res.json({ success: true, fees: DEFAULT_LENDER_FEES });
+    res.json({ success: true, fees: LENDER_FEES });
   });
 };

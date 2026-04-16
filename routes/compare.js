@@ -8,6 +8,7 @@
 module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
   const { pool } = require('../lib/db');
   const { PMT, BPMT } = require('../lib/finance');
+  const { LENDER_FEES } = require('../lib/constants');
   // Local rounding helper (round2 lives in lib/finance.js but isn't exported)
   const round2 = n => Math.round(n * 100) / 100;
 
@@ -91,21 +92,6 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
     ]}
 };
 
-
-  const LENDER_FEES = {
-  autocapital: 895,
-  cibc: 0,
-  edenpark: 695,
-  iceberg: 695,
-  northlake: 695,
-  prefera: 695,
-  rbc: 0,
-  santander: 595,
-  sda: 995,
-  servus: 0,
-  wsleasing: 0,
-  iauto: 699
-};
 
   // ── Synthesize lender object from tenant rate sheet ────────────────────
   // Used when a dealer uploads rates for a lender not in the hardcoded
