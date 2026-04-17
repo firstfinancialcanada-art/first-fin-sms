@@ -425,7 +425,7 @@ function _doExitDemo() {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
-  ['ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates']
+  ['ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates','ffCompareSession']
     .forEach(k => localStorage.removeItem(k));
   location.replace('/platform');
 }
