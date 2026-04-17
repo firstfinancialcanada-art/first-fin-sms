@@ -36,7 +36,7 @@
 
     let title, body, cta;
     if (isSpend) {
-      title = 'Monthly Twilio cap reached';
+      title = 'Monthly messaging cap reached';
       body  = `Your plan covers $${capDollars}/mo in SMS + voice. You've used $${totalDollars}. ` +
               `This send needs about $${needDollars} more — top up overage to continue, or wait for the monthly reset.`;
       cta   = 'Contact us to top up';
