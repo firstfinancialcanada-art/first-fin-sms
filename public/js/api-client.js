@@ -30,15 +30,12 @@
 
     const isSpend = payload.code === 'SPEND_CAP_EXCEEDED';
     const usage   = payload.usage || {};
-    const totalDollars = ((usage.totalSpendCents || 0) / 100).toFixed(2);
-    const capDollars   = ((usage.capCents || 0) / 100).toFixed(2);
-    const needDollars  = ((payload.needCents || 0) / 100).toFixed(2);
 
     let title, body, cta;
     if (isSpend) {
       title = 'Monthly messaging cap reached';
-      body  = `Your plan covers $${capDollars}/mo in SMS + voice. You've used $${totalDollars}. ` +
-              `This send needs about $${needDollars} more — top up overage to continue, or wait for the monthly reset.`;
+      body  = `You've used this month's messaging allowance. Top up to keep sending, ` +
+              `or wait for the monthly reset.`;
       cta   = 'Contact us to top up';
     } else if (payload.code === 'CAPACITY_EXCEEDED') {
       const kind = payload.kind === 'inventory' ? 'vehicles' : 'CRM contacts';

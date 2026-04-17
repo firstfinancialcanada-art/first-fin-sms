@@ -2500,9 +2500,9 @@ async function refreshUsage(){
     if(dot) dot.style.background = _usageColor(maxPct);
 
     // Modal fields (only touched if modal exists in DOM)
-    const setTxt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    const setTxt  = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    const setDisp = (id, v) => { const el = document.getElementById(id); if(el) el.style.display = v; };
     setTxt('usage-total-dollars',   _usageFmt(s.totalSpendCents));
-    setTxt('usage-cap-dollars',     _usageFmt(s.capCents));
     setTxt('usage-sms-dollars',     _usageFmt(s.smsSpendCents));
     setTxt('usage-voice-dollars',   _usageFmt(s.voiceSpendCents));
     setTxt('usage-overage-dollars', _usageFmt(s.overageBalanceCents));
@@ -2510,6 +2510,11 @@ async function refreshUsage(){
     setTxt('usage-inv-cap',         inv.cap   || 500);
     setTxt('usage-crm-count',       crm.count || 0);
     setTxt('usage-crm-cap',         crm.cap   || 500);
+
+    // Exempt accounts: show badge, hide top-up section (caps don't apply)
+    const isExempt = !!(s.exempt || inv.exempt || crm.exempt);
+    setDisp('usage-exempt-badge',   isExempt ? 'inline-block' : 'none');
+    setDisp('usage-topup-section',  isExempt ? 'none' : 'block');
 
     const setBar = (id, pct) => {
       const bar = document.getElementById(id);
