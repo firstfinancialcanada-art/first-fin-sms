@@ -14,7 +14,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
 
   // ── Proprietary lender data ─────────────────────────────────────────────
   const lenders = {
-  autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  autocapital:{name:"AUTOCAPITAL CANADA",phone:"855-646-0534",web:"autocapitalcanada.ca",minYear:2015,maxMileage:195000,maxCarfax:7500,maxLTV:175,hard:true,minBeacon:500,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier 1 — Prime",rate:"13.49%",fico:"680+",minYear:2025,maxMile:"Unlimited",maxCfx:"$0",maxLtv:"175%"},
       {tier:"Tier 2 — Standard",rate:"14.49%",fico:"620–679",minYear:2024,maxMile:"Unlimited",maxCfx:"$2,500",maxLtv:"175%"},
@@ -30,26 +30,26 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       {tier:"2018–2022 Vehicles",rate:"7.29%–9.49%",fico:"Various",minYear:2018,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"84%"},
       {tier:"Newcomers Program",rate:"Varies",fico:"No history",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"}
     ]},
-  edenpark:{name:"EDENPARK",phone:"1-855-366-8667",web:"edenparkfinancial.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  edenpark:{name:"EDENPARK",phone:"1-855-366-8667",web:"edenparkfinancial.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,minBeacon:500,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier A",rate:"11.99%",fico:"640+",minYear:2020,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"140%"},
       {tier:"Tier B",rate:"15.99%",fico:"600–639",minYear:2017,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"135%"},
       {tier:"Tier C",rate:"19.99%",fico:"560–599",minYear:2016,maxMile:"180,000",maxCfx:"$7,500",maxLtv:"130%"},
       {tier:"Tier D",rate:"23.99%",fico:"<560",minYear:2015,maxMile:"170,000",maxCfx:"$7,500",maxLtv:"125%"}
     ]},
-  iceberg:{name:"ICEBERG FINANCE",phone:"855-694.0960",web:"icebergfinance.ca",minYear:2012,maxMileage:180000,maxCarfax:6500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1750,maxPayment:825,
+  iceberg:{name:"ICEBERG FINANCE",phone:"855-694.0960",web:"icebergfinance.ca",minYear:2012,maxMileage:180000,maxCarfax:6500,maxLTV:140,hard:true,minBeacon:450,maxPti:17,maxDti:44,minIncome:1750,maxPayment:825,
     programs:[
       {tier:"Tier 1",rate:"12.99%",fico:"640+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"140%"},
       {tier:"Tier 2",rate:"17.99%",fico:"600–639",minYear:2015,maxMile:"170,000",maxCfx:"$5,000",maxLtv:"135%"},
       {tier:"Tier 3",rate:"22.99%",fico:"560–599",minYear:2013,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"130%"},
       {tier:"Tier 4",rate:"31.99%",fico:"<560",minYear:2012,maxMile:"180,000",maxCfx:"$6,500",maxLtv:"125%"}
     ]},
-  northlake:{name:"NORTHLAKE FINANCIAL",phone:"1-888-652-5320",web:"northlakefinancial.ca",minYear:2003,maxMileage:300000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:17,maxDti:44,minIncome:1800,maxPayment:930,
+  northlake:{name:"NORTHLAKE FINANCIAL",phone:"1-888-652-5320",web:"northlakefinancial.ca",minYear:2003,maxMileage:300000,maxCarfax:7500,maxLTV:140,hard:true,minBeacon:500,maxPti:17,maxDti:44,minIncome:1800,maxPayment:930,
     programs:[
       {tier:"Standard",rate:"10.99%–16.99%",fico:"No min",minYear:2015,maxMile:"200,000",maxCfx:"$5,000",maxLtv:"140%"},
       {tier:"Extended",rate:"17.99%–22.99%",fico:"No min",minYear:2003,maxMile:"300,000",maxCfx:"$7,500",maxLtv:"130%"}
     ]},
-  prefera:{name:"PREFERA FINANCE",phone:"1-844-734-3577",web:"preferafinance.ca",minYear:2015,maxMileage:200000,maxCarfax:5000,maxLTV:170,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  prefera:{name:"PREFERA FINANCE",phone:"1-844-734-3577",web:"preferafinance.ca",minYear:2015,maxMileage:200000,maxCarfax:5000,maxLTV:170,hard:true,minBeacon:500,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier A",rate:"16.95%",fico:"620+",minYear:2018,maxMile:"150,000",maxCfx:"$2,500",maxLtv:"170%"},
       {tier:"Tier B",rate:"21.95%",fico:"580–619",minYear:2016,maxMile:"175,000",maxCfx:"$3,500",maxLtv:"160%"},
@@ -61,13 +61,13 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       {tier:"Prime Program",rate:"5.79%–7.99%",fico:"720+",minYear:2019,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"96%"},
       {tier:"Standard Program",rate:"7.99%–9.99%",fico:"650–719",minYear:2015,maxMile:"Credit-based",maxCfx:"Credit-based",maxLtv:"90%"}
     ]},
-  santander:{name:"SANTANDER CONSUMER",phone:"1-888-222-4227",web:"santanderconsumerusa.com",minYear:2015,maxMileage:160000,maxCarfax:6000,maxLTV:150,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  santander:{name:"SANTANDER CONSUMER",phone:"1-888-222-4227",web:"santanderconsumerusa.com",minYear:2015,maxMileage:160000,maxCarfax:6000,maxLTV:150,hard:true,minBeacon:520,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Tier 1",rate:"9.99%–14.99%",fico:"650+",minYear:2018,maxMile:"120,000",maxCfx:"$3,000",maxLtv:"150%"},
       {tier:"Tier 2",rate:"15.99%–21.99%",fico:"600–649",minYear:2016,maxMile:"140,000",maxCfx:"$4,500",maxLtv:"140%"},
       {tier:"Tier 3",rate:"22.99%–29.99%",fico:"<600",minYear:2015,maxMile:"160,000",maxCfx:"$6,000",maxLtv:"130%"}
     ]},
-  sda:{name:"SDA FINANCE",phone:"1-800-731-2345",web:"sdafinance.ca",minYear:2012,maxMileage:250000,maxCarfax:8000,maxLTV:135,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
+  sda:{name:"SDA FINANCE",phone:"1-800-731-2345",web:"sdafinance.ca",minYear:2012,maxMileage:250000,maxCarfax:8000,maxLTV:135,hard:true,minBeacon:480,maxPti:20,maxDti:44,minIncome:1800,maxPayment:null,
     programs:[
       {tier:"Standard",rate:"15.99%–24.99%",fico:"No min",minYear:2012,maxMile:"250,000",maxCfx:"$8,000",maxLtv:"135%"}
     ]},
@@ -76,7 +76,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       {tier:"Prime",rate:"6.50%–8.99%",fico:"700+",minYear:2018,maxMile:"150,000",maxCfx:"$3,000",maxLtv:"100%"},
       {tier:"Near Prime",rate:"9.99%–14.99%",fico:"640–699",minYear:2015,maxMile:"180,000",maxCfx:"$5,000",maxLtv:"95%"}
     ]},
-  iauto:{name:"iA AUTO FINANCE",phone:"1-855-378-5626",web:"ia.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,maxPti:20,maxDti:44,minIncome:1800,maxPayment:1000,
+  iauto:{name:"iA AUTO FINANCE",phone:"1-855-378-5626",web:"ia.ca",minYear:2015,maxMileage:180000,maxCarfax:7500,maxLTV:140,hard:true,minBeacon:450,maxPti:20,maxDti:44,minIncome:1800,maxPayment:1000,
     programs:[
       {tier:'6th Gear',fico:'700+',   rate:'11.49', maxLtv:140, minYear:2015},
       {tier:'5th Gear',fico:'650-699',rate:'15.49', maxLtv:140, minYear:2015},
@@ -532,7 +532,7 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
         r.beaconPass  = beaconPass;
         r.approved    = l.hard
           ? vehiclePass && beaconPass && (income === 0 || dealPass) && r.ltvOk
-          : beaconPass && (income === 0 || dealPass) && r.ltvOk;
+          : vehiclePass && beaconPass && (income === 0 || dealPass) && r.ltvOk;
         r.isCustomLender = !lenders[lid];
 
         (r.approved ? eligible : ineligible).push(r);
