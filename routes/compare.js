@@ -720,7 +720,11 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
 
       const simLids = new Set([...Object.keys(lenders), ...Object.keys(tenantRates)]);
       const rows = BEACON_RANGES.map(range => {
-        const testBeacon = range.min === 0 ? 0 : range.min + 10;
+        // '<500' band: test at 450 (realistic deep-subprime minimum). Using 0 here
+        // hit the beacon-unknown branch in getQualifyingProgram and returned a
+        // non-null "beaconRequired" prog at rate 0, counting every lender as
+        // approved at 0%. Other bands use min+10 (mid-band).
+        const testBeacon = range.min === 0 ? 450 : range.min + 10;
         let approved = 0, bestRate = 99;
         simLids.forEach(lid => {
           const l    = lenders[lid] || synthesizeLenderFromRates(lid, tenantRates[lid]);
