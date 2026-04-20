@@ -1520,11 +1520,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   const scraper = require('../lib/scraper');
 
-  app.post('/api/desk/scrape-page', requireAuth, requireBilling, (req, res) => {
+  app.post('/api/desk/scrape-page', requireAuth, requireBilling, async (req, res) => {
     try {
       const { html, url } = req.body;
       if (!html || !url) return res.status(400).json({ success: false, error: 'html and url required' });
-      const result = scraper.scrapePageHtml(html, url);
+      const result = await scraper.scrapePageHtml(html, url);
       res.json({ ok: true, result });
     } catch (e) {
       console.error('❌ /api/desk/scrape-page error:', e.message);
