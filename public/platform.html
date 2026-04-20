@@ -3703,54 +3703,14 @@ async function startLoginBuy() {
       (v.stock?`<span class="fbp-chip stk">Stock #${v.stock}</span>`:'') +
       (v.photos.length?`<span class="fbp-chip ph">${v.photos.length} photos</span>`:'');
 
+    // Initialize inclusion set (all photos in by default until OCR classifies)
+    v._includedUrls = new Set(v.photos || []);
+    v._rejectedUrls = v._rejectedUrls || new Set();  // persists across re-selects
+
     // Render photo strip
-    const strip = document.getElementById('fbp-pstrip');
-    const hint = document.getElementById('fbp-photo-hint');
-    if (strip) {
-      strip.innerHTML = '';
-      if (v.photos.length) {
-        v.photos.forEach((url, i) => {
-          const img = document.createElement('img');
-          img.className = 'fbp-thumb';
-          img.src = url;
-          img.title = `Photo ${i+1} — drag to Facebook`;
-          img.style.cssText = 'width:70px;height:52px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;transition:all .13s;';
-          img.onmouseover = () => { img.style.borderColor = 'var(--primary)'; img.style.transform = 'scale(1.08)'; };
-          img.onmouseout = () => { img.style.borderColor = 'var(--border)'; img.style.transform = 'scale(1)'; };
-          img.onclick = () => window.open(url, '_blank');
-          img.onerror = () => img.style.display = 'none';
-          strip.appendChild(img);
-        });
-        // "Open All Photos" button — opens a single gallery page with all photos (avoids popup blocker)
-        const openBtn = document.createElement('button');
-        openBtn.style.cssText = 'flex-shrink:0;padding:6px 12px;border-radius:5px;background:rgba(30,90,246,.12);border:1px solid rgba(30,90,246,.3);color:#93c5fd;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
-        openBtn.textContent = 'Open All Photos';
-        openBtn.title = 'Opens all photos in a single page — drag from there to Facebook';
-        openBtn.onclick = () => {
-          const w = window.open('', '_blank');
-          if (!w) { fbpFlash('Popup blocked — allow popups for this site'); return; }
-          w.document.title = v.title + ' — Photos';
-          w.document.body.style.cssText = 'margin:0;padding:20px;background:#111;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;';
-          v.photos.forEach((url, i) => {
-            const img = w.document.createElement('img');
-            img.src = url;
-            img.style.cssText = 'max-width:600px;max-height:450px;object-fit:contain;border-radius:6px;cursor:grab;';
-            img.title = 'Drag this photo to Facebook';
-            img.draggable = true;
-            w.document.body.appendChild(img);
-          });
-          const tip = w.document.createElement('p');
-          tip.style.cssText = 'width:100%;text-align:center;color:#666;font-family:sans-serif;font-size:13px;margin-top:16px;';
-          tip.textContent = 'Drag photos from here to the Facebook upload area. Close this tab when done.';
-          w.document.body.appendChild(tip);
-          fbpFlash(`Opened ${v.photos.length} photos — drag to Facebook`);
-        };
-        strip.appendChild(openBtn);
-        if (hint) hint.textContent = `${v.photos.length} photos — click to preview, Open All to save`;
-      } else {
-        if (hint) hint.textContent = 'No photos — upload directly on Facebook';
-      }
-    }
+    fbpRenderPhotoStrip(v);
+    // Fire OCR in background (non-blocking; updates strip when done)
+    fbpCleanPhotos(v);
 
     const db = document.getElementById('fbp-desc-body');
     if (db) db.value = v.description||'';
@@ -3758,6 +3718,122 @@ async function startLoginBuy() {
     if (cb) cb.className = 'fbp-desc-copy';
 
     fbpBuildSteps(v);
+  }
+
+  // ── Photo strip renderer (honors v._includedUrls / v._rejectedUrls) ──
+  // Rejected photos are hidden unless _showRejected is true. Clicking any
+  // rejected thumbnail re-includes it. Clicking an included rejected-origin
+  // thumbnail removes it again. "Open All" and autofill use _includedUrls.
+  function fbpRenderPhotoStrip(v) {
+    const strip = document.getElementById('fbp-pstrip');
+    const hint  = document.getElementById('fbp-photo-hint');
+    if (!strip) return;
+    strip.innerHTML = '';
+
+    if (!v.photos || !v.photos.length) {
+      if (hint) hint.textContent = 'No photos — upload directly on Facebook';
+      return;
+    }
+
+    const included = v._includedUrls || new Set(v.photos);
+    const rejected = v._rejectedUrls || new Set();
+    const showRej  = !!v._showRejected;
+
+    v.photos.forEach((url, i) => {
+      const isRejected = rejected.has(url);
+      const isIncluded = included.has(url);
+      // Hide rejected photos unless user toggled show-rejected
+      if (isRejected && !isIncluded && !showRej) return;
+
+      const img = document.createElement('img');
+      img.className = 'fbp-thumb';
+      img.src = url;
+      img.title = isRejected
+        ? (isIncluded ? 'Dealer sign detected — click to re-exclude' : 'Dealer sign detected — click to include anyway')
+        : `Photo ${i+1} — click to toggle, drag to FB`;
+      const borderColor = isRejected ? (isIncluded ? '#f59e0b' : '#ef4444') : 'var(--border)';
+      const opacity     = (isRejected && !isIncluded) ? '0.45' : '1';
+      img.style.cssText = `width:70px;height:52px;object-fit:cover;border-radius:4px;border:2px solid ${borderColor};opacity:${opacity};cursor:pointer;flex-shrink:0;transition:all .13s;`;
+      img.onmouseover = () => { img.style.transform = 'scale(1.08)'; };
+      img.onmouseout  = () => { img.style.transform = 'scale(1)'; };
+      img.onclick     = () => {
+        if (isIncluded) included.delete(url); else included.add(url);
+        v._includedUrls = included;
+        fbpRenderPhotoStrip(v);
+      };
+      img.onerror = () => img.style.display = 'none';
+      strip.appendChild(img);
+    });
+
+    // Toggle button for hidden (sign-detected) photos
+    const hiddenCount = [...rejected].filter(u => !included.has(u)).length;
+    if (hiddenCount > 0 || showRej) {
+      const togl = document.createElement('button');
+      togl.style.cssText = 'flex-shrink:0;padding:6px 10px;border-radius:5px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
+      togl.textContent = showRej
+        ? `Hide ${hiddenCount} flagged`
+        : `🚫 ${hiddenCount} hidden (dealer sign)`;
+      togl.title = 'Photos where dealer signage was detected';
+      togl.onclick = () => { v._showRejected = !showRej; fbpRenderPhotoStrip(v); };
+      strip.appendChild(togl);
+    }
+
+    // Open All — uses currently-included list only
+    const openBtn = document.createElement('button');
+    openBtn.style.cssText = 'flex-shrink:0;padding:6px 12px;border-radius:5px;background:rgba(30,90,246,.12);border:1px solid rgba(30,90,246,.3);color:#93c5fd;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
+    openBtn.textContent = 'Open All Photos';
+    openBtn.title = 'Opens currently-included photos in a gallery (drag to FB)';
+    openBtn.onclick = () => {
+      const urls = [...included];
+      if (!urls.length) { fbpFlash('No photos selected — toggle some on first'); return; }
+      const w = window.open('', '_blank');
+      if (!w) { fbpFlash('Popup blocked — allow popups for this site'); return; }
+      w.document.title = v.title + ' — Photos';
+      w.document.body.style.cssText = 'margin:0;padding:20px;background:#111;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;';
+      urls.forEach(url => {
+        const im = w.document.createElement('img');
+        im.src = url;
+        im.style.cssText = 'max-width:600px;max-height:450px;object-fit:contain;border-radius:6px;cursor:grab;';
+        im.title = 'Drag to Facebook';
+        im.draggable = true;
+        w.document.body.appendChild(im);
+      });
+      fbpFlash(`Opened ${urls.length} photos`);
+    };
+    strip.appendChild(openBtn);
+
+    const incl = included.size;
+    const rej  = [...rejected].filter(u => !included.has(u)).length;
+    if (hint) hint.textContent = rej > 0
+      ? `${incl} included · ${rej} hidden · click to toggle`
+      : `${incl} photos — click to toggle, Open All to save`;
+  }
+
+  // ── Run OCR on vehicle photos and re-render strip when done ──
+  // Called from fbpShowVehicle. Non-blocking — UI stays responsive.
+  // Results cached on the vehicle object so re-selecting doesn't re-OCR.
+  async function fbpCleanPhotos(v) {
+    if (!v || !v.photos || v.photos.length === 0) return;
+    if (v._ocrDone) return;  // already processed this vehicle
+    const vref = v;
+    try {
+      const r = await FF.apiFetch('/api/desk/ocr-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: v.photos })
+      });
+      const d = await r.json();
+      if (!d.ok || !d.result) return;
+      const { kept, rejected } = d.result;
+      // Guard: only apply if still the currently-selected vehicle
+      vref._ocrDone = true;
+      vref._rejectedUrls = new Set((rejected || []).map(x => x.url));
+      vref._includedUrls = new Set(kept || vref.photos);
+      if (fbpV === vref) fbpRenderPhotoStrip(vref);
+      if (rejected && rejected.length && fbpV === vref) {
+        fbpFlash(`Hid ${rejected.length} photo${rejected.length===1?'':'s'} with dealer sign`);
+      }
+    } catch (e) { /* fail-open: keep all photos */ }
   }
 
   function fbpBuildSteps(v) {
@@ -3835,6 +3911,11 @@ async function startLoginBuy() {
   // Auto-fill Facebook via Chrome extension
   window.fbpAutofill = function() {
     if (!fbpV) { fbpFlash('Select a vehicle first'); return; }
+    // Use currently-included photos (respects OCR filter + user toggles).
+    // Falls back to full list if OCR hasn't run yet (e.g., non-SmartBuy source).
+    const cleanedPhotos = fbpV._includedUrls
+      ? [...fbpV._includedUrls]
+      : (fbpV.photos || []);
     window.postMessage({
       type: 'FIRSTFIN_FB_AUTOFILL',
       vehicle: {
@@ -3843,7 +3924,7 @@ async function startLoginBuy() {
         body_style: fbpV.body_style, ext_color: fbpV.ext_color, int_color: fbpV.int_color,
         fuel: fbpV.fuel, transmission: fbpV.transmission,
         description: fbpV.description, condition: fbpV.condition,
-        photos: fbpV.photos || [],
+        photos: cleanedPhotos,
       }
     }, '*');
     fbpFlash('Auto-fill sent — filling form + uploading photos');

@@ -28,6 +28,7 @@
     "pg": "^8.20.0",
     "stripe": "^14.0.0",
     "terser": "^5.27.0",
+    "tesseract.js": "^7.0.0",
     "twilio": "^5.4.0"
   },
   "devDependencies": {

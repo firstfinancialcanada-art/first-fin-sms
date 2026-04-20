@@ -1545,6 +1545,30 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // OCR PHOTOS — detect wholesale-source dealer signage
+  // Input: { urls: [photoUrl, ...] } — typically one vehicle's gallery.
+  // Output: { kept: [...clean urls...], rejected: [{ url, matched, text }...] }
+  // Used by FB Poster to filter out photos with visible dealer branding
+  // before retail reposting. Fail-open: OCR errors keep the photo.
+  // ═══════════════════════════════════════════════════════════
+  const photoOcr = require('../lib/photo-ocr');
+
+  app.post('/api/desk/ocr-photos', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { urls } = req.body;
+      if (!Array.isArray(urls)) return res.status(400).json({ ok: false, error: 'urls array required' });
+      if (urls.length === 0) return res.json({ ok: true, result: { kept: [], rejected: [] } });
+      // Cap at 30 photos per request — protects against runaway OCR batches
+      const capped = urls.slice(0, 30);
+      const result = await photoOcr.classifyVehiclePhotos(capped);
+      res.json({ ok: true, result });
+    } catch (e) {
+      console.error('❌ /api/desk/ocr-photos error:', e.message);
+      res.status(500).json({ ok: false, error: 'OCR failed' });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // FILTER-AD-PHOTOS — detect shared dealer marketing images
   // Receives all vehicles' d2cmedia photo URLs, hashes first 1000 bytes,
   // returns URLs that appear on 2+ vehicles (dealer ads, not vehicle photos).
