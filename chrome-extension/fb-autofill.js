@@ -265,8 +265,9 @@ async function fillFacebookForm(vehicle) {
     await sleep(300);
   }
 
-  // Step 11: Condition
-  await selectDropdown('Condition', 'Good');
+  // Step 11: Condition — inventory is fully inspected & reconditioned,
+  // so 'Excellent' is the appropriate FB Marketplace label (not 'Good').
+  await selectDropdown('Condition', 'Excellent');
   await sleep(300);
 
   // Step 12: Fuel type

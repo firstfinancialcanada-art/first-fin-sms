@@ -3775,7 +3775,7 @@ async function startLoginBuy() {
       {n:8, lbl:'Body Style',   t:'dd', val:v.body_style},
       {n:9, lbl:'Ext. Color',   t:'dd', val:v.ext_color||'—'},
       {n:10,lbl:'Int. Color',   t:'dd', val:v.int_color||'—'},
-      {n:11,lbl:'Condition',    t:'dd', val:'Good'},
+      {n:11,lbl:'Condition',    t:'dd', val:'Excellent'},
       {n:12,lbl:'Fuel Type',    t:'dd', val:v.fuel||'—'},
       {n:13,lbl:'Transmission', t:'dd', val:v.transmission||'—'},
       {n:14,lbl:'Description',  t:'ds', val:v.description},
@@ -3790,6 +3790,12 @@ async function startLoginBuy() {
       else if (s.t==='ph') { val.className='fbp-sval ph-v'; val.textContent=v.photos.length ? `${v.photos.length} photos — drag from strip above` : 'No photos — upload on Facebook'; }
       else if (s.t==='ds') { val.className='fbp-sval no-v'; val.textContent='use Copy All above'; }
       else if (s.t==='dd') { val.className='fbp-sval dd-v'; val.textContent=s.val; }
+      else if (s.lbl==='Price') {
+        // Display price with tax/fee disclaimer; FB's field is numeric-only
+        // so the Copy action below still sends the bare number.
+        val.className='fbp-sval';
+        val.textContent = '$' + Number(s.val).toLocaleString() + ' + taxes/fees';
+      }
       else { val.className='fbp-sval'; val.textContent=s.val; }
       const act=document.createElement('div');
       const btn=document.createElement('button'); btn.className='fbp-sbtn';
