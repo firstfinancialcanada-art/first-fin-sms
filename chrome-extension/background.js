@@ -418,9 +418,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
 
-  // ── FB Auto-Fill: open Facebook tab, fetch photos, fill form + upload ──
+  // ── FB Auto-Fill: open (or reuse) Facebook tab, fetch photos, fill form ──
   if (msg.type === 'FB_AUTOFILL') {
+    const senderTabId = _sender && _sender.tab && _sender.tab.id;
+    // Respond fast so the content script's sendMessage callback doesn't
+    // hang; actual work continues async and reports errors back via
+    // chrome.tabs.sendMessage to the platform tab.
+    sendResponse({ ok: true });
+
     (async () => {
+      const reportError = (msgText) => {
+        console.error('[FIRST-FIN] FB autofill error:', msgText);
+        if (senderTabId) {
+          chrome.tabs.sendMessage(senderTabId, {
+            type: 'FB_AUTOFILL_ERROR',
+            error: String(msgText).slice(0, 200)
+          }).catch(() => {});
+        }
+      };
       try {
         // Fetch photos as base64 in the background (no CORS issues here)
         const photoData = [];
@@ -445,14 +460,36 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           console.log(`[FIRST-FIN] Fetched ${photoData.length}/${photoUrls.length} photos`);
         }
 
-        const tab = await chrome.tabs.create({
-          url: 'https://www.facebook.com/marketplace/create/vehicle',
-          active: true
-        });
+        // Reuse an existing FB create-vehicle tab if one is open — prevents
+        // tab pileup and sidesteps a class of service-worker / popup-gesture
+        // issues that caused subsequent chrome.tabs.create calls to fail
+        // silently. Always reload + refocus for a clean form.
+        let tab = null;
+        let existing = [];
+        try {
+          existing = await chrome.tabs.query({ url: 'https://www.facebook.com/marketplace/create/vehicle*' });
+        } catch {}
+        if (existing && existing.length > 0) {
+          tab = existing[0];
+          try {
+            await chrome.tabs.update(tab.id, { active: true, url: 'https://www.facebook.com/marketplace/create/vehicle' });
+            if (tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+          } catch {
+            tab = null;  // fall through to create
+          }
+        }
+        if (!tab) {
+          tab = await chrome.tabs.create({
+            url: 'https://www.facebook.com/marketplace/create/vehicle',
+            active: true
+          });
+        }
+        const fbTabId = tab.id;
+
         // Wait for Facebook page to load
         await new Promise((resolve) => {
           function onUpdated(tabId, info) {
-            if (tabId === tab.id && info.status === 'complete') {
+            if (tabId === fbTabId && info.status === 'complete') {
               chrome.tabs.onUpdated.removeListener(onUpdated);
               resolve();
             }
@@ -464,20 +501,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await new Promise(r => setTimeout(r, 3000));
         // Inject the auto-fill script
         await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
+          target: { tabId: fbTabId },
           files: ['fb-autofill.js']
         });
         await new Promise(r => setTimeout(r, 500));
-        await chrome.tabs.sendMessage(tab.id, {
+        await chrome.tabs.sendMessage(fbTabId, {
           type: 'FB_FILL_FORM',
           vehicle: msg.vehicle,
           photos: photoData
         });
       } catch (e) {
-        console.error('[FIRST-FIN] FB autofill error:', e);
+        reportError(e.message || e);
       }
     })();
-    sendResponse({ ok: true });
     return false;
   }
 });

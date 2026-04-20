@@ -3908,6 +3908,18 @@ async function startLoginBuy() {
     }).catch(()=>fbpFlash('Clipboard unavailable'));
   };
 
+  // Listen once for autofill errors from the extension (set up here so
+  // any subsequent Auto-Fill attempts get surfaced to the user).
+  if (!window._fbpErrListener) {
+    window._fbpErrListener = true;
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      if (event.data && event.data.type === 'FIRSTFIN_FB_AUTOFILL_ERROR') {
+        fbpFlash('⚠ ' + (event.data.error || 'Auto-fill failed — reload page'));
+      }
+    });
+  }
+
   // Auto-fill Facebook via Chrome extension
   window.fbpAutofill = function() {
     if (!fbpV) { fbpFlash('Select a vehicle first'); return; }
@@ -3927,7 +3939,7 @@ async function startLoginBuy() {
         photos: cleanedPhotos,
       }
     }, '*');
-    fbpFlash('Auto-fill sent — filling form + uploading photos');
+    fbpFlash('Auto-fill sent — opening/reusing Facebook tab');
   };
 
   window.fbpOpenFb = function() { window.open(FB_URL,'_blank'); fbpFlash('Facebook opened'); };

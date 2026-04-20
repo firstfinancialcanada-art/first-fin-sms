@@ -1062,14 +1062,36 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 // ── FB Auto-Fill relay (only on the FIRST-FIN platform) ──────────────────
 if (location.hostname === 'app.firstfinancialcanada.com') {
+  // Page-side errors are surfaced back via window.postMessage so the
+  // FB Poster UI can show a toast instead of failing silently (e.g.,
+  // service worker dormant, extension context invalidated after reload).
+  const postErr = (error) => {
+    try {
+      window.postMessage({ type: 'FIRSTFIN_FB_AUTOFILL_ERROR', error: String(error).slice(0, 200) }, '*');
+    } catch {}
+  };
+
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
-    if (event.data && event.data.type === 'FIRSTFIN_FB_AUTOFILL') {
+    if (!event.data || event.data.type !== 'FIRSTFIN_FB_AUTOFILL') return;
+    try {
       chrome.runtime.sendMessage({
         type: 'FB_AUTOFILL',
         vehicle: event.data.vehicle
+      }, (_resp) => {
+        // Detect dead service worker or invalidated context
+        const err = chrome.runtime && chrome.runtime.lastError;
+        if (err) postErr('Extension unavailable: ' + err.message + ' — try reloading the page');
       });
+    } catch (e) {
+      postErr('Extension not responding: ' + (e.message || e) + ' — reload the page');
     }
+  });
+
+  // Errors raised asynchronously inside the background worker are relayed
+  // back here via chrome.tabs.sendMessage and forwarded to the page.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'FB_AUTOFILL_ERROR') postErr(msg.error || 'Auto-fill failed');
   });
 }
 
