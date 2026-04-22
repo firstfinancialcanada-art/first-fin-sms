@@ -180,7 +180,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
 
       const user = result.rows[0];
-      const accessToken = generateAccessToken(user);
+      const accessToken = await generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
 
       // Save refresh token hash
@@ -231,7 +231,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // Update last login
       await client.query('UPDATE desk_users SET last_login = NOW() WHERE id = $1', [user.id]);
 
-      const accessToken = generateAccessToken(user);
+      const accessToken = await generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
 
       const rtHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
@@ -293,7 +293,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const user = await client.query('SELECT * FROM desk_users WHERE id = $1', [decoded.userId]);
       if (user.rows.length === 0) return res.status(401).json({ success: false, error: 'User not found' });
 
-      const newAccess = generateAccessToken(user.rows[0]);
+      const newAccess = await generateAccessToken(user.rows[0]);
       const newRefresh = generateRefreshToken(user.rows[0]);
       const newHash = crypto.createHash('sha256').update(newRefresh).digest('hex');
 
@@ -459,7 +459,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       // Issue auth tokens so the client can jump straight to /platform
       const userRow   = { id: uid, email: tok.rows[0].email, display_name: tok.rows[0].display_name, role: tok.rows[0].role };
-      const accessTok  = generateAccessToken(userRow);
+      const accessTok  = await generateAccessToken(userRow);
       const refreshTok = generateRefreshToken(userRow);
       const rtHash     = crypto.createHash('sha256').update(refreshTok).digest('hex');
       await client.query(
