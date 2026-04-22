@@ -123,6 +123,13 @@ createOptOutTable();
 const { startBulkProcessor } = makeBulkProcessor(twilioClient);
 startBulkProcessor();
 
+// ── Multi-user tenants/members (Phase 1 foundation) ─────────────────
+// Idempotent: creates desk_tenants + desk_members tables and backfills
+// every existing desk_users row as a single-seat tenant-of-one. No
+// existing routes or queries change in this phase. See
+// project_firstfin_multiuser_plan.md memory for the full roadmap.
+require('./lib/tenants');
+
 // ── Route modules ─────────────────────────────────────────────────
 const requireBilling = makeBillingGuard(require('./lib/db').pool);
 const deps = { twilioClient, requireAuth, requireBilling, notifyOwner };

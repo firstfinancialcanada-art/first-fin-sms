@@ -45,6 +45,41 @@ async function setup() {
     `);
     console.log('✅ desk_refresh_tokens table');
 
+    // ── 2b. TENANTS + MEMBERS (multi-user Phase 1 foundation) ──
+    // desk_tenants: one per paying account. desk_members: links
+    // users to tenants with role. Single-user accounts become
+    // tenant-of-one via lib/tenants.js backfill at runtime boot.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS desk_tenants (
+        id              SERIAL PRIMARY KEY,
+        owner_user_id   INTEGER NOT NULL REFERENCES desk_users(id) ON DELETE CASCADE,
+        dealership      VARCHAR(255),
+        tier            VARCHAR(50)  NOT NULL DEFAULT 'single',
+        seats_allowed   INTEGER      NOT NULL DEFAULT 1,
+        stripe_sub_id   VARCHAR(255),
+        created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(owner_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_tenants_owner ON desk_tenants(owner_user_id);
+      CREATE INDEX IF NOT EXISTS idx_tenants_tier  ON desk_tenants(tier);
+
+      CREATE TABLE IF NOT EXISTS desk_members (
+        id           SERIAL PRIMARY KEY,
+        tenant_id    INTEGER NOT NULL REFERENCES desk_tenants(id) ON DELETE CASCADE,
+        user_id      INTEGER NOT NULL REFERENCES desk_users(id)   ON DELETE CASCADE,
+        role         VARCHAR(50)  NOT NULL DEFAULT 'rep',
+        crm_mode     VARCHAR(50)  NOT NULL DEFAULT 'pool_plus_own',
+        sarah_number VARCHAR(50),
+        active       BOOLEAN      NOT NULL DEFAULT TRUE,
+        invited_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_members_user   ON desk_members(user_id);
+      CREATE INDEX IF NOT EXISTS idx_members_tenant ON desk_members(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_members_role   ON desk_members(tenant_id, role);
+    `);
+    console.log('✅ desk_tenants + desk_members tables');
+
     // ── 3. INVENTORY (replaces hardcoded array in HTML) ────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS desk_inventory (
