@@ -384,6 +384,13 @@
         setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 500);
         setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 2000);
       }
+      // Apply role-based gating (manager-only buttons hidden for reps,
+      // owner-only billing hidden for managers). Solo-tier accounts have
+      // memberRole='owner' from Phase 1 backfill so nothing changes.
+      if (typeof applyRoleGating === 'function' && _user) {
+        try { applyRoleGating(_user); } catch(e) {}
+        setTimeout(() => { try { applyRoleGating(_user); } catch(e) {} }, 500);
+      }
       console.log('🔄 Syncing UI with PostgreSQL data...');
       const inv = window.ffInventory || window.inventory || [];
 

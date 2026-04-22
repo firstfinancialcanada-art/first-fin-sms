@@ -996,13 +996,13 @@ select option{background:#0d1526;color:var(--text);}
     <button class="hbtn" onclick="saveDeal()"><i data-lucide="save" class="ico-sm"></i>Save</button>
     <button class="hbtn amber" onclick="openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i>Email</button>
     <button class="hbtn theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()"><i data-lucide="sun" class="ico-sm"></i>Light</button>
-    <button class="hbtn" onclick="openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i>Rates</button>
-    <button class="hbtn" id="usage-pill-btn" onclick="openUsageModal()" title="Monthly usage &amp; billing">
+    <button class="hbtn" id="hdr-rates" data-min-role="manager" onclick="openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i>Rates</button>
+    <button class="hbtn" id="usage-pill-btn" data-min-role="owner" onclick="openUsageModal()" title="Monthly usage &amp; billing">
       <i data-lucide="activity" class="ico-sm"></i>
       <span id="usage-pill-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#64748b;margin-right:4px;vertical-align:middle;"></span>
       <span id="usage-pill-text">Usage</span>
     </button>
-    <button class="hbtn" onclick="openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
+    <button class="hbtn" id="hdr-settings" data-min-role="manager" onclick="openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
     <button class="hbtn" onclick="if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
   </div>
 </header>
@@ -2678,6 +2678,45 @@ window.showUpgradeModal = function(featureName) {
   const title = document.getElementById('ff-upgrade-title');
   if (title) title.textContent = featureName + ' — Add-On Required';
   if (modal) modal.style.display = 'flex';
+};
+
+// ── Role-based UI gating (Phase 4) ──────────────────────────────────
+// Hides/locks elements that have a `data-min-role` attribute when the
+// signed-in user's memberRole is below the required level. Role rank:
+//   owner (3) > manager (2) > rep (1)
+// On a Solo tier (single-seat) tenant the owner sees everything as before
+// — no behavior change. On a Gold tenant, reps lose Rates / Settings
+// (manager-only) and lose Usage / billing (owner-only). Owner-only items
+// also auto-hide for managers.
+//
+// Called from api-client.js _triggerRenders after login so it runs once
+// the user object is available. Solo accounts pass memberRole='owner'
+// from the Phase 1 backfill so nothing is hidden for them.
+window.applyRoleGating = function(user) {
+  const ROLE_RANK = { owner: 3, manager: 2, rep: 1 };
+  const myRank = ROLE_RANK[(user && user.memberRole) || 'owner'] || 0;
+  const elements = document.querySelectorAll('[data-min-role]');
+  elements.forEach(el => {
+    const min = el.getAttribute('data-min-role');
+    const minRank = ROLE_RANK[min] || 0;
+    if (myRank < minRank) {
+      el.style.display = 'none';
+    } else {
+      // If we previously hid it (e.g., role changed mid-session), restore
+      if (el.style.display === 'none') el.style.display = '';
+    }
+  });
+  // Surface tier+role somewhere visible for sub-users so they know what
+  // account they're on. Inert if the tenant-pill element doesn't exist
+  // (single-seat tenants have no such pill — it's only meaningful for
+  // gold tenants where multiple users share an account).
+  const pill = document.getElementById('ff-tenant-role-pill');
+  if (pill && user) {
+    const tier = (user.tier || 'single').toUpperCase();
+    const role = (user.memberRole || 'owner').toUpperCase();
+    pill.textContent = tier === 'GOLD' ? `${tier} · ${role}` : '';
+    pill.style.display = tier === 'GOLD' ? 'inline-block' : 'none';
+  }
 };
 </script>
 <script src="/js/platform-main.js"></script>

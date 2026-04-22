@@ -121,15 +121,31 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     };
   }
 
-  function userPayload(row) {
+  // userPayload — what we send to the client after login/register/refresh.
+  // Async so we can include the user's tenant membership (Phase 4) — UI
+  // uses memberRole + tier to gate manager-only buttons (Rates, Settings,
+  // tenant admin) and to show the right dashboard variant.
+  async function userPayload(row) {
     const settings = normalizeSettings(row.settings_json || {});
-    return {
+    const payload = {
       id: row.id,
       email: row.email,
       name: row.display_name,
       role: row.role,
       tenantBranding: buildTenantBrandingFromSettings(settings)
     };
+    try {
+      const tenantsModule = require('../lib/tenants');
+      const m = await tenantsModule.getPrimaryMembership(row.id);
+      if (m) {
+        payload.tenantId   = m.tenantId;
+        payload.memberRole = m.memberRole;   // 'owner' | 'manager' | 'rep'
+        payload.crmMode    = m.crmMode;      // 'private' | 'pool_plus_own' | 'team_read'
+        payload.tier       = m.tier;         // 'single' | 'gold'
+        payload.dealership = m.dealership;
+      }
+    } catch { /* non-fatal — user just doesn't get role gating */ }
+    return payload;
   }
 
   // ── REGISTER ─────────────────────────────────────────────
@@ -196,7 +212,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         success: true,
         accessToken,
         refreshToken,
-        user: userPayload(user)
+        user: await userPayload(user)
       });
     } catch (e) {
       console.error('❌ Register error:', e.message);
@@ -251,7 +267,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         success: true,
         accessToken,
         refreshToken,
-        user: userPayload(user),
+        user: await userPayload(user),
         billing
       });
     } catch (e) {
