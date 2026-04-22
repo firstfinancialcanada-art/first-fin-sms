@@ -5,7 +5,14 @@ const { EXEMPT_EMAILS } = require('../lib/constants');
 
 // ── Input validation helpers ──────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const VALID_PLANS = ['monthly', 'annual'];
+// 'monthly' / 'annual' are the single-dealer tier (~$225/mo, ~$2,400/yr).
+// 'gold_monthly' / 'gold_annual' are the Franchise / Multi-Store Gold tier
+// ($525/mo, $6,000/yr) pitched to Chrysler Ontario 2026-04-16. Gold includes
+// multi-user logins + manager dashboard (backend work phased — see
+// project_firstfin_multiuser_plan.md memory). Until multi-user ships,
+// gold-tier buyers get a single-user account at the higher rate, with
+// additional seats provisioned manually.
+const VALID_PLANS = ['monthly', 'annual', 'gold_monthly', 'gold_annual'];
 const VALID_STATUSES = ['active', 'lapsed', 'cancelled', 'past_due', 'pending'];
 
 function validatePublicCheckoutInput({ plan, email, name, dealership }) {
@@ -72,9 +79,13 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const cleanName       = name.trim();
     const cleanDealership = dealership.trim();
 
-    const priceId = plan === 'annual'
-      ? process.env.STRIPE_PRICE_ANNUAL
-      : process.env.STRIPE_PRICE_MONTHLY;
+    const priceIdByPlan = {
+      monthly:      process.env.STRIPE_PRICE_MONTHLY,
+      annual:       process.env.STRIPE_PRICE_ANNUAL,
+      gold_monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY,
+      gold_annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL,
+    };
+    const priceId = priceIdByPlan[plan];
 
     if (!priceId) return res.status(503).json({ success: false, error: 'Price not configured' });
 
@@ -128,9 +139,13 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     if (!VALID_PLANS.includes(plan))
       return res.status(400).json({ success: false, error: 'Invalid plan selected' });
 
-    const priceId = plan === 'annual'
-      ? process.env.STRIPE_PRICE_ANNUAL
-      : process.env.STRIPE_PRICE_MONTHLY;
+    const priceIdByPlan = {
+      monthly:      process.env.STRIPE_PRICE_MONTHLY,
+      annual:       process.env.STRIPE_PRICE_ANNUAL,
+      gold_monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY,
+      gold_annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL,
+    };
+    const priceId = priceIdByPlan[plan];
 
     if (!priceId) return res.status(503).json({ success: false, error: 'Price not configured' });
 

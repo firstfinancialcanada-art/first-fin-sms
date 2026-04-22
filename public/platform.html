@@ -937,10 +937,17 @@ select option{background:#0d1526;color:var(--text);}
       <div style="font-size:12px;color:#94a3b8;margin-bottom:14px;line-height:1.5;text-align:center;">
         Pay now, we'll contact you <strong style="color:#e2e8f0;">within 24 hours</strong> to get you live.
       </div>
-      <select id="loginBuyPlan" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;margin-bottom:10px;">
-        <option value="monthly">Monthly Plan</option>
-        <option value="annual">Annual Plan — Best Value</option>
+      <select id="loginBuyPlan" onchange="ffUpdatePlanSummary('login')" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:8px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:14px;margin-bottom:10px;">
+        <optgroup label="Solo Dealer">
+          <option value="monthly">Monthly</option>
+          <option value="annual">Annual — Best Value</option>
+        </optgroup>
+        <optgroup label="Franchise / Multi-Store (Gold)">
+          <option value="gold_monthly">Monthly · multi-user</option>
+          <option value="gold_annual">Annual · multi-user — Best Value</option>
+        </optgroup>
       </select>
+      <div id="loginBuyPlanSummary" style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.22);border-radius:8px;padding:12px 13px;margin-bottom:12px;font-size:12px;color:#cbd5e1;line-height:1.5;"></div>
       <input id="loginBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
       <input id="loginBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:14px;outline:none;">
@@ -2679,12 +2686,81 @@ window.showUpgradeModal = function(featureName) {
 <script src="/js/platform-bridge.js"></script>
 
 <script>
+// ── Plan summary (shown below plan dropdown in both Buy Now panels) ──
+// Buyers see exactly what they're getting + the price BEFORE the Stripe
+// redirect, since Stripe's own price descriptions are terse.
+const FF_PLAN_DETAILS = {
+  monthly: {
+    name:  'Solo Dealer — Monthly',
+    price: 'CAD $225.00 / month',
+    note:  'Billed monthly · cancel anytime',
+    feats: [
+      'Full platform access for 1 user',
+      'Deal Desk + Compare All across 12+ lenders',
+      'SARAH AI SMS (shared inbound number)',
+      'CRM, inventory, FB Poster, DT Sync'
+    ]
+  },
+  annual: {
+    name:  'Solo Dealer — Annual',
+    price: 'CAD $2,400.00 / year',
+    note:  'Billed annually · save CAD $300 vs monthly',
+    feats: [
+      'Full platform access for 1 user',
+      'Deal Desk + Compare All across 12+ lenders',
+      'SARAH AI SMS (shared inbound number)',
+      'CRM, inventory, FB Poster, DT Sync'
+    ]
+  },
+  gold_monthly: {
+    name:  'Franchise / Multi-Store (Gold) — Monthly',
+    price: 'CAD $525.00 / month',
+    note:  'Billed monthly · cancel anytime · up to 10 users',
+    feats: [
+      'Up to 10 user logins — managers + reps',
+      'Manager dashboard — see every rep\'s SARAH + CRM activity',
+      'Shared inventory across the team, per-rep lead scoping',
+      'Team-wide SARAH inbound number (per-rep numbers optional)',
+      'Priority onboarding + direct support'
+    ]
+  },
+  gold_annual: {
+    name:  'Franchise / Multi-Store (Gold) — Annual',
+    price: 'CAD $6,000.00 / year',
+    note:  'Billed annually · save CAD $300 vs monthly · up to 10 users',
+    feats: [
+      'Up to 10 user logins — managers + reps',
+      'Manager dashboard — see every rep\'s SARAH + CRM activity',
+      'Shared inventory across the team, per-rep lead scoping',
+      'Team-wide SARAH inbound number (per-rep numbers optional)',
+      'Priority onboarding + direct support'
+    ]
+  }
+};
+
+window.ffUpdatePlanSummary = function(which) {
+  const selId = which === 'login' ? 'loginBuyPlan' : 'demoBuyPlan';
+  const sumId = which === 'login' ? 'loginBuyPlanSummary' : 'demoBuyPlanSummary';
+  const sel = document.getElementById(selId);
+  const sum = document.getElementById(sumId);
+  if (!sel || !sum) return;
+  const d = FF_PLAN_DETAILS[sel.value];
+  if (!d) { sum.innerHTML = ''; return; }
+  const bullets = d.feats.map(f => `<li style="margin-bottom:3px;">${f}</li>`).join('');
+  sum.innerHTML =
+    `<div style="font-weight:700;font-size:13px;color:#e2e8f0;margin-bottom:3px;">${d.name}</div>` +
+    `<div style="font-size:15px;font-weight:800;color:#93c5fd;margin-bottom:3px;">${d.price}</div>` +
+    `<div style="font-size:11px;color:#64748b;margin-bottom:9px;">${d.note}</div>` +
+    `<ul style="margin:0;padding-left:20px;font-size:11.5px;line-height:1.55;color:#cbd5e1;">${bullets}</ul>`;
+};
+
 // ── Demo Exit Modal Buy Now ───────────────────────────────────────
 function showDemoBuyPanel() {
   document.getElementById('demoBuyPanel').style.display = 'block';
   document.querySelectorAll('#demo-exit-modal a, #demo-exit-modal button:not(#demoBuyBtn):not([onclick*="hideDemoBuyPanel"])').forEach(el => {
     if (!el.closest('#demoBuyPanel')) el.style.display = 'none';
   });
+  window.ffUpdatePlanSummary('demo');
 }
 function hideDemoBuyPanel() {
   document.getElementById('demoBuyPanel').style.display = 'none';
@@ -2706,7 +2782,7 @@ async function startDemoBuy() {
   if (!dealership)          { errEl.textContent = 'Please enter your dealership.'; errEl.style.display = 'block'; return; }
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
-  if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
+  if (!['monthly','annual','gold_monthly','gold_annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2738,6 +2814,7 @@ function showLoginBuyPanel() {
   document.getElementById('loginBuyPanel').style.display = 'block';
   document.getElementById('ff-login-form').style.display = 'none';
   document.getElementById('ff-reg-form').style.display   = 'none';
+  window.ffUpdatePlanSummary('login');
 }
 function hideLoginBuyPanel() {
   document.getElementById('loginBuyPanel').style.display = 'none';
@@ -2757,7 +2834,7 @@ async function startLoginBuy() {
   if (!dealership)          { errEl.textContent = 'Please enter your dealership.'; errEl.style.display = 'block'; return; }
   if (!email)               { errEl.textContent = 'Please enter your email.';      errEl.style.display = 'block'; return; }
   if (!emailRe.test(email)) { errEl.textContent = 'Please enter a valid email.';   errEl.style.display = 'block'; return; }
-  if (!['monthly','annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
+  if (!['monthly','annual','gold_monthly','gold_annual'].includes(plan)) { errEl.textContent = 'Invalid plan selected.'; errEl.style.display = 'block'; return; }
   errEl.style.display = 'none';
   btn.textContent = 'Redirecting to Stripe...';
   btn.disabled = true;
@@ -2796,7 +2873,7 @@ async function startLoginBuy() {
   <div id="tour-title" style="font-size:18px;font-weight:800;color:#e2e8f0;margin-bottom:8px;"></div>
   <div id="tour-body" style="font-size:13px;color:#94a3b8;line-height:1.6;margin-bottom:18px;"></div>
   <div id="tour-differentiator" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f59e0b;margin-bottom:10px;font-weight:600;"></div>
-  <div id="tour-enterprise-note" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f59e0b;margin-bottom:10px;font-weight:600;">⚙️ Multi-rooftop or high-volume? Unlock exclusive builds with extra customization, unlimited usage, and dedicated storage. Contact us to learn more →</div>
+  <div id="tour-enterprise-note" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:#f59e0b;margin-bottom:10px;font-weight:600;">🏢 Franchise or multi-store group? The Gold tier unlocks multi-user logins (managers + reps), a team dashboard to see every rep's SARAH and CRM activity, and shared inventory across rooftops. Ask about Gold →</div>
   <div id="tour-contact" style="display:none;text-align:center;margin-bottom:16px;">
     <a href="/cdn-cgi/l/email-protection#cb8da2b9b8bf8b8da2b9b8bf8da2a5aaa5a8a2aaa788aaa5aaafaae5a8a4a6" style="color:#60a5fa;font-size:13px;font-weight:700;text-decoration:none;">📧 <span class="__cf_email__" data-cfemail="a5e3ccd7d6d1e5e3ccd7d6d1e3cccbc4cbc6ccc4c9e6c4cbc4c1c48bc6cac8">[email&#160;protected]</span></a>
   </div>
@@ -2830,10 +2907,17 @@ async function startLoginBuy() {
   <div style="font-size:12px;color:#64748b;margin-bottom:14px;line-height:1.6;text-align:center;">
     Pay securely via Stripe. We'll contact you <strong style="color:#e2e8f0;">within 24 hours</strong> to complete your onboarding.
   </div>
-  <select id="demoBuyPlan" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;">
-    <option value="monthly">Monthly Plan</option>
-    <option value="annual">Annual Plan — Best Value</option>
+  <select id="demoBuyPlan" onchange="ffUpdatePlanSummary('demo')" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;">
+    <optgroup label="Solo Dealer">
+      <option value="monthly">Monthly</option>
+      <option value="annual">Annual — Best Value</option>
+    </optgroup>
+    <optgroup label="Franchise / Multi-Store (Gold)">
+      <option value="gold_monthly">Monthly · multi-user</option>
+      <option value="gold_annual">Annual · multi-user — Best Value</option>
+    </optgroup>
   </select>
+  <div id="demoBuyPlanSummary" style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.22);border-radius:8px;padding:12px 13px;margin-bottom:12px;font-size:12px;color:#cbd5e1;line-height:1.5;"></div>
   <input id="demoBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyDealership" type="text" placeholder="Dealership name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:10px;outline:none;">
   <input id="demoBuyEmail" type="email" placeholder="Email address" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-family:Outfit,sans-serif;font-size:13px;margin-bottom:14px;outline:none;">
