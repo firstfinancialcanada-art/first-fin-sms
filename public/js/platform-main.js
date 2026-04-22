@@ -3156,6 +3156,73 @@ function showAnalyticsTab(id,btn){
   if(btn)btn.classList.add('active');
 }
 
+// ── TEAM DASHBOARD (manager+ only — Phase 5) ──────────────────────
+// Fires when the Team tab is opened. Backend enforces role separately;
+// reps don't even see the tab thanks to data-min-role="manager".
+async function loadTeamStats(){
+  const list = document.getElementById('teamMembersList');
+  if (list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-family:DM Mono,monospace;font-size:11px;">Loading team activity…</div>';
+  try {
+    const r = await FF.apiFetch('/api/desk/team-stats');
+    const d = await r.json();
+    if (!d.success) {
+      if (list) list.innerHTML = `<div style="color:var(--red);padding:14px;font-size:12px;">${d.error || 'Failed to load team stats'}</div>`;
+      return;
+    }
+    const t = d.totals || {};
+    const setN = (id, v) => { const e=document.getElementById(id); if(e) e.textContent = v != null ? v : '—'; };
+    setN('teamCrmTotal', t.crm_total);
+    setN('teamCrmPool',  t.crm_pool);
+    setN('teamInv',      t.inventory_total);
+    setN('teamMembers',  (d.members || []).length);
+
+    if (!d.members || !d.members.length) {
+      if (list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-family:DM Mono,monospace;font-size:11px;">No team members yet — invite some via the admin panel.</div>';
+      return;
+    }
+    const rolePill = (r) => {
+      if (r === 'owner')   return '<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">OWNER</span>';
+      if (r === 'manager') return '<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(30,90,246,.2);color:#93c5fd;border:1px solid rgba(30,90,246,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">MANAGER</span>';
+      return                      '<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(16,185,129,.2);color:#6ee7b7;border:1px solid rgba(16,185,129,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">REP</span>';
+    };
+    const esc = (s) => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt = (n) => Number(n||0).toLocaleString();
+    const html = `
+      <table class="dt-table" style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--surface2);">
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">MEMBER</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">ASSIGNED</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">CREATED</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">DEALS 30d</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">DEALS TOTAL</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">LAST SEEN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.members.map(m => {
+            const last = m.last_login ? new Date(m.last_login).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
+            return `<tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 12px;">
+                <div style="display:flex;align-items:center;gap:8px;">${rolePill(m.role)}<strong style="color:var(--text);">${esc(m.display_name||'—')}</strong></div>
+                <div style="font-size:10px;color:var(--muted);font-family:DM Mono,monospace;margin-top:2px;">${esc(m.email)} · ${esc(m.crm_mode||'')}</div>
+              </td>
+              <td style="text-align:right;padding:10px 12px;font-family:DM Mono,monospace;color:var(--text);">${fmt(m.assigned_leads)}</td>
+              <td style="text-align:right;padding:10px 12px;font-family:DM Mono,monospace;color:var(--muted);">${fmt(m.created_leads)}</td>
+              <td style="text-align:right;padding:10px 12px;font-family:DM Mono,monospace;color:var(--green);font-weight:700;">${fmt(m.deals_30d)}</td>
+              <td style="text-align:right;padding:10px 12px;font-family:DM Mono,monospace;color:var(--muted);">${fmt(m.deals_total)}</td>
+              <td style="text-align:right;padding:10px 12px;font-family:DM Mono,monospace;color:var(--muted);font-size:11px;">${last}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+    if (list) list.innerHTML = html;
+  } catch (e) {
+    if (list) list.innerHTML = `<div style="color:var(--red);padding:14px;font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+window.loadTeamStats = loadTeamStats;
+
 function updateTarget(dealsThisMonth){
   const target=parseInt(document.getElementById('targetInput').value)||settings.target;
   const now=new Date();

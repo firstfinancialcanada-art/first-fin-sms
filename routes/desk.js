@@ -15,6 +15,7 @@ const {
 
 const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
+const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -1037,9 +1038,20 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.get('/api/desk/crm', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
+      // Phase 5 tenant scoping: filter by tenant_id (shared across team)
+      // and apply per-rep visibility based on memberRole + crm_mode.
+      // Solo tenants are owners with team_read → see all their tenant's
+      // rows, identical to pre-Phase-5 behavior. Reps on Gold tenants
+      // see own + pool (or whatever their crm_mode dictates).
+      const scope = await resolveScope(req);
+      if (!scope) {
+        // Shouldn't happen post-Phase-1 backfill, but guard for safety
+        return res.status(401).json({ success: false, error: 'No tenant membership found' });
+      }
+      const { where, params } = buildCrmReadFilter(scope, 'desk_crm');
       const result = await client.query(
-        'SELECT * FROM desk_crm WHERE user_id = $1 ORDER BY updated_at DESC',
-        [req.user.userId]
+        `SELECT * FROM desk_crm WHERE ${where} ORDER BY updated_at DESC`,
+        params
       );
       res.json({ success: true, crm: result.rows });
     } catch (e) {
@@ -1052,6 +1064,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.put('/api/desk/crm/bulk', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      // Manager+ only: bulk replace wipes the whole tenant CRM. Reps
+      // shouldn't be able to nuke teammates' work.
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Bulk CRM replace requires manager role' });
+      }
+
       const { crm } = req.body;
       if (!Array.isArray(crm)) return res.status(400).json({ success: false, error: 'crm[] required' });
 
@@ -1068,13 +1088,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       await client.query('BEGIN');
-      await client.query('DELETE FROM desk_crm WHERE user_id = $1', [req.user.userId]);
+      // Wipe by tenant — covers all members' rows, not just the caller's
+      await client.query('DELETE FROM desk_crm WHERE tenant_id = $1', [scope.tenantId]);
 
       for (const c of crm) {
         await client.query(
-          `INSERT INTO desk_crm (user_id, name, phone, email, beacon, income, obligations, status, source, notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [req.user.userId, c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
+          `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [req.user.userId, scope.tenantId, null,  // bulk imports start unassigned (pool)
+           c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
         );
       }
 
@@ -1091,6 +1113,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.post('/api/desk/crm', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+
       const cap = await checkCrmCap(req.user.userId, 1);
       if (!cap.ok) {
         return res.status(402).json({
@@ -1100,10 +1125,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         });
       }
       const c = req.body;
+      // Auto-assign to creator: a rep adding a lead "owns" it. Manager
+      // can reassign later. Owner adds also default to assigned-to-self
+      // — they can re-route via PATCH /assigned_rep_id if needed.
       const result = await client.query(
-        `INSERT INTO desk_crm (user_id, name, phone, email, beacon, income, obligations, status, source, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [req.user.userId, c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
+        `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [req.user.userId, scope.tenantId, req.user.userId,
+         c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
       );
       res.json({ success: true, entry: result.rows[0] });
     } catch (e) {
@@ -1116,9 +1145,27 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.patch('/api/desk/crm/:id', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+
+      // Permission check: fetch the row + verify same tenant + role/owner
+      const row = await client.query(
+        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'CRM entry not found' });
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot modify this lead' });
+      }
+
+      // assigned_rep_id is mutable but only by managers+ (rep can't
+      // poach a lead away from a teammate, only claim from pool which
+      // happens automatically when an unassigned row is touched).
       const ALLOWED = ['status','phone','email','source','notes','name','beacon',
                         'income','obligations','vehicle_interest','budget_range',
                         'follow_up_date','follow_up_note','last_contact'];
+      if (roleAtLeast(scope, 'manager')) ALLOWED.push('assigned_rep_id');
+
       const sets = ['updated_at = NOW()'];
       const vals = [];
       let idx = 1;
@@ -1128,9 +1175,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           vals.push(req.body[field] === '' ? null : req.body[field]);
         }
       }
-      vals.push(req.params.id, req.user.userId);
+      // Auto-claim from pool: if a rep PATCHes an unassigned row they
+      // implicitly claim it (matches buildCrmReadFilter's pool semantics).
+      if (!roleAtLeast(scope, 'manager') && row.rows[0].assigned_rep_id == null) {
+        sets.push(`assigned_rep_id = $${idx++}`);
+        vals.push(req.user.userId);
+      }
+      vals.push(req.params.id, scope.tenantId);
       await client.query(
-        `UPDATE desk_crm SET ${sets.join(', ')} WHERE id = $${idx++} AND user_id = $${idx}`,
+        `UPDATE desk_crm SET ${sets.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx}`,
         vals
       );
       res.json({ success: true });
@@ -1142,28 +1195,36 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── SYNC SARAH → CRM (pull qualified leads into CRM) ─────────
+  // Manager+ only: this scans the whole tenant's SARAH conversations and
+  // creates pool leads for new customer phones. New rows land unassigned
+  // so reps can claim them via the pool semantics in buildCrmReadFilter.
   app.post('/api/desk/crm/sync-sarah', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      // Get all conversations with vehicle interest for this user
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Sync requires manager role' });
+      }
+
+      // Pull conversations across the tenant (not just one user)
       const convs = await client.query(`
         SELECT customer_phone, customer_name, vehicle_type, budget, budget_amount, status, updated_at
         FROM conversations
-        WHERE user_id = $1 AND customer_phone IS NOT NULL
+        WHERE tenant_id = $1 AND customer_phone IS NOT NULL
           AND (vehicle_type IS NOT NULL OR budget IS NOT NULL OR customer_name IS NOT NULL)
         ORDER BY updated_at DESC
-      `, [req.user.userId]);
+      `, [scope.tenantId]);
 
       let created = 0, updated = 0;
       for (const c of convs.rows) {
         const phone = c.customer_phone;
-        // Check if already in CRM
+        // Check if already in CRM (by tenant + phone)
         const existing = await client.query(
-          'SELECT id, notes, vehicle_interest, budget_range FROM desk_crm WHERE user_id = $1 AND phone = $2',
-          [req.user.userId, phone]
+          'SELECT id, notes, vehicle_interest, budget_range FROM desk_crm WHERE tenant_id = $1 AND phone = $2',
+          [scope.tenantId, phone]
         );
         if (existing.rows.length > 0) {
-          // Update only empty fields (don't overwrite dealer's manual entries)
           const row = existing.rows[0];
           const updates = {};
           if (!row.vehicle_interest && c.vehicle_type) updates.vehicle_interest = c.vehicle_type;
@@ -1179,11 +1240,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
             updated++;
           }
         } else {
-          // Create new CRM entry from SARAH data
+          // New row lands unassigned (pool) — any rep can claim it
           await client.query(
-            `INSERT INTO desk_crm (user_id, name, phone, vehicle_interest, budget_range, status, source, last_contact)
-             VALUES ($1, $2, $3, $4, $5, 'Lead', 'SARAH', $6)`,
-            [req.user.userId, c.customer_name || '', phone, c.vehicle_type, c.budget, c.updated_at]
+            `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, vehicle_interest, budget_range, status, source, last_contact)
+             VALUES ($1, $2, NULL, $3, $4, $5, $6, 'Lead', 'SARAH', $7)`,
+            [req.user.userId, scope.tenantId, c.customer_name || '', phone, c.vehicle_type, c.budget, c.updated_at]
           );
           created++;
         }
@@ -1199,7 +1260,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.delete('/api/desk/crm/:id', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM desk_crm WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+
+      const row = await client.query(
+        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'CRM entry not found' });
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot delete this lead' });
+      }
+      await client.query('DELETE FROM desk_crm WHERE id = $1 AND tenant_id = $2', [req.params.id, scope.tenantId]);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
@@ -1326,9 +1398,16 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.get('/api/desk/lender-rates', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
+      // All tenant members read the SAME rate sheet — managers set it,
+      // reps consume it. Take the most recently updated row in case
+      // there are leftovers from before tenant_id backfill.
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
       const result = await client.query(
-        'SELECT overrides_json FROM desk_lender_rates WHERE user_id = $1',
-        [req.user.userId]
+        `SELECT overrides_json FROM desk_lender_rates
+          WHERE tenant_id = $1
+          ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+        [scope.tenantId]
       );
       res.json({ success: true, overrides: result.rows[0]?.overrides_json || {} });
     } catch (e) {
@@ -1341,15 +1420,29 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.put('/api/desk/lender-rates', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
+      // Manager+ only — reps shouldn't be able to change the lender rates
+      // their team uses for Compare All.
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Editing rates requires manager role' });
+      }
+
       const { overrides } = req.body;
+      // Replace all rows for this tenant with one canonical row owned by
+      // the writer. Avoids needing a UNIQUE(tenant_id) constraint while
+      // keeping reads simple (latest row by tenant).
+      await client.query('BEGIN');
+      await client.query('DELETE FROM desk_lender_rates WHERE tenant_id = $1', [scope.tenantId]);
       await client.query(
-        `INSERT INTO desk_lender_rates (user_id, overrides_json, updated_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET overrides_json = $2, updated_at = NOW()`,
-        [req.user.userId, JSON.stringify(overrides || {})]
+        `INSERT INTO desk_lender_rates (user_id, tenant_id, overrides_json, updated_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [req.user.userId, scope.tenantId, JSON.stringify(overrides || {})]
       );
+      await client.query('COMMIT');
       res.json({ success: true });
     } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
@@ -1359,8 +1452,80 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.delete('/api/desk/lender-rates', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM desk_lender_rates WHERE user_id = $1', [req.user.userId]);
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Resetting rates requires manager role' });
+      }
+      await client.query('DELETE FROM desk_lender_rates WHERE tenant_id = $1', [scope.tenantId]);
       res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // TEAM DASHBOARD (Phase 5 — manager+ only)
+  // Returns per-rep activity for the current tenant: each member's
+  // CRM count, deals logged, last login, etc. Used by the Team tab
+  // in the platform's Analytics view.
+  // ═══════════════════════════════════════════════════════════
+  app.get('/api/desk/team-stats', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Team dashboard requires manager role' });
+      }
+      // One row per active member of this tenant with their stats
+      const result = await client.query(`
+        SELECT
+          m.id           AS member_id,
+          m.user_id,
+          m.role,
+          m.crm_mode,
+          u.email,
+          u.display_name,
+          u.last_login,
+          COALESCE(c.assigned_count,    0) AS assigned_leads,
+          COALESCE(c.created_count,     0) AS created_leads,
+          COALESCE(d.deal_count_30d,    0) AS deals_30d,
+          COALESCE(d.deal_count_total,  0) AS deals_total
+        FROM desk_members m
+        JOIN desk_users   u ON u.id = m.user_id
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*) FILTER (WHERE assigned_rep_id = m.user_id) AS assigned_count,
+            COUNT(*) FILTER (WHERE user_id         = m.user_id) AS created_count
+          FROM desk_crm WHERE tenant_id = $1
+        ) c ON true
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') AS deal_count_30d,
+            COUNT(*) AS deal_count_total
+          FROM desk_deal_log WHERE user_id = m.user_id
+        ) d ON true
+        WHERE m.tenant_id = $1 AND m.active = TRUE
+        ORDER BY (CASE m.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END),
+                 m.invited_at ASC
+      `, [scope.tenantId]);
+
+      // Tenant-level totals for the dashboard header
+      const totals = await client.query(`
+        SELECT
+          (SELECT COUNT(*) FROM desk_crm WHERE tenant_id = $1) AS crm_total,
+          (SELECT COUNT(*) FROM desk_crm WHERE tenant_id = $1 AND assigned_rep_id IS NULL) AS crm_pool,
+          (SELECT COUNT(*) FROM desk_inventory WHERE tenant_id = $1) AS inventory_total
+      `, [scope.tenantId]);
+
+      res.json({
+        success: true,
+        members: result.rows,
+        totals: totals.rows[0] || {},
+      });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {

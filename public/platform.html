@@ -1814,6 +1814,8 @@ select option{background:#0d1526;color:var(--text);}
     <button class="mgr-tab" onclick="showAnalyticsTab('stats',this)"><i data-lucide="trending-up" class="ico-sm"></i>Stats</button>
     <button class="mgr-tab" onclick="showAnalyticsTab('crm',this)"><i data-lucide="users" class="ico-sm"></i>CRM</button>
     <button class="mgr-tab" onclick="showAnalyticsTab('target',this)"><i data-lucide="target" class="ico-sm"></i>Monthly Target</button>
+    <!-- Team tab — manager+ only (data-min-role hides for reps automatically) -->
+    <button class="mgr-tab" data-min-role="manager" onclick="showAnalyticsTab('team',this);loadTeamStats();"><i data-lucide="users-2" class="ico-sm"></i>Team</button>
   </div>
 
   <!-- Deal Log -->
@@ -1873,10 +1875,28 @@ select option{background:#0d1526;color:var(--text);}
         <div class="stat-card"><div class="stat-number" id="tPace">—</div><div class="stat-label">Pace</div></div>
       </div>
       <div style="margin-top:10px;font-size:12px;color:var(--muted);text-align:center;">
-        Days left: <strong style="color:var(--amber);" id="tDaysLeft">—</strong> &nbsp;|&nbsp; 
+        Days left: <strong style="color:var(--amber);" id="tDaysLeft">—</strong> &nbsp;|&nbsp;
         Needed/day: <strong style="color:var(--primary);" id="tNeedPerDay">—</strong>
       </div>
     </div>
+  </div>
+
+  <!-- Team (manager+ only — populated by loadTeamStats() on tab open) -->
+  <div id="atab-team" class="mgr-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;color:var(--text);">TEAM ACTIVITY</div>
+        <div style="font-size:11px;color:var(--muted);">Per-rep CRM ownership, deals logged, last seen</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadTeamStats()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
+    </div>
+    <div class="stat-hero" id="team-totals" style="margin-bottom:18px;">
+      <div class="stat-card"><div class="stat-number" id="teamCrmTotal">—</div><div class="stat-label">Total Leads</div></div>
+      <div class="stat-card"><div class="stat-number" id="teamCrmPool">—</div><div class="stat-label">Unassigned (Pool)</div></div>
+      <div class="stat-card"><div class="stat-number" id="teamInv">—</div><div class="stat-label">Inventory</div></div>
+      <div class="stat-card"><div class="stat-number" id="teamMembers">—</div><div class="stat-label">Active Members</div></div>
+    </div>
+    <div class="table-wrap"><div id="teamMembersList"></div></div>
   </div>
 </section>
 
