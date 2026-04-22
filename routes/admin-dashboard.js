@@ -2,6 +2,7 @@
 const { pool } = require('../lib/db');
 const { TENANT_CAPS } = require('../lib/constants');
 const { addOverage } = require('../lib/spend-cap');
+const tenants = require('../lib/tenants');
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -186,11 +187,17 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  COALESCE(cc.cnt, 0) AS crm_count,
                  COALESCE(vc.cnt, 0) AS conversation_count,
                  COALESCE(ac.cnt, 0) AS appointment_count
+                 COALESCE(t.tier, 'single') AS tenant_tier,
+                 COALESCE(t.seats_allowed, 1) AS seats_allowed,
+                 t.id AS tenant_id,
+                 COALESCE(mc.cnt, 1) AS member_count
           FROM desk_users u
+          LEFT JOIN desk_tenants t ON t.owner_user_id = u.id
           LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM desk_inventory WHERE user_id = u.id) ic ON true
           LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM desk_crm WHERE user_id = u.id) cc ON true
           LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM conversations WHERE user_id = u.id) vc ON true
           LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM appointments WHERE user_id = u.id) ac ON true
+          LEFT JOIN LATERAL (SELECT COUNT(*) AS cnt FROM desk_members WHERE tenant_id = t.id AND active = TRUE) mc ON true
           ${orderBy}
         `);
         return res.json({ success: true, users: result.rows });
@@ -728,6 +735,223 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MULTI-USER TENANT + MEMBER ADMIN API (Phase 3)
+  //
+  // Tenant is resolved via owner_user_id (each existing desk_users row
+  // owns exactly one tenant, established by the Phase 1 backfill). The
+  // :userId param in these routes refers to the tenant OWNER's user id,
+  // matching the identifier used throughout the existing admin panel.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── GET /api/admin/tenant/:userId/members ─────────────────────────
+  // Returns tenant header (id, tier, seats, dealership, owner) plus the
+  // full member roster. Used by the admin UI when operator opens the
+  // Members panel for a tenant.
+  app.get('/api/admin/tenant/:userId/members', adminAuth, async (req, res) => {
+    try {
+      const ownerId = parseInt(req.params.userId, 10);
+      if (!ownerId) return res.status(400).json({ success: false, error: 'Invalid user id' });
+      const t = await pool.query(
+        `SELECT id, tier, seats_allowed, dealership, owner_user_id, stripe_sub_id, created_at
+           FROM desk_tenants WHERE owner_user_id = $1`,
+        [ownerId]
+      );
+      if (!t.rows.length) {
+        // Owner exists but no tenant row yet — rare edge case (race between
+        // signup and boot backfill). Surface it instead of silently 404'ing.
+        return res.status(404).json({ success: false, error: 'Tenant not found for this user — try again after next deploy.' });
+      }
+      const tenant  = t.rows[0];
+      const members = await tenants.listMembers(tenant.id);
+      const usage   = await tenants.getSeatUsage(tenant.id);
+      res.json({ success: true, tenant, members, usage });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── POST /api/admin/tenant/:userId/tier ───────────────────────────
+  // Body: { tier: 'single' | 'gold' }
+  // Flips a tenant's tier and resets seats_allowed to the tier default
+  // (1 for single, 10 for gold). Existing members are NOT auto-removed
+  // when downgrading — an operator must remove them manually if the new
+  // seat cap is exceeded. Used for manual comp / upgrade flows until the
+  // Stripe webhook tier-sync is wired up.
+  app.post('/api/admin/tenant/:userId/tier', adminAuth, async (req, res) => {
+    try {
+      const ownerId = parseInt(req.params.userId, 10);
+      const { tier } = req.body || {};
+      if (!ownerId) return res.status(400).json({ success: false, error: 'Invalid user id' });
+      if (!tenants.VALID_TIERS.includes(tier)) {
+        return res.status(400).json({ success: false, error: 'Invalid tier. Expected: ' + tenants.VALID_TIERS.join(' | ') });
+      }
+      const t = await pool.query(`SELECT id FROM desk_tenants WHERE owner_user_id = $1`, [ownerId]);
+      if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant not found' });
+      await tenants.setTenantTier(t.rows[0].id, tier);
+      await auditLog('set_tenant_tier', 'tenant', t.rows[0].id, { tier }, req);
+      res.json({ success: true, tenantId: t.rows[0].id, tier });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── POST /api/admin/tenant/:userId/members ────────────────────────
+  // Body: { email, name, role, crmMode? }
+  // Invites a new user into this tenant. Creates the desk_users row
+  // (with a placeholder bcrypt hash that CAN'T be logged in with), adds
+  // a desk_members row with the chosen role/crm_mode, and issues a
+  // 24h setup_tokens row so the admin can share `${BASE_URL}/setup?token=
+  // xxx` with the invitee to set their password and get a working login.
+  //
+  // Enforces the tenant's seat cap via tenants.addMember.
+  app.post('/api/admin/tenant/:userId/members', adminAuth, async (req, res) => {
+    const crypto = require('crypto');
+    const bcrypt = require('bcryptjs');
+    const ownerId = parseInt(req.params.userId, 10);
+    const { email, name, role = 'rep', crmMode = 'pool_plus_own' } = req.body || {};
+    if (!ownerId)         return res.status(400).json({ success: false, error: 'Invalid user id' });
+    if (!email || !name)  return res.status(400).json({ success: false, error: 'email and name required' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email' });
+    }
+    if (!tenants.VALID_ROLES.includes(role)) {
+      return res.status(400).json({ success: false, error: 'Invalid role. Expected: ' + tenants.VALID_ROLES.join(' | ') });
+    }
+    if (!tenants.VALID_CRM_MODES.includes(crmMode)) {
+      return res.status(400).json({ success: false, error: 'Invalid crmMode' });
+    }
+    if (role === 'owner') {
+      return res.status(400).json({ success: false, error: 'Cannot invite another owner — each tenant has exactly one' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Resolve tenant
+      const tRow = await client.query(`SELECT id, dealership FROM desk_tenants WHERE owner_user_id = $1`, [ownerId]);
+      if (!tRow.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Tenant not found' }); }
+      const tenantId = tRow.rows[0].id;
+
+      // Seat cap check (also double-checked inside tenants.addMember)
+      const usage = await tenants.getSeatUsage(tenantId);
+      if (usage.remaining <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ success: false, error: `Tenant has no seats remaining (${usage.used}/${usage.allowed})` });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+
+      // Look up or create desk_users row for this email
+      let userId;
+      const existing = await client.query('SELECT id FROM desk_users WHERE email = $1', [cleanEmail]);
+      if (existing.rows.length) {
+        userId = existing.rows[0].id;
+        // Defensive: don't auto-merge a user that already belongs to a
+        // different tenant's member set — admin has to resolve that
+        // manually.
+        const conflict = await client.query(
+          `SELECT tenant_id FROM desk_members WHERE user_id = $1 AND active = TRUE AND tenant_id != $2`,
+          [userId, tenantId]
+        );
+        if (conflict.rows.length) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ success: false, error: 'That email is already active on another tenant.' });
+        }
+      } else {
+        // Placeholder hash that can't be logged in with — user MUST
+        // complete the setup flow to set a real password.
+        const placeholder = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 12);
+        const u = await client.query(
+          `INSERT INTO desk_users (email, password_hash, display_name, role, subscription_status)
+           VALUES ($1, $2, $3, 'rep', 'active')
+           RETURNING id`,
+          [cleanEmail, placeholder, name.trim()]
+        );
+        userId = u.rows[0].id;
+      }
+
+      // Wire up the desk_members row (tenants.addMember wraps its own
+      // seat-cap check + UPSERT). Called outside the client transaction
+      // because it uses the shared pool, but safe here since the row
+      // tenant_id resolved above still holds (desk_tenants isn't mutated
+      // in this txn).
+      await tenants.addMember(tenantId, userId, role, crmMode);
+
+      // Issue a 24h setup token so the admin can send the invitee a
+      // setup link.
+      const setupToken = crypto.randomBytes(32).toString('hex');
+      await client.query(
+        `INSERT INTO setup_tokens (token, user_id, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
+        [setupToken, userId]
+      );
+      await client.query('COMMIT');
+
+      const baseUrl = process.env.BASE_URL
+        ? process.env.BASE_URL.replace(/\/$/, '')
+        : 'https://app.firstfinancialcanada.com';
+      const setupUrl = `${baseUrl}/setup?token=${setupToken}`;
+
+      await auditLog('invite_member', 'tenant', tenantId, { userId, email: cleanEmail, role, crmMode }, req);
+      res.json({ success: true, userId, tenantId, role, crmMode, setupUrl });
+    } catch(e) {
+      try { await client.query('ROLLBACK'); } catch {}
+      console.error('invite member error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── PATCH /api/admin/member/:memberId ─────────────────────────────
+  // Body: { role?, crmMode?, sarahNumber?, active? }
+  // Updates a single member's settings. Owner role can't be demoted via
+  // this endpoint — ownership transfer is a separate flow (not yet
+  // implemented; operator would do it via direct DB in an emergency).
+  app.patch('/api/admin/member/:memberId', adminAuth, async (req, res) => {
+    const memberId = parseInt(req.params.memberId, 10);
+    if (!memberId) return res.status(400).json({ success: false, error: 'Invalid member id' });
+    try {
+      const m = await pool.query(`SELECT id, tenant_id, user_id, role FROM desk_members WHERE id = $1`, [memberId]);
+      if (!m.rows.length) return res.status(404).json({ success: false, error: 'Member not found' });
+      if (m.rows[0].role === 'owner' && req.body.role && req.body.role !== 'owner') {
+        return res.status(400).json({ success: false, error: 'Cannot demote tenant owner via this endpoint' });
+      }
+      await tenants.updateMember(memberId, {
+        role:        req.body.role,
+        crmMode:     req.body.crmMode,
+        sarahNumber: req.body.sarahNumber,
+        active:      req.body.active,
+      });
+      await auditLog('update_member', 'member', memberId, req.body, req);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(400).json({ success: false, error: e.message || sanitizeError(e) });
+    }
+  });
+
+  // ── DELETE /api/admin/member/:memberId ────────────────────────────
+  // Soft-remove a member (sets active = FALSE). The desk_users row and
+  // the member history are preserved. Owner role cannot be removed —
+  // deleting the owner would orphan the tenant.
+  app.delete('/api/admin/member/:memberId', adminAuth, async (req, res) => {
+    const memberId = parseInt(req.params.memberId, 10);
+    if (!memberId) return res.status(400).json({ success: false, error: 'Invalid member id' });
+    try {
+      const m = await pool.query(`SELECT id, tenant_id, user_id, role FROM desk_members WHERE id = $1`, [memberId]);
+      if (!m.rows.length) return res.status(404).json({ success: false, error: 'Member not found' });
+      if (m.rows[0].role === 'owner') {
+        return res.status(400).json({ success: false, error: 'Cannot remove tenant owner. Delete the tenant instead.' });
+      }
+      await tenants.removeMember(memberId);
+      await auditLog('remove_member', 'member', memberId, {}, req);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 

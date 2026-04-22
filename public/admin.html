@@ -526,6 +526,53 @@ tr:hover td{background:rgba(30,90,246,.03);}
   </div>
 </div>
 
+<!-- ═══ MEMBERS MODAL — multi-user tenant management (Phase 3) ═══ -->
+<div class="modal-overlay" id="membersModal">
+  <div class="modal-box" style="max-width:720px;">
+    <button class="modal-close" onclick="document.getElementById('membersModal').classList.remove('open')">×</button>
+    <div class="modal-title">TENANT MEMBERS</div>
+    <div id="mem-header" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></div>
+
+    <!-- Tier bar -->
+    <div id="mem-tier-bar" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div id="mem-tier-label" style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#f59e0b;font-family:'DM Mono',monospace;"></div>
+        <div id="mem-seats-label" style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;"></div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="act" id="mem-tier-single" style="font-size:10px;padding:5px 10px;" onclick="changeTier('single')">Set Solo (1 seat)</button>
+        <button class="act" id="mem-tier-gold" style="background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.4);font-size:10px;padding:5px 10px;" onclick="changeTier('gold')">Set Gold (10 seats)</button>
+      </div>
+    </div>
+
+    <!-- Members list -->
+    <div id="mem-list" style="margin-bottom:18px;"></div>
+
+    <!-- Invite form -->
+    <div id="mem-invite-section" style="border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;font-family:'DM Mono',monospace;">Invite Team Member</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="mem-invite-name" placeholder="Full name" style="padding:8px 10px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:Outfit,sans-serif;">
+        <input type="email" id="mem-invite-email" placeholder="Email address" style="padding:8px 10px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:Outfit,sans-serif;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <select id="mem-invite-role" style="padding:8px 10px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:Outfit,sans-serif;">
+          <option value="manager">Manager</option>
+          <option value="rep" selected>Sales Rep</option>
+        </select>
+        <select id="mem-invite-crm" style="padding:8px 10px;background:#070d1a;border:1px solid rgba(30,90,246,.25);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:Outfit,sans-serif;" title="CRM visibility mode">
+          <option value="pool_plus_own" selected>Pool + Own Leads</option>
+          <option value="private">Private (Own Only)</option>
+          <option value="team_read">Team Read</option>
+        </select>
+        <button class="btn-submit" style="padding:8px 12px;font-size:12px;" onclick="submitInviteMember()">+ Add Member</button>
+      </div>
+      <div id="mem-invite-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none;"></div>
+      <div id="mem-invite-ok"  style="color:#10b981;font-size:11px;margin-bottom:10px;display:none;font-family:'DM Mono',monospace;word-break:break-all;"></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -887,10 +934,16 @@ function renderUsers(users) {
       const on = isLegacyActive || !!f[key];
       return `<span style="font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid;background:${on?`rgba(${color},.15)`:'rgba(100,116,139,.1)'};color:${on?`rgb(${color})`:'#64748b'};border-color:${on?`rgba(${color},.4)`:'rgba(100,116,139,.3)'}">${on?'✓':'✗'} ${label}</span>`;
     };
+    const tier        = u.tenant_tier || 'single';
+    const seatsUsed   = parseInt(u.member_count || 1);
+    const seatsMax    = parseInt(u.seats_allowed || 1);
+    const tierPill    = tier === 'gold'
+      ? `<span style="display:inline-block;font-size:9px;padding:1.5px 7px;border-radius:3px;background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.1));color:#f59e0b;border:1px solid rgba(245,158,11,.4);font-weight:700;letter-spacing:1px;font-family:'DM Mono',monospace;">GOLD · ${seatsUsed}/${seatsMax}</span>`
+      : `<span style="display:inline-block;font-size:9px;padding:1.5px 7px;border-radius:3px;background:rgba(100,116,139,.12);color:#64748b;border:1px solid rgba(100,116,139,.3);font-weight:700;letter-spacing:1px;font-family:'DM Mono',monospace;">SOLO</span>`;
     return `<tr>
       <td>
         <div class="user-info">
-          <span class="user-name">${esc(u.display_name || '—')}</span>
+          <span class="user-name">${esc(u.display_name || '—')} ${tierPill}</span>
           <span class="user-email" onclick="copyToClipboard('${esc(u.email)}');event.stopPropagation();" title="Click to copy" style="cursor:pointer;">${esc(u.email)}</span>
           ${s.dealerName ? `<span style="font-size:10px;color:var(--muted);margin-top:1px;">${esc(s.dealerName)}${s.dealerCity?` · ${esc(s.dealerCity)}`:''}</span>` : ''}
           <span style="font-size:9px;color:var(--muted);margin-top:1px;">Joined ${created}</span>
@@ -917,6 +970,7 @@ function renderUsers(users) {
           <button class="act blue" onclick="openSubModal(${u.id},'${esc(u.email)}','${sub}')">Sub</button>
           <button class="act amber" onclick="openPwModal(${u.id},'${esc(u.email)}')">PW</button>
           <button class="act" style="background:rgba(16,185,129,.15);color:#10b981;border-color:rgba(16,185,129,.3);" onclick="openFeaturesModal(${u.id},'${esc(u.email)}',${JSON.stringify(u.features||{}).replace(/"/g,'&quot;')})">Features</button>
+          <button class="act" style="background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.3);" onclick="openMembersModal(${u.id},'${esc(u.email)}','${esc(u.display_name||'')}','${tier}')">Members</button>
           <button class="act" style="background:rgba(6,182,212,.15);color:#06b6d4;border-color:rgba(6,182,212,.3);" onclick="openSettingsModal(${u.id},'${esc(u.email)}')">Settings</button>
           ${suspended
             ? `<button class="act green" onclick="userAction(${u.id},'unsuspend')">Restore</button>`
@@ -1074,6 +1128,183 @@ async function submitPwReset() {
     if (d.success) { toast('✓ Password reset'); document.getElementById('pwModal').classList.remove('open'); }
     else { errEl.textContent = d.error; errEl.style.display = 'block'; }
   } catch(e) {}
+}
+
+// ── MEMBERS MODAL (Phase 3 — multi-user tenant management) ────────
+let currentMembersUserId   = null;   // desk_users.id of the tenant OWNER
+let currentMembersEmail    = '';
+let currentMembersTier     = 'single';
+
+async function openMembersModal(userId, email, displayName, tier) {
+  currentMembersUserId = userId;
+  currentMembersEmail  = email;
+  currentMembersTier   = tier || 'single';
+  document.getElementById('mem-header').textContent = `${displayName || '—'} · ${email}`;
+  document.getElementById('mem-invite-err').style.display = 'none';
+  document.getElementById('mem-invite-ok').style.display  = 'none';
+  document.getElementById('mem-invite-name').value  = '';
+  document.getElementById('mem-invite-email').value = '';
+  document.getElementById('mem-list').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-family:DM Mono,monospace;font-size:11px;">Loading…</div>';
+  document.getElementById('membersModal').classList.add('open');
+  await loadMembers();
+}
+
+async function loadMembers() {
+  try {
+    const d = await api(`/api/admin/tenant/${currentMembersUserId}/members`);
+    if (!d.success) {
+      document.getElementById('mem-list').innerHTML = `<div style="color:var(--red);padding:14px;font-size:12px;">${d.error || 'Failed to load members'}</div>`;
+      return;
+    }
+    currentMembersTier = d.tenant.tier || 'single';
+    const usage = d.usage || { used: 0, allowed: 1 };
+
+    // Tier bar
+    document.getElementById('mem-tier-label').textContent =
+      (currentMembersTier === 'gold' ? 'GOLD TIER · FRANCHISE / MULTI-STORE' : 'SOLO TIER · SINGLE DEALER');
+    document.getElementById('mem-seats-label').textContent =
+      `Seats used: ${usage.used} / ${usage.allowed}`;
+    const goldBtn  = document.getElementById('mem-tier-gold');
+    const soloBtn  = document.getElementById('mem-tier-single');
+    goldBtn.style.opacity = currentMembersTier === 'gold'   ? '0.5' : '1';
+    soloBtn.style.opacity = currentMembersTier === 'single' ? '0.5' : '1';
+    goldBtn.disabled = currentMembersTier === 'gold';
+    soloBtn.disabled = currentMembersTier === 'single';
+
+    // Invite form disabled at cap
+    const atCap = usage.used >= usage.allowed;
+    document.getElementById('mem-invite-section').style.opacity = atCap ? '0.5' : '1';
+
+    // Members list
+    const rolePill = (r) => {
+      if (r === 'owner')   return '<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,.2);color:#a78bfa;border:1px solid rgba(139,92,246,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">OWNER</span>';
+      if (r === 'manager') return '<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(30,90,246,.2);color:#93c5fd;border:1px solid rgba(30,90,246,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">MANAGER</span>';
+      return                      '<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(16,185,129,.2);color:#6ee7b7;border:1px solid rgba(16,185,129,.4);font-weight:700;letter-spacing:1px;font-family:DM Mono,monospace;">REP</span>';
+    };
+    const members = d.members || [];
+    const html = members.map(m => {
+      const last = m.last_login ? new Date(m.last_login).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : 'never';
+      const isOwner = m.role === 'owner';
+      const roleOpts = ['owner','manager','rep'].map(r => `<option value="${r}" ${m.role===r?'selected':''}>${r}</option>`).join('');
+      const crmOpts  = [
+        ['private','Private'],
+        ['pool_plus_own','Pool + Own'],
+        ['team_read','Team Read'],
+      ].map(([v,l]) => `<option value="${v}" ${m.crm_mode===v?'selected':''}>${l}</option>`).join('');
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${rolePill(m.role)}
+            <span style="font-weight:700;color:var(--text);font-size:13px;">${escMem(m.display_name||'—')}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:DM Mono,monospace;">${escMem(m.email)} · last login ${last}</div>
+        </div>
+        <select onchange="updateMember(${m.id}, {role: this.value})" ${isOwner?'disabled':''} style="padding:5px 8px;background:#070d1a;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:Outfit,sans-serif;" title="Change role">
+          ${roleOpts}
+        </select>
+        <select onchange="updateMember(${m.id}, {crmMode: this.value})" style="padding:5px 8px;background:#070d1a;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;font-family:Outfit,sans-serif;" title="CRM visibility mode">
+          ${crmOpts}
+        </select>
+        ${isOwner
+          ? '<span style="font-size:10px;color:var(--muted);font-family:DM Mono,monospace;padding:0 4px;">—</span>'
+          : `<button class="act red" onclick="removeMember(${m.id},'${escMem(m.email)}')" style="font-size:10px;padding:4px 10px;">Remove</button>`}
+      </div>`;
+    }).join('');
+    document.getElementById('mem-list').innerHTML = html || '<div style="text-align:center;color:var(--muted);padding:20px;font-family:DM Mono,monospace;font-size:11px;">No members yet</div>';
+  } catch(e) {
+    document.getElementById('mem-list').innerHTML = `<div style="color:var(--red);padding:14px;font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+// Narrower escape used only inside member templates to avoid colliding
+// with the admin panel's top-level esc() if it gets redefined.
+function escMem(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function changeTier(tier) {
+  if (!currentMembersUserId) return;
+  if (tier === currentMembersTier) return;
+  const confirmMsg = tier === 'gold'
+    ? `Upgrade ${currentMembersEmail} to GOLD tier?\n\n• Seats allowed: 10\n• Enables multi-user logins + manager dashboard\n• This is a manual comp/upgrade — Stripe billing is NOT auto-adjusted`
+    : `Downgrade ${currentMembersEmail} to SOLO tier?\n\n• Seats allowed: 1\n• Existing members are NOT auto-removed — you must remove them manually if exceeding the cap`;
+  if (!confirm(confirmMsg)) return;
+  try {
+    const d = await api(`/api/admin/tenant/${currentMembersUserId}/tier`, {
+      method: 'POST',
+      body: JSON.stringify({ tier })
+    });
+    if (d.success) {
+      toast(`✓ Tier set to ${tier.toUpperCase()}`);
+      await loadMembers();
+      await loadUsers();  // refresh main table so the pill updates
+    } else {
+      toast('⚠ ' + (d.error || 'Tier change failed'));
+    }
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function submitInviteMember() {
+  const name  = document.getElementById('mem-invite-name').value.trim();
+  const email = document.getElementById('mem-invite-email').value.trim().toLowerCase();
+  const role  = document.getElementById('mem-invite-role').value;
+  const crm   = document.getElementById('mem-invite-crm').value;
+  const errEl = document.getElementById('mem-invite-err');
+  const okEl  = document.getElementById('mem-invite-ok');
+  errEl.style.display = 'none';
+  okEl.style.display  = 'none';
+  if (!name || !email) { errEl.textContent = 'Name and email required'; errEl.style.display = 'block'; return; }
+  try {
+    const d = await api(`/api/admin/tenant/${currentMembersUserId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ name, email, role, crmMode: crm })
+    });
+    if (d.success) {
+      // Surface the setup URL so admin can share it with the invitee
+      okEl.innerHTML = `✓ Invited <b>${escMem(email)}</b>. Share this setup link with them (expires in 24h):<br>
+        <a href="${d.setupUrl}" target="_blank" style="color:#06b6d4;text-decoration:underline;">${escMem(d.setupUrl)}</a>
+        <button class="act" style="margin-left:8px;font-size:9px;padding:2px 6px;" onclick="navigator.clipboard.writeText('${d.setupUrl}');this.textContent='copied';">Copy</button>`;
+      okEl.style.display = 'block';
+      document.getElementById('mem-invite-name').value  = '';
+      document.getElementById('mem-invite-email').value = '';
+      await loadMembers();
+      await loadUsers();
+    } else {
+      errEl.textContent = d.error || 'Failed to invite';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function updateMember(memberId, patch) {
+  try {
+    const d = await api(`/api/admin/member/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    });
+    if (d.success) {
+      toast('✓ Updated');
+      await loadMembers();
+    } else {
+      toast('⚠ ' + (d.error || 'Update failed'));
+      await loadMembers();  // revert UI state
+    }
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function removeMember(memberId, email) {
+  if (!confirm(`Remove ${email} from this team?\n\nTheir login stays but they lose access to this tenant's data.`)) return;
+  try {
+    const d = await api(`/api/admin/member/${memberId}`, { method: 'DELETE' });
+    if (d.success) {
+      toast('✓ Removed');
+      await loadMembers();
+      await loadUsers();
+    } else {
+      toast('⚠ ' + (d.error || 'Remove failed'));
+    }
+  } catch(e) { toast('Error: ' + e.message); }
 }
 
 let currentSettingsUserId = null;
