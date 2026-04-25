@@ -44,6 +44,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     } catch(e) { console.error('⚠️ inventory constraint migration:', e.message); }
   })();
 
+  // ── Phase 6: per-rep FB-posting attribution ──
+  // Lets the manager Team modal show 'who posted how many cars to FB
+  // Marketplace last 30 days'. Backfilled to NULL — older posts roll
+  // up under '(unattributed)' which is fine for new tenants.
+  ;(async () => {
+    try {
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fb_posted_by_user_id INTEGER`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_dinv_fb_posted_by ON desk_inventory(fb_posted_by_user_id)`);
+      console.log('✅ desk_inventory.fb_posted_by_user_id ready (per-rep FB activity tracking)');
+    } catch(e) { console.error('⚠️ fb_posted_by migration:', e.message); }
+  })();
+
   // ── Phase 6: tenant-shared inventory (10 reps see the same dealer's lot) ──
   // Adds desk_inventory.tenant_id, backfills from desk_members, switches the
   // active uniqueness boundary to (tenant_id, stock). Reads/writes downstream
@@ -958,26 +970,85 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const dateClause = status === 'posted' ? 'fb_posted_date = CURRENT_DATE,' : status === 'pending' ? 'fb_posted_date = NULL,' : '';
       // Phase 6: any rep on the tenant can mark posted/pending (FB Poster
       // is a manager+rep flow — anyone covering the lot can update status).
+      // Track WHO posted via fb_posted_by_user_id so managers can see per-
+      // rep activity in the Team Activity panel.
+      const postedBy   = status === 'posted' ? req.user.userId : null;
+      const postedByCl = status === 'posted'
+        ? 'fb_posted_by_user_id = $4,'
+        : (status === 'pending' ? 'fb_posted_by_user_id = NULL,' : '');
       const scope = await resolveScope(req);
+      const params = scope?.tenantId
+        ? [status, req.params.stock, scope.tenantId, postedBy].filter((_, i) => i < 3 || postedByCl)
+        : [status, req.params.stock, req.user.userId, postedBy].filter((_, i) => i < 3 || postedByCl);
       const result = scope?.tenantId
         ? await client.query(
-            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
+            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} ${postedByCl} updated_at = NOW()
              WHERE stock = $2 AND tenant_id = $3 RETURNING stock, fb_status, fb_posted_date`,
-            [status, req.params.stock, scope.tenantId]
+            params
           )
         : await client.query(
-            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
+            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} ${postedByCl} updated_at = NOW()
              WHERE stock = $2 AND user_id = $3 AND tenant_id IS NULL RETURNING stock, fb_status, fb_posted_date`,
-            [status, req.params.stock, req.user.userId]
+            params
           );
       if (!result.rows.length) {
         return res.status(404).json({ success: false, error: 'Vehicle not found' });
+      }
+      if (status === 'posted') {
+        trackFeature(req.user.userId, 'fb_poster', 'marked_posted', { stock: req.params.stock });
       }
       res.json({ success: true, ...result.rows[0] });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ── GET per-member FB posting activity (manager+ only) ──────────
+  // Returns each member's FB post counts in the last 30 days, used by
+  // the Team modal to show 'who's actually pushing inventory to FB'.
+  app.get('/api/desk/team/fb-stats', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can view team activity' });
+      }
+      // Vehicles posted in the last 30 days, grouped by who posted.
+      // fb_posted_by_user_id was added in Phase 6 — older posts have NULL
+      // and roll up under 'unattributed' (only relevant for tenants that
+      // had FB posts before Phase 6 deployed).
+      const r = await pool.query(`
+        SELECT
+          COALESCE(u.id, 0)            AS user_id,
+          COALESCE(u.display_name, '(unattributed)') AS name,
+          COALESCE(u.email, '')        AS email,
+          COUNT(*)                     AS posted_30d,
+          MAX(di.fb_posted_date)       AS last_post_date
+        FROM desk_inventory di
+        LEFT JOIN desk_users u ON u.id = di.fb_posted_by_user_id
+        WHERE di.tenant_id   = $1
+          AND di.fb_status   = 'posted'
+          AND di.fb_posted_date >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY u.id, u.display_name, u.email
+        ORDER BY posted_30d DESC
+      `, [scope.tenantId]);
+      // Also total tenant inventory + posted count for a percentage
+      const totals = await pool.query(`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE fb_status='posted')::int AS posted_total
+        FROM desk_inventory WHERE tenant_id = $1
+      `, [scope.tenantId]);
+      res.json({
+        success: true,
+        members:        r.rows,
+        inventoryTotal: totals.rows[0]?.total        || 0,
+        postedTotal:    totals.rows[0]?.posted_total || 0,
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 

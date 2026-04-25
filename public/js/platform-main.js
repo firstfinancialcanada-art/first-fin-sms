@@ -2581,6 +2581,8 @@ async function openTeamModal() {
 async function refreshTeam() {
   const list = document.getElementById('team-members-list');
   if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;font-family:DM Mono,monospace;">Loading...</div>';
+  // Kick off FB stats in parallel with team fetch — both populate Team modal
+  refreshTeamFbStats();
   try {
     const res = await window.FF.apiFetch('/api/desk/team');
     const d   = await res.json();
@@ -2687,6 +2689,41 @@ async function removeTeamMember(memberId, email) {
     await refreshTeam();
   } catch (e) {
     toast('⚠️ ' + e.message);
+  }
+}
+
+async function refreshTeamFbStats() {
+  const stats   = document.getElementById('team-fb-stats');
+  const totals  = document.getElementById('team-fb-totals');
+  if (!stats) return;
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team/fb-stats');
+    const d   = await res.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    if (totals) totals.textContent = `${d.postedTotal || 0} posted of ${d.inventoryTotal || 0} total`;
+    if (!d.members || d.members.length === 0) {
+      stats.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:DM Mono,monospace;">No FB Marketplace posts yet in the last 30 days.</div>';
+      return;
+    }
+    const _esc = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+    const max = Math.max(...d.members.map(m => parseInt(m.posted_30d) || 0), 1);
+    stats.innerHTML = d.members.map(m => {
+      const count = parseInt(m.posted_30d) || 0;
+      const pct   = Math.round((count / max) * 100);
+      const last  = m.last_post_date ? new Date(m.last_post_date).toLocaleDateString('en-CA') : '—';
+      return `
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;">
+            <div style="color:var(--text);font-weight:600;">${_esc(m.name)}</div>
+            <div style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;"><strong style="color:var(--green);">${count}</strong> posted · last ${last}</div>
+          </div>
+          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#06b6d4,#10b981);transition:width .4s ease;"></div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    stats.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:12px;">${e.message}</div>`;
   }
 }
 
