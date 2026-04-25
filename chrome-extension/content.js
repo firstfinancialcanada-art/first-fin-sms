@@ -800,11 +800,16 @@ function scrapeCurrentPage() {
             }
           });
         }
-        // Always check for VDP links — use VDP crawl to get full photos
+        // Always check for VDP links — use VDP crawl to get full photos.
+        // Dedupe by pathname so /vehicles/.../67541008/?x=1 and
+        // /vehicles/.../67541008/?x=1?retailing don't both make the cut
+        // (Milton Chrysler / Convertus emit both variants per card, doubling the count).
         const seen  = new Set();
         const vdpLinks = [];
         document.querySelectorAll('a[href]').forEach(a => {
-          if (!seen.has(a.href) && VDP_LINK_RE.test(a.href)) { seen.add(a.href); vdpLinks.push(a.href); }
+          if (!VDP_LINK_RE.test(a.href)) return;
+          let key; try { key = new URL(a.href).pathname; } catch(_) { key = a.href.split('?')[0]; }
+          if (!seen.has(key)) { seen.add(key); vdpLinks.push(a.href); }
         });
         if (vdpLinks.length > 0) {
           // Detect Vehica Vue pagination — calculate total pages from vehicle count
@@ -844,14 +849,14 @@ function scrapeCurrentPage() {
       }
     }
 
+    // Dedupe by URL pathname so the same VDP linked twice with different
+    // querystrings (Convertus does this per card) doesn't get crawled twice.
     const seen  = new Set();
     const links = [];
     document.querySelectorAll('a[href]').forEach(a => {
-      const href = a.href;
-      if (!seen.has(href) && VDP_LINK_RE.test(href)) {
-        seen.add(href);
-        links.push(href);
-      }
+      if (!VDP_LINK_RE.test(a.href)) return;
+      let key; try { key = new URL(a.href).pathname; } catch(_) { key = a.href.split('?')[0]; }
+      if (!seen.has(key)) { seen.add(key); links.push(a.href); }
     });
 
     if (links.length > 0) {
