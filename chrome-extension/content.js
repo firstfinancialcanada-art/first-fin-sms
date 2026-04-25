@@ -426,7 +426,7 @@ function parseVdpDetail(url) {
     carfax:    0,
     book_value: 0,
     _title:  title,
-    _photos: photos.slice(0, 10),
+    _photos: photos.slice(0, 20),
     _url:    url
   };
 }
