@@ -1145,6 +1145,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   }
 
+  // CONVERTUS SHORT-CIRCUIT: when listing cards expose full data attributes
+  // (.vehicle-card[data-vehicle-vin]), the client already has VIN/stock/YMM/
+  // price/mileage/color etc. Going to the server would only return raw VDP
+  // links, kicking off a slow Cloudflare-blocked per-VDP crawl. Skip it.
+  if (document.querySelectorAll('.vehicle-card[data-vehicle-vin]').length >= 2) {
+    console.log('[FF] Convertus cards detected — skipping server, using client scrape');
+    fallbackScrape();
+    return false;
+  }
+
   // Try server-first: capture HTML, send to server for parsing
   try {
     const html = document.documentElement.outerHTML;
