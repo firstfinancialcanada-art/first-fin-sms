@@ -522,7 +522,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         [uid, rtHash]
       );
       await client.query('COMMIT');
-      res.json({ success: true, accessToken: accessTok, refreshToken: refreshTok });
+      // Fetch user payload (includes memberRole + tier) so the client can
+      // decide where to send a freshly-activated user — Gold-tier owners
+      // go to the /welcome wizard, everyone else jumps to /platform.
+      // Pull settings_json so userPayload can resolve tenantBranding.
+      let userPayloadObj = null;
+      try {
+        const settingsRow = await pool.query(
+          `SELECT id, email, display_name, role, settings_json FROM desk_users WHERE id = $1`,
+          [uid]
+        );
+        if (settingsRow.rows.length) userPayloadObj = await userPayload(settingsRow.rows[0]);
+      } catch (_) { /* non-fatal — client will load full payload from /api/desk/load-all */ }
+      res.json({ success: true, accessToken: accessTok, refreshToken: refreshTok, user: userPayloadObj });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       res.status(500).json({ success: false, error: sanitizeError(e) });

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome to First Fin Gold — Setup Wizard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --surface2: #0d1526; --border: rgba(255,255,255,.08);
+    --border2: rgba(30,90,246,.3); --text: #e2e8f0; --muted: #64748b;
+    --primary: #06b6d4; --amber: #f59e0b; --green: #10b981; --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1e3a5f 0%, var(--bg) 55%);
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    padding: 32px 16px;
+  }
+  .shell {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .logo span { -webkit-text-fill-color: var(--amber); }
+  .tagline {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-top: 4px;
+    font-weight: 700;
+  }
+  .stepper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 auto 32px;
+    max-width: 600px;
+    padding: 0 12px;
+  }
+  .step-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .step-dot.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(6,182,212,.2);
+  }
+  .step-dot.done {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+  .step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    margin: 0 6px;
+  }
+  .step-line.done { background: var(--green); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  h1 .accent { color: var(--amber); }
+  .sub {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 22px;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+    font-family: 'DM Mono', monospace;
+  }
+  input[type="text"], input[type="email"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 11px 13px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    outline: none;
+    transition: border .2s;
+  }
+  input:focus, select:focus { border-color: var(--primary); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .btn {
+    padding: 11px 22px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    letter-spacing: .5px;
+  }
+  .btn:hover { background: rgba(30,90,246,.1); border-color: var(--border2); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--primary), #0891b2);
+    border-color: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover { background: #0891b2; }
+  .btn-amber {
+    background: linear-gradient(135deg, var(--amber), #d97706);
+    border-color: var(--amber);
+    color: #000;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .info-card {
+    background: rgba(6,182,212,.06);
+    border: 1px solid rgba(6,182,212,.25);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 14px;
+  }
+  .info-card .h {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--primary);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 8px;
+  }
+  .info-card p { font-size: 12px; line-height: 1.6; color: var(--text); margin-bottom: 6px; }
+  .info-card .mono { font-family: 'DM Mono', monospace; color: var(--primary); font-size: 13px; }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .feature-tile {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .feature-tile .name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .feature-tile .desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .invite-list {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .invite-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .invite-row:last-child { border-bottom: none; }
+  .invite-row .email { font-family: 'DM Mono', monospace; color: var(--primary); }
+  .skip {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: underline;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+  }
+  .skip:hover { color: var(--text); }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120%);
+    background: var(--surface2);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform .25s ease;
+    z-index: 999;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.err { border-color: var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <div class="logo">FIRST <span>FIN</span></div>
+    <div class="tagline">Gold Tier · Welcome Wizard</div>
+  </div>
+
+  <!-- Stepper -->
+  <div class="stepper">
+    <div class="step-dot active" id="dot-1">1</div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step-dot" id="dot-2">2</div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step-dot" id="dot-3">3</div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step-dot" id="dot-4">4</div>
+    <div class="step-line" id="line-4"></div>
+    <div class="step-dot" id="dot-5">5</div>
+  </div>
+
+  <div class="card">
+
+    <!-- ── STEP 1: WELCOME ── -->
+    <div class="panel active" id="panel-1">
+      <h1>Welcome to <span class="accent">Gold Tier</span></h1>
+      <p class="sub">In the next 5 steps, your dealership will be live on First Fin. Each step takes ~1 minute.</p>
+
+      <div class="feature-grid">
+        <div class="feature-tile">
+          <div class="name">10 Seats</div>
+          <div class="desc">3 managers + 7 sales reps. Add or remove anytime.</div>
+        </div>
+        <div class="feature-tile">
+          <div class="name">Shared Inventory</div>
+          <div class="desc">One lot, all reps see the same vehicles + photos.</div>
+        </div>
+        <div class="feature-tile">
+          <div class="name">Lead Routing</div>
+          <div class="desc">AutoTrader / Kijiji / CarCostCanada / TAQ leads auto-assign to reps.</div>
+        </div>
+        <div class="feature-tile">
+          <div class="name">Sarah AI · 24/7</div>
+          <div class="desc">SMS responder + voice. $18.50/mo Twilio credit included.</div>
+        </div>
+        <div class="feature-tile">
+          <div class="name">FB Marketplace Auto-Post</div>
+          <div class="desc">2-click vehicle listings with all photos pre-loaded.</div>
+        </div>
+        <div class="feature-tile">
+          <div class="name">Deal Desk + Lender Compare</div>
+          <div class="desc">All major Canadian lenders, side-by-side rate comparison.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="skip" onclick="skipWizard()">Skip wizard, take me to platform →</button>
+        <button class="btn btn-primary" onclick="goStep(2)">Let's go →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: DEALERSHIP DETAILS ── -->
+    <div class="panel" id="panel-2">
+      <h1>Your <span class="accent">Dealership</span></h1>
+      <p class="sub">This shows up on Sarah's SMS replies, FB Marketplace listings, and customer-facing emails.</p>
+
+      <label>Dealership Name</label>
+      <input type="text" id="w-dealer-name" placeholder="e.g. Hunt Chrysler Dodge Jeep Ram">
+
+      <label>City</label>
+      <input type="text" id="w-dealer-city" placeholder="e.g. Milton, ON">
+
+      <label>Logo URL (optional — paste a public URL to your logo)</label>
+      <input type="text" id="w-logo-url" placeholder="https://yourdealership.com/logo.png">
+
+      <div class="info-card">
+        <div class="h">Branding goes everywhere</div>
+        <p>Your dealership name + logo appear on FB Marketplace listings, Sarah's customer SMS signature, deal desk PDFs, and the Equifax/TD pre-qualify branding. <strong>Set it once here, it propagates everywhere.</strong></p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="goStep(1)">← Back</button>
+        <button class="btn btn-primary" onclick="saveStep2()">Save &amp; Continue →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: LEAD INTAKE EMAIL ── -->
+    <div class="panel" id="panel-3">
+      <h1>Your <span class="accent">Lead Inbox</span></h1>
+      <p class="sub">First Fin gives you a unique email address. Paste it into AutoTrader / Kijiji / CarCostCanada / TAQ as a lead recipient. Every lead that arrives auto-creates a CRM row + routes to one of your reps based on the rules you set later.</p>
+
+      <label>Suggested Address (edit if you prefer something else)</label>
+      <input type="email" id="w-intake-email" placeholder="yourdealer@firstfinancialcanada.com">
+
+      <div class="info-card">
+        <div class="h">How it works under the hood</div>
+        <p>Lead provider sends the lead → it lands in our IMAP-monitored Gmail → the ADF/XML body is parsed → CRM row created → routing rules fire → assigned rep gets an SMS notification. <strong>Setup time: ~5 minutes per lead source.</strong></p>
+        <p style="margin-top:8px;">No technical setup required on your end — just paste the address into your existing AutoTrader / Kijiji dashboards.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="goStep(2)">← Back</button>
+        <button class="btn btn-primary" onclick="saveStep3()">Save &amp; Continue →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 4: INVITE TEAM ── -->
+    <div class="panel" id="panel-4">
+      <h1>Invite Your <span class="accent">Team</span></h1>
+      <p class="sub">Add your 3 managers and up to 7 sales reps. Each gets an emailed setup link to choose their own password. You can add more later from the Team menu.</p>
+
+      <div class="row">
+        <div>
+          <label>Name</label>
+          <input type="text" id="w-inv-name" placeholder="Robbie Hunt">
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" id="w-inv-email" placeholder="robbie@huntchrysler.com">
+        </div>
+      </div>
+      <label>Role</label>
+      <select id="w-inv-role">
+        <option value="rep">Sales Rep — assigned leads, deal desk, FB poster</option>
+        <option value="manager">Manager — sees whole team, edits rates, invites reps</option>
+      </select>
+      <button class="btn" style="margin-top:12px;width:100%;" onclick="addInvite()">+ Add to invite list</button>
+
+      <div class="invite-list" id="invite-list">
+        <div style="text-align:center;color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;padding:14px;">No invites queued yet — add at least one above (or skip and invite later).</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="goStep(3)">← Back</button>
+        <button class="btn btn-primary" onclick="sendAllInvites()">Send All Invites →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 5: DONE ── -->
+    <div class="panel" id="panel-5">
+      <h1>You're <span class="accent">Live</span> 🎉</h1>
+      <p class="sub">Your dealership is configured. Here's what to do next:</p>
+
+      <div class="info-card" style="background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.25);">
+        <div class="h" style="color:var(--green);">Next: Import your inventory</div>
+        <p>Install the First Fin Inventory Importer Chrome extension, then visit your dealer site (e.g. yourdealer.ca/vehicles/used) and click Scan. Up to 1,000 vehicles can sync per dealership — typical lot of 200-500 imports in 5-15 minutes with full photos.</p>
+      </div>
+
+      <div class="info-card" style="background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.25);">
+        <div class="h" style="color:var(--amber);">Then: Set up your routing rules</div>
+        <p>From the Lead Routing panel, decide how leads from each source (AutoTrader / Kijiji / CarCostCanada / TAQ) auto-assign to reps. Round-robin, by vehicle make, by lead source, or any combination.</p>
+      </div>
+
+      <div class="info-card" style="background:rgba(167,139,250,.06);border-color:rgba(167,139,250,.25);">
+        <div class="h" style="color:#a78bfa;">Then: Connect Sarah</div>
+        <p>Settings → Twilio Number. We'll provision a local number for your dealership ($18.50 of messaging credit included with your Gold subscription).</p>
+      </div>
+
+      <div class="actions" style="justify-content:center;">
+        <button class="btn btn-amber" onclick="finishWizard()" style="padding:14px 32px;font-size:14px;">Take me to the platform →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved!</div>
+
+<script src="/js/api-client.js"></script>
+<script>
+  let currentStep = 1;
+  const queuedInvites = [];
+
+  function showToast(msg, isErr) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isErr ? ' err' : '');
+    setTimeout(() => { t.className = 'toast' + (isErr ? ' err' : ''); }, 3000);
+  }
+
+  function goStep(n) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + n).classList.add('active');
+    // Stepper visual
+    for (let i = 1; i <= 5; i++) {
+      const dot  = document.getElementById('dot-' + i);
+      const line = document.getElementById('line-' + i);
+      if (dot)  dot.className  = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+      if (line) line.className = 'step-line' + (i < n ? ' done' : '');
+    }
+    currentStep = n;
+    window.scrollTo(0, 0);
+  }
+
+  function skipWizard() {
+    window.location = '/platform';
+  }
+
+  function finishWizard() {
+    window.location = '/platform';
+  }
+
+  // Step 2 — save dealership info
+  async function saveStep2() {
+    const dealerName = document.getElementById('w-dealer-name').value.trim();
+    const dealerCity = document.getElementById('w-dealer-city').value.trim();
+    const logoUrl    = document.getElementById('w-logo-url').value.trim();
+    if (!dealerName) { showToast('Dealership name is required', true); return; }
+    try {
+      const res = await window.FF.apiFetch('/api/desk/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ settings: { dealerName, dealerCity, logoUrl } })
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || 'Save failed');
+      showToast('✓ Dealership info saved');
+      // Suggest a slug-based intake email for step 3
+      const slug = dealerName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+      if (slug && !document.getElementById('w-intake-email').value) {
+        document.getElementById('w-intake-email').value = slug + '@firstfinancialcanada.com';
+      }
+      goStep(3);
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
+  // Step 3 — save lead intake email
+  async function saveStep3() {
+    const email = document.getElementById('w-intake-email').value.trim();
+    if (!email) {
+      // Allow skip — they can set it later from Team modal
+      if (confirm('No intake email entered — skip this step? You can set it later from the Team menu.')) {
+        goStep(4);
+      }
+      return;
+    }
+    try {
+      const res = await window.FF.apiFetch('/api/desk/team/intake-email', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || 'Save failed');
+      showToast('✓ Lead intake email saved');
+      goStep(4);
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
+  // Step 4 — invite queue
+  function addInvite() {
+    const name  = document.getElementById('w-inv-name').value.trim();
+    const email = document.getElementById('w-inv-email').value.trim();
+    const role  = document.getElementById('w-inv-role').value;
+    if (!name || !email) { showToast('Name and email both required', true); return; }
+    if (queuedInvites.some(i => i.email === email.toLowerCase())) { showToast('Already queued', true); return; }
+    queuedInvites.push({ name, email, role });
+    document.getElementById('w-inv-name').value  = '';
+    document.getElementById('w-inv-email').value = '';
+    renderInviteList();
+  }
+
+  function renderInviteList() {
+    const el = document.getElementById('invite-list');
+    if (queuedInvites.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace;padding:14px;">No invites queued yet — add at least one above (or skip and invite later).</div>';
+      return;
+    }
+    el.innerHTML = queuedInvites.map((i, idx) => `
+      <div class="invite-row">
+        <div>
+          <strong>${i.name}</strong>
+          <span class="email" style="margin-left:8px;">${i.email}</span>
+          <span style="margin-left:8px;padding:2px 6px;background:rgba(6,182,212,.15);color:#06b6d4;border-radius:4px;font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:700;">${i.role}</span>
+        </div>
+        <button class="skip" onclick="removeInvite(${idx})">remove</button>
+      </div>
+    `).join('');
+  }
+
+  function removeInvite(idx) {
+    queuedInvites.splice(idx, 1);
+    renderInviteList();
+  }
+
+  async function sendAllInvites() {
+    if (queuedInvites.length === 0) {
+      // Skip if no invites queued
+      goStep(5);
+      return;
+    }
+    let sent = 0, failed = 0;
+    for (const inv of queuedInvites) {
+      try {
+        const res = await window.FF.apiFetch('/api/desk/team/members', {
+          method: 'POST',
+          body: JSON.stringify(inv)
+        });
+        const d = await res.json();
+        if (d.success) sent++; else failed++;
+      } catch (e) { failed++; }
+    }
+    showToast(`✓ ${sent} invites sent${failed ? ` (${failed} failed — check Team menu)` : ''}`);
+    goStep(5);
+  }
+
+  // Prefill dealership name from existing settings if any
+  (async function prefill() {
+    try {
+      const res = await window.FF.apiFetch('/api/desk/load-all');
+      const d   = await res.json();
+      if (d.success) {
+        const s = d.settings || {};
+        if (s.dealerName) document.getElementById('w-dealer-name').value = s.dealerName;
+        if (s.dealerCity) document.getElementById('w-dealer-city').value = s.dealerCity;
+        if (s.logoUrl)    document.getElementById('w-logo-url').value    = s.logoUrl;
+      }
+    } catch (_) {}
+  })();
+</script>
+</body>
+</html>

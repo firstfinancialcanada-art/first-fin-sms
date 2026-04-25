@@ -204,7 +204,12 @@
       msg.textContent = 'Account activated — redirecting…';
       sessionStorage.setItem('ff_access',  d.accessToken);
       sessionStorage.setItem('ff_refresh', d.refreshToken);
-      setTimeout(() => { window.location = '/platform'; }, 800);
+      // Gold-tier owners go to the welcome wizard for first-time setup;
+      // everyone else (managers/reps invited later, or non-gold) goes
+      // straight to the platform.
+      const isGoldOwner = d.user && d.user.memberRole === 'owner' && d.user.tier === 'gold';
+      const dest = isGoldOwner ? '/welcome' : '/platform';
+      setTimeout(() => { window.location = dest; }, 800);
     } catch (e) {
       msg.className = 'msg err';
       msg.textContent = 'Network error. Try again.';
