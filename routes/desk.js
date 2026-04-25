@@ -2099,6 +2099,220 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       client.release();
     }
   })();
+
+  // ═══════════════════════════════════════════════════════════
+  // MANAGER-SELF-SERVE TEAM MANAGEMENT (Phase 6)
+  // Lets dealership owners + managers add/remove/list their own team
+  // members and set their own lead intake email — without needing the
+  // platform admin to do it for them. Mirrors the admin endpoints in
+  // routes/admin-dashboard.js but scoped to the caller's tenant.
+  // ═══════════════════════════════════════════════════════════
+  const tenantsLib = require('../lib/tenants');
+
+  // ── List my tenant's team ─────────────────────────────────────
+  app.get('/api/desk/team', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant for this user' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can view the team list' });
+      }
+      const t = await pool.query(`SELECT id, dealership, lead_intake_email, plan FROM desk_tenants WHERE id = $1`, [scope.tenantId]);
+      if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant row missing' });
+      const members = await pool.query(`
+        SELECT m.id, m.user_id, m.role, m.crm_mode, m.active, m.created_at,
+               u.email, u.display_name, u.last_active
+        FROM desk_members m
+        JOIN desk_users u ON u.id = m.user_id
+        WHERE m.tenant_id = $1
+        ORDER BY (CASE m.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END), m.created_at ASC
+      `, [scope.tenantId]);
+      const seatUsage = await tenantsLib.getSeatUsage(scope.tenantId);
+      res.json({
+        success: true,
+        tenant: {
+          id:               t.rows[0].id,
+          dealership:       t.rows[0].dealership,
+          leadIntakeEmail:  t.rows[0].lead_intake_email,
+          plan:             t.rows[0].plan,
+        },
+        members: members.rows,
+        seatUsage,
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Invite a new member to MY tenant ──────────────────────────
+  // Body: { email, name, role: 'rep' | 'manager', crmMode? }
+  // Returns: { setupUrl } — manager forwards this to the new hire's email
+  // so they can set their password (24h expiry).
+  app.post('/api/desk/team/members', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can invite team members' });
+      }
+      const { email, name, role = 'rep', crmMode = 'pool_plus_own' } = req.body || {};
+      if (!email || !name) return res.status(400).json({ success: false, error: 'email and name required' });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return res.status(400).json({ success: false, error: 'Invalid email format' });
+      }
+      if (!tenantsLib.VALID_ROLES.includes(role)) {
+        return res.status(400).json({ success: false, error: 'role must be rep or manager' });
+      }
+      if (role === 'owner') {
+        return res.status(400).json({ success: false, error: 'Cannot invite another owner — each tenant has exactly one' });
+      }
+      // Only owners can invite managers; managers can only invite reps.
+      if (role === 'manager' && scope.memberRole !== 'owner') {
+        return res.status(403).json({ success: false, error: 'Only the owner can invite managers' });
+      }
+      if (!tenantsLib.VALID_CRM_MODES.includes(crmMode)) {
+        return res.status(400).json({ success: false, error: 'Invalid crmMode' });
+      }
+
+      const crypto = require('crypto');
+      const bcrypt = require('bcryptjs');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        // Seat cap check
+        const usage = await tenantsLib.getSeatUsage(scope.tenantId);
+        if (usage.remaining <= 0) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ success: false, code: 'SEAT_CAP_REACHED',
+            error: `Tenant has no seats remaining (${usage.used}/${usage.allowed}). Upgrade your plan to add more.` });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        let userId;
+        const existing = await client.query('SELECT id FROM desk_users WHERE email = $1', [cleanEmail]);
+        if (existing.rows.length) {
+          userId = existing.rows[0].id;
+          // Reject if user already belongs to a different tenant
+          const conflict = await client.query(
+            `SELECT tenant_id FROM desk_members WHERE user_id = $1 AND active = TRUE AND tenant_id != $2`,
+            [userId, scope.tenantId]
+          );
+          if (conflict.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, error: 'That email already belongs to a different dealership. Use a unique email per dealership.' });
+          }
+        } else {
+          // Create placeholder user — they MUST complete setup to log in
+          const placeholder = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 12);
+          const u = await client.query(
+            `INSERT INTO desk_users (email, password_hash, display_name, role, subscription_status)
+             VALUES ($1, $2, $3, 'rep', 'active')
+             RETURNING id`,
+            [cleanEmail, placeholder, name.trim()]
+          );
+          userId = u.rows[0].id;
+        }
+
+        // Wire up membership
+        await tenantsLib.addMember(scope.tenantId, userId, role, crmMode);
+
+        // 24h setup token
+        const setupToken = crypto.randomBytes(32).toString('hex');
+        await client.query(
+          `INSERT INTO setup_tokens (token, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
+          [setupToken, userId]
+        );
+        await client.query('COMMIT');
+
+        const baseUrl = process.env.BASE_URL
+          ? process.env.BASE_URL.replace(/\/$/, '')
+          : 'https://app.firstfinancialcanada.com';
+        const setupUrl = `${baseUrl}/setup?token=${setupToken}`;
+
+        trackFeature(req.user.userId, 'team', 'member_invited', { invitedEmail: cleanEmail, role });
+        res.json({
+          success: true,
+          userId, role, crmMode,
+          setupUrl,
+          message: `Invited ${cleanEmail} as ${role}. Forward the setup link below — it expires in 24 hours.`
+        });
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        res.status(500).json({ success: false, error: sanitizeError(e) });
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Remove (deactivate) a member from MY tenant ───────────────
+  app.delete('/api/desk/team/members/:memberId', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can remove team members' });
+      }
+      const memberId = parseInt(req.params.memberId, 10);
+      if (!memberId) return res.status(400).json({ success: false, error: 'Invalid member id' });
+      // Make sure the member belongs to my tenant (security boundary)
+      const m = await pool.query(`SELECT id, tenant_id, role, user_id FROM desk_members WHERE id = $1`, [memberId]);
+      if (!m.rows.length || m.rows[0].tenant_id !== scope.tenantId) {
+        return res.status(404).json({ success: false, error: 'Member not found in your team' });
+      }
+      if (m.rows[0].role === 'owner') {
+        return res.status(403).json({ success: false, error: 'Cannot remove the owner — transfer ownership first' });
+      }
+      // Managers can only remove reps; owners can remove anyone non-owner.
+      if (m.rows[0].role === 'manager' && scope.memberRole !== 'owner') {
+        return res.status(403).json({ success: false, error: 'Only the owner can remove managers' });
+      }
+      await pool.query(`UPDATE desk_members SET active = FALSE WHERE id = $1`, [memberId]);
+      trackFeature(req.user.userId, 'team', 'member_removed', { memberId, role: m.rows[0].role });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Set MY tenant's lead intake email ─────────────────────────
+  app.post('/api/desk/team/intake-email', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can configure lead intake' });
+      }
+      let { email } = req.body || {};
+      if (email != null && email !== '') {
+        email = String(email).trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+          return res.status(400).json({ success: false, error: 'Invalid email address' });
+        }
+      } else {
+        email = null;
+      }
+      try {
+        await pool.query(`UPDATE desk_tenants SET lead_intake_email = $2 WHERE id = $1`,
+          [scope.tenantId, email]);
+      } catch (e) {
+        if (/unique/i.test(e.message)) {
+          return res.status(409).json({ success: false, error: 'That intake address is already in use by another dealership. Pick something unique.' });
+        }
+        throw e;
+      }
+      trackFeature(req.user.userId, 'team', 'intake_email_set', { hasEmail: !!email });
+      res.json({ success: true, leadIntakeEmail: email });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
 };
 
 // ── Billing status helper (shared with stripe.js) ────────────────

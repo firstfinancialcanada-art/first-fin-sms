@@ -2537,9 +2537,9 @@ async function refreshUsage(){
     setTxt('usage-voice-dollars',   _usageFmt(s.voiceSpendCents));
     setTxt('usage-overage-dollars', _usageFmt(s.overageBalanceCents));
     setTxt('usage-inv-count',       inv.count || 0);
-    setTxt('usage-inv-cap',         inv.cap   || 500);
+    setTxt('usage-inv-cap',         inv.cap   || 1000);
     setTxt('usage-crm-count',       crm.count || 0);
-    setTxt('usage-crm-cap',         crm.cap   || 500);
+    setTxt('usage-crm-cap',         crm.cap   || 1000);
 
     // Exempt accounts: show badge, hide top-up section (caps don't apply)
     const isExempt = !!(s.exempt || inv.exempt || crm.exempt);
@@ -2568,6 +2568,126 @@ async function refreshUsage(){
 function openUsageModal(){
   openModal('usageModal');
   refreshUsage();
+}
+
+// ── TEAM MANAGEMENT (manager-self-serve) ─────────────────────
+// Pulls /api/desk/team — paints dealership header, intake email, member list,
+// invite form. Handles invite creation and surfaces the setup URL.
+async function openTeamModal() {
+  openModal('teamModal');
+  await refreshTeam();
+}
+
+async function refreshTeam() {
+  const list = document.getElementById('team-members-list');
+  if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;font-family:DM Mono,monospace;">Loading...</div>';
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team');
+    const d   = await res.json();
+    if (!d.success) throw new Error(d.error || 'Failed to load team');
+
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('team-dealership',  d.tenant?.dealership || 'Your Dealership');
+    setTxt('team-plan-badge',  (d.tenant?.plan || 'gold').toUpperCase());
+    setTxt('team-seats-used',  d.seatUsage?.used    || 0);
+    setTxt('team-seats-cap',   d.seatUsage?.allowed || 0);
+
+    const intakeInput = document.getElementById('team-intake-input');
+    if (intakeInput) intakeInput.value = d.tenant?.leadIntakeEmail || '';
+
+    // Members table
+    if (list) {
+      const _esc = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      const me = (window.FF && FF.user && FF.user.id) || null;
+      list.innerHTML = (d.members || []).map(m => {
+        const isMe   = m.user_id === me;
+        const isOwner = m.role === 'owner';
+        const roleColor = isOwner ? '#a78bfa' : m.role === 'manager' ? '#06b6d4' : '#10b981';
+        const roleBg    = isOwner ? 'rgba(167,139,250,.15)' : m.role === 'manager' ? 'rgba(6,182,212,.15)' : 'rgba(16,185,129,.15)';
+        const lastActive = m.last_active ? new Date(m.last_active).toLocaleDateString('en-CA') : '—';
+        return `
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;">
+            <div>
+              <div style="color:var(--text);font-weight:600;">${_esc(m.display_name || '—')}${isMe ? ' <span style="color:var(--muted);font-size:10px;font-weight:400;">(you)</span>' : ''}</div>
+              <div style="color:var(--muted);font-size:11px;font-family:'DM Mono',monospace;">${_esc(m.email)}</div>
+            </div>
+            <div>
+              <span style="padding:3px 8px;background:${roleBg};color:${roleColor};border-radius:4px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;font-family:'DM Mono',monospace;">${_esc(m.role)}</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${lastActive}</div>
+              ${isOwner || isMe ? '' : `<button class="btn btn-sm" onclick="removeTeamMember(${m.id}, '${_esc(m.email)}')" style="padding:3px 8px;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;font-size:10px;">Remove</button>`}
+            </div>
+          </div>`;
+      }).join('') || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No members yet</div>';
+    }
+  } catch (e) {
+    if (list) list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:12px;">${e.message}</div>`;
+  }
+}
+
+async function saveTeamIntakeEmail() {
+  const input  = document.getElementById('team-intake-input');
+  const status = document.getElementById('team-intake-status');
+  const email  = (input?.value || '').trim();
+  status.textContent = 'Saving...';
+  status.style.color = 'var(--muted)';
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team/intake-email', {
+      method: 'POST', body: JSON.stringify({ email })
+    });
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    status.textContent = email ? `✓ Saved — ${email}` : '✓ Cleared';
+    status.style.color = 'var(--green)';
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+}
+
+async function inviteTeamMember() {
+  const name  = document.getElementById('team-invite-name').value.trim();
+  const email = document.getElementById('team-invite-email').value.trim();
+  const role  = document.getElementById('team-invite-role').value;
+  const result = document.getElementById('team-invite-result');
+  if (!name || !email) { toast('⚠️ Name and email are required'); return; }
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team/members', {
+      method: 'POST', body: JSON.stringify({ name, email, role })
+    });
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error || 'Invite failed');
+    document.getElementById('team-invite-url').value = d.setupUrl || '';
+    document.getElementById('team-invite-msg').textContent = d.message || `Setup link expires in 24 hours. Forward it to ${email}.`;
+    result.style.display = 'block';
+    document.getElementById('team-invite-name').value  = '';
+    document.getElementById('team-invite-email').value = '';
+    await refreshTeam();
+  } catch (e) {
+    toast('⚠️ ' + e.message);
+  }
+}
+
+function copyTeamInviteUrl() {
+  const input = document.getElementById('team-invite-url');
+  if (!input?.value) return;
+  input.select();
+  try { navigator.clipboard.writeText(input.value); toast('✓ Setup link copied'); }
+  catch(_) { document.execCommand('copy'); toast('✓ Setup link copied'); }
+}
+
+async function removeTeamMember(memberId, email) {
+  if (!confirm(`Remove ${email} from your team?\n\nThey'll lose access to your dealership's CRM, inventory, and Sarah immediately. Their account isn't deleted — just deactivated for your tenant.`)) return;
+  try {
+    const res = await window.FF.apiFetch(`/api/desk/team/members/${memberId}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error || 'Remove failed');
+    toast(`✓ Removed ${email}`);
+    await refreshTeam();
+  } catch (e) {
+    toast('⚠️ ' + e.message);
+  }
 }
 
 async function startTopup(cents){

@@ -1001,11 +1001,12 @@ select option{background:#0d1526;color:var(--text);}
     <button class="hbtn amber" onclick="openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i>Email</button>
     <button class="hbtn theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()"><i data-lucide="sun" class="ico-sm"></i>Light</button>
     <button class="hbtn" id="hdr-rates" data-min-role="manager" onclick="openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i>Rates</button>
-    <button class="hbtn" id="usage-pill-btn" data-min-role="owner" onclick="openUsageModal()" title="Monthly usage &amp; billing">
+    <button class="hbtn" id="usage-pill-btn" data-min-role="manager" onclick="openUsageModal()" title="Monthly usage &amp; billing">
       <i data-lucide="activity" class="ico-sm"></i>
       <span id="usage-pill-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#64748b;margin-right:4px;vertical-align:middle;"></span>
       <span id="usage-pill-text">Usage</span>
     </button>
+    <button class="hbtn" id="hdr-team" data-min-role="manager" onclick="openTeamModal()" title="Team members &amp; lead routing"><i data-lucide="users" class="ico-sm"></i>Team</button>
     <button class="hbtn" id="hdr-settings" data-min-role="manager" onclick="openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
     <button class="hbtn" onclick="if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
   </div>
@@ -2629,7 +2630,7 @@ select option{background:#0d1526;color:var(--text);}
       <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;">Inventory</div>
-          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-inv-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-inv-cap">500</span></span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-inv-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-inv-cap">1000</span></span></div>
         </div>
         <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden;">
           <div id="usage-inv-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s ease;"></div>
@@ -2638,13 +2639,29 @@ select option{background:#0d1526;color:var(--text);}
       <div style="padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div style="font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;">CRM Contacts</div>
-          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-crm-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-crm-cap">500</span></span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;"><span id="usage-crm-count" style="color:var(--text);font-weight:600;">0</span><span style="color:var(--muted);"> / <span id="usage-crm-cap">1000</span></span></div>
         </div>
         <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden;">
           <div id="usage-crm-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s ease;"></div>
         </div>
       </div>
     </div>
+
+    <!-- How Sarah's costs work — plain-English explainer -->
+    <details style="margin-top:14px;padding:12px 14px;background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:8px;cursor:pointer;">
+      <summary style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;font-family:'DM Mono',monospace;outline:none;">How Sarah's costs work</summary>
+      <div style="margin-top:10px;font-size:12px;color:var(--text);line-height:1.6;">
+        <p style="margin:0 0 8px 0;">Your $225/mo subscription includes <strong>$18.50 of Sarah messaging credit</strong> — that's enough for typical lead handling without overage.</p>
+        <p style="margin:0 0 8px 0;"><strong>Per-message rough cost:</strong></p>
+        <ul style="margin:0 0 8px 18px;padding:0;">
+          <li>Incoming SMS from a customer — <strong>≈ 1¢</strong></li>
+          <li>Sarah replying with an SMS — <strong>≈ 1-2¢</strong> per segment (long messages = more)</li>
+          <li>Voice call (per minute) — <strong>≈ 2¢/min</strong></li>
+        </ul>
+        <p style="margin:0 0 8px 0;">A typical lead conversation (10-20 SMS back and forth) runs <strong>~20-40¢</strong>. The included credit covers ~50-100 conversations per month.</p>
+        <p style="margin:0;"><strong>Heavy month?</strong> The bar above turns amber at 80% used, red at 100%. If you exceed the included credit, top up below — pre-purchased credit never expires and applies automatically.</p>
+      </div>
+    </details>
 
     <!-- Top-up section -->
     <div id="usage-topup-section" style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(6,182,212,0.25);">
@@ -2662,6 +2679,73 @@ select option{background:#0d1526;color:var(--text);}
         <button class="btn btn-primary" onclick="startTopup(10000)" style="padding:14px 8px;font-weight:700;font-size:14px;">$100</button>
       </div>
       <div style="font-size:10px;color:var(--muted);line-height:1.4;text-align:center;margin-top:10px;">Credit applied immediately on successful payment. Questions? <a href="mailto:support@firstfinancialcanada.com" style="color:#06b6d4;">Contact support</a>.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TEAM MANAGEMENT MODAL (manager-self-serve) ═══ -->
+<div class="modal-overlay" id="teamModal" onclick="closeModalOutside(event,'teamModal')">
+  <div class="modal-box" style="max-width:680px;">
+    <button class="modal-close" onclick="closeModal('teamModal')">×</button>
+    <div class="modal-title"><i data-lucide="users" class="ico-lg"></i>Team Management</div>
+
+    <!-- Tenant header — dealership name + plan + seat usage -->
+    <div style="padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);" id="team-dealership">—</div>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;"><span id="team-plan-badge" style="padding:2px 8px;background:rgba(245,158,11,.15);color:#f59e0b;border-radius:4px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;">—</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">
+        Seats used: <span id="team-seats-used" style="color:var(--text);font-weight:600;">0</span> / <span id="team-seats-cap">0</span>
+      </div>
+    </div>
+
+    <!-- Lead intake email -->
+    <div style="margin-bottom:18px;padding:14px 16px;background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:8px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;font-family:'DM Mono',monospace;margin-bottom:6px;">Lead Intake Email</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px;">Paste this address into AutoTrader / Kijiji / CarCostCanada / TAQ. Leads arriving here auto-create CRM rows + route to your reps per the rules below.</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="email" id="team-intake-input" placeholder="e.g. yourdealer@firstfinancialcanada.com" style="flex:1;padding:9px 12px;background:#070d1a;border:1px solid rgba(6,182,212,.3);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+        <button class="btn btn-primary btn-sm" onclick="saveTeamIntakeEmail()">Save</button>
+      </div>
+      <div id="team-intake-status" style="font-size:10px;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;"></div>
+    </div>
+
+    <!-- Members list -->
+    <div style="margin-bottom:18px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px;">Members</div>
+      <div id="team-members-list" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Invite form -->
+    <details style="margin-top:8px;padding:14px 16px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.25);border-radius:8px;">
+      <summary style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#10b981;font-family:'DM Mono',monospace;cursor:pointer;outline:none;">+ Invite a New Team Member</summary>
+      <div style="margin-top:12px;display:grid;gap:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <input type="text"  id="team-invite-name"  placeholder="Full name"   style="padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+          <input type="email" id="team-invite-email" placeholder="email@dealership.com" style="padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="team-invite-role" style="flex:1;padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+            <option value="rep">Sales Rep — sees their assigned leads, can use deal desk + FB poster</option>
+            <option value="manager">Manager — sees the whole team, can invite reps + edit rates</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="inviteTeamMember()" style="white-space:nowrap;">Send Invite</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);line-height:1.5;">After invite, you'll get a setup link to forward to the new hire's email. The link expires in 24 hours.</div>
+      </div>
+    </details>
+
+    <!-- Generated setup URL after a successful invite -->
+    <div id="team-invite-result" style="display:none;margin-top:12px;padding:12px 14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#f59e0b;font-family:'DM Mono',monospace;margin-bottom:8px;">✓ Invite created — forward this link</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="team-invite-url" readonly style="flex:1;padding:8px 10px;background:#070d1a;border:1px solid var(--border);border-radius:5px;color:#06b6d4;font-size:11px;font-family:'DM Mono',monospace;">
+        <button class="btn btn-sm" onclick="copyTeamInviteUrl()">Copy</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;" id="team-invite-msg"></div>
     </div>
   </div>
 </div>
