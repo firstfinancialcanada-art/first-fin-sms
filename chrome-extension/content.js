@@ -539,13 +539,56 @@ function scrapeCurrentPage() {
 
           // Filter out badges (carfax, equifax, certified, td, etc.) — only
           // real vehicle photos from photomanager / autotradercdn / dealer CDN.
-          const photos = [];
+          // Convertus carousels hide additional thumbnails behind background-image
+          // styles + data-src lazy-load attrs, so scan multiple sources.
+          const photos      = [];
+          const photoSeen   = new Set();
+          const BAD_RE      = /badge|certified|carfax|equifax|td-icon|equityplus|eshop|favicon|logo|sprite|placeholder/i;
+          const GOOD_RE     = /photomanager|autotradercdn|dealer\.com|inventory|vehicle|cdn\.dealer|d2cmedia|homenet|getedealer/i;
+          const tryPushPhoto = (raw) => {
+            if (!raw) return;
+            const u = String(raw).trim().replace(/^["']|["']$/g, '');
+            if (!u || photoSeen.has(u)) return;
+            if (BAD_RE.test(u)) return;
+            if (!GOOD_RE.test(u)) return;
+            photoSeen.add(u);
+            photos.push(u);
+          };
+
+          // 1. Standard <img src/data-src/srcset>
           card.querySelectorAll('img').forEach(img => {
-            const src = img.src || img.dataset.src || '';
-            if (!src) return;
-            if (/badge|certified|carfax|equifax|td-icon|equityplus|eshop|favicon/i.test(src)) return;
-            if (/photomanager|autotradercdn|inventory|vehicle/i.test(src)) photos.push(src);
+            tryPushPhoto(img.src);
+            tryPushPhoto(img.dataset.src);
+            tryPushPhoto(img.dataset.lazySrc);
+            tryPushPhoto(img.getAttribute('data-original'));
+            const srcset = img.getAttribute('srcset') || '';
+            srcset.split(',').forEach(s => tryPushPhoto((s.trim().split(/\s+/)[0] || '')));
           });
+
+          // 2. Inline background-image styles (Convertus hides slides this way)
+          card.querySelectorAll('[style*="background"]').forEach(el => {
+            const style = el.getAttribute('style') || '';
+            const matches = style.match(/url\(([^)]+)\)/gi) || [];
+            matches.forEach(m => tryPushPhoto(m.replace(/^url\(|\)$/gi, '')));
+          });
+
+          // 3. Common photo data attributes
+          ['data-photo','data-image','data-bg','data-bg-image','data-src','data-photos'].forEach(attr => {
+            card.querySelectorAll('[' + attr + ']').forEach(el => {
+              const v = el.getAttribute(attr) || '';
+              // Could be JSON array, comma-list, or single URL
+              if (v.startsWith('[') || v.startsWith('{')) {
+                try { const parsed = JSON.parse(v); (Array.isArray(parsed) ? parsed : [parsed]).forEach(p => tryPushPhoto(typeof p === 'string' ? p : p.url || p.src || '')); } catch(_){}
+              } else if (v.includes(',')) {
+                v.split(',').forEach(s => tryPushPhoto(s.trim()));
+              } else {
+                tryPushPhoto(v);
+              }
+            });
+          });
+
+          // Cap at 20 (any more is overkill for a CRM thumbnail strip)
+          if (photos.length > 20) photos.length = 20;
 
           vehicles.push({
             stock, vin, year, make, model, trim,
@@ -554,7 +597,7 @@ function scrapeCurrentPage() {
             condition,
             carfax: 0, book_value: 0,
             _title:  `${year} ${make} ${model}${trim ? ' ' + trim : ''}`.trim(),
-            _photos: photos,
+            _photos: photos.slice(0, 20),
             _url:    link
           });
         } catch (_) {}
