@@ -595,8 +595,16 @@ async function runDeepPhotoEnrichment(vehicles) {
 
   const elapsed = Math.round((Date.now() - startTs) / 1000);
   activeScan.deepScan.active = false;
-  activeScan.log.push({ cls: 'hi',
+  // CRITICAL: mark scan as done so popup's SCAN_PROGRESS listener flips
+  // from "Scanning X/Y..." to the preview/sync view. v2.7 missed this and
+  // left the popup stuck even after the log showed completion.
+  activeScan.status      = 'done';
+  activeScan.current     = activeScan.total;
+  activeScan.vehicles    = vehicles; // ensure popup gets the enriched photos
+  activeScan.log.push({ cls: 'ok',
     text: `✅ Deep photo scan: ${enrichedCount}/${vehicles.length} enriched in ${elapsed}s${failedCount ? ` (${failedCount} kept card photo)` : ''}` });
+  activeScan.log.push({ cls: 'ok',
+    text: `✅ ${vehicles.length} vehicles ready to sync` });
   await persistState();
   broadcastProgress();
 }
