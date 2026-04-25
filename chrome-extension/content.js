@@ -506,6 +506,65 @@ function scrapeCurrentPage() {
     };
   }
 
+  // ── 1b. Convertus / Achilles dealer.com platform — listing-only mode ──
+  //    Detected by .vehicle-card[data-vehicle-vin] cards (same data-attr scheme
+  //    Sunridge uses, but found across many Convertus-hosted Canadian dealers
+  //    including miltonchrysler.ca, huntchrysler.ca, etc.). These sites are
+  //    Cloudflare-protected, which blocks VDP crawls — so we extract everything
+  //    we need from the listing cards and skip VDP. Photos are the one casualty
+  //    (single thumbnail per vehicle), but VIN/stock/YMM/price/mileage/color
+  //    all come through cleanly.
+  {
+    const convertusCards = document.querySelectorAll('.vehicle-card[data-vehicle-vin]');
+    if (convertusCards.length >= 2) {
+      const vehicles = [];
+      convertusCards.forEach((card, idx) => {
+        try {
+          const vin       = (card.dataset.vehicleVin || '').toUpperCase();
+          const stock     = card.dataset.vehicleStock || (vin ? vin.slice(-8) : `GEN${String(idx+1).padStart(3,'0')}`);
+          const year      = parseInt(card.dataset.vehicleYear) || 2020;
+          const make      = card.dataset.vehicleMake  || '';
+          const model     = card.dataset.vehicleModel || '';
+          const trim      = clean(card.dataset.vehicleTrim || '').replace(/[, ]+$/, '');
+          const color     = card.dataset.vehicleColour || '';
+          const condition = card.dataset.vehicleCondition || 'Used';
+          const mileageRaw = parseInt((card.dataset.vehicleOdo || '').replace(/\D/g, '')) || 0;
+          const mileage   = mileageRaw > 350000 ? 0 : mileageRaw;
+          const price     = parseInt((card.dataset.vehicleInternetPrice || card.dataset.vehicleMsrp || '').replace(/\D/g, '')) || 0;
+
+          let link = url;
+          for (const a of card.querySelectorAll('a[href]')) {
+            if (a.href.includes(location.hostname) && /\/(inventory|vehicles)\//i.test(a.href)) { link = a.href; break; }
+          }
+
+          // Filter out badges (carfax, equifax, certified, td, etc.) — only
+          // real vehicle photos from photomanager / autotradercdn / dealer CDN.
+          const photos = [];
+          card.querySelectorAll('img').forEach(img => {
+            const src = img.src || img.dataset.src || '';
+            if (!src) return;
+            if (/badge|certified|carfax|equifax|td-icon|equityplus|eshop|favicon/i.test(src)) return;
+            if (/photomanager|autotradercdn|inventory|vehicle/i.test(src)) photos.push(src);
+          });
+
+          vehicles.push({
+            stock, vin, year, make, model, trim,
+            mileage, price, color,
+            type: condition === 'New' ? 'New' : 'Used',
+            condition,
+            carfax: 0, book_value: 0,
+            _title:  `${year} ${make} ${model}${trim ? ' ' + trim : ''}`.trim(),
+            _photos: photos,
+            _url:    link
+          });
+        } catch (_) {}
+      });
+      if (vehicles.length > 0) {
+        return { type: 'listing_cards', vehicles };
+      }
+    }
+  }
+
   // ── 2. Auto-detect VDP listing pages by link pattern ──────────────────
   //    Works for House of Cars, Automaxx, Stampede Auto, D2C Media (Renfrew), and similar sites.
   //    Matches: /inventory/Used-2023-, /vehicle-details/2023-, /vehicle/2023-, /vehicles/2023-
