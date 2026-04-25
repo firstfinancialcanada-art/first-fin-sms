@@ -1,8 +1,13 @@
-// content.js — FIRST-FIN Inventory Importer v2.3
+// content.js — FIRST-FIN Inventory Importer v2.5
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
-if (window.__FIRSTFIN_LOADED) { /* already injected — skip duplicate */ } else {
-window.__FIRSTFIN_LOADED = true;
+// Version-tagged guard: when content.js is updated, the old guard tag won't match
+// the new one, so the new code re-initializes (overrides the old listeners).
+// IMPORTANT: bump this string whenever content.js changes meaningfully.
+const __FF_VERSION = 'v2.5-2026-04-25';
+if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
+window.__FIRSTFIN_VERSION = __FF_VERSION;
+window.__FIRSTFIN_LOADED  = true;
 
 // ── Bridge relay (for platform page — bypasses Chrome PNA restrictions) ───
 window.addEventListener('message', (event) => {
