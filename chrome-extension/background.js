@@ -371,9 +371,13 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
 // can show progressive results. ~12-14s per vehicle; with 3 concurrent
 // tabs, ~5-7 minutes for 79 vehicles.
 async function runDeepPhotoEnrichment(vehicles) {
-  const CONCURRENCY    = 3;     // hidden tabs in flight at once
-  const PER_TAB_TIMEOUT = 30000; // safety bail per tab (load + click + scrape)
+  const CONCURRENCY     = 2;     // hidden tabs in flight (down from 3 — more cf-friendly)
+  const PER_TAB_TIMEOUT = 30000; // safety bail per tab
+  const COOLDOWN_THRESHOLD = 3;  // 3 consecutive cf-blocks → pause workers
+  const COOLDOWN_MS     = 30000; // 30s cooldown lets cf_clearance re-issue
   let enrichedCount = 0, failedCount = 0;
+  let consecutiveBlocks = 0, cooldownActive = false;
+  const cfBlockedQueue = []; // collected for retry pass at end
   const startTs = Date.now();
 
   // Mark progress in activeScan so popup can render a status bar
@@ -386,6 +390,8 @@ async function runDeepPhotoEnrichment(vehicles) {
   for (let w = 0; w < CONCURRENCY; w++) {
     workers.push((async () => {
       while (queue.length > 0) {
+        // Honor active cooldown — pause until the timer resets the flag
+        while (cooldownActive) await new Promise(r => setTimeout(r, 1000));
         const v = queue.shift();
         if (!v || !v._url) continue;
 
@@ -451,10 +457,25 @@ async function runDeepPhotoEnrichment(vehicles) {
             if (retryPhotos.length > 0) {
               v._photos = retryPhotos;
               enrichedCount++;
+              consecutiveBlocks = 0;
               activeScan.log.push({ cls: 'ok', text: `📷 ${v.year} ${v.make} ${v.model}: ${retryPhotos.length} photos (retry)` });
             } else {
               failedCount++;
-              activeScan.log.push({ cls: '', text: `📷 ${v.year} ${v.make} ${v.model}: no photos (cf-blocked, kept card photo)` });
+              consecutiveBlocks++;
+              cfBlockedQueue.push(v); // queue for the end-of-pass retry
+              activeScan.log.push({ cls: '', text: `📷 ${v.year} ${v.make} ${v.model}: cf-blocked (will retry)` });
+              // Cooldown trigger: too many blocks in a row → pause workers
+              if (consecutiveBlocks >= COOLDOWN_THRESHOLD && !cooldownActive) {
+                cooldownActive = true;
+                activeScan.log.push({ cls: 'hi', text: `⏸ Cloudflare throttling — cooling down ${COOLDOWN_MS/1000}s before resuming` });
+                broadcastProgress();
+                setTimeout(() => {
+                  cooldownActive = false;
+                  consecutiveBlocks = 0;
+                  activeScan.log.push({ cls: 'hi', text: `▶ Resuming deep photo scan` });
+                  broadcastProgress();
+                }, COOLDOWN_MS);
+              }
             }
           } else {
             // Merge: new photos first, dedupe with existing card photo
@@ -468,6 +489,7 @@ async function runDeepPhotoEnrichment(vehicles) {
             }
             v._photos = merged;
             enrichedCount++;
+            consecutiveBlocks = 0;
             activeScan.log.push({ cls: 'ok', text: `📷 ${v.year} ${v.make} ${v.model}: ${merged.length} photos` });
           }
         } catch (e) {
@@ -487,6 +509,89 @@ async function runDeepPhotoEnrichment(vehicles) {
   }
 
   await Promise.all(workers);
+
+  // ── RETRY PASS: cf-blocked vehicles get one more shot at concurrency=1 ─
+  // After 60s cooldown, walk through them slowly (5s gap each) so Cloudflare
+  // sees a low-rate, human-paced burst. Typical recovery: 60-80% of the
+  // initial cf-blocked vehicles get their full gallery on this pass.
+  if (cfBlockedQueue.length > 0) {
+    activeScan.log.push({ cls: 'hi', text: `🔁 Retry pass: ${cfBlockedQueue.length} cf-blocked vehicles, 60s cooldown then sequential...` });
+    broadcastProgress();
+    await new Promise(r => setTimeout(r, 60000)); // let Cloudflare forget us
+    activeScan.log.push({ cls: 'hi', text: `▶ Retry pass starting` });
+    broadcastProgress();
+
+    let retriedOk = 0, retriedFail = 0;
+    for (const v of cfBlockedQueue) {
+      let tab = null;
+      try {
+        tab = await chrome.tabs.create({ url: v._url, active: false });
+        await waitForTabLoad(tab.id, 14000);
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: async () => {
+            await new Promise(r => setTimeout(r, 6000)); // longer wait on retry
+            const trigger = document.querySelector('.button.view-photos, div.button.view-photos');
+            if (trigger) {
+              const rect = trigger.getBoundingClientRect();
+              const init = { bubbles: true, cancelable: true, view: window, button: 0,
+                             clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 };
+              try { trigger.dispatchEvent(new PointerEvent('pointerdown', init)); } catch(_){}
+              try { trigger.dispatchEvent(new MouseEvent('mousedown', init)); } catch(_){}
+              try { trigger.dispatchEvent(new PointerEvent('pointerup', init)); } catch(_){}
+              try { trigger.dispatchEvent(new MouseEvent('mouseup', init)); } catch(_){}
+              try { trigger.dispatchEvent(new MouseEvent('click', init)); } catch(_){}
+              try { trigger.click(); } catch(_){}
+              await new Promise(r => setTimeout(r, 5000));
+            }
+            const html = document.documentElement.outerHTML;
+            const all = html.match(/https?:\/\/[^\s"'<>)\\,]*autotradercdn[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi) || [];
+            const byUuid = new Map();
+            for (const url of all) {
+              const uuidMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+              const key = uuidMatch ? uuidMatch[1] : url;
+              const existing = byUuid.get(key);
+              if (!existing) { byUuid.set(key, url); continue; }
+              const sN = parseInt(url.match(/-(\d+)x\d+/)?.[1] || '0');
+              const sO = parseInt(existing.match(/-(\d+)x\d+/)?.[1] || '0');
+              if (sN > sO) byUuid.set(key, url);
+            }
+            return [...byUuid.values()].filter(u =>
+              !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
+            ).slice(0, 25);
+          }
+        });
+        const photos = results?.[0]?.result || [];
+        if (photos.length > 1) {
+          const merged = [];
+          const seen   = new Set();
+          for (const p of photos.concat(v._photos || [])) {
+            if (!p || seen.has(p)) continue;
+            seen.add(p); merged.push(p);
+            if (merged.length >= 25) break;
+          }
+          v._photos = merged;
+          enrichedCount++;
+          failedCount = Math.max(0, failedCount - 1);
+          retriedOk++;
+          activeScan.log.push({ cls: 'ok', text: `🔁 ${v.year} ${v.make} ${v.model}: ${merged.length} photos (retry)` });
+        } else {
+          retriedFail++;
+          activeScan.log.push({ cls: '', text: `🔁 ${v.year} ${v.make} ${v.model}: still cf-blocked, kept card photo` });
+        }
+      } catch (e) {
+        retriedFail++;
+      } finally {
+        if (tab) chrome.tabs.remove(tab.id).catch(() => {});
+        activeScan.deepScan.enriched = enrichedCount;
+        activeScan.deepScan.failed   = failedCount;
+        broadcastProgress();
+        // 5-second pause between retries — gentle pace, Cloudflare-friendly
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    activeScan.log.push({ cls: 'hi', text: `🔁 Retry pass done: ${retriedOk} recovered, ${retriedFail} still card-only` });
+  }
 
   const elapsed = Math.round((Date.now() - startTs) / 1000);
   activeScan.deepScan.active = false;

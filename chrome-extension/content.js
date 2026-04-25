@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.7
+// content.js — FIRST-FIN Inventory Importer v2.8
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.7-deep-lightbox-2026-04-25';
+const __FF_VERSION = 'v2.8-cf-cooldown-retry-2026-04-25';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
