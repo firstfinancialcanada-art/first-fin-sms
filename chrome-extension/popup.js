@@ -588,7 +588,9 @@ async function runSync() {
     const clean = scraped.map(v => {
       const obj = Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')));
       // Include photos (stored as _photos by the scraper)
-      if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 10);
+      // Phase 6 photo cap raised to 25 — deep-scan delivers up to 25 unique
+      // photos per vehicle and we want them all in the platform / FB Poster.
+      if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 25);
       return obj;
     });
     const r = await authFetch('/api/desk/inventory/sync', {

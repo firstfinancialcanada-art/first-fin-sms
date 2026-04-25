@@ -1028,7 +1028,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           v.book_value  || 0,
           (v.color  || '').slice(0, 30),
           (v.trim   || '').slice(0, 80),
-          JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0, 10) : [])
+          // Phase 6: photo cap raised from 10 -> 25 to match the deep-scan
+          // output (extension delivers up to 25 photos per vehicle).
+          JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0, 25) : [])
         ];
       }
 
@@ -1105,7 +1107,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                  v.mileage||0, v.price||0, v.condition||'Average',
                  v.type||'Used', v.book_value||0,
                  (v.color||'').slice(0,30), (v.trim||'').slice(0,80),
-                 JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0,10) : [])]
+                 // Phase 6: 25 photo cap to match deep-scan output
+                 JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0,25) : [])]
               );
               updated++;
               continue;

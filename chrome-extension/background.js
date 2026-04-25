@@ -712,7 +712,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const photoUrls = msg.vehicle.photos || [];
         if (photoUrls.length > 0) {
           console.log(`[FIRST-FIN] Fetching ${photoUrls.length} photos...`);
-          for (let i = 0; i < Math.min(photoUrls.length, 10); i++) {
+          // FB Marketplace cap is 50 photos per listing; we go up to 25 to
+          // match the deep-scan output. Each photo is fetched + base64'd, so
+          // 25 photos at ~200KB each = ~5MB transfer; fine for FB's accept.
+          for (let i = 0; i < Math.min(photoUrls.length, 25); i++) {
             try {
               const resp = await fetch(photoUrls[i]);
               if (!resp.ok) continue;
