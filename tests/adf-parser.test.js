@@ -169,7 +169,7 @@ assert(/CarCostCanada Member/.test(lead.comments || ''),    '  comments include 
 console.log('\n  leadToCrmRow(lead):');
 const row = leadToCrmRow(lead);
 assert(row.name  === 'ALAN SYDNEY',                         '  name', row.name);
-assert(row.phone === '647-289-2177',                        '  phone', row.phone);
+assert(row.phone === '+16472892177',                        '  phone (E.164)', row.phone);
 assert(row.email === 'aesydney80@gmail.com',                '  email', row.email);
 assert(row.vehicle_interest === '2026 Dodge Durango GT Plus',
                                                             '  vehicle_interest composed',
