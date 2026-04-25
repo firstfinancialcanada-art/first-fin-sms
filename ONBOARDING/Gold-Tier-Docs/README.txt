@@ -3,10 +3,13 @@ First Fin — Gold Tier Documentation
 
 Three docs in this folder, all readable in any browser:
 
-  01 — Sarah Messaging Costs.html
-       Plain-English breakdown of SMS/voice pricing, the $18.50/mo
-       included credit, top-up options, and what a "typical conversation"
-       actually costs.
+  01 — Sarah Messaging Usage.html
+       Plain-English breakdown of how the included monthly messaging
+       allowance works, top-up options, and what a "typical conversation"
+       uses. INTENTIONALLY does not name the $18.50/mo dollar credit
+       value — customers should think of it as an "allowance" not a
+       precise budget they can do math against. Internal value is
+       \$18.50/mo (1850 cents in lib/constants.js TENANT_CAPS).
 
   02 — Hunt Chrysler Onboarding Runbook.html
        Step-by-step walkthrough for getting a new Gold-tier dealership
