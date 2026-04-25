@@ -464,17 +464,25 @@ async function runDeepPhotoEnrichment(vehicles) {
               consecutiveBlocks++;
               cfBlockedQueue.push(v); // queue for the end-of-pass retry
               activeScan.log.push({ cls: '', text: `📷 ${v.year} ${v.make} ${v.model}: cf-blocked (will retry)` });
-              // Cooldown trigger: too many blocks in a row → pause workers
+              // Cooldown trigger: too many blocks in a row → pause workers.
+              // Use a chunked sleep that keeps the MV3 service worker alive
+              // (bare setTimeout > 30s loses the worker and the cooldown
+              // never resets — the v2.8 retry-pass bug).
               if (consecutiveBlocks >= COOLDOWN_THRESHOLD && !cooldownActive) {
                 cooldownActive = true;
                 activeScan.log.push({ cls: 'hi', text: `⏸ Cloudflare throttling — cooling down ${COOLDOWN_MS/1000}s before resuming` });
                 broadcastProgress();
-                setTimeout(() => {
+                (async () => {
+                  const chunks = Math.max(1, Math.round(COOLDOWN_MS / 5000));
+                  for (let c = 0; c < chunks; c++) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    try { await chrome.storage.local.get('activeScan'); } catch(_){}
+                  }
                   cooldownActive = false;
                   consecutiveBlocks = 0;
                   activeScan.log.push({ cls: 'hi', text: `▶ Resuming deep photo scan` });
                   broadcastProgress();
-                }, COOLDOWN_MS);
+                })();
               }
             }
           } else {
@@ -501,6 +509,9 @@ async function runDeepPhotoEnrichment(vehicles) {
           activeScan.deepScan.current++;
           activeScan.deepScan.enriched = enrichedCount;
           activeScan.deepScan.failed   = failedCount;
+          // Mirror progress to top-level current/total so popup's "Scanning
+          // X/Y..." header actually counts up instead of frozen at 0/79.
+          activeScan.current = activeScan.deepScan.current;
           broadcastProgress();
           if (activeScan.deepScan.current % 5 === 0) await persistState();
         }
@@ -517,7 +528,15 @@ async function runDeepPhotoEnrichment(vehicles) {
   if (cfBlockedQueue.length > 0) {
     activeScan.log.push({ cls: 'hi', text: `🔁 Retry pass: ${cfBlockedQueue.length} cf-blocked vehicles, 60s cooldown then sequential...` });
     broadcastProgress();
-    await new Promise(r => setTimeout(r, 60000)); // let Cloudflare forget us
+    // MV3 service workers go dormant after ~30s of inactivity, killing
+    // bare setTimeout sleeps. Break the 60s wait into 12 × 5s chunks so
+    // each tick keeps the worker alive (any chrome API call resets the
+    // dormancy timer).
+    for (let i = 0; i < 12; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      // Touch storage to keep service worker alive
+      try { await chrome.storage.local.get('activeScan'); } catch(_){}
+    }
     activeScan.log.push({ cls: 'hi', text: `▶ Retry pass starting` });
     broadcastProgress();
 
