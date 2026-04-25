@@ -2743,11 +2743,10 @@ async function loadCRM(){
     const res=await FF.apiFetch('/api/desk/crm').then(r=>r.json());
     if(res.success){
       crmData=res.crm.map(r=>({
-        id:r.id,
+        ...r,
         date:r.created_at?new Date(r.created_at).toLocaleDateString('en-CA'):'—',
-        name:r.name,phone:r.phone||'',email:r.email||'',
-        vehicle:r.source||'Not specified',stock:r.notes||'',
-        beacon:r.beacon||'',status:r.status||'Lead'
+        phone:r.phone||'',email:r.email||'',
+        beacon:r.beacon||'',status:r.status||'Lead',
       }));
       renderCRM();
     }
