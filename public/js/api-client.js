@@ -239,6 +239,11 @@
           logoUrl:    window.settings.logoUrl    || ''
         };
         if (data.user && data.user.features) _user.features = data.user.features;
+        // Phase 6: keep memberRole + tenantId fresh on every load so role
+        // gates (delete buttons, manager-only panels) reflect the latest
+        // state if a user was promoted/demoted in another tab.
+        if (data.user && data.user.memberRole) _user.memberRole = data.user.memberRole;
+        if (data.user && data.user.tenantId)   _user.tenantId   = data.user.tenantId;
       }
       // Apply immediately to deal desk fields
       if (typeof setVal === 'function') {

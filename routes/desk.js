@@ -824,8 +824,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       // Phase 6: tenant-scoped bulk replace — wipes the dealer's tenant
-      // inventory (not just one user's) so any rep can run a clean re-import.
+      // inventory entirely. Only managers + owners can run this; reps don't
+      // get to nuke the lot.
       const scope = await resolveScope(req);
+      if (scope && !roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers can bulk-replace inventory. Ask your manager to run the import.' });
+      }
       const tenantId = scope?.tenantId || null;
 
       await client.query('BEGIN');
@@ -909,8 +914,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.delete('/api/desk/inventory/:stock', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      // Phase 6: any rep on the tenant can remove from the shared lot.
+      // Phase 6: only managers + owners can delete from the shared lot.
+      // Reps can mark vehicles sold/wholesale, but not destroy data.
       const scope = await resolveScope(req);
+      if (scope && !roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers can delete inventory. Ask your manager to remove this vehicle.' });
+      }
       if (scope?.tenantId) {
         await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND tenant_id = $2', [req.params.stock, scope.tenantId]);
       } else {
@@ -974,9 +984,16 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       const userId = req.user.userId;
-      // Phase 6: tenant-scoped — any rep on the dealer's tenant can sync the
-      // shared lot. Falls back to user-scoped for solo accounts.
+      // Phase 6: tenant-scoped — managers + owners can sync the shared lot.
+      // ADD/CONSOLIDATE keep existing data; REPLACE wipes the whole lot, so
+      // for that mode we hard-require manager+. For ADD/CONSOLIDATE we still
+      // require manager+ since the importer is a manager workflow (reps
+      // shouldn't be running scrapes that could overwrite cards in flight).
       const scope = await resolveScope(req);
+      if (scope && !roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers can sync inventory from the importer. Ask your manager.' });
+      }
       const tenantId = scope?.tenantId || null;
       // Visibility scope for SELECTs / DELETEs / UPDATEs:
       const ownerWhere   = tenantId ? 'tenant_id = $1' : 'user_id = $1 AND tenant_id IS NULL';
@@ -1856,6 +1873,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         email: u.email,
         name: u.display_name,
         role: u.role,
+        memberRole: scope?.memberRole || null,  // 'owner' | 'manager' | 'rep' (Phase 6 — UI gating)
+        tenantId:   scope?.tenantId   || null,
         tenantBranding: buildTenantBrandingFromSettings(settings),
         features: isLegacy ? { sarah: true, dt_sync: true, fb_poster: true } : rawFeatures
       };

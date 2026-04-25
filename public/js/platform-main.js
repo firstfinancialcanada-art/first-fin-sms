@@ -679,13 +679,29 @@ function renderInventory(list){
       </td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
-        <button class="btn btn-sm" onclick="event.stopPropagation();deleteInventoryItem('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>
+        ${(function(){
+          // Phase 6: reps can't delete inventory — render the button greyed
+          // out with a tooltip explaining why. Managers + owners + solo
+          // accounts (no member role) keep full delete.
+          const role = (window.FF && FF.user && FF.user.memberRole) || null;
+          const canDelete = !role || role === 'manager' || role === 'owner';
+          return canDelete
+            ? `<button class="btn btn-sm" onclick="event.stopPropagation();deleteInventoryItem('${v.stock}')" style="background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#f87171;" title="Delete vehicle"><i data-lucide="trash-2" class="ico-sm"></i></button>`
+            : `<button class="btn btn-sm" disabled style="background:rgba(100,116,139,.1);border-color:rgba(100,116,139,.3);color:#64748b;cursor:not-allowed;opacity:.6;" title="Only managers can delete inventory"><i data-lucide="trash-2" class="ico-sm"></i></button>`;
+        })()}
       </td>
     </tr>`).join('');
   try { lucide.createIcons(); } catch(e) {}
 }
 
 async function deleteInventoryItem(stock) {
+  // Phase 6: reps blocked from deleting; defence-in-depth on top of the
+  // greyed-out button (in case someone calls this from the console).
+  const role = (window.FF && FF.user && FF.user.memberRole) || null;
+  if (role === 'rep') {
+    toast('⚠️ Only managers can delete inventory');
+    return;
+  }
   if (!confirm(`Remove ${stock} from inventory?`)) return;
   try {
     const res = await window.FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}`, { method: 'DELETE' });
@@ -723,6 +739,14 @@ function invUpdateBulkBar() {
   const bar = document.getElementById('invBulkBar');
   const countEl = document.getElementById('invSelCount');
   if (!bar) return;
+  // Phase 6: bulk delete bar is for managers + owners only. Reps see
+  // checkboxes but no bulk-action toolbar — keeps the UI calm and avoids
+  // a hidden-but-clickable Delete button.
+  const role = (window.FF && FF.user && FF.user.memberRole) || null;
+  if (role === 'rep') {
+    bar.style.display = 'none';
+    return;
+  }
   if (invSelected.size > 0) {
     bar.style.display = 'flex';
     if (countEl) countEl.textContent = `${invSelected.size} selected`;
@@ -742,6 +766,12 @@ window.invClearSelection = function() {
 };
 
 window.invDeleteSelected = async function() {
+  // Phase 6: reps blocked from bulk delete.
+  const role = (window.FF && FF.user && FF.user.memberRole) || null;
+  if (role === 'rep') {
+    toast('⚠️ Only managers can delete inventory');
+    return;
+  }
   const stocks = [...invSelected];
   if (!stocks.length) return;
   if (!confirm(`Delete ${stocks.length} vehicle${stocks.length>1?'s':''} from inventory?\n\nThis permanently removes them from your database.`)) return;
