@@ -518,10 +518,30 @@ async function runScan() {
 
     } else if (result.vehicles?.length > 0) {
       scraped = result.vehicles.filter(isRealVehicle);
-      setProgress(90);
+      setProgress(60);
       scraped.forEach(v =>
         log(`  ✓ ${v.year} ${v.make} ${v.model} — ${(v.mileage||0).toLocaleString()} km · $${(v.price||0).toLocaleString()}`, 'ok')
       );
+
+      // CONVERTUS DEEP PHOTO SCAN: listing cards expose 1 photo per vehicle.
+      // The full gallery (24-26 photos) lives on each VDP behind the lightbox.
+      // Hand off to background.js for tab-by-tab enrichment — runs ~5-7 min
+      // for 79 vehicles, popup can close, results updated live.
+      const isConvertus = result.type === 'listing_cards' && scraped.some(v => v._url && /vehicle-card|convertus|chrysler|dealer/i.test(v._url + ' ' + (v._title || '')));
+      const hasUrls     = scraped.length >= 2 && scraped.filter(v => v._url).length >= 2;
+      if (hasUrls && (isConvertus || result.type === 'listing_cards')) {
+        log(`📷 Starting deep photo scan — visiting each VDP to grab full gallery (~${Math.ceil(scraped.length * 14 / 3 / 60)} min)`, 'hi');
+        log('You can navigate away — scan runs in background.', 'hi');
+        bgScanActive  = true;
+        bgLogRendered = 0;
+        chrome.runtime.sendMessage({ type: 'START_DEEP_PHOTO_SCAN', vehicles: scraped })
+          .catch(() => {
+            bgScanActive = false;
+            log('Could not start deep photo scan — sync with 1-photo cards.', 'err');
+          });
+        // UI updates come through SCAN_PROGRESS — the listener will re-render
+        return;
+      }
     } else {
       throw new Error('No vehicles found on this page. Make sure you\'re on an inventory/listing page.');
     }

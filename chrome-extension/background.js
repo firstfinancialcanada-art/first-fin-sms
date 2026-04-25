@@ -362,6 +362,140 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
   broadcastProgress();
 }
 
+// ── Convertus deep photo enrichment ────────────────────────────────────────
+// For each vehicle URL, opens a hidden tab, lets JS render, clicks the
+// .button.view-photos lightbox, and scrapes the populated DOM for
+// autotradercdn photo URLs. Runs in batches of CONCURRENCY tabs.
+//
+// Updates activeScan.vehicles[i]._photos as photos come in, so the popup
+// can show progressive results. ~12-14s per vehicle; with 3 concurrent
+// tabs, ~5-7 minutes for 79 vehicles.
+async function runDeepPhotoEnrichment(vehicles) {
+  const CONCURRENCY    = 3;     // hidden tabs in flight at once
+  const PER_TAB_TIMEOUT = 30000; // safety bail per tab (load + click + scrape)
+  let enrichedCount = 0, failedCount = 0;
+  const startTs = Date.now();
+
+  // Mark progress in activeScan so popup can render a status bar
+  activeScan.deepScan = { active: true, current: 0, total: vehicles.length, enriched: 0, failed: 0 };
+  broadcastProgress();
+
+  const queue = vehicles.slice(); // shallow copy; we'll pop items
+  const workers = [];
+
+  for (let w = 0; w < CONCURRENCY; w++) {
+    workers.push((async () => {
+      while (queue.length > 0) {
+        const v = queue.shift();
+        if (!v || !v._url) continue;
+
+        let tab = null;
+        const tabTimeout = setTimeout(() => {
+          if (tab) chrome.tabs.remove(tab.id).catch(() => {});
+        }, PER_TAB_TIMEOUT);
+
+        try {
+          tab = await chrome.tabs.create({ url: v._url, active: false });
+          await waitForTabLoad(tab.id, 14000);
+          // Run the lightbox-extractor in the VDP tab
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: async () => {
+              await new Promise(r => setTimeout(r, 5000));
+              const trigger = document.querySelector('.button.view-photos, div.button.view-photos');
+              if (trigger) {
+                const rect = trigger.getBoundingClientRect();
+                const init = { bubbles: true, cancelable: true, view: window, button: 0,
+                               clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 };
+                try { trigger.dispatchEvent(new PointerEvent('pointerdown', init)); } catch(_){}
+                try { trigger.dispatchEvent(new MouseEvent('mousedown', init)); } catch(_){}
+                try { trigger.dispatchEvent(new PointerEvent('pointerup', init)); } catch(_){}
+                try { trigger.dispatchEvent(new MouseEvent('mouseup', init)); } catch(_){}
+                try { trigger.dispatchEvent(new MouseEvent('click', init)); } catch(_){}
+                try { trigger.click(); } catch(_){}
+                await new Promise(r => setTimeout(r, 4000));
+              }
+              const html = document.documentElement.outerHTML;
+              const allUrls = html.match(/https?:\/\/[^\s"'<>)\\,]*autotradercdn[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi) || [];
+              const byUuid = new Map();
+              for (const url of allUrls) {
+                const uuidMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+                const key = uuidMatch ? uuidMatch[1] : url;
+                const existing = byUuid.get(key);
+                if (!existing) { byUuid.set(key, url); continue; }
+                const sizeNew = parseInt(url.match(/-(\d+)x\d+/)?.[1] || '0');
+                const sizeOld = parseInt(existing.match(/-(\d+)x\d+/)?.[1] || '0');
+                if (sizeNew > sizeOld) byUuid.set(key, url);
+              }
+              const photos = [...byUuid.values()].filter(u =>
+                !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
+              );
+              return photos.slice(0, 25);
+            }
+          });
+          const newPhotos = results?.[0]?.result || [];
+
+          // Detect Cloudflare challenge — page has no autotradercdn at all
+          if (newPhotos.length === 0) {
+            // Try one retry with a longer wait (cf clearance might issue mid-load)
+            await new Promise(r => setTimeout(r, 5000));
+            const retry = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => {
+                const html = document.documentElement.outerHTML;
+                const all = html.match(/https?:\/\/[^\s"'<>)\\,]*autotradercdn[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi) || [];
+                return [...new Set(all)].slice(0, 25);
+              }
+            });
+            const retryPhotos = retry?.[0]?.result || [];
+            if (retryPhotos.length > 0) {
+              v._photos = retryPhotos;
+              enrichedCount++;
+              activeScan.log.push({ cls: 'ok', text: `📷 ${v.year} ${v.make} ${v.model}: ${retryPhotos.length} photos (retry)` });
+            } else {
+              failedCount++;
+              activeScan.log.push({ cls: '', text: `📷 ${v.year} ${v.make} ${v.model}: no photos (cf-blocked, kept card photo)` });
+            }
+          } else {
+            // Merge: new photos first, dedupe with existing card photo
+            const merged = [];
+            const seen   = new Set();
+            for (const p of newPhotos.concat(v._photos || [])) {
+              if (!p || seen.has(p)) continue;
+              seen.add(p);
+              merged.push(p);
+              if (merged.length >= 25) break;
+            }
+            v._photos = merged;
+            enrichedCount++;
+            activeScan.log.push({ cls: 'ok', text: `📷 ${v.year} ${v.make} ${v.model}: ${merged.length} photos` });
+          }
+        } catch (e) {
+          failedCount++;
+          activeScan.log.push({ cls: '', text: `📷 ${v.year || ''} ${v.make || ''} ${v.model || ''}: photo enrich failed (${e.message})` });
+        } finally {
+          clearTimeout(tabTimeout);
+          if (tab) chrome.tabs.remove(tab.id).catch(() => {});
+          activeScan.deepScan.current++;
+          activeScan.deepScan.enriched = enrichedCount;
+          activeScan.deepScan.failed   = failedCount;
+          broadcastProgress();
+          if (activeScan.deepScan.current % 5 === 0) await persistState();
+        }
+      }
+    })());
+  }
+
+  await Promise.all(workers);
+
+  const elapsed = Math.round((Date.now() - startTs) / 1000);
+  activeScan.deepScan.active = false;
+  activeScan.log.push({ cls: 'hi',
+    text: `✅ Deep photo scan: ${enrichedCount}/${vehicles.length} enriched in ${elapsed}s${failedCount ? ` (${failedCount} kept card photo)` : ''}` });
+  await persistState();
+  broadcastProgress();
+}
+
 // ── Message listener ───────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'ping') {
@@ -402,6 +536,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg.type === 'START_SCAN') {
     runBackgroundScan(msg.links, msg.pageLinks || [], msg.cardVehicles || null, msg.d2cSlugPages || 0, msg.scanUrl || '');
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  // Convertus listing-cards path: popup already has 79 vehicles + 1 photo each.
+  // Now we go deep — visit each VDP, click lightbox, scrape 24-26 photos.
+  if (msg.type === 'START_DEEP_PHOTO_SCAN') {
+    const vehicles = Array.isArray(msg.vehicles) ? msg.vehicles : [];
+    if (vehicles.length === 0) { sendResponse({ ok: false, error: 'no vehicles' }); return false; }
+    // Seed activeScan so popup can render progress
+    activeScan = activeScan || { status: 'running', total: vehicles.length, current: 0, vehicles, log: [] };
+    activeScan.vehicles = vehicles;
+    activeScan.status   = 'running';
+    activeScan.log = activeScan.log || [];
+    activeScan.log.push({ cls: 'hi', text: `🔎 Deep photo scan starting — ${vehicles.length} VDPs, ~${Math.ceil(vehicles.length * 14 / 3 / 60)} min` });
+    activeScan.log.push({ cls: 'hi', text: 'You can navigate away — scan runs in background.' });
+    persistState();
+    broadcastProgress();
+    runDeepPhotoEnrichment(vehicles).catch(e => {
+      activeScan.log.push({ cls: 'err', text: `❌ Deep scan crashed: ${e.message}` });
+      activeScan.status = 'error';
+      broadcastProgress();
+    });
     sendResponse({ ok: true });
     return false;
   }

@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.6
+// content.js — FIRST-FIN Inventory Importer v2.7
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.6-hybrid-photos-2026-04-25';
+const __FF_VERSION = 'v2.7-deep-lightbox-2026-04-25';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -1118,156 +1118,63 @@ function scrapeCurrentPage() {
   return { type: 'listing_cards', vehicles };
 }
 
-// ── Hybrid photo enrichment (Convertus VDP same-origin fetch) ────────────
-// Each listing card only has 1 thumbnail — the real gallery (16-28 photos)
-// lives on each VDP page. Fetching VDPs same-origin from the listing tab
-// reuses the cf_clearance cookie, so Cloudflare lets us through. We parse
-// the VDP HTML for photomanager URLs without rendering the page.
-async function enrichConvertusPhotos(vehicles) {
-  const BATCH_SIZE     = 3;     // concurrent fetches per batch (Cloudflare-friendly)
-  const BATCH_DELAY_MS = 600;   // wait between batches to avoid rate-limit
-  const FETCH_TIMEOUT  = 12000; // per-VDP timeout
-  const CHALLENGE_WAIT = 5000;  // wait this long if Cloudflare challenges, then retry once
-  const PHOTO_CAP      = 20;
-  let enrichedCount = 0, challengedCount = 0, failedCount = 0;
+// ── Convertus VDP lightbox photo extractor ──────────────────────────────
+// Runs IN THE VDP TAB after background.js navigates there. Clicks the
+// View Photos lightbox to force the carousel to populate the DOM with
+// all 24-26 photos, then scrapes them. Returns up to 25 unique photos.
+//
+// This is exposed on `window` so background.js can call it via
+// chrome.scripting.executeScript({ func: () => window.__FF_extractVdpLightboxPhotos() }).
+async function __FF_extractVdpLightboxPhotos() {
+  // Step 1: wait for VDP JS to render the gallery (5s is the safe minimum;
+  // pages with slow CDNs occasionally need 6-7s).
+  await new Promise(r => setTimeout(r, 5000));
 
-  // Tag vehicles for verbose console reporting
-  const startTs = Date.now();
-  console.log(`[FF] Photo enrichment: starting ${vehicles.length} VDP fetches (~${Math.ceil(vehicles.length / BATCH_SIZE * (BATCH_DELAY_MS + 800) / 1000)}s)`);
-
-  for (let i = 0; i < vehicles.length; i += BATCH_SIZE) {
-    const batch = vehicles.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async (v) => {
-      const url = v._url;
-      if (!url || url === location.href) return;
-      try {
-        const vdpPhotos = await fetchVdpPhotosFromUrl(url, FETCH_TIMEOUT, CHALLENGE_WAIT);
-        if (vdpPhotos === 'CHALLENGE') {
-          challengedCount++;
-          return;
-        }
-        if (vdpPhotos === 'FAIL') {
-          failedCount++;
-          return;
-        }
-        // Merge: prefer enriched, dedupe with existing card photos as fallback
-        const merged = [];
-        const seen   = new Set();
-        for (const p of vdpPhotos.concat(v._photos || [])) {
-          if (!p || seen.has(p)) continue;
-          seen.add(p);
-          merged.push(p);
-          if (merged.length >= PHOTO_CAP) break;
-        }
-        v._photos = merged;
-        enrichedCount++;
-      } catch (e) {
-        failedCount++;
-      }
-    }));
-    if (i + BATCH_SIZE < vehicles.length) {
-      await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
-    }
+  // Step 2: find the EXACT lightbox trigger and click it. The match must
+  // hit `.button.view-photos` specifically — matching `.view-photos` alone
+  // can grab the wrapper and silently no-op.
+  const trigger = document.querySelector('.button.view-photos, div.button.view-photos');
+  if (trigger) {
+    const rect = trigger.getBoundingClientRect();
+    const init = {
+      bubbles: true, cancelable: true, view: window, button: 0,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    };
+    try { trigger.dispatchEvent(new PointerEvent('pointerdown', init)); } catch(_){}
+    try { trigger.dispatchEvent(new MouseEvent('mousedown', init)); } catch(_){}
+    try { trigger.dispatchEvent(new PointerEvent('pointerup', init)); } catch(_){}
+    try { trigger.dispatchEvent(new MouseEvent('mouseup', init)); } catch(_){}
+    try { trigger.dispatchEvent(new MouseEvent('click', init)); } catch(_){}
+    try { trigger.click(); } catch(_){}
+    // Wait for lightbox XHR/template to populate
+    await new Promise(r => setTimeout(r, 4000));
   }
 
-  const elapsed = Math.round((Date.now() - startTs) / 1000);
-  console.log(`[FF] Photo enrichment done in ${elapsed}s: ${enrichedCount} enriched, ${challengedCount} cf-challenged, ${failedCount} failed`);
+  // Step 3: scrape ALL autotradercdn photo URLs from the document.
+  // Dedupe by UUID (each photo has multiple size variants like -1024x786
+  // and -2048x1536 — keep the largest).
+  const html = document.documentElement.outerHTML;
+  const allUrls = html.match(/https?:\/\/[^\s"'<>)\\,]*autotradercdn[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi) || [];
+  const byUuid = new Map();
+  for (const url of allUrls) {
+    const uuidMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    const key = uuidMatch ? uuidMatch[1] : url;
+    const existing = byUuid.get(key);
+    if (!existing) { byUuid.set(key, url); continue; }
+    // Prefer larger size variant
+    const sizeNew = parseInt(url.match(/-(\d+)x\d+/)?.[1] || '0');
+    const sizeOld = parseInt(existing.match(/-(\d+)x\d+/)?.[1] || '0');
+    if (sizeNew > sizeOld) byUuid.set(key, url);
+  }
+  // Filter out obvious non-vehicle images (badges, logos, overlays)
+  const photos = [...byUuid.values()].filter(u =>
+    !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
+  );
+  return photos.slice(0, 25);
 }
-
-async function fetchVdpPhotosFromUrl(url, timeoutMs, challengeWaitMs) {
-  // First attempt
-  let result = await fetchVdpOnce(url, timeoutMs);
-  if (result === 'CHALLENGE') {
-    // Cloudflare interstitial — back off and retry once. The cf_clearance
-    // cookie usually gets minted by the time we're here (we're already on
-    // the listing page) so a second attempt typically succeeds.
-    await new Promise(r => setTimeout(r, challengeWaitMs));
-    result = await fetchVdpOnce(url, timeoutMs);
-  }
-  return result;
-}
-
-async function fetchVdpOnce(url, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, {
-      credentials: 'include',           // include cf_clearance cookie
-      signal: controller.signal,
-      headers: { 'Accept': 'text/html' }
-    });
-    clearTimeout(timer);
-    // Cloudflare codes — 503 with cf-mitigated header, 429 rate limit
-    if (resp.status === 503 || resp.status === 429) return 'CHALLENGE';
-    if (!resp.ok) return 'FAIL';
-    const html = await resp.text();
-    // HTML-level Cloudflare challenge fingerprints
-    if (/Just a moment\.\.\.|cf-browser-verification|challenge-platform|__cf_chl_/i.test(html)) {
-      return 'CHALLENGE';
-    }
-    return extractVdpPhotosFromHtml(html);
-  } catch (e) {
-    clearTimeout(timer);
-    return 'FAIL';
-  }
-}
-
-function extractVdpPhotosFromHtml(html) {
-  const photos = [];
-  const seen   = new Set();
-  // Same allowlist/blocklist as the listing-card scan, applied to raw HTML
-  const BAD_RE  = /badge|certified-icon|carfax-logo|equifax|td-icon|equityplus|eshop|favicon|sprite|placeholder|map-marker|stellantisdigital/i;
-  const GOOD_RE = /photomanager|autotradercdn|dealer\.com|cdn\.dealer|d2cmedia|homenet|getedealer|inventoryphotos/i;
-  const tryAdd = (raw) => {
-    if (!raw) return;
-    let u = String(raw).trim().replace(/^["']|["']$/g, '').replace(/\\\//g, '/');
-    if (!u || seen.has(u)) return;
-    if (BAD_RE.test(u)) return;
-    if (!GOOD_RE.test(u)) return;
-    // Promote relative URLs to absolute
-    if (u.startsWith('//')) u = 'https:' + u;
-    seen.add(u);
-    photos.push(u);
-  };
-
-  // 1. <img src/data-src/data-original/data-lazy-src>
-  const imgRe = /<img\b[^>]*?(?:src|data-src|data-original|data-lazy-src)=["']([^"']+)["']/gi;
-  let m;
-  while ((m = imgRe.exec(html)) !== null) tryAdd(m[1]);
-
-  // 2. background-image: url(...) on hidden carousel slides
-  const bgRe = /background(?:-image)?\s*:\s*url\(\s*["']?([^)"']+)["']?\s*\)/gi;
-  while ((m = bgRe.exec(html)) !== null) tryAdd(m[1]);
-
-  // 3. JSON-LD structured data with image arrays
-  const jsonLdRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  while ((m = jsonLdRe.exec(html)) !== null) {
-    try {
-      const data = JSON.parse(m[1].trim());
-      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
-      for (const item of items) {
-        if (item && item.image) {
-          (Array.isArray(item.image) ? item.image : [item.image]).forEach(tryAdd);
-        }
-      }
-    } catch (_) {}
-  }
-
-  // 4. Inline JS: photos = [...], images = [...], gallery = [...]
-  const varRe = /(?:photos|images|gallery|slides|vehiclePhotos)\s*[=:]\s*\[([\s\S]*?)\]/gi;
-  while ((m = varRe.exec(html)) !== null) {
-    const items = m[1].match(/["']([^"']+)["']/g) || [];
-    items.forEach(s => tryAdd(s.replace(/^["']|["']$/g, '')));
-  }
-
-  // 5. srcset descriptors (often the highest-res variant)
-  const srcsetRe = /srcset=["']([^"']+)["']/gi;
-  while ((m = srcsetRe.exec(html)) !== null) {
-    m[1].split(',').forEach(s => tryAdd((s.trim().split(/\s+/)[0] || '')));
-  }
-
-  return photos;
-}
+// Expose on window for executeScript func: () => calls
+try { window.__FF_extractVdpLightboxPhotos = __FF_extractVdpLightboxPhotos; } catch(_){}
 
 // ── Message listener (server-first with client fallback) ─────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -1296,27 +1203,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   }
 
-  // CONVERTUS SHORT-CIRCUIT + HYBRID PHOTO SCAN: when listing cards expose
-  // full data attributes (.vehicle-card[data-vehicle-vin]), grab the basic
-  // vehicle data from cards (instant), then enrich each vehicle's _photos
-  // by same-origin-fetching its VDP HTML (uses cf_clearance cookie, much
-  // faster than navigating). Cloudflare challenges are detected + retried.
+  // CONVERTUS SHORT-CIRCUIT: skip the server-side scrape (which only returns
+  // raw VDP links). Listing cards already expose VIN/stock/YMM/price/etc.
+  // Photos beyond the card thumbnail (12-26 per vehicle) live behind the
+  // VDP lightbox and are picked up by background.js in a deep-scan phase
+  // that opens each VDP, clicks .view-photos, and scrapes the rendered DOM.
   if (document.querySelectorAll('.vehicle-card[data-vehicle-vin]').length >= 2) {
-    console.log('[FF] Convertus cards detected — fast card scan + hybrid photo enrichment');
-    (async () => {
-      try {
-        const result = scrapeCurrentPage();
-        if (result.type === 'listing_cards' && Array.isArray(result.vehicles) && result.vehicles.length) {
-          await enrichConvertusPhotos(result.vehicles);
-        }
-        console.log('[FF] CLIENT scrape (enriched):', result.type, 'vehicles:', result.vehicles?.length);
-        sendResponse({ ok: true, result });
-      } catch (e) {
-        console.error('[FF] CLIENT scrape error:', e.message);
-        sendResponse({ ok: false, error: e.message });
-      }
-    })();
-    return true; // keep channel open — async enrichment can take ~30-90s
+    console.log('[FF] Convertus cards detected — using client scrape (deep photos via background)');
+    fallbackScrape();
+    return false;
   }
 
   // Try server-first: capture HTML, send to server for parsing
