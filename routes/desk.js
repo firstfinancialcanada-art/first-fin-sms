@@ -44,6 +44,43 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     } catch(e) { console.error('⚠️ inventory constraint migration:', e.message); }
   })();
 
+  // ── Phase 6: tenant-shared inventory (10 reps see the same dealer's lot) ──
+  // Adds desk_inventory.tenant_id, backfills from desk_members, switches the
+  // active uniqueness boundary to (tenant_id, stock). Reads/writes downstream
+  // use scope.tenantId so any rep on the dealer's tenant sees the full pool.
+  ;(async () => {
+    try {
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+      // Backfill: for any row missing tenant_id, look up the user's primary
+      // membership and set it. Solo accounts that never joined a tenant stay
+      // null and remain user_id-scoped (legacy) until they get one.
+      await pool.query(`
+        UPDATE desk_inventory di
+        SET tenant_id = m.tenant_id
+        FROM desk_members m
+        WHERE di.tenant_id IS NULL
+          AND m.user_id = di.user_id
+          AND m.active = TRUE
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_dinv_tenant ON desk_inventory(tenant_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_dinv_tenant_stock ON desk_inventory(tenant_id, stock)`);
+      // Add a tenant-scoped unique constraint for ON CONFLICT upserts. Keep
+      // the old (user_id, stock) constraint so legacy solo rows still upsert.
+      await pool.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'desk_inventory_tenant_stock_unique'
+              AND conrelid = 'desk_inventory'::regclass
+          ) THEN
+            ALTER TABLE desk_inventory ADD CONSTRAINT desk_inventory_tenant_stock_unique UNIQUE (tenant_id, stock);
+          END IF;
+        END $$
+      `);
+      console.log('✅ desk_inventory.tenant_id ready — inventory now shared across reps in same tenant');
+    } catch(e) { console.error('⚠️ inventory tenant migration:', e.message); }
+  })();
+
   // ── Feature telemetry table ───────────────────────────────────────
   ;(async () => {
     try {
@@ -708,10 +745,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.get('/api/desk/inventory', requireAuthTracked, async (req, res) => {
     const client = await pool.connect();
     try {
-      const result = await client.query(
-        'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE user_id = $1 ORDER BY stock',
-        [req.user.userId]
-      );
+      // Tenant-shared inventory (Phase 6): every rep on the same tenant sees
+      // the dealer's full lot. Falls back to user-scoped for solo accounts
+      // that never joined a tenant (tenant_id IS NULL).
+      const scope = await resolveScope(req);
+      const result = scope?.tenantId
+        ? await client.query(
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE tenant_id = $1 ORDER BY stock',
+            [scope.tenantId]
+          )
+        : await client.query(
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
+            [req.user.userId]
+          );
       res.json({ success: true, inventory: result.rows });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
@@ -723,12 +769,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.post('/api/desk/inventory', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      // ON CONFLICT treats this as upsert — only count-check if it's a true insert.
+      // Phase 6: tenant-scoped upsert — any rep on the dealer's tenant can
+      // add/update inventory; the row is owned by the inserter's user_id but
+      // visible to the whole tenant.
+      const scope = await resolveScope(req);
+      const tenantId = scope?.tenantId || null;
       const v = req.body;
-      const existing = await client.query(
-        'SELECT 1 FROM desk_inventory WHERE user_id = $1 AND stock = $2',
-        [req.user.userId, v.stock]
-      );
+      const existing = tenantId
+        ? await client.query('SELECT 1 FROM desk_inventory WHERE tenant_id = $1 AND stock = $2', [tenantId, v.stock])
+        : await client.query('SELECT 1 FROM desk_inventory WHERE user_id = $1 AND stock = $2 AND tenant_id IS NULL', [req.user.userId, v.stock]);
       if (!existing.rows.length) {
         const cap = await checkInventoryCap(req.user.userId);
         if (!cap.ok) {
@@ -739,12 +788,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           });
         }
       }
+      const conflictTarget = tenantId ? '(tenant_id, stock)' : '(user_id, stock)';
       const result = await client.query(
-        `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, book_value=$12, updated_at=NOW()
+        `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13, updated_at=NOW()
          RETURNING *`,
-        [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
+        [req.user.userId, tenantId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
@@ -773,15 +823,25 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         }
       }
 
-      await client.query('BEGIN');
-      await client.query("DELETE FROM desk_inventory WHERE user_id = $1", [req.user.userId]);
+      // Phase 6: tenant-scoped bulk replace — wipes the dealer's tenant
+      // inventory (not just one user's) so any rep can run a clean re-import.
+      const scope = await resolveScope(req);
+      const tenantId = scope?.tenantId || null;
 
+      await client.query('BEGIN');
+      if (tenantId) {
+        await client.query("DELETE FROM desk_inventory WHERE tenant_id = $1", [tenantId]);
+      } else {
+        await client.query("DELETE FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL", [req.user.userId]);
+      }
+
+      const conflictTarget = tenantId ? '(tenant_id, stock)' : '(user_id, stock)';
       for (const v of vehicles) {
         await client.query(
-          `INSERT INTO desk_inventory (user_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'available')
-           ON CONFLICT (user_id, stock) DO UPDATE SET year=$3, make=$4, model=$5, mileage=$6, price=$7, condition=$8, carfax=$9, type=$10, vin=$11, book_value=$12, status='available', updated_at=NOW()`,
-          [req.user.userId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
+          `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'available')
+           ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13, status='available', updated_at=NOW()`,
+          [req.user.userId, tenantId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
         );
       }
 
@@ -849,7 +909,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.delete('/api/desk/inventory/:stock', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND user_id = $2', [req.params.stock, req.user.userId]);
+      // Phase 6: any rep on the tenant can remove from the shared lot.
+      const scope = await resolveScope(req);
+      if (scope?.tenantId) {
+        await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND tenant_id = $2', [req.params.stock, scope.tenantId]);
+      } else {
+        await client.query('DELETE FROM desk_inventory WHERE stock = $1 AND user_id = $2 AND tenant_id IS NULL', [req.params.stock, req.user.userId]);
+      }
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
@@ -868,11 +934,20 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         return res.status(400).json({ success: false, error: 'status must be pending, posted, or skipped' });
       }
       const dateClause = status === 'posted' ? 'fb_posted_date = CURRENT_DATE,' : status === 'pending' ? 'fb_posted_date = NULL,' : '';
-      const result = await client.query(
-        `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
-         WHERE stock = $2 AND user_id = $3 RETURNING stock, fb_status, fb_posted_date`,
-        [status, req.params.stock, req.user.userId]
-      );
+      // Phase 6: any rep on the tenant can mark posted/pending (FB Poster
+      // is a manager+rep flow — anyone covering the lot can update status).
+      const scope = await resolveScope(req);
+      const result = scope?.tenantId
+        ? await client.query(
+            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
+             WHERE stock = $2 AND tenant_id = $3 RETURNING stock, fb_status, fb_posted_date`,
+            [status, req.params.stock, scope.tenantId]
+          )
+        : await client.query(
+            `UPDATE desk_inventory SET fb_status = $1, ${dateClause} updated_at = NOW()
+             WHERE stock = $2 AND user_id = $3 AND tenant_id IS NULL RETURNING stock, fb_status, fb_posted_date`,
+            [status, req.params.stock, req.user.userId]
+          );
       if (!result.rows.length) {
         return res.status(404).json({ success: false, error: 'Vehicle not found' });
       }
@@ -899,6 +974,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       const userId = req.user.userId;
+      // Phase 6: tenant-scoped — any rep on the dealer's tenant can sync the
+      // shared lot. Falls back to user-scoped for solo accounts.
+      const scope = await resolveScope(req);
+      const tenantId = scope?.tenantId || null;
+      // Visibility scope for SELECTs / DELETEs / UPDATEs:
+      const ownerWhere   = tenantId ? 'tenant_id = $1' : 'user_id = $1 AND tenant_id IS NULL';
+      const ownerScopeId = tenantId ? tenantId : userId;
+      const conflictTarget = tenantId ? '(tenant_id, stock)' : '(user_id, stock)';
+
       let inserted = 0, updated = 0, skipped = 0;
       let stockCounter = 0;
 
@@ -909,9 +993,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         return ('IMP' + Date.now() + stockCounter).slice(0, 20);
       }
 
+      // 16-param insert: (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, color, trim, photos)
       function insertParams(v) {
         return [
           userId,
+          tenantId,
           makeStock(v),
           v.year        || 2020,
           (v.make   || '').slice(0, 50),
@@ -932,15 +1018,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await client.query('BEGIN');
 
       if (mode === 'replace') {
-        await client.query("DELETE FROM desk_inventory WHERE user_id=$1", [userId]);
+        await client.query(`DELETE FROM desk_inventory WHERE ${ownerWhere}`, [ownerScopeId]);
         for (const v of vehicles) {
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
-             ON CONFLICT (user_id,stock) DO UPDATE SET
-               year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,carfax=$9,
-               type=$10,vin=$11,book_value=$12,color=$13,trim=$14,photos=$15,
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+             ON CONFLICT ${conflictTarget} DO UPDATE SET
+               year=$4,make=$5,model=$6,mileage=$7,price=$8,condition=$9,carfax=$10,
+               type=$11,vin=$12,book_value=$13,color=$14,trim=$15,photos=$16,
                status='available',updated_at=NOW()`,
             insertParams(v)
           );
@@ -953,8 +1039,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         const existingVins = new Set();
         if (incomingVins.length) {
           const { rows } = await client.query(
-            'SELECT vin FROM desk_inventory WHERE user_id=$1 AND vin = ANY($2)',
-            [userId, incomingVins]
+            `SELECT vin FROM desk_inventory WHERE ${ownerWhere} AND vin = ANY($2)`,
+            [ownerScopeId, incomingVins]
           );
           rows.forEach(r => existingVins.add(r.vin));
         }
@@ -963,8 +1049,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         const existingStocks = new Set();
         if (incomingStocks.length) {
           const { rows } = await client.query(
-            'SELECT stock FROM desk_inventory WHERE user_id=$1 AND stock = ANY($2)',
-            [userId, incomingStocks]
+            `SELECT stock FROM desk_inventory WHERE ${ownerWhere} AND stock = ANY($2)`,
+            [ownerScopeId, incomingStocks]
           );
           rows.forEach(r => existingStocks.add(r.stock));
         }
@@ -975,9 +1061,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           if (existingStocks.has(stock)) { skipped++; continue; }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             Values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
-             ON CONFLICT (user_id,stock) DO NOTHING`,
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+             ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );
           inserted++;
@@ -987,8 +1073,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         for (const v of vehicles) {
           if (v.vin) {
             const { rows } = await client.query(
-              'SELECT id FROM desk_inventory WHERE user_id=$1 AND vin=$2 LIMIT 1',
-              [userId, v.vin.toUpperCase()]
+              `SELECT id FROM desk_inventory WHERE ${ownerWhere} AND vin=$2 LIMIT 1`,
+              [ownerScopeId, v.vin.toUpperCase()]
             );
             if (rows.length) {
               await client.query(
@@ -996,8 +1082,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                    year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,
                    type=$9,book_value=$10,color=$11,trim=$12,photos=$13,
                    status='available',updated_at=NOW()
-                 WHERE user_id=$1 AND vin=$2`,
-                [userId, v.vin.toUpperCase(),
+                 WHERE ${ownerWhere} AND vin=$2`,
+                [ownerScopeId, v.vin.toUpperCase(),
                  v.year||2020, (v.make||'').slice(0,50), (v.model||'').slice(0,80),
                  v.mileage||0, v.price||0, v.condition||'Average',
                  v.type||'Used', v.book_value||0,
@@ -1010,9 +1096,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             Values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'available')
-             ON CONFLICT (user_id,stock) DO NOTHING`,
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+             ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );
           inserted++;
@@ -1730,6 +1816,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   app.get('/api/desk/load-all', requireAuth, async (req, res) => {
     const client = await pool.connect();
     try {
+      // Phase 6: tenant-shared inventory in deal desk bootstrap.
+      const scope = await resolveScope(req);
+      const invQuery = scope?.tenantId
+        ? { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE tenant_id = $1 AND status IN ('available', 'wholesale') ORDER BY stock", arg: scope.tenantId }
+        : { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL AND status IN ('available', 'wholesale') ORDER BY stock", arg: req.user.userId };
       const [
         settingsR,
         inventoryR,
@@ -1739,7 +1830,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         scenariosR
       ] = await Promise.all([
         client.query('SELECT settings_json, email, display_name, role, id, COALESCE(features, \'{}\'::jsonb) AS features, subscription_status FROM desk_users WHERE id = $1', [req.user.userId]),
-        client.query("SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE user_id = $1 AND status IN ('available', 'wholesale') ORDER BY stock", [req.user.userId]),
+        client.query(invQuery.sql, [invQuery.arg]),
         client.query('SELECT * FROM desk_crm WHERE user_id = $1 ORDER BY updated_at DESC', [req.user.userId]),
         client.query('SELECT id, deal_data, created_at FROM desk_deal_log WHERE user_id = $1 ORDER BY created_at DESC', [req.user.userId]),
         client.query('SELECT overrides_json FROM desk_lender_rates WHERE user_id = $1', [req.user.userId]),
