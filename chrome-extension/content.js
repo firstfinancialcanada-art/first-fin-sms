@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.5
+// content.js — FIRST-FIN Inventory Importer v2.6
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.5-2026-04-25';
+const __FF_VERSION = 'v2.6-hybrid-photos-2026-04-25';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -1118,6 +1118,157 @@ function scrapeCurrentPage() {
   return { type: 'listing_cards', vehicles };
 }
 
+// ── Hybrid photo enrichment (Convertus VDP same-origin fetch) ────────────
+// Each listing card only has 1 thumbnail — the real gallery (16-28 photos)
+// lives on each VDP page. Fetching VDPs same-origin from the listing tab
+// reuses the cf_clearance cookie, so Cloudflare lets us through. We parse
+// the VDP HTML for photomanager URLs without rendering the page.
+async function enrichConvertusPhotos(vehicles) {
+  const BATCH_SIZE     = 3;     // concurrent fetches per batch (Cloudflare-friendly)
+  const BATCH_DELAY_MS = 600;   // wait between batches to avoid rate-limit
+  const FETCH_TIMEOUT  = 12000; // per-VDP timeout
+  const CHALLENGE_WAIT = 5000;  // wait this long if Cloudflare challenges, then retry once
+  const PHOTO_CAP      = 20;
+  let enrichedCount = 0, challengedCount = 0, failedCount = 0;
+
+  // Tag vehicles for verbose console reporting
+  const startTs = Date.now();
+  console.log(`[FF] Photo enrichment: starting ${vehicles.length} VDP fetches (~${Math.ceil(vehicles.length / BATCH_SIZE * (BATCH_DELAY_MS + 800) / 1000)}s)`);
+
+  for (let i = 0; i < vehicles.length; i += BATCH_SIZE) {
+    const batch = vehicles.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (v) => {
+      const url = v._url;
+      if (!url || url === location.href) return;
+      try {
+        const vdpPhotos = await fetchVdpPhotosFromUrl(url, FETCH_TIMEOUT, CHALLENGE_WAIT);
+        if (vdpPhotos === 'CHALLENGE') {
+          challengedCount++;
+          return;
+        }
+        if (vdpPhotos === 'FAIL') {
+          failedCount++;
+          return;
+        }
+        // Merge: prefer enriched, dedupe with existing card photos as fallback
+        const merged = [];
+        const seen   = new Set();
+        for (const p of vdpPhotos.concat(v._photos || [])) {
+          if (!p || seen.has(p)) continue;
+          seen.add(p);
+          merged.push(p);
+          if (merged.length >= PHOTO_CAP) break;
+        }
+        v._photos = merged;
+        enrichedCount++;
+      } catch (e) {
+        failedCount++;
+      }
+    }));
+    if (i + BATCH_SIZE < vehicles.length) {
+      await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
+    }
+  }
+
+  const elapsed = Math.round((Date.now() - startTs) / 1000);
+  console.log(`[FF] Photo enrichment done in ${elapsed}s: ${enrichedCount} enriched, ${challengedCount} cf-challenged, ${failedCount} failed`);
+}
+
+async function fetchVdpPhotosFromUrl(url, timeoutMs, challengeWaitMs) {
+  // First attempt
+  let result = await fetchVdpOnce(url, timeoutMs);
+  if (result === 'CHALLENGE') {
+    // Cloudflare interstitial — back off and retry once. The cf_clearance
+    // cookie usually gets minted by the time we're here (we're already on
+    // the listing page) so a second attempt typically succeeds.
+    await new Promise(r => setTimeout(r, challengeWaitMs));
+    result = await fetchVdpOnce(url, timeoutMs);
+  }
+  return result;
+}
+
+async function fetchVdpOnce(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      credentials: 'include',           // include cf_clearance cookie
+      signal: controller.signal,
+      headers: { 'Accept': 'text/html' }
+    });
+    clearTimeout(timer);
+    // Cloudflare codes — 503 with cf-mitigated header, 429 rate limit
+    if (resp.status === 503 || resp.status === 429) return 'CHALLENGE';
+    if (!resp.ok) return 'FAIL';
+    const html = await resp.text();
+    // HTML-level Cloudflare challenge fingerprints
+    if (/Just a moment\.\.\.|cf-browser-verification|challenge-platform|__cf_chl_/i.test(html)) {
+      return 'CHALLENGE';
+    }
+    return extractVdpPhotosFromHtml(html);
+  } catch (e) {
+    clearTimeout(timer);
+    return 'FAIL';
+  }
+}
+
+function extractVdpPhotosFromHtml(html) {
+  const photos = [];
+  const seen   = new Set();
+  // Same allowlist/blocklist as the listing-card scan, applied to raw HTML
+  const BAD_RE  = /badge|certified-icon|carfax-logo|equifax|td-icon|equityplus|eshop|favicon|sprite|placeholder|map-marker|stellantisdigital/i;
+  const GOOD_RE = /photomanager|autotradercdn|dealer\.com|cdn\.dealer|d2cmedia|homenet|getedealer|inventoryphotos/i;
+  const tryAdd = (raw) => {
+    if (!raw) return;
+    let u = String(raw).trim().replace(/^["']|["']$/g, '').replace(/\\\//g, '/');
+    if (!u || seen.has(u)) return;
+    if (BAD_RE.test(u)) return;
+    if (!GOOD_RE.test(u)) return;
+    // Promote relative URLs to absolute
+    if (u.startsWith('//')) u = 'https:' + u;
+    seen.add(u);
+    photos.push(u);
+  };
+
+  // 1. <img src/data-src/data-original/data-lazy-src>
+  const imgRe = /<img\b[^>]*?(?:src|data-src|data-original|data-lazy-src)=["']([^"']+)["']/gi;
+  let m;
+  while ((m = imgRe.exec(html)) !== null) tryAdd(m[1]);
+
+  // 2. background-image: url(...) on hidden carousel slides
+  const bgRe = /background(?:-image)?\s*:\s*url\(\s*["']?([^)"']+)["']?\s*\)/gi;
+  while ((m = bgRe.exec(html)) !== null) tryAdd(m[1]);
+
+  // 3. JSON-LD structured data with image arrays
+  const jsonLdRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  while ((m = jsonLdRe.exec(html)) !== null) {
+    try {
+      const data = JSON.parse(m[1].trim());
+      const items = Array.isArray(data) ? data : (data['@graph'] || [data]);
+      for (const item of items) {
+        if (item && item.image) {
+          (Array.isArray(item.image) ? item.image : [item.image]).forEach(tryAdd);
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 4. Inline JS: photos = [...], images = [...], gallery = [...]
+  const varRe = /(?:photos|images|gallery|slides|vehiclePhotos)\s*[=:]\s*\[([\s\S]*?)\]/gi;
+  while ((m = varRe.exec(html)) !== null) {
+    const items = m[1].match(/["']([^"']+)["']/g) || [];
+    items.forEach(s => tryAdd(s.replace(/^["']|["']$/g, '')));
+  }
+
+  // 5. srcset descriptors (often the highest-res variant)
+  const srcsetRe = /srcset=["']([^"']+)["']/gi;
+  while ((m = srcsetRe.exec(html)) !== null) {
+    m[1].split(',').forEach(s => tryAdd((s.trim().split(/\s+/)[0] || '')));
+  }
+
+  return photos;
+}
+
 // ── Message listener (server-first with client fallback) ─────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // SCRAPE_LOCAL: client-only scrape — used by background.js to avoid server relay deadlock
@@ -1145,14 +1296,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   }
 
-  // CONVERTUS SHORT-CIRCUIT: when listing cards expose full data attributes
-  // (.vehicle-card[data-vehicle-vin]), the client already has VIN/stock/YMM/
-  // price/mileage/color etc. Going to the server would only return raw VDP
-  // links, kicking off a slow Cloudflare-blocked per-VDP crawl. Skip it.
+  // CONVERTUS SHORT-CIRCUIT + HYBRID PHOTO SCAN: when listing cards expose
+  // full data attributes (.vehicle-card[data-vehicle-vin]), grab the basic
+  // vehicle data from cards (instant), then enrich each vehicle's _photos
+  // by same-origin-fetching its VDP HTML (uses cf_clearance cookie, much
+  // faster than navigating). Cloudflare challenges are detected + retried.
   if (document.querySelectorAll('.vehicle-card[data-vehicle-vin]').length >= 2) {
-    console.log('[FF] Convertus cards detected — skipping server, using client scrape');
-    fallbackScrape();
-    return false;
+    console.log('[FF] Convertus cards detected — fast card scan + hybrid photo enrichment');
+    (async () => {
+      try {
+        const result = scrapeCurrentPage();
+        if (result.type === 'listing_cards' && Array.isArray(result.vehicles) && result.vehicles.length) {
+          await enrichConvertusPhotos(result.vehicles);
+        }
+        console.log('[FF] CLIENT scrape (enriched):', result.type, 'vehicles:', result.vehicles?.length);
+        sendResponse({ ok: true, result });
+      } catch (e) {
+        console.error('[FF] CLIENT scrape error:', e.message);
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true; // keep channel open — async enrichment can take ~30-90s
   }
 
   // Try server-first: capture HTML, send to server for parsing
