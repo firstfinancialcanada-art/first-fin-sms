@@ -177,7 +177,11 @@ select option{background:#0d1526;color:var(--text);}
 .badge-clean{background:rgba(16,185,129,.15);color:var(--green);}
 .badge-avg{background:rgba(245,158,11,.15);color:var(--amber);}
 .badge-rough{background:rgba(239,68,68,.15);color:var(--red);}
-.table-wrap{max-height:70vh;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;}
+.table-wrap{max-height:70vh;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
+.table-wrap::-webkit-scrollbar{width:8px;height:8px;}
+.table-wrap::-webkit-scrollbar-track{background:transparent;}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.table-wrap::-webkit-scrollbar-thumb:hover{background:var(--primary);}
 
 /* ── LENDER TABS ── */
 .lender-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:var(--surface2);padding:10px;border-radius:8px;border:1px solid var(--border);}
