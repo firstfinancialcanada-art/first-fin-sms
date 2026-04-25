@@ -130,6 +130,14 @@ startBulkProcessor();
 // project_firstfin_multiuser_plan.md memory for the full roadmap.
 require('./lib/tenants');
 
+// ── Lead intake (Build 2 — ADF email ingestion) ─────────────────────
+// Polls the configured Gmail (LEADS_IMAP_USER/PASS env vars), parses
+// ADF XML from lead-provider emails (AutoTrader / Kijiji / CCC / TAQ),
+// creates CRM rows scoped by the tenant's lead_intake_email address.
+// No-op if env vars unset. See project_hunt_chrysler_deal.md.
+const leadIntake = require('./lib/lead-intake');
+leadIntake.startPolling();
+
 // ── Route modules ─────────────────────────────────────────────────
 const requireBilling = makeBillingGuard(require('./lib/db').pool);
 const deps = { twilioClient, requireAuth, requireBilling, notifyOwner };
