@@ -545,6 +545,21 @@ tr:hover td{background:rgba(30,90,246,.03);}
       </div>
     </div>
 
+    <!-- Lead Intake address (Build 4) -->
+    <div id="mem-intake-bar" style="background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.25);border-radius:8px;padding:12px 14px;margin-bottom:18px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#06b6d4;font-family:'DM Mono',monospace;margin-bottom:6px;">📧 LEAD INTAKE ADDRESS</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+        Email address dealer pastes into AutoTrader / Kijiji / CarCostCanada / TAQ as a lead recipient. Mail arriving here auto-creates CRM rows scoped to this tenant + routed by the team's rules.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="email" id="mem-intake-input" placeholder="e.g. miltonchrysler@firstfinancialcanada.com" style="flex:1;padding:8px 10px;background:#070d1a;border:1px solid rgba(6,182,212,.3);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:'DM Mono',monospace;">
+        <button class="act" id="mem-intake-save" style="background:rgba(6,182,212,.2);color:#06b6d4;border-color:rgba(6,182,212,.4);font-size:11px;padding:7px 14px;" onclick="saveIntakeEmail()">Save</button>
+        <button class="act" id="mem-intake-copy" style="font-size:11px;padding:7px 12px;" onclick="copyIntakeEmail()">Copy</button>
+      </div>
+      <div id="mem-intake-status" style="font-size:11px;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;"></div>
+      <div id="mem-intake-recent" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>
+    </div>
+
     <!-- Members list -->
     <div id="mem-list" style="margin-bottom:18px;"></div>
 
@@ -1145,9 +1160,62 @@ async function openMembersModal(userId, email, displayName, tier) {
   document.getElementById('mem-invite-name').value  = '';
   document.getElementById('mem-invite-email').value = '';
   document.getElementById('mem-list').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-family:DM Mono,monospace;font-size:11px;">Loading…</div>';
+  // reset intake panel UI
+  document.getElementById('mem-intake-input').value = '';
+  document.getElementById('mem-intake-status').textContent = '';
+  document.getElementById('mem-intake-recent').innerHTML = '';
   document.getElementById('membersModal').classList.add('open');
-  await loadMembers();
+  await Promise.all([loadMembers(), loadIntakeEmail()]);
 }
+
+// ── Lead Intake (Build 4) ─────────────────────────────────────────
+async function loadIntakeEmail() {
+  if (!currentMembersUserId) return;
+  try {
+    const d = await api(`/api/admin/tenant/${currentMembersUserId}/intake`);
+    if (!d.success) return;
+    const inp = document.getElementById('mem-intake-input');
+    if (inp) inp.value = d.leadIntakeEmail || '';
+    const recent = d.recentLog || [];
+    const status = document.getElementById('mem-intake-status');
+    if (status) {
+      status.textContent = d.leadIntakeEmail
+        ? `✓ Configured. ${recent.length ? recent.length + ' recent intake event(s).' : 'No mail received yet.'}`
+        : 'Not configured — paste an address above and Save.';
+    }
+    const recentEl = document.getElementById('mem-intake-recent');
+    if (recentEl && recent.length) {
+      const okCount = recent.filter(r => r.status === 'ok').length;
+      const errCount = recent.length - okCount;
+      const dot = errCount > 0 ? '🟠' : '🟢';
+      recentEl.innerHTML = `${dot} <strong>${okCount}</strong> ok / <strong>${errCount}</strong> issue(s) in last ${recent.length}. Latest: ${escMem(recent[0].source || recent[0].status)} at ${new Date(recent[0].processed_at).toLocaleString()}`;
+    }
+  } catch (e) {}
+}
+
+window.saveIntakeEmail = async function() {
+  if (!currentMembersUserId) return;
+  const email = (document.getElementById('mem-intake-input').value || '').trim();
+  try {
+    const d = await api(`/api/admin/tenant/${currentMembersUserId}/intake`, {
+      method: 'POST',
+      body: JSON.stringify({ email: email || null })
+    });
+    if (d.success) {
+      toast(email ? '✓ Intake address set' : '✓ Intake address cleared');
+      await loadIntakeEmail();
+    } else {
+      toast('⚠ ' + (d.error || 'Save failed'));
+    }
+  } catch (e) { toast('Error: ' + e.message); }
+};
+
+window.copyIntakeEmail = function() {
+  const v = (document.getElementById('mem-intake-input').value || '').trim();
+  if (!v) { toast('Enter an address first'); return; }
+  navigator.clipboard.writeText(v).then(() => toast('✓ Copied: ' + v))
+                                  .catch(() => toast('Clipboard unavailable'));
+};
 
 async function loadMembers() {
   try {

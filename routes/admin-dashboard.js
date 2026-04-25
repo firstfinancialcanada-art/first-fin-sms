@@ -955,4 +955,86 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // LEAD INTAKE ADDRESS + ROUTING RULES (Build 4)
+  // Per-tenant config for the email-forwarding lead ingestion built
+  // in Builds 1-3. Operator sets the intake address (e.g.,
+  // miltonchrysler@firstfinancialcanada.com) per tenant; manager
+  // dashboard reads the address + manages routing rules from the
+  // platform side (Phase 5 had per-route role gating; rules need
+  // similar — they're added to the platform, not /admin, so any
+  // logged-in manager can edit them via the UI in their tenant).
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── GET /api/admin/tenant/:userId/intake ──────────────────────────
+  // Returns the tenant's lead_intake_email + a sample preview of the
+  // setup instructions text the dealer copies into AutoTrader/Kijiji.
+  app.get('/api/admin/tenant/:userId/intake', adminAuth, async (req, res) => {
+    try {
+      const ownerId = parseInt(req.params.userId, 10);
+      if (!ownerId) return res.status(400).json({ success: false, error: 'Invalid user id' });
+      const t = await pool.query(
+        `SELECT id, lead_intake_email, dealership FROM desk_tenants
+          WHERE owner_user_id = $1`,
+        [ownerId]
+      );
+      if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant not found' });
+      const row = t.rows[0];
+      // Recent intake activity (last 10) for quick health check
+      const log = await pool.query(
+        `SELECT id, message_id, intake_addr, sender_from, subject, source,
+                status, error, processed_at
+           FROM lead_intake_log
+          WHERE tenant_id = $1
+          ORDER BY processed_at DESC LIMIT 10`,
+        [row.id]
+      );
+      res.json({
+        success: true,
+        tenantId: row.id,
+        leadIntakeEmail: row.lead_intake_email || null,
+        dealership: row.dealership,
+        recentLog: log.rows,
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── POST /api/admin/tenant/:userId/intake ─────────────────────────
+  // Body: { email } — set or clear (null/empty) the tenant's intake address.
+  // Validates uniqueness via the partial UNIQUE index on the column.
+  app.post('/api/admin/tenant/:userId/intake', adminAuth, async (req, res) => {
+    try {
+      const ownerId = parseInt(req.params.userId, 10);
+      if (!ownerId) return res.status(400).json({ success: false, error: 'Invalid user id' });
+      let { email } = req.body || {};
+      if (email != null) {
+        email = String(email).trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+          return res.status(400).json({ success: false, error: 'Invalid email address' });
+        }
+      } else {
+        email = null;  // clear
+      }
+      const t = await pool.query(`SELECT id FROM desk_tenants WHERE owner_user_id = $1`, [ownerId]);
+      if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant not found' });
+      try {
+        await pool.query(
+          `UPDATE desk_tenants SET lead_intake_email = $2 WHERE id = $1`,
+          [t.rows[0].id, email]
+        );
+      } catch (e) {
+        if (/unique/i.test(e.message)) {
+          return res.status(409).json({ success: false, error: 'That intake address is already used by another tenant' });
+        }
+        throw e;
+      }
+      await auditLog('set_intake_email', 'tenant', t.rows[0].id, { email }, req);
+      res.json({ success: true, leadIntakeEmail: email });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
 };

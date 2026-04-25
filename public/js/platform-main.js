@@ -3223,6 +3223,161 @@ async function loadTeamStats(){
 }
 window.loadTeamStats = loadTeamStats;
 
+// ── LEAD ROUTING RULES (manager+ only — Build 4) ──────────────────
+// Renders the tenant's intake address banner + existing rules table
+// + add-rule form. Reps don't see the Team tab so they never hit
+// these endpoints; backend also enforces manager+ via tenant-scope.
+let _lrReps = [];
+async function loadRoutingRules(){
+  try {
+    const r = await FF.apiFetch('/api/desk/routing-rules');
+    const d = await r.json();
+    if (!d.success) {
+      document.getElementById('lr-intake-banner').innerHTML = `<span style="color:var(--red);">${d.error||'Failed to load'}</span>`;
+      return;
+    }
+    _lrReps = d.reps || [];
+
+    // Banner: show the lead intake email + rep count
+    const banner = document.getElementById('lr-intake-banner');
+    if (banner) {
+      const intake = d.leadIntakeEmail;
+      banner.innerHTML = intake
+        ? `📧 <strong style="color:#06b6d4;font-family:'DM Mono',monospace;">${escLR(intake)}</strong> &nbsp;·&nbsp; <span style="color:var(--muted)">Paste this address into AutoTrader / Kijiji / CarCostCanada / TAQ as a lead recipient. Mail arriving here auto-creates leads in your CRM and routes per the rules below.</span>`
+        : `<span style="color:var(--amber)">⚠ No lead intake address configured for this tenant. Ask your operator to set one in the admin panel before adding routing rules.</span>`;
+    }
+
+    // Populate rep multi-select
+    const repSel = document.getElementById('lr-add-reps');
+    if (repSel) {
+      repSel.size = Math.min(6, Math.max(2, _lrReps.length));
+      repSel.innerHTML = _lrReps.map(r =>
+        `<option value="${r.user_id}">${escLR(r.display_name || r.email)} (${escLR(r.role)})</option>`
+      ).join('');
+    }
+
+    // Render rules table
+    const list = document.getElementById('lr-rules-list');
+    if (!list) return;
+    if (!d.rules || d.rules.length === 0) {
+      list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-family:DM Mono,monospace;font-size:11px;">No routing rules yet — leads will sit in the pool until a rep claims one. Add a rule below to auto-assign.</div>`;
+      return;
+    }
+    const repName = (id) => {
+      const r = _lrReps.find(x => x.user_id === id);
+      return r ? (r.display_name || r.email) : ('user#' + id);
+    };
+    list.innerHTML = `
+      <table class="dt-table" style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--surface2);">
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">PRI</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">TYPE</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">SOURCES</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">REPS</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">LABEL</th>
+            <th style="text-align:center;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">ON</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;letter-spacing:1px;color:var(--muted);">—</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.rules.map(rule => `
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 12px;font-family:DM Mono,monospace;color:var(--muted);">${rule.priority}</td>
+              <td style="padding:10px 12px;font-family:DM Mono,monospace;color:var(--text);">${escLR(rule.rule_type)}</td>
+              <td style="padding:10px 12px;font-size:12px;">${rule.sources && rule.sources.length ? rule.sources.map(s=>`<span style="background:rgba(6,182,212,.12);color:#06b6d4;padding:2px 8px;border-radius:3px;margin-right:4px;font-size:11px;font-family:DM Mono,monospace;">${escLR(s)}</span>`).join('') : '<em style="color:var(--muted)">any</em>'}</td>
+              <td style="padding:10px 12px;font-size:12px;">${rule.rep_ids && rule.rep_ids.length ? rule.rep_ids.map(id=>`<span style="background:rgba(16,185,129,.12);color:#6ee7b7;padding:2px 8px;border-radius:3px;margin-right:4px;font-size:11px;">${escLR(repName(id))}</span>`).join('') : '<em style="color:var(--muted)">all reps</em>'}</td>
+              <td style="padding:10px 12px;color:var(--muted);font-size:12px;">${escLR(rule.label || '—')}</td>
+              <td style="padding:10px 12px;text-align:center;">
+                <input type="checkbox" ${rule.enabled?'checked':''} onchange="lrToggleRule(${rule.id}, this.checked)" style="cursor:pointer;">
+              </td>
+              <td style="padding:10px 12px;text-align:right;">
+                <button class="btn btn-danger btn-sm" onclick="lrDeleteRule(${rule.id})" style="font-size:10px;padding:4px 10px;">Delete</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    const banner = document.getElementById('lr-intake-banner');
+    if (banner) banner.innerHTML = `<span style="color:var(--red);">Error: ${e.message}</span>`;
+  }
+}
+function escLR(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+window.lrAddTypeChanged = function() {
+  const t = document.getElementById('lr-add-type').value;
+  const sourcesWrap = document.getElementById('lr-add-sources-wrap');
+  if (sourcesWrap) sourcesWrap.style.display = t === 'source_match' ? '' : 'none';
+};
+
+window.lrAddRule = async function() {
+  const ruleType = document.getElementById('lr-add-type').value;
+  const sourcesRaw = (document.getElementById('lr-add-sources').value || '').trim();
+  const sources = ruleType === 'source_match'
+    ? sourcesRaw.split(',').map(s => s.trim()).filter(Boolean)
+    : null;
+  const repIds = Array.from(document.getElementById('lr-add-reps').selectedOptions).map(o => parseInt(o.value, 10));
+  const label = (document.getElementById('lr-add-label').value || '').trim() || null;
+  const errEl = document.getElementById('lr-add-err');
+  errEl.style.display = 'none';
+  if (ruleType === 'source_match' && (!sources || !sources.length)) {
+    errEl.textContent = 'Source Match needs at least one source (e.g., "AutoTrader, Kijiji")';
+    errEl.style.display = 'block'; return;
+  }
+  try {
+    const r = await FF.apiFetch('/api/desk/routing-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ruleType, sources, repIds: repIds.length ? repIds : null, label })
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('lr-add-sources').value = '';
+      document.getElementById('lr-add-label').value   = '';
+      document.getElementById('lr-add-reps').selectedIndex = -1;
+      await loadRoutingRules();
+      toast('✓ Rule added');
+    } else {
+      errEl.textContent = d.error || 'Failed to add rule';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+};
+
+window.lrToggleRule = async function(ruleId, enabled) {
+  try {
+    await FF.apiFetch(`/api/desk/routing-rules/${ruleId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    toast(enabled ? '✓ Rule enabled' : 'Rule disabled');
+  } catch (e) { toast('Error: ' + e.message); await loadRoutingRules(); }
+};
+
+window.lrDeleteRule = async function(ruleId) {
+  if (!confirm('Delete this routing rule? Existing leads stay where they are; new ones won\'t use this rule.')) return;
+  try {
+    const r = await FF.apiFetch(`/api/desk/routing-rules/${ruleId}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) { await loadRoutingRules(); toast('✓ Deleted'); }
+    else toast('⚠ ' + (d.error || 'Delete failed'));
+  } catch (e) { toast('Error: ' + e.message); }
+};
+
+// Auto-load when the Team tab is opened (extends loadTeamStats so it fires both)
+const _origLoadTeamStats = loadTeamStats;
+loadTeamStats = async function() {
+  await _origLoadTeamStats();
+  await loadRoutingRules();
+};
+window.loadTeamStats = loadTeamStats;
+window.loadRoutingRules = loadRoutingRules;
+
 function updateTarget(dealsThisMonth){
   const target=parseInt(document.getElementById('targetInput').value)||settings.target;
   const now=new Date();

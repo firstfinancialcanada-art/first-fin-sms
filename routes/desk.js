@@ -1534,6 +1534,99 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // LEAD ROUTING RULES (manager+ only — Build 4)
+  // Manager UI in the platform's Team tab calls these to configure
+  // how new ADF leads from email intake auto-distribute to reps.
+  // Backend engine lives in lib/lead-routing.js (Build 3).
+  // ═══════════════════════════════════════════════════════════
+  const leadRouting = require('../lib/lead-routing');
+
+  app.get('/api/desk/routing-rules', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Routing rules require manager role' });
+      }
+      const rules = await leadRouting.listRules(scope.tenantId, true);   // include disabled
+      const reps  = await leadRouting.listActiveReps(scope.tenantId);
+      // Also surface lead_intake_email so the UI can display the address
+      const t = await pool.query(`SELECT lead_intake_email FROM desk_tenants WHERE id = $1`, [scope.tenantId]);
+      res.json({
+        success: true,
+        rules,
+        reps,
+        leadIntakeEmail: t.rows[0]?.lead_intake_email || null,
+        ruleTypes: leadRouting.VALID_RULE_TYPES,
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  app.post('/api/desk/routing-rules', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Manager role required' });
+      }
+      const { ruleType, priority, sources, repIds, label, enabled } = req.body || {};
+      if (!leadRouting.VALID_RULE_TYPES.includes(ruleType)) {
+        return res.status(400).json({ success: false, error: 'Invalid rule_type' });
+      }
+      const rule = await leadRouting.createRule(scope.tenantId, {
+        ruleType,
+        priority: priority != null ? parseInt(priority, 10) : 100,
+        sources:  Array.isArray(sources) && sources.length ? sources : null,
+        repIds:   Array.isArray(repIds)  && repIds.length  ? repIds.map(n => parseInt(n, 10)).filter(Boolean) : null,
+        label:    label || null,
+        enabled:  enabled !== false,
+      });
+      res.json({ success: true, rule });
+    } catch (e) {
+      res.status(400).json({ success: false, error: e.message || sanitizeError(e) });
+    }
+  });
+
+  app.patch('/api/desk/routing-rules/:id', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Manager role required' });
+      }
+      // Verify the rule belongs to this tenant — prevents cross-tenant edits
+      const r = await pool.query(`SELECT tenant_id FROM lead_routing_rules WHERE id = $1`, [req.params.id]);
+      if (!r.rows.length || r.rows[0].tenant_id !== scope.tenantId) {
+        return res.status(404).json({ success: false, error: 'Rule not found' });
+      }
+      await leadRouting.updateRule(parseInt(req.params.id, 10), req.body || {});
+      res.json({ success: true });
+    } catch (e) {
+      res.status(400).json({ success: false, error: e.message || sanitizeError(e) });
+    }
+  });
+
+  app.delete('/api/desk/routing-rules/:id', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Manager role required' });
+      }
+      const r = await pool.query(`SELECT tenant_id FROM lead_routing_rules WHERE id = $1`, [req.params.id]);
+      if (!r.rows.length || r.rows[0].tenant_id !== scope.tenantId) {
+        return res.status(404).json({ success: false, error: 'Rule not found' });
+      }
+      await leadRouting.deleteRule(parseInt(req.params.id, 10));
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // SCENARIOS / SAVE SLOTS
   // ═══════════════════════════════════════════════════════════
   app.get('/api/desk/scenarios', requireAuth, async (req, res) => {
