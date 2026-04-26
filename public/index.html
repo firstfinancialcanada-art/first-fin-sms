@@ -1244,8 +1244,14 @@
         </div>
         <div style="margin-bottom:14px;">
           <select id="indexBuyPlan" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
-            <option value="monthly">Monthly Plan</option>
-            <option value="annual">Annual Plan — Best Value</option>
+            <optgroup label="Solo Dealer">
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual — Best Value</option>
+            </optgroup>
+            <optgroup label="Franchise / Multi-Store (Gold)">
+              <option value="gold_monthly">Monthly · multi-user</option>
+              <option value="gold_annual">Annual · multi-user — Best Value</option>
+            </optgroup>
           </select>
         </div>
         <div style="margin-bottom:14px;">
