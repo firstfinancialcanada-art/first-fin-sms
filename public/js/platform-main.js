@@ -2643,6 +2643,12 @@ async function saveTeamIntakeEmail() {
     if (!d.success) throw new Error(d.error || 'Failed');
     status.textContent = email ? `✓ Saved — ${email}` : '✓ Cleared';
     status.style.color = 'var(--green)';
+    // Refresh the Team page's Lead Routing banner so it doesn't keep
+    // showing the old email after a save (the banner caches its own
+    // data via loadRoutingRules, separate from the modal's fetch).
+    if (typeof window.loadRoutingRules === 'function') {
+      try { await window.loadRoutingRules(); } catch (_) {}
+    }
   } catch (e) {
     status.textContent = '✗ ' + e.message;
     status.style.color = 'var(--red)';
