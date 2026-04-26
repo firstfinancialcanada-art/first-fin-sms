@@ -1196,7 +1196,7 @@
 
 
 <!-- ── REQUEST ACCESS MODAL ── -->
-<div id="inquiryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;">
+<div id="inquiryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px;">
   <div style="background:#0d1526;border:1px solid rgba(30,90,246,.4);border-radius:14px;padding:36px;width:90%;max-width:480px;position:relative;">
     <button onclick="closeInquiry()" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;line-height:1;">×</button>
     
@@ -1242,8 +1242,8 @@
         <div style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.6;text-align:left;">
           Pay securely via Stripe. We'll contact you <strong style="color:#e2e8f0;">within 24 hours</strong> to complete onboarding.
         </div>
-        <div style="margin-bottom:14px;">
-          <select id="indexBuyPlan" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
+        <div style="margin-bottom:12px;">
+          <select id="indexBuyPlan" onchange="ffIndexUpdatePlanSummary()" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
             <optgroup label="Solo Dealer">
               <option value="monthly">Monthly</option>
               <option value="annual">Annual — Best Value</option>
@@ -1254,6 +1254,8 @@
             </optgroup>
           </select>
         </div>
+        <!-- Plan summary card — populated by ffIndexUpdatePlanSummary() based on dropdown -->
+        <div id="indexBuyPlanSummary" style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.22);border-radius:8px;padding:12px 13px;margin-bottom:14px;font-size:12px;color:#cbd5e1;line-height:1.5;"></div>
         <div style="margin-bottom:14px;">
           <input id="indexBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:11px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
         </div>
@@ -1290,6 +1292,69 @@
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+// ── Plan summary data (mirrors platform.html FF_PLAN_DETAILS so the
+//    landing page Buy Now matches the demo-exit Buy Now visually) ──
+const FF_INDEX_PLAN_DETAILS = {
+  monthly: {
+    name:  'Solo Dealer — Monthly',
+    price: 'CAD $225.00 / month',
+    note:  'Billed monthly · cancel anytime',
+    feats: [
+      'Full platform access for 1 user',
+      'Deal Desk + Compare All across 12+ lenders',
+      'SARAH AI SMS (shared inbound number)',
+      'CRM, inventory, FB Poster, DT Sync'
+    ]
+  },
+  annual: {
+    name:  'Solo Dealer — Annual',
+    price: 'CAD $2,400.00 / year',
+    note:  'Billed annually · save CAD $300 vs monthly',
+    feats: [
+      'Full platform access for 1 user',
+      'Deal Desk + Compare All across 12+ lenders',
+      'SARAH AI SMS (shared inbound number)',
+      'CRM, inventory, FB Poster, DT Sync'
+    ]
+  },
+  gold_monthly: {
+    name:  'Franchise / Multi-Store (Gold) — Monthly',
+    price: 'CAD $525.00 / month',
+    note:  'Up to 10 user seats · billed monthly · cancel anytime',
+    feats: [
+      '10 user seats (3 managers + 7 reps)',
+      'Tenant-shared inventory + CRM (whole team sees the same lot)',
+      'SARAH AI SMS + per-tenant lead intake email + auto-routing',
+      'FB Marketplace auto-post, Deal Desk, lender compare, Team admin'
+    ]
+  },
+  gold_annual: {
+    name:  'Franchise / Multi-Store (Gold) — Annual',
+    price: 'CAD $6,000.00 / year',
+    note:  'Up to 10 user seats · billed annually · save CAD $300 vs monthly',
+    feats: [
+      '10 user seats (3 managers + 7 reps)',
+      'Tenant-shared inventory + CRM (whole team sees the same lot)',
+      'SARAH AI SMS + per-tenant lead intake email + auto-routing',
+      'FB Marketplace auto-post, Deal Desk, lender compare, Team admin'
+    ]
+  }
+};
+
+function ffIndexUpdatePlanSummary() {
+  const sel = document.getElementById('indexBuyPlan');
+  const sum = document.getElementById('indexBuyPlanSummary');
+  if (!sel || !sum) return;
+  const d = FF_INDEX_PLAN_DETAILS[sel.value];
+  if (!d) { sum.innerHTML = ''; return; }
+  const bullets = d.feats.map(f => `<li style="margin-bottom:3px;">${f}</li>`).join('');
+  sum.innerHTML =
+    `<div style="font-weight:700;font-size:13px;color:#e2e8f0;margin-bottom:3px;">${d.name}</div>` +
+    `<div style="font-size:15px;font-weight:800;color:#93c5fd;margin-bottom:3px;">${d.price}</div>` +
+    `<div style="font-size:11px;color:#64748b;margin-bottom:9px;">${d.note}</div>` +
+    `<ul style="margin:0;padding-left:20px;font-size:11.5px;line-height:1.55;color:#cbd5e1;">${bullets}</ul>`;
+}
+
 // ── Index Buy Now Functions ──
 function showIndexBuyPanel() {
   document.getElementById('indexBuyPanel').style.display = 'block';
@@ -1300,6 +1365,8 @@ function showIndexBuyPanel() {
       children[i].style.display = 'none';
     }
   }
+  // Populate the plan summary card so customer sees what they're buying
+  ffIndexUpdatePlanSummary();
 }
 
 function hideIndexBuyPanel() {
