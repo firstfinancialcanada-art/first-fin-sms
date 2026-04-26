@@ -2700,6 +2700,43 @@ select option{background:#0d1526;color:var(--text);}
       </div>
     </div>
 
+    <!-- Dealership Branding (manager+ only) — shared by all members -->
+    <details style="margin-bottom:14px;padding:14px 16px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:8px;">
+      <summary style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#f59e0b;font-family:'DM Mono',monospace;cursor:pointer;outline:none;">Dealership Branding (shared by all 10 seats)</summary>
+      <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px;">
+        Logo + dealership name + city + phone show up the same way for every member of your team — header, FB Marketplace listings, deal desk PDFs, Sarah's customer SMS signature.
+      </div>
+      <div style="display:grid;gap:8px;">
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;">Dealership Name</label>
+          <input type="text" id="team-brand-name" placeholder="Hunt Chrysler Dodge Jeep Ram" style="width:100%;margin-top:4px;padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;">City</label>
+            <input type="text" id="team-brand-city" placeholder="Milton, ON" style="width:100%;margin-top:4px;padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;">Phone</label>
+            <input type="text" id="team-brand-phone" placeholder="(905) 878-2580" style="width:100%;margin-top:4px;padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'DM Mono',monospace;">Logo</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+            <input type="file" id="team-brand-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="flex:1;font-size:11px;color:var(--text);font-family:'DM Mono',monospace;" onchange="onTeamLogoFileSelected(event)">
+            <span style="font-size:10px;color:var(--muted);">or paste URL:</span>
+          </div>
+          <input type="text" id="team-brand-logo-url" placeholder="https://yourdealer.com/logo.png" style="width:100%;margin-top:6px;padding:9px 12px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:'DM Mono',monospace;">
+          <div id="team-brand-logo-preview" style="margin-top:8px;padding:10px;background:#0a0e1a;border:1px solid var(--border);border-radius:6px;text-align:center;min-height:50px;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">No logo set</span>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveTeamBranding()" style="margin-top:6px;">Save Branding</button>
+        <div id="team-brand-status" style="font-size:10px;color:var(--muted);text-align:center;font-family:'DM Mono',monospace;"></div>
+      </div>
+    </details>
+
     <!-- Lead intake email -->
     <div style="margin-bottom:18px;padding:14px 16px;background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.25);border-radius:8px;">
       <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;font-family:'DM Mono',monospace;margin-bottom:6px;">Lead Intake Email</div>

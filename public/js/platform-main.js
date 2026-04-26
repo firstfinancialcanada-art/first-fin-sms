@@ -2581,8 +2581,9 @@ async function openTeamModal() {
 async function refreshTeam() {
   const list = document.getElementById('team-members-list');
   if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;font-family:DM Mono,monospace;">Loading...</div>';
-  // Kick off FB stats in parallel with team fetch — both populate Team modal
+  // Kick off FB stats + branding in parallel with team fetch
   refreshTeamFbStats();
+  refreshTeamBranding();
   try {
     const res = await window.FF.apiFetch('/api/desk/team');
     const d   = await res.json();
@@ -2689,6 +2690,87 @@ async function removeTeamMember(memberId, email) {
     await refreshTeam();
   } catch (e) {
     toast('⚠️ ' + e.message);
+  }
+}
+
+// ── TENANT-SHARED BRANDING (Phase 6) ──────────────────────────
+// Logo + dealer name + city + phone live on the tenant row, NOT per-user.
+// Manager+ saves them here; all 10 reps see the same dealership identity
+// in the header, FB Marketplace listings, deal desk PDFs, etc.
+async function refreshTeamBranding() {
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team/branding');
+    const d = await res.json();
+    if (!d.success) return;
+    const b = d.branding || {};
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('team-brand-name',     b.dealerName);
+    setVal('team-brand-city',     b.dealerCity);
+    setVal('team-brand-phone',    b.dealerPhone);
+    setVal('team-brand-logo-url', b.logoUrl);
+    _renderTeamLogoPreview(b.logoUrl);
+  } catch (_) {}
+}
+
+function _renderTeamLogoPreview(src) {
+  const el = document.getElementById('team-brand-logo-preview');
+  if (!el) return;
+  if (src) {
+    el.innerHTML = `<img src="${src.replace(/"/g,'&quot;')}" alt="logo" style="max-height:48px;max-width:200px;object-fit:contain;">`;
+  } else {
+    el.innerHTML = `<span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">No logo set</span>`;
+  }
+}
+
+function onTeamLogoFileSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 500 * 1024) {
+    toast('⚠️ Logo too large (max 500KB) — try a smaller image or paste a URL');
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const base64 = e.target.result;
+    document.getElementById('team-brand-logo-url').value = base64;
+    _renderTeamLogoPreview(base64);
+  };
+  reader.onerror = () => toast('⚠️ Could not read image file');
+  reader.readAsDataURL(file);
+}
+
+async function saveTeamBranding() {
+  const status = document.getElementById('team-brand-status');
+  const body = {
+    dealerName:  document.getElementById('team-brand-name').value.trim(),
+    logoUrl:     document.getElementById('team-brand-logo-url').value.trim(),
+    dealerCity:  document.getElementById('team-brand-city').value.trim(),
+    dealerPhone: document.getElementById('team-brand-phone').value.trim(),
+  };
+  status.textContent = 'Saving...';
+  status.style.color = 'var(--muted)';
+  try {
+    const res = await window.FF.apiFetch('/api/desk/team/branding', {
+      method: 'PUT', body: JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error || 'Save failed');
+    status.textContent = '✓ Saved — all team members will see updated branding on next login';
+    status.style.color = 'var(--green)';
+    // Locally update the FF.user.tenantBranding so the current session's
+    // header + other branded surfaces refresh without a full reload
+    if (window.FF && FF.user) {
+      FF.user.tenantBranding = {
+        dealerName:  body.dealerName  || FF.user.tenantBranding?.dealerName,
+        logoUrl:     body.logoUrl     || FF.user.tenantBranding?.logoUrl,
+        dealerCity:  body.dealerCity  || FF.user.tenantBranding?.dealerCity,
+        dealerPhone: body.dealerPhone || FF.user.tenantBranding?.dealerPhone,
+      };
+    }
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+    status.style.color = 'var(--red)';
   }
 }
 

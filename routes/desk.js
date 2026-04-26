@@ -56,6 +56,35 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     } catch(e) { console.error('⚠️ fb_posted_by migration:', e.message); }
   })();
 
+  // ── Phase 6: tenant-shared branding (logo, dealer name, city, phone)
+  // Before Phase 6, branding lived in each user's settings_json — meaning
+  // a manager who uploaded the dealership logo only saw it on their seat.
+  // The 9 other reps got a blank logo. Now branding lives on the tenant
+  // row and is read by ALL members of the tenant. Backfilled on first
+  // boot from the owner's existing settings_json so existing tenants
+  // don't lose their look.
+  ;(async () => {
+    try {
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS dealer_city VARCHAR(100)`);
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS dealer_phone VARCHAR(30)`);
+      // Backfill: copy the owner's per-user settings into the tenant row
+      // for any tenant that has NULL branding fields. Idempotent — only
+      // touches rows where the tenant column is currently empty.
+      await pool.query(`
+        UPDATE desk_tenants t SET
+          logo_url     = COALESCE(t.logo_url,     u.settings_json->>'logoUrl'),
+          dealer_city  = COALESCE(t.dealer_city,  u.settings_json->>'dealerCity'),
+          dealer_phone = COALESCE(t.dealer_phone, u.settings_json->>'dealerPhone'),
+          dealership   = COALESCE(NULLIF(t.dealership,''), u.settings_json->>'dealerName')
+        FROM desk_users u
+        WHERE u.id = t.owner_user_id
+          AND (t.logo_url IS NULL OR t.dealer_city IS NULL OR t.dealer_phone IS NULL OR t.dealership IS NULL OR t.dealership = '')
+      `);
+      console.log('✅ desk_tenants branding columns ready (tenant-shared logo/city/phone)');
+    } catch(e) { console.error('⚠️ tenant branding migration:', e.message); }
+  })();
+
   // ── Phase 6: tenant-shared inventory (10 reps see the same dealer's lot) ──
   // Adds desk_inventory.tenant_id, backfills from desk_members, switches the
   // active uniqueness boundary to (tenant_id, stock). Reads/writes downstream
@@ -1964,6 +1993,30 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const settings = normalizeSettings(u.settings_json || {});
       const rawFeatures = (typeof u.features === 'string' ? JSON.parse(u.features || '{}') : u.features) || {};
       const isLegacy = EXEMPT_EMAILS.includes(u.email) || (Object.keys(rawFeatures).length === 0 && u.subscription_status === 'active');
+
+      // Phase 6: tenant-shared branding — pull from desk_tenants so every
+      // member of the dealership sees the same logo + name regardless of
+      // whose seat they're on. Falls back to per-user settings only if the
+      // tenant row hasn't been backfilled yet (legacy solo accounts).
+      let tenantBranding = buildTenantBrandingFromSettings(settings);
+      if (scope?.tenantId) {
+        try {
+          const t = await client.query(
+            `SELECT dealership, logo_url, dealer_city, dealer_phone FROM desk_tenants WHERE id = $1`,
+            [scope.tenantId]
+          );
+          if (t.rows.length) {
+            const r = t.rows[0];
+            tenantBranding = {
+              dealerName:  r.dealership   || tenantBranding.dealerName,
+              logoUrl:     r.logo_url     || tenantBranding.logoUrl,
+              dealerCity:  r.dealer_city  || settings.dealerCity  || '',
+              dealerPhone: r.dealer_phone || settings.dealerPhone || '',
+            };
+          }
+        } catch (_) { /* fall through to per-user branding */ }
+      }
+
       const user = {
         id: u.id,
         email: u.email,
@@ -1971,7 +2024,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         role: u.role,
         memberRole: scope?.memberRole || null,  // 'owner' | 'manager' | 'rep' (Phase 6 — UI gating)
         tenantId:   scope?.tenantId   || null,
-        tenantBranding: buildTenantBrandingFromSettings(settings),
+        tenantBranding,
         features: isLegacy ? { sarah: true, dt_sync: true, fb_poster: true } : rawFeatures
       };
 
@@ -2367,6 +2420,66 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
       await pool.query(`UPDATE desk_members SET active = FALSE WHERE id = $1`, [memberId]);
       trackFeature(req.user.userId, 'team', 'member_removed', { memberId, role: m.rows[0].role });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── GET MY tenant's branding (any member can read) ─────────────
+  // Returns the dealership logo + name + city + phone. Read by load-all
+  // so every member of the tenant gets the SAME branding regardless of
+  // who's logged in. Per-user salesName / personal preferences stay in
+  // settings_json — only dealership-level stuff lives here.
+  app.get('/api/desk/team/branding', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      const r = await pool.query(
+        `SELECT dealership, logo_url, dealer_city, dealer_phone FROM desk_tenants WHERE id = $1`,
+        [scope.tenantId]
+      );
+      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Tenant row missing' });
+      const t = r.rows[0];
+      res.json({
+        success: true,
+        branding: {
+          dealerName:  t.dealership   || '',
+          logoUrl:     t.logo_url     || '',
+          dealerCity:  t.dealer_city  || '',
+          dealerPhone: t.dealer_phone || '',
+        }
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── PUT MY tenant's branding (manager+ only) ──────────────────
+  // Logo + dealer name + city + phone for the WHOLE dealership. Manager
+  // saves it once, all 10 reps see it everywhere (header, FB poster,
+  // PDF exports, Sarah signature where wired, etc.).
+  app.put('/api/desk/team/branding', requireAuth, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+          error: 'Only managers + owners can edit dealership branding' });
+      }
+      const { dealerName, logoUrl, dealerCity, dealerPhone } = req.body || {};
+      // Light validation — empty string clears the field, null leaves unchanged
+      const sets = [];
+      const vals = [];
+      let idx = 1;
+      if (dealerName  !== undefined) { sets.push(`dealership   = $${idx++}`); vals.push(String(dealerName  || '').slice(0, 200)); }
+      if (logoUrl     !== undefined) { sets.push(`logo_url     = $${idx++}`); vals.push(String(logoUrl     || '').slice(0, 500000)); } // base64 can be large
+      if (dealerCity  !== undefined) { sets.push(`dealer_city  = $${idx++}`); vals.push(String(dealerCity  || '').slice(0, 100)); }
+      if (dealerPhone !== undefined) { sets.push(`dealer_phone = $${idx++}`); vals.push(String(dealerPhone || '').slice(0, 30)); }
+      if (sets.length === 0) return res.status(400).json({ success: false, error: 'No branding fields provided' });
+      vals.push(scope.tenantId);
+      await pool.query(`UPDATE desk_tenants SET ${sets.join(', ')} WHERE id = $${idx}`, vals);
+      trackFeature(req.user.userId, 'branding', 'tenant_updated', { fieldsUpdated: sets.length });
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
