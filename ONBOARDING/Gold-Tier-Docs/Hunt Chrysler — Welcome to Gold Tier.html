@@ -384,10 +384,28 @@
   }
 
   /* Print friendliness */
+  /* Print / Save-as-PDF: keep the dark branded design intact (Mil opens
+     this on his phone; B&W version would look broken/half-finished).
+     print-color-adjust: exact tells the renderer to preserve background
+     colors, gradients, watermark images, and brand colors in the PDF. */
   @media print {
-    body { background: white; color: black; }
-    body::before { display: none; }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    body, html {
+      background: var(--bg) !important;
+      color: var(--text) !important;
+    }
     .card, .pricing-card, .cta, .signoff { break-inside: avoid; }
+    .feature-grid { break-inside: avoid; }
+  }
+  /* Backup applied always — ensures Chrome's "More settings → Background
+     graphics" toggle isn't required to be checked manually. */
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 </style>
 </head>
