@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hunt Chrysler × First Fin — Welcome to Gold Tier</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --surface2: #0d1526;
+    --border: rgba(255,255,255,.08); --border2: rgba(30,90,246,.3);
+    --text: #e2e8f0; --muted: #64748b;
+    --primary: #06b6d4; --amber: #f59e0b; --green: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1e3a5f 0%, var(--bg) 55%);
+    color: var(--text);
+    padding: 40px 20px;
+    line-height: 1.55;
+    min-height: 100vh;
+    position: relative;
+  }
+  /* Watermark — repeated FF mark in the background */
+  body::before {
+    content: 'FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN';
+    position: fixed;
+    inset: 0;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 110px;
+    line-height: 130px;
+    color: rgba(255,255,255,0.018);
+    word-spacing: 8px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    transform: rotate(-22deg);
+    transform-origin: center;
+  }
+  .shell {
+    max-width: 760px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44px;
+    letter-spacing: 5px;
+    background: linear-gradient(90deg, var(--primary), var(--amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+  }
+  .logo .sep { color: var(--amber); -webkit-text-fill-color: var(--amber); margin: 0 6px; }
+  .tagline {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-top: 6px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+  }
+  .crossmark {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    margin: 14px 0 4px;
+    font-size: 13px;
+    letter-spacing: 3px;
+  }
+  .dealer-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 4px;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .dealer-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 38px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 30px;
+    letter-spacing: 3px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  h1 .accent { color: var(--amber); }
+  h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2.5px;
+    color: var(--primary);
+    margin-top: 28px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  p {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  p.lede {
+    font-size: 15px;
+    color: #cbd5e1;
+    line-height: 1.65;
+  }
+
+  /* Feature grid */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .feature-tile {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    transition: all .2s;
+  }
+  .feature-tile:hover {
+    border-color: var(--border2);
+    background: rgba(30,90,246,.04);
+  }
+  .feature-tile .name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .feature-tile .icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .feature-tile .desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* Outcomes */
+  .outcomes {
+    background: rgba(245,158,11,.06);
+    border: 1px solid rgba(245,158,11,.25);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-top: 18px;
+  }
+  .outcomes h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: var(--amber);
+    margin-bottom: 12px;
+  }
+  .outcomes ul {
+    list-style: none;
+    padding: 0;
+  }
+  .outcomes li {
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .outcomes li::before {
+    content: '↗';
+    color: var(--amber);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Pricing card */
+  .pricing-card {
+    background: linear-gradient(135deg, rgba(6,182,212,.1), rgba(245,158,11,.08));
+    border: 2px solid var(--amber);
+    border-radius: 14px;
+    padding: 28px 32px;
+    text-align: center;
+    margin-top: 24px;
+  }
+  .pricing-tier {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: var(--amber);
+  }
+  .pricing-amount {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    letter-spacing: 1px;
+    color: var(--text);
+    margin: 8px 0 4px;
+    line-height: 1;
+  }
+  .pricing-amount .small { font-size: 22px; color: var(--muted); }
+  .pricing-period {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+  }
+  .pricing-includes {
+    margin-top: 18px;
+    text-align: left;
+    background: rgba(0,0,0,.2);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  .pricing-includes strong {
+    color: var(--primary);
+  }
+
+  /* CTA */
+  .cta {
+    background: linear-gradient(135deg, #06b6d4, #f59e0b);
+    border-radius: 14px;
+    padding: 30px;
+    text-align: center;
+    margin-top: 24px;
+  }
+  .cta h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: #000;
+    margin-bottom: 8px;
+  }
+  .cta p {
+    color: rgba(0,0,0,.75);
+    font-size: 14px;
+    margin-bottom: 18px;
+    font-weight: 600;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: #0a0e1a;
+    color: #fff;
+    padding: 14px 36px;
+    border-radius: 10px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-decoration: none;
+    border: 2px solid #000;
+    box-shadow: 0 6px 20px rgba(0,0,0,.3);
+    transition: all .2s;
+  }
+  .cta-url {
+    display: block;
+    margin-top: 14px;
+    font-family: 'DM Mono', monospace;
+    color: rgba(0,0,0,.7);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  /* Personal sign-off */
+  .signoff {
+    margin-top: 28px;
+    padding: 22px 24px;
+    background: var(--surface2);
+    border-left: 4px solid var(--primary);
+    border-radius: 8px;
+  }
+  .signoff p {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .signoff .name {
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .signoff .meta {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    margin-top: 36px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  /* Print friendliness */
+  @media print {
+    body { background: white; color: black; }
+    body::before { display: none; }
+    .card, .pricing-card, .cta, .signoff { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── HEADER ── -->
+  <div class="header">
+    <div class="logo">FIRST <span class="sep">◆</span> FIN</div>
+    <div class="tagline">Dealer Platform · Gold Tier</div>
+    <div class="crossmark">PREPARED FOR</div>
+    <div class="dealer-name">HUNT CHRYSLER</div>
+    <div class="dealer-sub">Mil Radenkovic · Sales Manager · Milton, Ontario</div>
+  </div>
+
+  <!-- ── PERSONAL OPENING ── -->
+  <div class="card">
+    <h1>Mil — let's <span class="accent">make Hunt Chrysler</span> the most efficient sales floor in Milton.</h1>
+
+    <p class="lede" style="margin-top:14px;">
+      You've seen the preview. You said go. This is the next step.
+    </p>
+    <p class="lede">
+      First Fin Gold Tier turns Hunt Chrysler's existing inventory, your existing AutoTrader / Kijiji / CarCostCanada / TAQ leads, and your team of 10 into a single coordinated sales engine — every vehicle photographed and listed in 2 clicks, every inbound lead routed to the right rep automatically, every customer text answered 24/7 by Sarah even when your floor is closed.
+    </p>
+    <p class="lede">
+      You don't change how you sell. You just stop losing leads after-hours, stop re-typing vehicle data into Marketplace, and stop wondering which rep is actually following up.
+    </p>
+  </div>
+
+  <!-- ── WHAT'S INCLUDED ── -->
+  <div class="card">
+    <h2>What Hunt Chrysler gets, Day 1</h2>
+    <p>Everything turned on the moment you activate. No phased rollout, no upsells, no "premium add-ons" hiding behind paywalls.</p>
+
+    <div class="feature-grid">
+      <div class="feature-tile">
+        <div class="name"><span class="icon">👥</span>10 Seats</div>
+        <div class="desc">3 manager + 7 rep accounts. You, Robbie, Wes, plus your 7 sales reps. Add or swap anytime through the Team panel.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">🚗</span>Shared Inventory</div>
+        <div class="desc">All 250+ vehicles imported in one scan, full photo galleries (up to 25 photos each), VIN/stock/price/mileage/trim. Every rep sees the same lot in real time.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">📨</span>Lead Routing</div>
+        <div class="desc">AutoTrader / Kijiji / CarCostCanada / TAQ leads land in Hunt's CRM, auto-assigned to reps by your rules — round-robin, by vehicle type, by source, your call.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">🤖</span>Sarah AI · 24/7</div>
+        <div class="desc">SMS responder + voice. Qualifies leads, books test drives, parses customer info, escalates serious buyers to your reps. Works while your floor sleeps.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">📱</span>FB Marketplace Auto-Post</div>
+        <div class="desc">Pick a vehicle, click Auto-Fill Facebook, all 14 form fields populate with your vehicle data + 25 photos pre-loaded. 2 clicks per listing.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">💰</span>Deal Desk + Lender Compare</div>
+        <div class="desc">Every Canadian lender side-by-side, real-time rate comparison, auto-fill from CRM. Your reps stop calling 4 lenders to find the best rate.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">📊</span>Team Activity Dashboard</div>
+        <div class="desc">See exactly who's posted what to FB, who's working which leads, who's logged how many deals. No more guessing which rep is pulling weight.</div>
+      </div>
+      <div class="feature-tile">
+        <div class="name"><span class="icon">🎨</span>Hunt-Branded</div>
+        <div class="desc">Your logo, dealership name, city, and phone show up on FB listings, customer SMS signatures, deal PDFs, and the rep dashboard. One upload, applies everywhere.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXPECTED OUTCOMES ── -->
+  <div class="card">
+    <h2>What changes for Hunt Chrysler within 30 days</h2>
+    <p>These are the patterns we see in dealerships that actually USE the platform — not just install it. Sarah only works for floors that text her leads. The CRM only works for reps that mark statuses. <strong>The dealers that use it properly see the lift below.</strong></p>
+
+    <div class="outcomes">
+      <h3>Realistic 30-day outcomes</h3>
+      <ul>
+        <li><strong>Lead response time drops from hours → seconds</strong> for inbound texts (Sarah replies instantly, even at 11pm)</li>
+        <li><strong>FB Marketplace listings posted per week jump 3-5×</strong> because 2-click posting beats manual data entry every time</li>
+        <li><strong>AutoTrader / Kijiji / CarCostCanada leads stop falling through cracks</strong> — every lead auto-creates a CRM row + assigns to a rep with an SMS notification</li>
+        <li><strong>Reps spend less time on data entry, more time closing</strong> — vehicle data, customer info, lender info all auto-populate into deals</li>
+        <li><strong>Manager visibility goes from blind → real-time</strong> — Team Activity panel shows who's posting, who's responding, who's closing</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── PRICING ── -->
+  <div class="card" style="padding: 18px 22px;">
+    <h2 style="margin-top:0;">Pricing — Gold Tier</h2>
+    <div class="pricing-card">
+      <div class="pricing-tier">GOLD TIER</div>
+      <div class="pricing-amount">$525<span class="small"> CAD</span></div>
+      <div class="pricing-period">per month · all-in</div>
+
+      <div class="pricing-includes">
+        <strong>Includes everything above:</strong> 10 seats · Sarah SMS+voice · monthly messaging allowance · Inventory importer · CRM · FB Marketplace · Deal Desk · Lender compare · Team management · Hunt-branded experience · email + SMS onboarding support.<br><br>
+        <strong>No setup fee. No per-rep upcharge. No annual contract.</strong> Cancel anytime, your data exports cleanly.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CTA ── -->
+  <div class="cta">
+    <h3>Ready When You Are, Mil.</h3>
+    <p>Activate Hunt Chrysler's Gold Tier in under 3 minutes.</p>
+    <a href="https://app.firstfinancialcanada.com" class="cta-btn">GO TO SITE → BUY NOW → GOLD TIER</a>
+    <span class="cta-url">app.firstfinancialcanada.com</span>
+  </div>
+
+  <!-- ── WHAT HAPPENS AFTER YOU CLICK ── -->
+  <div class="card">
+    <h2>What happens after you click Buy Now</h2>
+    <ol style="padding-left:22px;line-height:2;">
+      <li>Stripe checkout — credit card or pre-authorized debit, Canadian dollars.</li>
+      <li>5-step Welcome Wizard — set Hunt's logo, name, lead intake email, invite Robbie + Wes + reps. Takes ~5 minutes.</li>
+      <li>I personally jump on a 30-min onboarding call within 24 hours — walk through your inventory import, your existing AutoTrader / Kijiji / CarCostCanada / TAQ setup, and how to wire them into Hunt's First Fin lead inbox.</li>
+      <li>Hunt Chrysler is fully live, all 10 seats active, Sarah running, leads routing — within 48 hours of click.</li>
+    </ol>
+  </div>
+
+  <!-- ── SIGN-OFF ── -->
+  <div class="signoff">
+    <p>If you have any questions before you click Buy Now — about pricing, the Sarah AI, the inventory importer, or anything else — text me. I built this for dealers like Hunt Chrysler. I want it working for you, not just sold to you.</p>
+    <p style="margin-top:14px;"><span class="name">Rolli</span> · First Fin Canada · Founder</p>
+    <p class="meta">📧 support@firstfinancialcanada.com · 📱 (your number here)</p>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    First Fin Canada · Confidential · Prepared exclusively for Hunt Chrysler<br>
+    © 2026 First Fin Canada. All rights reserved.
+  </div>
+
+</div>
+</body>
+</html>
