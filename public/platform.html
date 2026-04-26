@@ -1893,7 +1893,10 @@ select option{background:#0d1526;color:var(--text);}
         <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;color:var(--text);">TEAM ACTIVITY</div>
         <div style="font-size:11px;color:var(--muted);">Per-rep CRM ownership, deals logged, last seen</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="loadTeamStats()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="openTeamModal()" title="Branding, invite members, lead intake email" style="background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#f59e0b;color:#000;font-weight:700;"><i data-lucide="settings" class="ico-sm"></i>Dealership Settings</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadTeamStats()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
+      </div>
     </div>
     <div class="stat-hero" id="team-totals" style="margin-bottom:18px;">
       <div class="stat-card"><div class="stat-number" id="teamCrmTotal">—</div><div class="stat-label">Total Leads</div></div>
