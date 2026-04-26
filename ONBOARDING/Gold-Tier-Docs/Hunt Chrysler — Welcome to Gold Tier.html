@@ -21,16 +21,29 @@
     min-height: 100vh;
     position: relative;
   }
-  /* Watermark — repeated FF mark in the background */
+  /* Watermark — tiled First Fin triangle icon at very low opacity */
   body::before {
-    content: 'FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN ◆ FIRST FIN';
+    content: '';
     position: fixed;
     inset: 0;
+    background-image: url('assets/logo-icon.png');
+    background-repeat: space;
+    background-size: 140px 140px;
+    background-position: center;
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Diagonal text watermark layered over the icon tiles */
+  body::after {
+    content: 'FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA';
+    position: fixed;
+    inset: -50px;
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 110px;
+    font-size: 90px;
     line-height: 130px;
-    color: rgba(255,255,255,0.018);
-    word-spacing: 8px;
+    color: rgba(30,90,246,0.025);
+    word-spacing: 10px;
     overflow: hidden;
     pointer-events: none;
     z-index: 0;
@@ -49,24 +62,52 @@
     text-align: center;
     margin-bottom: 32px;
   }
-  .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 44px;
-    letter-spacing: 5px;
-    background: linear-gradient(90deg, var(--primary), var(--amber));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    line-height: 1;
+  .ff-logo-wide {
+    max-width: 380px;
+    width: 80%;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   }
-  .logo .sep { color: var(--amber); -webkit-text-fill-color: var(--amber); margin: 0 6px; }
   .tagline {
     font-size: 11px;
     letter-spacing: 4px;
     color: var(--amber);
     text-transform: uppercase;
-    margin-top: 6px;
+    margin-top: 14px;
     font-weight: 700;
     font-family: 'DM Mono', monospace;
+  }
+  /* Co-brand row — First Fin × Hunt Chrysler */
+  .cobrand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin: 26px 0 18px;
+    padding: 18px 22px;
+    background: rgba(30,90,246,0.05);
+    border: 1px solid rgba(30,90,246,0.18);
+    border-radius: 14px;
+  }
+  .cobrand img.ff-icon {
+    width: 56px;
+    height: auto;
+    filter: drop-shadow(0 4px 8px rgba(30,90,246,0.4));
+  }
+  .cobrand img.hunt-logo {
+    max-height: 72px;
+    width: auto;
+    background: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .cobrand .x-mark {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: var(--amber);
+    letter-spacing: 1px;
   }
   .crossmark {
     display: inline-block;
@@ -90,6 +131,21 @@
     text-transform: uppercase;
     font-family: 'DM Mono', monospace;
     margin-top: 2px;
+  }
+  /* Section headers — small triangle icon next to h2 */
+  h2 .h2-icon {
+    width: 22px;
+    height: 22px;
+    vertical-align: -4px;
+    margin-right: 8px;
+    opacity: 0.8;
+  }
+  /* Footer logo */
+  .footer-logo {
+    width: 44px;
+    height: auto;
+    margin-bottom: 12px;
+    opacity: 0.8;
   }
 
   /* Card */
@@ -340,10 +396,19 @@
 
   <!-- ── HEADER ── -->
   <div class="header">
-    <div class="logo">FIRST <span class="sep">◆</span> FIN</div>
-    <div class="tagline">Dealer Platform · Gold Tier</div>
-    <div class="crossmark">PREPARED FOR</div>
-    <div class="dealer-name">HUNT CHRYSLER</div>
+    <img src="assets/logo-wide.jpg" alt="First Financial Canada" class="ff-logo-wide">
+    <div class="tagline">Dealer Platform · Gold Tier Welcome Packet</div>
+
+    <!-- Co-brand row: First Fin × Hunt Chrysler -->
+    <div class="cobrand">
+      <img src="assets/logo-icon.png" alt="First Fin" class="ff-icon">
+      <span class="x-mark">×</span>
+      <img src="assets/hunt-chrysler-logo.png" alt="Hunt Chrysler" class="hunt-logo"
+           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'font-family:Bebas Neue,sans-serif;font-size:28px;letter-spacing:3px;color:#e2e8f0;padding:10px 20px;background:white;color:#1a1a1a;border-radius:8px;\'>HUNT CHRYSLER</div>');">
+    </div>
+
+    <div class="crossmark">PREPARED EXCLUSIVELY FOR</div>
+    <div class="dealer-name">HUNT CHRYSLER FIAT</div>
     <div class="dealer-sub">Mil Radenkovic · Sales Manager · Milton, Ontario</div>
   </div>
 
@@ -364,7 +429,7 @@
 
   <!-- ── WHAT'S INCLUDED ── -->
   <div class="card">
-    <h2>What Hunt Chrysler gets, Day 1</h2>
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">What Hunt Chrysler gets, Day 1</h2>
     <p>Everything turned on the moment you activate. No phased rollout, no upsells, no "premium add-ons" hiding behind paywalls.</p>
 
     <div class="feature-grid">
@@ -405,7 +470,7 @@
 
   <!-- ── EXPECTED OUTCOMES ── -->
   <div class="card">
-    <h2>What changes for Hunt Chrysler within 30 days</h2>
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">What changes for Hunt Chrysler within 30 days</h2>
     <p>These are the patterns we see in dealerships that actually USE the platform — not just install it. Sarah only works for floors that text her leads. The CRM only works for reps that mark statuses. <strong>The dealers that use it properly see the lift below.</strong></p>
 
     <div class="outcomes">
@@ -422,7 +487,7 @@
 
   <!-- ── WHAT'S INCLUDED (no pricing — that lives on the checkout page) ── -->
   <div class="card" style="padding: 18px 22px;">
-    <h2 style="margin-top:0;">Gold Tier · All-In, No Add-Ons</h2>
+    <h2 style="margin-top:0;"><img src="assets/logo-icon.png" alt="" class="h2-icon">Gold Tier · All-In, No Add-Ons</h2>
     <p>Everything listed above, included. <strong>10 seats · Sarah SMS+voice · monthly messaging allowance · Inventory importer · CRM · FB Marketplace · Deal Desk · Lender compare · Team management · Hunt-branded experience · email + SMS onboarding support.</strong></p>
     <p style="margin-top:10px;">No setup fee. No per-rep upcharge. No surprise add-ons. Cancel anytime, your data exports cleanly.</p>
   </div>
@@ -437,7 +502,7 @@
 
   <!-- ── WHAT HAPPENS AFTER YOU CLICK ── -->
   <div class="card">
-    <h2>What happens after you click Buy Now</h2>
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">What happens after you click Buy Now</h2>
     <ol style="padding-left:22px;line-height:2;">
       <li>Stripe checkout — credit card or pre-authorized debit, Canadian dollars.</li>
       <li>5-step Welcome Wizard — set Hunt's logo, name, lead intake email, invite Robbie + Wes + reps. Takes ~5 minutes.</li>
@@ -455,8 +520,10 @@
 
   <!-- ── FOOTER ── -->
   <div class="footer">
-    First Fin Canada · Confidential · Prepared exclusively for Hunt Chrysler<br>
-    © 2026 First Fin Canada. All rights reserved.
+    <img src="assets/logo-icon.png" alt="First Fin" class="footer-logo">
+    <div>FIRST FINANCIAL CANADA LTD.</div>
+    <div style="margin-top:6px;">Confidential · Prepared exclusively for Hunt Chrysler Fiat<br>
+    © 2026 First Financial Canada Ltd. All rights reserved.</div>
   </div>
 
 </div>
