@@ -2996,11 +2996,33 @@ function crmStatusBadge(status) {
   const bg = colors[status] || '#6b7280';
   return `background:${bg}22;color:${bg};border:1px solid ${bg}44`;
 }
+// Relative-time helper for "Last Activity" — shows "2h ago", "3d ago",
+// or absolute date if older than 30 days. Returns '—' if no timestamp.
+function _crmRelativeTime(iso) {
+  if (!iso) return '<span style="color:var(--dim)">—</span>';
+  const ts = new Date(iso);
+  if (isNaN(ts)) return '<span style="color:var(--dim)">—</span>';
+  const now    = Date.now();
+  const diff   = Math.max(0, now - ts.getTime());
+  const mins   = Math.floor(diff / 60000);
+  const hours  = Math.floor(diff / 3600000);
+  const days   = Math.floor(diff / 86400000);
+  let label, color;
+  if (mins   <  1)  { label = 'now';        color = 'var(--green)'; }
+  else if (mins  < 60) { label = mins  + 'm ago'; color = 'var(--green)'; }
+  else if (hours <  6) { label = hours + 'h ago'; color = 'var(--green)'; }
+  else if (hours < 24) { label = hours + 'h ago'; color = 'var(--text)'; }
+  else if (days  <  3) { label = days  + 'd ago'; color = 'var(--text)'; }
+  else if (days  < 30) { label = days  + 'd ago'; color = 'var(--muted)'; }
+  else                 { label = ts.toLocaleDateString('en-CA',{month:'short',day:'numeric'}); color = 'var(--dim)'; }
+  return `<span style="color:${color}">${label}</span>`;
+}
+
 function renderCRM(){
   if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   const container=document.getElementById('crmContainer');
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  container.innerHTML=`<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
+  container.innerHTML=`<table class="data-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
   ${crmData.map(c=>{
     const fuClass = crmFollowUpClass(c);
     const fuDisplay = c.follow_up_date ? new Date(c.follow_up_date+'T12:00:00').toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
@@ -3010,6 +3032,7 @@ function renderCRM(){
     <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)">'+notesPreview+'</span>':''}</td>
     <td>${c.phone||'—'}</td>
     <td>${c.vehicle_interest||c.vehicle||'—'}${c.budget_range?' <span style="font-size:8px;color:var(--muted)">('+c.budget_range+')</span>':''}</td>
+    <td style="font-size:9px;font-weight:600;font-family:'DM Mono',monospace;">${_crmRelativeTime(c.last_contact)}</td>
     <td>${leadScoreBadge(calcLeadScore(c))}</td>
     <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+c.follow_up_note.substring(0,20)+'</span>':''}</td>
     <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>

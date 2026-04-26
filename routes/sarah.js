@@ -434,6 +434,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
           await getOrCreateCustomer(phone, WEBHOOK_USER_ID);
 
+          // Phase 6: bump desk_crm.last_contact whenever the customer
+          // texts in. Lets the 'Last Activity' column on the manager's
+          // CRM dashboard reflect every inbound engagement, not just
+          // explicit notes-panel saves. Fire-and-forget; CRM might not
+          // have a row for this phone yet (the lead might come from
+          // SMS-first not ADF-first), in which case the UPDATE is a
+          // no-op. Match on the last 10 digits so format variance
+          // (+1 prefix, dashes, etc.) doesn't miss the row.
+          pool.query(
+            `UPDATE desk_crm
+             SET last_contact = NOW(), updated_at = NOW()
+             WHERE RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10)
+                 = RIGHT(REGEXP_REPLACE($1, '\\D', '', 'g'), 10)
+               AND tenant_id IN (
+                 SELECT tenant_id FROM desk_members WHERE user_id = $2 AND active = TRUE
+               )`,
+            [phone, WEBHOOK_USER_ID]
+          ).catch((e) => console.warn('crm last_contact bump failed:', e.message));
+
           const lowerBody = message.toLowerCase().trim();
           const isStartCmd = lowerBody === 'start' || lowerBody.includes('resubscribe');
           const isStopCmd  = lowerBody === 'stop' || lowerBody.startsWith('stop') || lowerBody.includes('unsubscribe');
@@ -477,6 +496,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             });
             if (sarahSend.ok) {
               console.log('✅ Sarah replied:', aiResponse);
+              // Phase 6: bump CRM last_contact when Sarah successfully replies.
+              // Together with the inbound bump above, this gives the manager's
+              // 'Last Activity' column a true picture of engagement over time.
+              pool.query(
+                `UPDATE desk_crm
+                 SET last_contact = NOW(), updated_at = NOW()
+                 WHERE RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10)
+                     = RIGHT(REGEXP_REPLACE($1, '\\D', '', 'g'), 10)
+                   AND tenant_id IN (
+                     SELECT tenant_id FROM desk_members WHERE user_id = $2 AND active = TRUE
+                   )`,
+                [phone, WEBHOOK_USER_ID]
+              ).catch((e) => console.warn('crm last_contact bump (sarah reply) failed:', e.message));
             } else if (sarahSend.reason === 'SPEND_CAP_EXCEEDED') {
               console.warn(`⚠️ SARAH reply BLOCKED by spend cap for user ${WEBHOOK_USER_ID} → ${phone}`);
               try {

@@ -1358,11 +1358,21 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const sets = ['updated_at = NOW()'];
       const vals = [];
       let idx = 1;
+      // Track if the client explicitly set last_contact in this PATCH —
+      // if not, we auto-bump it to NOW() so the 'Last Activity' column
+      // reflects every meaningful CRM mutation (status change, notes
+      // edit, vehicle interest update, etc.) without the manager having
+      // to remember to touch it manually.
+      let clientSetLastContact = false;
       for (const field of ALLOWED) {
         if (req.body[field] !== undefined) {
           sets.push(`${field} = $${idx++}`);
           vals.push(req.body[field] === '' ? null : req.body[field]);
+          if (field === 'last_contact') clientSetLastContact = true;
         }
+      }
+      if (!clientSetLastContact) {
+        sets.push('last_contact = NOW()');
       }
       // Auto-claim from pool: if a rep PATCHes an unassigned row they
       // implicitly claim it (matches buildCrmReadFilter's pool semantics).
