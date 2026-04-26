@@ -1252,6 +1252,10 @@
               <option value="gold_monthly">Monthly · multi-user</option>
               <option value="gold_annual">Annual · multi-user — Best Value</option>
             </optgroup>
+            <optgroup label="Platinum — Multi-Rooftop · Unlimited">
+              <option value="platinum_monthly">Monthly · unlimited seats</option>
+              <option value="platinum_annual">Annual · unlimited seats — Best Value</option>
+            </optgroup>
           </select>
         </div>
         <!-- Plan summary card — populated by ffIndexUpdatePlanSummary() based on dropdown -->
@@ -1337,6 +1341,32 @@ const FF_INDEX_PLAN_DETAILS = {
       'Tenant-shared inventory + CRM (whole team sees the same lot)',
       'SARAH AI SMS + per-tenant lead intake email + auto-routing',
       'FB Marketplace auto-post, Deal Desk, lender compare, Team admin'
+    ]
+  },
+  platinum_monthly: {
+    name:  'Platinum — Multi-Rooftop · Unlimited',
+    price: 'CAD $1,025.00 / month',
+    note:  'Unlimited seats · multi-rooftop · billed monthly · cancel anytime',
+    feats: [
+      'Unlimited user seats across all rooftops',
+      'Multi-rooftop / dealer group support (one tenant, many locations)',
+      'Custom Sarah persona + scripts per dealership',
+      'White-label option (your domain, no First Fin branding)',
+      'API access for internal integrations',
+      'Higher messaging allowance + priority support / dedicated CSM'
+    ]
+  },
+  platinum_annual: {
+    name:  'Platinum — Multi-Rooftop · Unlimited (Annual)',
+    price: 'CAD $12,000.00 / year',
+    note:  'Unlimited seats · billed annually · save CAD $300 vs monthly',
+    feats: [
+      'Unlimited user seats across all rooftops',
+      'Multi-rooftop / dealer group support (one tenant, many locations)',
+      'Custom Sarah persona + scripts per dealership',
+      'White-label option (your domain, no First Fin branding)',
+      'API access for internal integrations',
+      'Higher messaging allowance + priority support / dedicated CSM'
     ]
   }
 };

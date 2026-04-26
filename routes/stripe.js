@@ -12,7 +12,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // project_firstfin_multiuser_plan.md memory). Until multi-user ships,
 // gold-tier buyers get a single-user account at the higher rate, with
 // additional seats provisioned manually.
-const VALID_PLANS = ['monthly', 'annual', 'gold_monthly', 'gold_annual'];
+const VALID_PLANS = ['monthly', 'annual', 'gold_monthly', 'gold_annual', 'platinum_monthly', 'platinum_annual'];
 const VALID_STATUSES = ['active', 'lapsed', 'cancelled', 'past_due', 'pending'];
 
 function validatePublicCheckoutInput({ plan, email, name, dealership }) {
@@ -80,10 +80,12 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const cleanDealership = dealership.trim();
 
     const priceIdByPlan = {
-      monthly:      process.env.STRIPE_PRICE_MONTHLY,
-      annual:       process.env.STRIPE_PRICE_ANNUAL,
-      gold_monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY,
-      gold_annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL,
+      monthly:          process.env.STRIPE_PRICE_MONTHLY,
+      annual:           process.env.STRIPE_PRICE_ANNUAL,
+      gold_monthly:     process.env.STRIPE_PRICE_GOLD_MONTHLY,
+      gold_annual:      process.env.STRIPE_PRICE_GOLD_ANNUAL,
+      platinum_monthly: process.env.STRIPE_PRICE_PLATINUM_MONTHLY,
+      platinum_annual:  process.env.STRIPE_PRICE_PLATINUM_ANNUAL,
     };
     const priceId = priceIdByPlan[plan];
 
@@ -140,10 +142,12 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
       return res.status(400).json({ success: false, error: 'Invalid plan selected' });
 
     const priceIdByPlan = {
-      monthly:      process.env.STRIPE_PRICE_MONTHLY,
-      annual:       process.env.STRIPE_PRICE_ANNUAL,
-      gold_monthly: process.env.STRIPE_PRICE_GOLD_MONTHLY,
-      gold_annual:  process.env.STRIPE_PRICE_GOLD_ANNUAL,
+      monthly:          process.env.STRIPE_PRICE_MONTHLY,
+      annual:           process.env.STRIPE_PRICE_ANNUAL,
+      gold_monthly:     process.env.STRIPE_PRICE_GOLD_MONTHLY,
+      gold_annual:      process.env.STRIPE_PRICE_GOLD_ANNUAL,
+      platinum_monthly: process.env.STRIPE_PRICE_PLATINUM_MONTHLY,
+      platinum_annual:  process.env.STRIPE_PRICE_PLATINUM_ANNUAL,
     };
     const priceId = priceIdByPlan[plan];
 

@@ -950,6 +950,10 @@ select option{background:#0d1526;color:var(--text);}
           <option value="gold_monthly">Monthly · multi-user</option>
           <option value="gold_annual">Annual · multi-user — Best Value</option>
         </optgroup>
+        <optgroup label="Platinum — Multi-Rooftop · Unlimited">
+          <option value="platinum_monthly">Monthly · unlimited seats</option>
+          <option value="platinum_annual">Annual · unlimited seats — Best Value</option>
+        </optgroup>
       </select>
       <div id="loginBuyPlanSummary" style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.22);border-radius:8px;padding:12px 13px;margin-bottom:12px;font-size:12px;color:#cbd5e1;line-height:1.5;"></div>
       <input id="loginBuyName" type="text" placeholder="Your name" style="width:100%;box-sizing:border-box;padding:12px 14px;background:#070d1a;border:1px solid rgba(30,90,246,.2);border-radius:8px;color:#e2e8f0;font-size:14px;font-family:'Outfit',sans-serif;margin-bottom:10px;outline:none;">
@@ -2980,6 +2984,32 @@ const FF_PLAN_DETAILS = {
       'Team-wide SARAH inbound number (per-rep numbers optional)',
       'Priority onboarding + direct support'
     ]
+  },
+  platinum_monthly: {
+    name:  'Platinum — Multi-Rooftop · Unlimited',
+    price: 'CAD $1,025.00 / month',
+    note:  'Unlimited seats · multi-rooftop · billed monthly · cancel anytime',
+    feats: [
+      'Unlimited user seats across all rooftops',
+      'Multi-rooftop / dealer group support (one tenant, many locations)',
+      'Custom Sarah persona + scripts per dealership',
+      'White-label option (your domain, no First Fin branding)',
+      'API access for internal integrations',
+      'Higher messaging allowance + priority support / dedicated CSM'
+    ]
+  },
+  platinum_annual: {
+    name:  'Platinum — Multi-Rooftop · Unlimited (Annual)',
+    price: 'CAD $12,000.00 / year',
+    note:  'Billed annually · save CAD $300 vs monthly · unlimited seats',
+    feats: [
+      'Unlimited user seats across all rooftops',
+      'Multi-rooftop / dealer group support (one tenant, many locations)',
+      'Custom Sarah persona + scripts per dealership',
+      'White-label option (your domain, no First Fin branding)',
+      'API access for internal integrations',
+      'Higher messaging allowance + priority support / dedicated CSM'
+    ]
   }
 };
 
@@ -3160,6 +3190,10 @@ async function startLoginBuy() {
     <optgroup label="Franchise / Multi-Store (Gold)">
       <option value="gold_monthly">Monthly · multi-user</option>
       <option value="gold_annual">Annual · multi-user — Best Value</option>
+    </optgroup>
+    <optgroup label="Platinum — Multi-Rooftop · Unlimited">
+      <option value="platinum_monthly">Monthly · unlimited seats</option>
+      <option value="platinum_annual">Annual · unlimited seats — Best Value</option>
     </optgroup>
   </select>
   <div id="demoBuyPlanSummary" style="background:rgba(30,90,246,.08);border:1px solid rgba(30,90,246,.22);border-radius:8px;padding:12px 13px;margin-bottom:12px;font-size:12px;color:#cbd5e1;line-height:1.5;"></div>
