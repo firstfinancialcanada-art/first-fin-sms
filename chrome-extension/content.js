@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.2
+// content.js — FIRST-FIN Inventory Importer v2.8.3
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.2-mv3-keepalive-2026-04-25';
+const __FF_VERSION = 'v2.8.3-hunt-pagination-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -482,7 +482,20 @@ function scrapeCurrentPage() {
       if (vehicles.length > 0) {
         const vdpLinks = vehicles.map(v => v._url).filter(u => u && u !== url);
         if (vdpLinks.length > 0) {
-          return { type: 'listing', links: vdpLinks, pageLinks: [], vehicaPagination: 0, url, cardVehicles: vehicles };
+          // Detect D2C-style button pagination — Hunt Chrysler (huntchryslerfiat.ca)
+          // and similar sites on the newer D2C platform put .divPaginationBox <li>
+          // elements in the DOM with item-value="N" and one button per page.
+          // The existing D2C handler (line ~727) only catches sites whose card
+          // class is `div.carImage[data-vin][data-make]`; Hunt uses
+          // `li.carBoxWrapper[data-carid]` with embedded JSON-LD and falls into
+          // this fast-cards path instead. Without d2cSlugPages, the scan stops
+          // at page 1 (~36 vehicles). Background.js's d2cSlugPages handler then
+          // clicks each page button in a hidden tab and re-scrapes VDP links,
+          // and Hunt's VDP URLs (`-id12345.html`) match the existing /-id\d+\.html/
+          // regex used there.
+          const d2cBoxes = document.querySelectorAll('.divPaginationBox');
+          const d2cSlugPages = d2cBoxes.length > 1 ? d2cBoxes.length : 0;
+          return { type: 'listing', links: vdpLinks, pageLinks: [], d2cSlugPages, vehicaPagination: 0, url, cardVehicles: vehicles };
         }
         return { type: 'listing_cards', vehicles };
       }
