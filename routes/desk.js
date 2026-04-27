@@ -684,6 +684,35 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         // Invalidate tenant cache if exposed
         if (app.locals.invalidateTenantCache) app.locals.invalidateTenantCache(req.user.userId);
       }
+
+      // Phase 6 fix — propagate branding to the tenant row so all team
+      // members (not just the writer) see the updated logo / city / phone /
+      // dealer name on next page load. Pre-fix, only the boot-time backfill
+      // ran, leaving teams stuck on stale branding after any owner update.
+      // Caught by Franco 2026-04-27 while configuring Mil's account.
+      try {
+        const scope = await resolveScope(req);
+        if (scope?.tenantId) {
+          await client.query(
+            `UPDATE desk_tenants SET
+               logo_url     = $1,
+               dealer_city  = $2,
+               dealer_phone = $3,
+               dealership   = COALESCE(NULLIF($4,''), dealership)
+             WHERE id = $5`,
+            [
+              normalized.logoUrl     || null,
+              normalized.dealerCity  || null,
+              normalized.dealerPhone || null,
+              normalized.dealerName  || '',
+              scope.tenantId,
+            ]
+          );
+        }
+      } catch (e) {
+        console.warn('tenant branding sync skipped:', e.message);
+      }
+
       res.json({ success: true, tenantBranding: buildTenantBrandingFromSettings(normalized) });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
