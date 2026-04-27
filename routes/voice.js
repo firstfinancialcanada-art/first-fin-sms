@@ -295,14 +295,27 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   });
 
   // ── 3. WHISPER ────────────────────────────────────────────────
+  // Played to the dealer (forwarded party) when they pick up — gives
+  // them a chance to press any key to accept the call (or just listen
+  // and let it bridge through).
+  //
+  // Bug fix 2026-04-27 (caught by Franco — "press any key didn't respond"):
+  // Previously <Say> was OUTSIDE <Gather>, so the prompt played
+  // uninterruptibly and then Gather started listening with a 5-sec
+  // silent timeout. Any keypress made DURING the prompt was lost, and
+  // the silent post-prompt wait made it feel broken.
+  // Standard Twilio pattern: <Say> INSIDE <Gather> so the prompt is
+  // barge-in interruptible. Any digit completes Gather immediately;
+  // timeout still falls through to the implicit bridge.
   app.post('/api/voice/whisper', validateTwilio, (req, res) => {
     res.type('text/xml');
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">
-    Incoming lead call from First Financial. Press any key to connect.
-  </Say>
-  <Gather numDigits="1" timeout="5"/>
+  <Gather numDigits="1" timeout="6">
+    <Say voice="Polly.Joanna">
+      Incoming lead call from First Financial. Press any key to connect.
+    </Say>
+  </Gather>
 </Response>`);
   });
 
