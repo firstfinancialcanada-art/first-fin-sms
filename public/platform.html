@@ -3782,6 +3782,7 @@ async function startLoginBuy() {
             </div>
             <div class="fbp-photo-row" id="fbp-photo-row">
               <div class="fbp-pstrip" id="fbp-pstrip" style="display:flex;gap:5px;flex:1;overflow-x:auto;padding:4px 0;"></div>
+              <div id="fbp-pstrip-actions" style="display:flex;gap:6px;flex-shrink:0;align-items:center;"></div>
               <div style="font-size:9px;color:var(--muted);flex-shrink:0;padding:4px 8px;" id="fbp-photo-hint">Drag photos to Facebook</div>
             </div>
             <div class="fbp-abar">
@@ -4088,10 +4089,12 @@ async function startLoginBuy() {
   // rejected thumbnail re-includes it. Clicking an included rejected-origin
   // thumbnail removes it again. "Open All" and autofill use _includedUrls.
   function fbpRenderPhotoStrip(v) {
-    const strip = document.getElementById('fbp-pstrip');
-    const hint  = document.getElementById('fbp-photo-hint');
+    const strip   = document.getElementById('fbp-pstrip');
+    const actions = document.getElementById('fbp-pstrip-actions');
+    const hint    = document.getElementById('fbp-photo-hint');
     if (!strip) return;
     strip.innerHTML = '';
+    if (actions) actions.innerHTML = '';
 
     if (!v.photos || !v.photos.length) {
       if (hint) hint.textContent = 'No photos — upload directly on Facebook';
@@ -4128,7 +4131,10 @@ async function startLoginBuy() {
       strip.appendChild(img);
     });
 
-    // Toggle button for hidden (sign-detected) photos
+    // Toggle button for hidden (sign-detected) photos — render in the
+    // sticky `actions` slot (sibling of the scrollable strip) so it's
+    // always visible regardless of how many photos are loaded.
+    const actionsSlot = actions || strip;
     const hiddenCount = [...rejected].filter(u => !included.has(u)).length;
     if (hiddenCount > 0 || showRej) {
       const togl = document.createElement('button');
@@ -4138,10 +4144,11 @@ async function startLoginBuy() {
         : `🚫 ${hiddenCount} hidden (dealer sign)`;
       togl.title = 'Photos where dealer signage was detected';
       togl.onclick = () => { v._showRejected = !showRej; fbpRenderPhotoStrip(v); };
-      strip.appendChild(togl);
+      actionsSlot.appendChild(togl);
     }
 
-    // Open All — uses currently-included list only
+    // Open All — uses currently-included list only — also in the sticky
+    // actions slot so it never gets pushed offscreen by long photo strips.
     const openBtn = document.createElement('button');
     openBtn.style.cssText = 'flex-shrink:0;padding:6px 12px;border-radius:5px;background:rgba(30,90,246,.12);border:1px solid rgba(30,90,246,.3);color:#93c5fd;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
     openBtn.textContent = 'Open All Photos';
@@ -4163,7 +4170,7 @@ async function startLoginBuy() {
       });
       fbpFlash(`Opened ${urls.length} photos`);
     };
-    strip.appendChild(openBtn);
+    actionsSlot.appendChild(openBtn);
 
     const incl = included.size;
     const rej  = [...rejected].filter(u => !included.has(u)).length;
