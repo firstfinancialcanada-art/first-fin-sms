@@ -431,7 +431,7 @@ function parseVdpDetail(url) {
     carfax:    0,
     book_value: 0,
     _title:  title,
-    _photos: photos.slice(0, 20),
+    _photos: photos.slice(0, 30),
     _url:    url
   };
 }
@@ -615,7 +615,7 @@ function scrapeCurrentPage() {
             condition,
             carfax: 0, book_value: 0,
             _title:  `${year} ${make} ${model}${trim ? ' ' + trim : ''}`.trim(),
-            _photos: photos.slice(0, 20),
+            _photos: photos.slice(0, 30),
             _url:    link
           });
         } catch (_) {}
@@ -1184,7 +1184,7 @@ async function __FF_extractVdpLightboxPhotos() {
   const photos = [...byUuid.values()].filter(u =>
     !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
   );
-  return photos.slice(0, 25);
+  return photos.slice(0, 30);
 }
 // Expose on window for executeScript func: () => calls
 try { window.__FF_extractVdpLightboxPhotos = __FF_extractVdpLightboxPhotos; } catch(_){}

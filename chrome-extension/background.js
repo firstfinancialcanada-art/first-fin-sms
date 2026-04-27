@@ -436,7 +436,7 @@ async function runDeepPhotoEnrichment(vehicles) {
               const photos = [...byUuid.values()].filter(u =>
                 !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
               );
-              return photos.slice(0, 25);
+              return photos.slice(0, 30);
             }
           });
           const newPhotos = results?.[0]?.result || [];
@@ -450,7 +450,7 @@ async function runDeepPhotoEnrichment(vehicles) {
               func: () => {
                 const html = document.documentElement.outerHTML;
                 const all = html.match(/https?:\/\/[^\s"'<>)\\,]*autotradercdn[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi) || [];
-                return [...new Set(all)].slice(0, 25);
+                return [...new Set(all)].slice(0, 30);
               }
             });
             const retryPhotos = retry?.[0]?.result || [];
@@ -577,7 +577,7 @@ async function runDeepPhotoEnrichment(vehicles) {
             }
             return [...byUuid.values()].filter(u =>
               !/badge|logo|favicon|sprite|placeholder|gubagoo|certified.*generic|car-fax-badge/i.test(u)
-            ).slice(0, 25);
+            ).slice(0, 30);
           }
         });
         const photos = results?.[0]?.result || [];

@@ -588,9 +588,11 @@ async function runSync() {
     const clean = scraped.map(v => {
       const obj = Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')));
       // Include photos (stored as _photos by the scraper)
-      // Phase 6 photo cap raised to 25 — deep-scan delivers up to 25 unique
-      // photos per vehicle and we want them all in the platform / FB Poster.
-      if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 25);
+      // 2026-04-27: cap raised 25 -> 30. Some dealers list 50+ photos per
+      // vehicle; capturing 30 lets the dealer pick the best 20 in FB Poster
+      // (Facebook Marketplace's hard cap is 20 photos per listing). Excess
+      // beyond 30 is junk anyway (warranty graphics, dealer signage repeats).
+      if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 30);
       return obj;
     });
     const r = await authFetch('/api/desk/inventory/sync', {
