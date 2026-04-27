@@ -80,7 +80,17 @@
 
   // ── FETCH WITH AUTH ─────────────────────────────────────
   async function apiFetch(path, opts = {}) {
-    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+    const headers = { ...(opts.headers || {}) };
+    // Only default to JSON Content-Type when the body is NOT FormData.
+    // For multipart uploads (logo, etc.) the browser must set the
+    // Content-Type itself with the multipart boundary parameter.
+    // Forcing 'application/json' here corrupted multer parsing on the
+    // logo upload — request fell through to SPA index.html fallback,
+    // client saw "Unexpected token '<'" trying to JSON.parse the HTML.
+    const isFormData = (typeof FormData !== 'undefined') && (opts.body instanceof FormData);
+    if (!isFormData && !headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
     if (_accessToken) headers['Authorization'] = 'Bearer ' + _accessToken;
     let res = await fetch(API_BASE + path, { ...opts, headers });
     if (res.status === 401 && _refreshToken) {
