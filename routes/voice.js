@@ -302,18 +302,56 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   // Bug fix 2026-04-27 (caught by Franco — "press any key didn't respond"):
   // Previously <Say> was OUTSIDE <Gather>, so the prompt played
   // uninterruptibly and then Gather started listening with a 5-sec
-  // silent timeout. Any keypress made DURING the prompt was lost, and
-  // the silent post-prompt wait made it feel broken.
-  // Standard Twilio pattern: <Say> INSIDE <Gather> so the prompt is
-  // barge-in interruptible. Any digit completes Gather immediately;
-  // timeout still falls through to the implicit bridge.
-  app.post('/api/voice/whisper', validateTwilio, (req, res) => {
+  // silent timeout. Any keypress made DURING the prompt was lost.
+  //
+  // Same-day enhancement: announce WHO is calling. Look up the inbound
+  // caller's number in desk_crm scoped to the dealer's tenant; if we
+  // find a name, say it ("Incoming call from John Smith — press any
+  // key to connect"). Otherwise fall back to a formatted phone number
+  // ("Incoming call from 4-0-3-5-5-5-1-2-3-4...") so Franco/Mil at
+  // least know which number is calling.
+  app.post('/api/voice/whisper', validateTwilio, async (req, res) => {
     res.type('text/xml');
+    const caller = req.body.From || req.body.Caller || '';
+    const tenant = await getTenantByNumber(req.body.To || process.env.TWILIO_PHONE_NUMBER);
+
+    // Try to look up a name from CRM. Match on last-10-digit phone
+    // strip so "(403) 555-1234" / "+14035551234" / "4035551234" all
+    // collide. Most recent matching row wins.
+    let callerLabel = '';
+    try {
+      const last10 = (caller || '').replace(/\D/g, '').slice(-10);
+      if (last10.length === 10 && tenant.userId) {
+        const r = await pool.query(
+          `SELECT c.name
+             FROM desk_crm c
+             JOIN desk_tenants t ON t.id = c.tenant_id
+            WHERE t.owner_user_id = $1
+              AND RIGHT(REGEXP_REPLACE(c.phone, '\\D', '', 'g'), 10) = $2
+            ORDER BY c.id DESC LIMIT 1`,
+          [tenant.userId, last10]
+        );
+        if (r.rows.length && r.rows[0].name) {
+          callerLabel = twimlSafe(String(r.rows[0].name).trim());
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ whisper CRM lookup failed:', e.message);
+    }
+
+    // Fallback: speak the digits in a way Polly pronounces clearly.
+    if (!callerLabel) {
+      const last10 = (caller || '').replace(/\D/g, '').slice(-10);
+      callerLabel = last10.length === 10
+        ? last10.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')   // "403 555 1234"
+        : 'an unknown number';
+    }
+
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather numDigits="1" timeout="6">
     <Say voice="Polly.Joanna">
-      Incoming lead call from First Financial. Press any key to connect.
+      Incoming lead call from ${callerLabel}. Press any key to connect.
     </Say>
   </Gather>
 </Response>`);
