@@ -254,7 +254,7 @@
 <div class="shell">
   <div class="header">
     <div class="logo">FIRST <span>FIN</span></div>
-    <div class="tagline">Gold Tier · Welcome Wizard</div>
+    <div class="tagline" id="wizard-tagline">Welcome Wizard</div>
   </div>
 
   <!-- Stepper -->
@@ -268,14 +268,16 @@
     <div class="step-dot" id="dot-4">4</div>
     <div class="step-line" id="line-4"></div>
     <div class="step-dot" id="dot-5">5</div>
+    <div class="step-line" id="line-5"></div>
+    <div class="step-dot" id="dot-6">6</div>
   </div>
 
   <div class="card">
 
     <!-- ── STEP 1: WELCOME ── -->
     <div class="panel active" id="panel-1">
-      <h1>Welcome to <span class="accent">Gold Tier</span></h1>
-      <p class="sub">In the next 5 steps, your dealership will be live on First Fin. Each step takes ~1 minute.</p>
+      <h1>Welcome to <span class="accent" id="welcome-tier-name">First Fin</span></h1>
+      <p class="sub">In the next 6 steps, your dealership will be live on First Fin. Each step takes ~1 minute.</p>
 
       <div class="feature-grid">
         <div class="feature-tile">
@@ -387,8 +389,41 @@
       </div>
     </div>
 
-    <!-- ── STEP 5: DONE ── -->
+    <!-- ── STEP 5: SARAH'S PHONE NUMBER ── -->
     <div class="panel" id="panel-5">
+      <h1>Pick <span class="accent">Sarah's Number</span></h1>
+      <p class="sub">Sarah texts and calls leads from this dedicated local number. Pick one in your dealership's area code — we set everything up instantly. Your subscription includes a monthly messaging allowance.</p>
+
+      <label>Area Code (3 digits)</label>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;">
+        <input type="text" id="w-areacode" placeholder="e.g. 905" maxlength="3" style="font-family:'DM Mono',monospace;letter-spacing:3px;font-size:18px;text-align:center;">
+        <button class="btn" id="w-search-btn" onclick="searchSarahNumbers()" style="white-space:nowrap;">Search Numbers</button>
+      </div>
+
+      <div id="w-numbers-list" style="margin-top:18px;max-height:280px;overflow-y:auto;"></div>
+
+      <div id="w-selected" style="display:none;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:14px;margin-top:14px;">
+        <div style="font-size:11px;color:var(--green);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:6px;">Selected</div>
+        <div id="w-selected-display" style="font-family:'DM Mono',monospace;font-size:18px;color:var(--text);letter-spacing:2px;"></div>
+      </div>
+
+      <div class="info-card" style="margin-top:14px;">
+        <div class="h">What happens when you click Claim</div>
+        <p>We instantly reserve this number for your dealership. All inbound texts and calls land in your CRM and Sarah starts answering within 30 seconds. <strong>Included in your subscription</strong> — no additional fees.</p>
+        <p style="margin-top:8px;font-size:11px;color:var(--muted);">Can't find a number you like? Skip this step and call us at <strong style="color:var(--primary);">587-306-6133</strong> — we'll set one up for you.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="goStep(4)">← Back</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="skip" onclick="goStep(6)">Skip — pick later</button>
+          <button class="btn btn-primary" id="w-claim-btn" onclick="claimSarahNumber()" disabled style="opacity:.5;cursor:not-allowed;">Claim This Number →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 6: DONE ── -->
+    <div class="panel" id="panel-6">
       <h1>You're <span class="accent">Live</span> 🎉</h1>
       <p class="sub">Your dealership is configured. Here's what to do next:</p>
 
@@ -400,11 +435,6 @@
       <div class="info-card" style="background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.25);">
         <div class="h" style="color:var(--amber);">Then: Set up your routing rules</div>
         <p>From the Lead Routing panel, decide how leads from each source (AutoTrader / Kijiji / CarCostCanada / TAQ) auto-assign to reps. Round-robin, by vehicle make, by lead source, or any combination.</p>
-      </div>
-
-      <div class="info-card" style="background:rgba(167,139,250,.06);border-color:rgba(167,139,250,.25);">
-        <div class="h" style="color:#a78bfa;">Then: Connect Sarah</div>
-        <p>Settings → Twilio Number. We'll provision a local number for your dealership. Your Gold subscription includes a monthly messaging allowance covering typical dealership volume.</p>
       </div>
 
       <div class="actions" style="justify-content:center;">
@@ -433,7 +463,7 @@
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + n).classList.add('active');
     // Stepper visual
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 6; i++) {
       const dot  = document.getElementById('dot-' + i);
       const line = document.getElementById('line-' + i);
       if (dot)  dot.className  = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
@@ -557,7 +587,87 @@
     goStep(5);
   }
 
-  // Prefill dealership name from existing settings if any
+  // ── Step 5 — Sarah's Phone Number (search + claim local number) ──
+  let _wSelectedNumber = '';
+
+  async function searchSarahNumbers() {
+    const ac   = document.getElementById('w-areacode').value.replace(/\D/g, '').slice(0, 3);
+    const btn  = document.getElementById('w-search-btn');
+    const list = document.getElementById('w-numbers-list');
+    if (ac.length !== 3) { showToast('Enter a 3-digit area code', true); return; }
+    btn.disabled = true;
+    btn.textContent = 'Searching…';
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace;padding:18px;">Searching available numbers…</div>';
+    try {
+      const res = await window.FF.apiFetch('/api/desk/twilio/available-numbers?areaCode=' + ac);
+      const d   = await res.json();
+      if (!d.success) throw new Error(d.error || 'Search failed');
+      if (!d.numbers || !d.numbers.length) {
+        list.innerHTML = '<div style="text-align:center;color:var(--amber);font-size:12px;font-family:\'DM Mono\',monospace;padding:18px;">No numbers available for this area code right now. Try another, or call us at 587-306-6133 and we\'ll set one up.</div>';
+        return;
+      }
+      const fallbackNote = d.fallback
+        ? '<div style="font-size:11px;color:var(--amber);margin-bottom:10px;font-family:\'DM Mono\',monospace;text-align:center;">' + (d.message || 'Showing nearby Canadian numbers') + '</div>'
+        : '';
+      list.innerHTML = fallbackNote + d.numbers.map(n => {
+        const region = (n.region || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        return '<div onclick="selectSarahNumber(\'' + n.number + '\', \'' + region + '\')" style="padding:12px 16px;background:#0d1526;border:1px solid var(--border2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:\'DM Mono\',monospace;transition:all .15s;" onmouseover="this.style.borderColor=\'var(--primary)\';this.style.background=\'#142037\'" onmouseout="this.style.borderColor=\'var(--border2)\';this.style.background=\'#0d1526\'">' +
+          '<span style="font-size:15px;color:var(--text);letter-spacing:1.5px;">' + n.number + '</span>' +
+          '<span style="font-size:11px;color:var(--muted);">' + (n.region || '') + '</span>' +
+        '</div>';
+      }).join('');
+    } catch (e) {
+      list.innerHTML = '<div style="text-align:center;color:var(--red);font-size:12px;font-family:\'DM Mono\',monospace;padding:18px;">' + (e.message || 'Search failed') + '</div>';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search Numbers';
+    }
+  }
+
+  function selectSarahNumber(number, region) {
+    _wSelectedNumber = number;
+    document.getElementById('w-selected').style.display = 'block';
+    document.getElementById('w-selected-display').textContent = number + (region ? '   ·   ' + region : '');
+    const btn = document.getElementById('w-claim-btn');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
+
+  async function claimSarahNumber() {
+    if (!_wSelectedNumber) return;
+    const btn = document.getElementById('w-claim-btn');
+    btn.disabled = true;
+    btn.textContent = 'Claiming…';
+    try {
+      const res = await window.FF.apiFetch('/api/desk/twilio/provision-number', {
+        method: 'POST',
+        body:   JSON.stringify({ phoneNumber: _wSelectedNumber })
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || 'Claim failed');
+      showToast('✓ Sarah number claimed: ' + _wSelectedNumber);
+      goStep(6);
+    } catch (e) {
+      showToast(e.message || 'Could not claim — please try another', true);
+      btn.disabled = false;
+      btn.textContent = 'Claim This Number →';
+    }
+  }
+
+  // Suggest area code from a city name (very rough — Canadian major-city lookup).
+  // Falls back to no suggestion. Mil's case: "Milton" or "Milton, ON" → 905.
+  const _cityAreaCodes = {
+    'milton':'905','mississauga':'905','brampton':'905','hamilton':'905','oakville':'905','burlington':'905','vaughan':'905','markham':'905','richmond hill':'905','newmarket':'905','barrie':'705','kitchener':'519','waterloo':'519','london':'519','windsor':'519','toronto':'416','ottawa':'613','calgary':'403','edmonton':'780','red deer':'403','lethbridge':'403','vancouver':'604','victoria':'250','burnaby':'604','surrey':'604','winnipeg':'204','regina':'306','saskatoon':'306','halifax':'902','st. john\'s':'709','quebec':'418','montreal':'514','laval':'450','gatineau':'819','sherbrooke':'819'
+  };
+
+  function _suggestAreaCode(cityRaw) {
+    if (!cityRaw) return '';
+    const c = cityRaw.toLowerCase().split(',')[0].trim();
+    return _cityAreaCodes[c] || '';
+  }
+
+  // Prefill dealership name + tier-aware copy from existing settings if any
   (async function prefill() {
     try {
       const res = await window.FF.apiFetch('/api/desk/load-all');
@@ -567,6 +677,29 @@
         if (s.dealerName) document.getElementById('w-dealer-name').value = s.dealerName;
         if (s.dealerCity) document.getElementById('w-dealer-city').value = s.dealerCity;
         if (s.logoUrl)    document.getElementById('w-logo-url').value    = s.logoUrl;
+        // Suggest area code for the Sarah-number step
+        const ac = _suggestAreaCode(s.dealerCity);
+        if (ac) document.getElementById('w-areacode').value = ac;
+
+        // Tier-aware tagline + welcome heading. Tier comes from the JWT
+        // payload via window.FF, falling back to settings.plan.
+        let tier = (window.FF && FF.user && FF.user.tier) || '';
+        if (!tier && s.plan) {
+          if (/platinum/i.test(s.plan))   tier = 'platinum';
+          else if (/gold/i.test(s.plan))  tier = 'gold';
+        }
+        const tagEl  = document.getElementById('wizard-tagline');
+        const headEl = document.getElementById('welcome-tier-name');
+        if (tier === 'platinum') {
+          if (tagEl)  tagEl.textContent  = 'Platinum Tier · Welcome Wizard';
+          if (headEl) headEl.textContent = 'Platinum Tier';
+        } else if (tier === 'gold') {
+          if (tagEl)  tagEl.textContent  = 'Gold Tier · Welcome Wizard';
+          if (headEl) headEl.textContent = 'Gold Tier';
+        } else {
+          if (tagEl)  tagEl.textContent  = 'Welcome Wizard';
+          if (headEl) headEl.textContent = 'First Fin';
+        }
       }
     } catch (_) {}
   })();
