@@ -713,6 +713,11 @@ async function deleteInventoryItem(stock) {
     localStorage.setItem('ffInventory', JSON.stringify(filtered));
     renderInventory(filtered);
     refreshLenderCheckerDropdowns();
+    // Refresh FB Poster's local cache so the top-right counter (Total /
+    // Posted / Today / Queue) stays in sync after a delete. Pre-fix the
+    // counter would keep showing the pre-delete count until the user
+    // reopened the FB Poster tab. Caught 2026-04-27.
+    if (typeof window.initFbPoster === 'function') { try { window.initFbPoster(); } catch(_) {} }
     toast(`${stock} removed`);
   } catch(e) {
     toast('⚠️ Could not delete vehicle — ' + e.message);
@@ -791,6 +796,8 @@ window.invDeleteSelected = async function() {
   localStorage.setItem('ffInventory', JSON.stringify(filtered));
   renderInventory(filtered);
   refreshLenderCheckerDropdowns();
+  // Refresh FB Poster cache so its Total/Posted/Queue counters update too.
+  if (typeof window.initFbPoster === 'function') { try { window.initFbPoster(); } catch(_) {} }
   toast(`Deleted ${deleted} vehicle${deleted>1?'s':''}`);
 };
 
