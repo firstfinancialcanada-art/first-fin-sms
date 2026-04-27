@@ -2,6 +2,7 @@
 const { pool } = require('../lib/db');
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
+const tenants = require('../lib/tenants');
 
 // ── Input validation helpers ──────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -382,6 +383,14 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
           const plan       = session.metadata?.plan        || 'monthly';
           const source     = session.metadata?.source      || 'authenticated';
 
+          // Phase 6e — derive tier from plan code so we can flip the
+          // tenant tier in lockstep with the Stripe subscription. Without
+          // this, gold_*/platinum_* buyers landed on tier='single' (1 seat)
+          // and managers couldn't invite their reps until an operator
+          // manually flipped the tier in admin. Mil at Hunt Chrysler hit
+          // exactly this on 2026-04-27.
+          const planTier = tenants.tierFromPlan(plan);
+
           if (userId) {
             // ── Authenticated flow: update existing user ───────────
             await client.query(
@@ -390,7 +399,8 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                WHERE id = $2`,
               [session.customer, userId]
             );
-            console.log(`✅ Subscription activated — user ${userId}`);
+            await tenants.ensureOwnerTenant(parseInt(userId, 10), dealership, planTier);
+            console.log(`✅ Subscription activated — user ${userId} (tier=${planTier})`);
 
           } else if (buyerEmail) {
             // ── Public flow: check if email already has an account ─
@@ -407,7 +417,8 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                  WHERE email = $2`,
                 [session.customer, buyerEmail]
               );
-              console.log(`✅ Existing account activated via public checkout — ${buyerEmail}`);
+              await tenants.ensureOwnerTenant(existing.rows[0].id, dealership, planTier);
+              console.log(`✅ Existing account activated via public checkout — ${buyerEmail} (tier=${planTier})`);
             } else {
               // Brand new buyer — create pending account + log inquiry
               const buyerPhone = session.metadata?.phone || '';
@@ -446,6 +457,18 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               ).catch(e => { console.error('Create user error:', e.message); return { rows: [] }; });
 
               const newUserId = newUser.rows[0]?.id;
+
+              // Phase 6e — provision tenant + owner member row immediately,
+              // tier-matched to the plan they bought. Pre-Phase-6e this only
+              // happened on next process boot via lib/tenants.init() backfill,
+              // leaving fresh buyers in a half-provisioned state.
+              if (newUserId) {
+                try {
+                  await tenants.ensureOwnerTenant(newUserId, dealership, planTier);
+                } catch (e) {
+                  console.error('ensureOwnerTenant failed for new buyer:', e.message);
+                }
+              }
 
               // Write to platform_inquiries so it shows in admin panel
               await client.query(

@@ -186,7 +186,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
                  COALESCE(ic.cnt, 0) AS inventory_count,
                  COALESCE(cc.cnt, 0) AS crm_count,
                  COALESCE(vc.cnt, 0) AS conversation_count,
-                 COALESCE(ac.cnt, 0) AS appointment_count
+                 COALESCE(ac.cnt, 0) AS appointment_count,
                  COALESCE(t.tier, 'single') AS tenant_tier,
                  COALESCE(t.seats_allowed, 1) AS seats_allowed,
                  t.id AS tenant_id,
@@ -904,6 +904,135 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ── POST /api/admin/users/:id/onboarding-repair ───────────────────
+  // One-shot fixer for a paid customer whose onboarding is in a partial
+  // state. Built 2026-04-27 after Mil at Hunt Chrysler entered the
+  // dealership main line at checkout (so the welcome SMS went to the
+  // wrong phone) and his account landed without a desk_tenants row
+  // (Phase 6e gap, now patched at the webhook but pre-fix accounts
+  // still need this).
+  //
+  // Body (all optional):
+  //   phone:             new phone for platform_inquiries.phone (digits only or E.164)
+  //   leadIntakeEmail:   sets desk_tenants.lead_intake_email
+  //   tier:              'single' | 'gold' | 'platinum' — also resets seats_allowed
+  //   generateFreshLink: default TRUE — invalidates live setup_tokens for this
+  //                      owner and issues a new 24h one. Returned as setupUrl.
+  //
+  // Returns: { success, tenantId, tier, setupUrl?, invalidatedTokens,
+  //            tenantBackfilled, phoneUpdated, intakeEmailUpdated }
+  app.post('/api/admin/users/:id/onboarding-repair', adminAuth, async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ success: false, error: 'Invalid user id' });
+
+    const { phone, leadIntakeEmail, tier, generateFreshLink = true } = req.body || {};
+    if (tier !== undefined && !tenants.VALID_TIERS.includes(tier)) {
+      return res.status(400).json({ success: false, error: 'Invalid tier. Expected: ' + tenants.VALID_TIERS.join(' | ') });
+    }
+    if (leadIntakeEmail !== undefined && leadIntakeEmail !== null && leadIntakeEmail !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(leadIntakeEmail)) {
+        return res.status(400).json({ success: false, error: 'Invalid leadIntakeEmail' });
+      }
+    }
+
+    try {
+      const u = await pool.query(`SELECT id, email, display_name, settings_json FROM desk_users WHERE id = $1`, [userId]);
+      if (!u.rows.length) return res.status(404).json({ success: false, error: 'User not found' });
+      const userRow = u.rows[0];
+
+      // Resolve dealership name for ensureOwnerTenant (used if we need to backfill)
+      let dealership = '';
+      try {
+        const s = typeof userRow.settings_json === 'string' ? JSON.parse(userRow.settings_json || '{}') : (userRow.settings_json || {});
+        dealership = s.dealerName || s.dealership || userRow.display_name || '';
+      } catch { dealership = userRow.display_name || ''; }
+
+      // Was a tenant present BEFORE we touched anything? (for response payload)
+      const before = await pool.query(`SELECT id FROM desk_tenants WHERE owner_user_id = $1`, [userId]);
+      const hadTenant = before.rows.length > 0;
+
+      // Resolve target tier — body wins, else current, else 'single'
+      let targetTier = tier;
+      if (!targetTier) {
+        if (hadTenant) {
+          const t = await pool.query(`SELECT tier FROM desk_tenants WHERE owner_user_id = $1`, [userId]);
+          targetTier = t.rows[0]?.tier || 'single';
+        } else {
+          targetTier = 'single';
+        }
+      }
+
+      const { tenantId } = await tenants.ensureOwnerTenant(userId, dealership, targetTier);
+      const tenantBackfilled = !hadTenant;
+
+      // ── lead_intake_email ────────────────────────────────────────────
+      let intakeEmailUpdated = false;
+      if (leadIntakeEmail !== undefined && leadIntakeEmail !== null) {
+        try {
+          await pool.query(
+            `UPDATE desk_tenants SET lead_intake_email = $1 WHERE id = $2`,
+            [leadIntakeEmail || null, tenantId]
+          );
+          intakeEmailUpdated = true;
+        } catch (e) {
+          console.warn('lead_intake_email update skipped:', e.message);
+        }
+      }
+
+      // ── platform_inquiries.phone ─────────────────────────────────────
+      let phoneUpdated = false;
+      if (phone) {
+        const storedPhone = String(phone).replace(/^\+?1?/, '').replace(/\D/g, '');
+        const r = await pool.query(
+          `UPDATE platform_inquiries SET phone = $1 WHERE LOWER(email) = LOWER($2)`,
+          [storedPhone, userRow.email]
+        );
+        phoneUpdated = r.rowCount > 0;
+      }
+
+      // ── Invalidate live setup_tokens (security) ──────────────────────
+      let invalidatedTokens = 0;
+      let setupUrl = null;
+      if (generateFreshLink) {
+        const expired = await pool.query(
+          `UPDATE setup_tokens SET expires_at = NOW()
+            WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > NOW()
+            RETURNING token`,
+          [userId]
+        );
+        invalidatedTokens = expired.rowCount;
+
+        const crypto = require('crypto');
+        const token = crypto.randomBytes(32).toString('hex');
+        await pool.query(
+          `INSERT INTO setup_tokens (token, user_id, expires_at)
+           VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
+          [token, userId]
+        );
+        const baseUrl = process.env.BASE_URL ? process.env.BASE_URL.replace(/\/$/, '') : 'https://app.firstfinancialcanada.com';
+        setupUrl = `${baseUrl}/setup?token=${token}`;
+      }
+
+      await auditLog('onboarding_repair', 'user', userId, {
+        tier: targetTier, tenantBackfilled, phoneUpdated, intakeEmailUpdated, invalidatedTokens, freshLink: !!setupUrl,
+      }, req);
+
+      res.json({
+        success: true,
+        tenantId,
+        tier: targetTier,
+        setupUrl,
+        invalidatedTokens,
+        tenantBackfilled,
+        phoneUpdated,
+        intakeEmailUpdated,
+      });
+    } catch (e) {
+      console.error('onboarding-repair error:', e);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
