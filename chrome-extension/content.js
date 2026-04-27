@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.3
+// content.js — FIRST-FIN Inventory Importer v2.8.4
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.3-hunt-pagination-2026-04-27';
+const __FF_VERSION = 'v2.8.4-pagination-postprocess-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -1189,12 +1189,35 @@ async function __FF_extractVdpLightboxPhotos() {
 // Expose on window for executeScript func: () => calls
 try { window.__FF_extractVdpLightboxPhotos = __FF_extractVdpLightboxPhotos; } catch(_){}
 
+// ── Pagination post-processor ────────────────────────────────────────────
+// scrapeCurrentPage() has many platform-specific code paths; some set
+// d2cSlugPages (existing D2C carImage handler) and some don't (the generic
+// VDP-link detector that catches Hunt Chrysler / huntchryslerfiat.ca).
+// Rather than touching every return statement, we post-process here: if
+// the result is a 'listing' type and d2cSlugPages wasn't already set, scan
+// the DOM for .divPaginationBox elements (D2C-style numbered page buttons)
+// and inject d2cSlugPages so background.js's slug-pagination handler can
+// click through pages 2..N.
+function _scrapeAndAugment() {
+  const result = scrapeCurrentPage();
+  if (result && result.type === 'listing' && !result.d2cSlugPages) {
+    try {
+      const boxes = document.querySelectorAll('.divPaginationBox');
+      if (boxes.length > 1) {
+        result.d2cSlugPages = boxes.length;
+        console.log('[FIRST-FIN] post-process: detected ' + boxes.length + ' pagination buttons');
+      }
+    } catch (_) {}
+  }
+  return result;
+}
+
 // ── Message listener (server-first with client fallback) ─────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // SCRAPE_LOCAL: client-only scrape — used by background.js to avoid server relay deadlock
   if (msg.type === 'SCRAPE_LOCAL') {
     try {
-      const result = scrapeCurrentPage();
+      const result = _scrapeAndAugment();
       sendResponse({ ok: true, result });
     } catch (e) {
       sendResponse({ ok: false, error: e.message });
@@ -1207,7 +1230,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // Client-side fallback — the original v2.5 scraper (always works)
   function fallbackScrape() {
     try {
-      const result = scrapeCurrentPage();
+      const result = _scrapeAndAugment();
       console.log('[FF] CLIENT scrape:', result.type, 'vehicles:', result.vehicles?.length);
       sendResponse({ ok: true, result });
     } catch (e) {
