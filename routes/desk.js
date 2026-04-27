@@ -68,12 +68,30 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
       await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS dealer_city VARCHAR(100)`);
       await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS dealer_phone VARCHAR(30)`);
+      // Phase 6.1 — proper logo storage: bytes live on the tenant row in
+      // Postgres (BYTEA), served via /api/tenant-logo/:tenantId. Pre-fix
+      // the legacy handleLogoUpload base64-encoded the whole image into
+      // settings_json (capped ~200KB) and put a giant data URL into
+      // logo_url. That bloated the row, made customer-facing surfaces
+      // load slow, and didn't survive long-term storage hygiene. Caught
+      // 2026-04-27 when Franco asked "doesn't logo save in their tenant
+      // stuff?" — yes, but as a data URL blob, which is wrong.
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS logo_data BYTEA`);
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS logo_mime VARCHAR(80)`);
+      await pool.query(`ALTER TABLE desk_tenants ADD COLUMN IF NOT EXISTS logo_updated_at TIMESTAMPTZ`);
       // Backfill: copy the owner's per-user settings into the tenant row
       // for any tenant that has NULL branding fields. Idempotent — only
       // touches rows where the tenant column is currently empty.
+      // NOTE: only copy logo_url if it's a real http(s) URL — skip data
+      // URLs left over from the old base64-in-settings_json scheme.
       await pool.query(`
         UPDATE desk_tenants t SET
-          logo_url     = COALESCE(t.logo_url,     u.settings_json->>'logoUrl'),
+          logo_url     = COALESCE(
+                           t.logo_url,
+                           CASE
+                             WHEN u.settings_json->>'logoUrl' LIKE 'http%' THEN u.settings_json->>'logoUrl'
+                             ELSE NULL
+                           END),
           dealer_city  = COALESCE(t.dealer_city,  u.settings_json->>'dealerCity'),
           dealer_phone = COALESCE(t.dealer_phone, u.settings_json->>'dealerPhone'),
           dealership   = COALESCE(NULLIF(t.dealership,''), u.settings_json->>'dealerName')
@@ -81,7 +99,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         WHERE u.id = t.owner_user_id
           AND (t.logo_url IS NULL OR t.dealer_city IS NULL OR t.dealer_phone IS NULL OR t.dealership IS NULL OR t.dealership = '')
       `);
-      console.log('✅ desk_tenants branding columns ready (tenant-shared logo/city/phone)');
+      console.log('✅ desk_tenants branding columns ready (tenant-shared logo/city/phone + binary logo)');
     } catch(e) { console.error('⚠️ tenant branding migration:', e.message); }
   })();
 
@@ -718,6 +736,97 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // TENANT LOGO UPLOAD + SERVING
+  // ═══════════════════════════════════════════════════════════
+  // POST /api/desk/upload-logo — owner/manager uploads a file, we store
+  // bytes in desk_tenants.logo_data + set desk_tenants.logo_url to our
+  // own /api/tenant-logo/:tenantId so every team member loads it from a
+  // stable URL on our domain (not whatever third-party site was pasted
+  // before). The serving endpoint below is public + cached.
+  //
+  // Multer is lazy-loaded so a missing dep never crashes the server —
+  // same pattern as routes/lenders.js PDF upload.
+  function getLogoUpload() {
+    try {
+      const multer = require('multer');
+      return multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB hard cap
+        fileFilter: (req, file, cb) => {
+          const ok = ['image/png','image/jpeg','image/jpg','image/webp','image/svg+xml'].includes(file.mimetype);
+          cb(ok ? null : new Error('Logo must be PNG, JPG, WebP, or SVG'), ok);
+        },
+      });
+    } catch(e) {
+      console.error('multer not available for logo upload:', e.message);
+      return null;
+    }
+  }
+
+  app.post('/api/desk/upload-logo', requireAuth, requireBilling, (req, res, next) => {
+    const upload = getLogoUpload();
+    if (!upload) return res.status(503).json({ success: false, error: 'Upload service unavailable' });
+    upload.single('logo')(req, res, async (err) => {
+      if (err) return res.status(400).json({ success: false, error: err.message });
+      if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded (field name must be "logo")' });
+      try {
+        const scope = await resolveScope(req);
+        if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'Tenant not found for this user' });
+        const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '') || 'https://app.firstfinancialcanada.com';
+        const ts = Date.now();
+        await pool.query(
+          `UPDATE desk_tenants SET
+             logo_data       = $1,
+             logo_mime       = $2,
+             logo_updated_at = NOW(),
+             logo_url        = $3
+           WHERE id = $4`,
+          [
+            req.file.buffer,
+            req.file.mimetype,
+            `${baseUrl}/api/tenant-logo/${scope.tenantId}?v=${ts}`,
+            scope.tenantId,
+          ]
+        );
+        const url = `${baseUrl}/api/tenant-logo/${scope.tenantId}?v=${ts}`;
+        console.log(`🖼️  Logo uploaded for tenant ${scope.tenantId} (${req.file.size} bytes, ${req.file.mimetype})`);
+        trackFeature(req.user.userId, 'logo_upload', 'saved');
+        res.json({ success: true, url, size: req.file.size, mime: req.file.mimetype });
+      } catch (e) {
+        console.error('logo upload error:', e.message);
+        res.status(500).json({ success: false, error: sanitizeError(e) });
+      }
+    });
+  });
+
+  // GET /api/tenant-logo/:tenantId — public, no auth (logos render on
+  // customer-facing surfaces too). Strong ETag from logo_updated_at so
+  // browsers cache correctly + bust on update via the ?v=ts query.
+  app.get('/api/tenant-logo/:tenantId', async (req, res) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId, 10);
+      if (!tenantId) return res.status(400).send('Invalid tenant id');
+      const r = await pool.query(
+        `SELECT logo_data, logo_mime, logo_updated_at FROM desk_tenants WHERE id = $1`,
+        [tenantId]
+      );
+      const row = r.rows[0];
+      if (!row || !row.logo_data) return res.status(404).send('No logo');
+      const etag = '"' + (row.logo_updated_at ? new Date(row.logo_updated_at).getTime().toString(36) : 'static') + '"';
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      res.set({
+        'Content-Type':  row.logo_mime || 'image/png',
+        'Cache-Control': 'public, max-age=86400',  // 1 day; ?v=ts query forces refresh on update
+        'ETag':          etag,
+      });
+      res.send(row.logo_data);
+    } catch (e) {
+      console.error('logo serve error:', e.message);
+      res.status(500).send('Error');
     }
   });
 

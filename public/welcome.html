@@ -323,8 +323,17 @@
       <label>City</label>
       <input type="text" id="w-dealer-city" placeholder="e.g. Milton, ON">
 
-      <label>Logo URL (optional — paste a public URL to your logo)</label>
-      <input type="text" id="w-logo-url" placeholder="https://yourdealership.com/logo.png">
+      <label>Logo (optional — PNG, JPG, WebP or SVG, max 2MB)</label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div onclick="document.getElementById('w-logo-file').click()" style="flex:1;display:flex;align-items:center;gap:8px;padding:11px 14px;background:#070d1a;border:1px dashed var(--border2);border-radius:8px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border2)'">
+          <span style="font-size:18px;">🖼️</span>
+          <span id="w-logo-label" style="font-size:13px;color:var(--muted);">Click to upload your dealership logo</span>
+        </div>
+        <img id="w-logo-preview" style="height:48px;width:48px;object-fit:contain;border-radius:6px;background:rgba(255,255,255,0.05);padding:4px;display:none;border:1px solid var(--border);" alt="">
+        <button type="button" id="w-logo-remove" onclick="wRemoveLogo()" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:6px;padding:8px 12px;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;">Remove</button>
+      </div>
+      <input type="file" id="w-logo-file" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml" style="display:none;" onchange="wHandleLogoUpload(event)">
+      <input type="hidden" id="w-logo-url">
 
       <div class="info-card">
         <div class="h">Branding goes everywhere</div>
@@ -587,6 +596,64 @@
     goStep(5);
   }
 
+  // ── Step 2 — Logo upload (same backend as platform Settings) ──
+  // POSTs to /api/desk/upload-logo, gets back a stable URL on our domain,
+  // stores it in the hidden input so saveStep2() picks it up alongside
+  // dealerName/dealerCity. Server stores binary in desk_tenants.logo_data.
+  async function wHandleLogoUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Logo too large — max 2MB', true);
+      e.target.value = '';
+      return;
+    }
+    if (!/^image\/(png|jpe?g|webp|svg\+xml)$/.test(file.type)) {
+      showToast('Logo must be PNG, JPG, WebP, or SVG', true);
+      e.target.value = '';
+      return;
+    }
+    // Optimistic preview while uploading
+    const r0 = new FileReader();
+    r0.onload = ev => wShowLogoPreview(ev.target.result);
+    r0.readAsDataURL(file);
+    try {
+      const fd = new FormData();
+      fd.append('logo', file);
+      const res = await window.FF.apiFetch('/api/desk/upload-logo', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || 'Upload failed');
+      document.getElementById('w-logo-url').value = d.url;
+      wShowLogoPreview(d.url);
+      showToast('✓ Logo uploaded');
+    } catch (err) {
+      showToast(err.message || 'Logo upload failed', true);
+      e.target.value = '';
+    }
+  }
+
+  function wShowLogoPreview(src) {
+    const img    = document.getElementById('w-logo-preview');
+    const label  = document.getElementById('w-logo-label');
+    const remove = document.getElementById('w-logo-remove');
+    if (!src) {
+      img.style.display = 'none';
+      remove.style.display = 'none';
+      label.textContent = 'Click to upload your dealership logo';
+      return;
+    }
+    img.src = src;
+    img.style.display = 'block';
+    remove.style.display = 'inline-block';
+    label.textContent = 'Logo uploaded — click again to replace';
+  }
+
+  function wRemoveLogo() {
+    document.getElementById('w-logo-url').value = '';
+    document.getElementById('w-logo-file').value = '';
+    wShowLogoPreview('');
+  }
+
   // ── Step 5 — Sarah's Phone Number (search + claim local number) ──
   let _wSelectedNumber = '';
 
@@ -676,7 +743,10 @@
         const s = d.settings || {};
         if (s.dealerName) document.getElementById('w-dealer-name').value = s.dealerName;
         if (s.dealerCity) document.getElementById('w-dealer-city').value = s.dealerCity;
-        if (s.logoUrl)    document.getElementById('w-logo-url').value    = s.logoUrl;
+        if (s.logoUrl) {
+          document.getElementById('w-logo-url').value = s.logoUrl;
+          wShowLogoPreview(s.logoUrl);
+        }
         // Suggest area code for the Sarah-number step
         const ac = _suggestAreaCode(s.dealerCity);
         if (ac) document.getElementById('w-areacode').value = ac;

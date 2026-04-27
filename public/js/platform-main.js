@@ -2889,28 +2889,52 @@ function previewLogo(url){
   }
 }
 
-function handleLogoUpload(e) {
+// Logo upload — POSTs the file to /api/desk/upload-logo, server stores
+// the binary in desk_tenants.logo_data and returns a public URL pointing
+// to /api/tenant-logo/:tenantId. We then save THAT URL into settings so
+// every team member loads the logo from our domain (not a base64 blob in
+// settings_json, not a third-party site that might rot). Replaces the old
+// FileReader.readAsDataURL approach.
+async function handleLogoUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  // Size check — keep under 200KB for settings storage
-  if (file.size > 200 * 1024) {
-    toast('Logo too large — please use an image under 200KB');
+  // 2 MB hard cap — server enforces too, this is just a friendlier UX
+  if (file.size > 2 * 1024 * 1024) {
+    toast('Logo too large — max 2MB');
+    e.target.value = '';
     return;
   }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const base64 = ev.target.result; // data:image/png;base64,...
-    // Store in hidden input so saveSettings() picks it up
+  if (!/^image\/(png|jpe?g|webp|svg\+xml)$/.test(file.type)) {
+    toast('Logo must be PNG, JPG, WebP, or SVG');
+    e.target.value = '';
+    return;
+  }
+  // Optimistic local preview so the UI feels instant
+  const localPreviewReader = new FileReader();
+  localPreviewReader.onload = ev => previewLogo(ev.target.result);
+  localPreviewReader.readAsDataURL(file);
+
+  try {
+    const fd = new FormData();
+    fd.append('logo', file);
+    const r = await window.FF.apiFetch('/api/desk/upload-logo', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Upload failed');
+    // Store the SERVER URL (small string) in the hidden input so
+    // saveSettings() persists it into settings_json + the branding-sync
+    // patch propagates to desk_tenants.logo_url for every team member.
     const hiddenInput = document.getElementById('setLogoUrl');
-    if (hiddenInput) hiddenInput.value = base64;
-    // Update settings object immediately
-    settings.logoUrl = base64;
-    // Show preview + update header
-    previewLogo(base64);
+    if (hiddenInput) hiddenInput.value = d.url;
+    settings.logoUrl = d.url;
+    // Re-preview from the canonical URL (also confirms the server can serve it)
+    previewLogo(d.url);
     if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
-    toast('Logo loaded — click Save Settings to apply');
-  };
-  reader.readAsDataURL(file);
+    toast('✓ Logo uploaded — click Save Settings to apply to your team');
+  } catch (err) {
+    console.error('logo upload failed:', err);
+    toast('Logo upload failed: ' + (err.message || 'unknown error'));
+    e.target.value = '';
+  }
 }
 
 function removeLogo() {
