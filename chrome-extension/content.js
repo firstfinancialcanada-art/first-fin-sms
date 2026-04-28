@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.8
+// content.js — FIRST-FIN Inventory Importer v2.8.9
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.8-spec-regex-tolerant-2026-04-27';
+const __FF_VERSION = 'v2.8.9-model-bodystyle-tiebreaker-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -267,6 +267,21 @@ function parseVdpDetail(url) {
     const typeM = body.match(/\b(sedan|suv|truck|pickup|coupe|hatchback|wagon|convertible|crossover)\b/i);
     type = typeM ? typeM[1][0].toUpperCase() + typeM[1].slice(1).toLowerCase() : 'Used';
   }
+  // Model-name override — when Hunt's spec block is missing the Category line
+  // (older / brand-placeholder inventory), the body-text fallback above can
+  // pick up "Sedan" from a sidebar list ("Honda Civic Sedan") on a Jeep
+  // Grand Cherokee VDP. Trust the make/model when we recognize it.
+  function _bodyStyleFromModel(make, model) {
+    const m = ((make || '') + ' ' + (model || '')).toLowerCase().replace(/[_-]/g, ' ');
+    if (!m.trim()) return '';
+    if (/\b(1500|2500|3500|4500|5500|silverado|sierra|colorado|canyon|f\s*(150|250|350|450|550)|ranger|maverick|tacoma|tundra|hilux|frontier|titan|ridgeline|gladiator|santa\s*cruz)\b/.test(m)) return 'Pickup';
+    if (/\b(promaster|sprinter|transit|econoline|express|savana|metris|nv\s*(200|1500|2500|3500)|caravan|grand\s*caravan|pacifica|odyssey|sienna|sedona|carnival|quest|town\s*and\s*country|cargo\s*van|minivan)\b/.test(m)) return 'Van';
+    if (/\b(wrangler|cherokee|grand\s*cherokee|compass|renegade|patriot|liberty|commander|wagoneer|recon|durango|journey|nitro|hornet|escape|explorer|expedition|edge|bronco|flex|ecosport|tahoe|suburban|trailblazer|trax|equinox|traverse|blazer|bolt\s*euv|yukon|acadia|terrain|envoy|envision|cr\s*v|hr\s*v|pilot|passport|rav4|highlander|sequoia|4runner|land\s*cruiser|venza|rx|nx|gx|lx|ux|rdx|mdx|zdx|forester|outback|crosstrek|ascent|tucson|santa\s*fe|palisade|kona|venue|sorento|telluride|sportage|soul|seltos|niro|rogue|murano|pathfinder|armada|juke|kicks|xterra|ariya|cx\s*(3|5|9|30|50)|tiguan|atlas|touareg|taos|id\.?4|q[3-8]|sq5|e\s*tron|x[1-7]|gla|glb|glc|gle|gls|g\s*class|xc(40|60|90)|range\s*rover|discovery|defender|velar|evoque|cayenne|macan|encore|enclave|escalade|xt[4-6]|srx|navigator|aviator|nautilus|corsair|mkx|mkc|qx(30|50|55|60|80)|outlander|eclipse\s*cross|rvr|model\s*[xy])\b/.test(m)) return 'SUV';
+    if (/\b(civic|accord|insight|camry|corolla|avalon|prius|altima|sentra|maxima|versa|sonata|elantra|accent|forte|optima|k5|stinger|rio|mazda\s*[36]|jetta|passat|arteon|legacy|impreza|wrx|sti|malibu|cruze|sonic|spark|focus|fusion|taurus|charger|challenger|magnum|300|ilx|tlx|rlx|[2-7]\s*series|[ace]\s*class|cls|cla|a[3-8]|s[3-8]|is|es|ls|q50|q70|model\s*[3s])\b/.test(m)) return 'Sedan';
+    return '';
+  }
+  const _modelGuess = _bodyStyleFromModel(slug.make || '', slug.model || '');
+  if (_modelGuess) type = _modelGuess;
 
   // Collect photos from vehicle gallery only (not "similar vehicles" or site chrome)
   const photos = [];
