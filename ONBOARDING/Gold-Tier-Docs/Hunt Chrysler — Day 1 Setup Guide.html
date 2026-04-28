@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hunt Chrysler × First Fin — Day 1 Setup Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --surface2: #0d1526;
+    --border: rgba(255,255,255,.08); --border2: rgba(30,90,246,.3);
+    --text: #e2e8f0; --muted: #64748b;
+    --primary: #06b6d4; --amber: #f59e0b; --green: #10b981; --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1e3a5f 0%, var(--bg) 55%);
+    color: var(--text);
+    padding: 40px 20px;
+    line-height: 1.55;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url('assets/logo-icon.png');
+    background-repeat: space;
+    background-size: 140px 140px;
+    background-position: center;
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: 'FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA · FIRST FINANCIAL CANADA';
+    position: fixed;
+    inset: -50px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 90px;
+    line-height: 130px;
+    color: rgba(30,90,246,0.025);
+    word-spacing: 10px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    transform: rotate(-22deg);
+  }
+  .shell { max-width: 760px; margin: 0 auto; position: relative; z-index: 1; }
+
+  .header { text-align: center; margin-bottom: 32px; }
+  .ff-logo-wide {
+    max-width: 380px; width: 80%; height: auto;
+    border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .tagline {
+    font-size: 11px; letter-spacing: 4px; color: var(--amber);
+    text-transform: uppercase; margin-top: 14px; font-weight: 700;
+    font-family: 'DM Mono', monospace;
+  }
+  .cobrand {
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    margin: 26px 0 18px; padding: 18px 22px;
+    background: rgba(30,90,246,0.05);
+    border: 1px solid rgba(30,90,246,0.18); border-radius: 14px;
+  }
+  .cobrand img.ff-icon {
+    width: 56px; height: auto;
+    filter: drop-shadow(0 4px 8px rgba(30,90,246,0.4));
+  }
+  .cobrand img.hunt-logo {
+    max-height: 72px; width: auto; background: white;
+    padding: 8px 14px; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .cobrand .x-mark {
+    font-family: 'Bebas Neue', sans-serif; font-size: 32px;
+    color: var(--amber); letter-spacing: 1px;
+  }
+  .crossmark {
+    display: inline-block; font-family: 'DM Mono', monospace;
+    color: var(--muted); margin: 14px 0 4px; font-size: 13px; letter-spacing: 3px;
+  }
+  .dealer-name {
+    font-family: 'Bebas Neue', sans-serif; font-size: 36px;
+    letter-spacing: 4px; color: var(--text); margin-top: 4px;
+  }
+  .dealer-sub {
+    font-size: 11px; color: var(--muted); letter-spacing: 2px;
+    text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 2px;
+  }
+  h2 .h2-icon {
+    width: 22px; height: 22px; vertical-align: -4px;
+    margin-right: 8px; opacity: 0.8;
+  }
+  .footer-logo { width: 44px; height: auto; margin-bottom: 12px; opacity: 0.8; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 32px 36px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35); margin-bottom: 22px;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 30px;
+    letter-spacing: 3px; color: var(--text); margin-bottom: 8px;
+  }
+  h1 .accent { color: var(--amber); }
+  h2 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 22px;
+    letter-spacing: 2.5px; color: var(--primary);
+    margin-top: 28px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  h3 {
+    font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700;
+    color: var(--text); margin: 18px 0 6px;
+  }
+  p {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+  }
+  p.lede {
+    font-size: 15px; color: #cbd5e1; line-height: 1.7;
+  }
+
+  /* Step blocks (wizard walkthrough) */
+  .step-block {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 14px 16px; margin-top: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px;
+    transition: all .2s;
+  }
+  .step-block:hover {
+    border-color: var(--border2); background: rgba(30,90,246,.04);
+  }
+  .step-num {
+    flex-shrink: 0; width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--primary), var(--amber));
+    border-radius: 8px; color: #0a0e1a;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .step-body { flex: 1; }
+  .step-body .step-title {
+    font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px;
+  }
+  .step-body .step-desc {
+    font-size: 12px; color: var(--muted); line-height: 1.55;
+  }
+
+  /* Inline pre-loaded chip */
+  .preloaded {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 10px; border-radius: 4px;
+    background: rgba(16,185,129,.12); color: var(--green);
+    border: 1px solid rgba(16,185,129,.3);
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Role comparison */
+  .role-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;
+  }
+  .role-tile {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+  }
+  .role-tile.manager { border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.06); }
+  .role-tile.rep { border-color: rgba(6,182,212,.3); background: rgba(6,182,212,.05); }
+  .role-tile .role-name {
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 2px; margin-bottom: 8px;
+  }
+  .role-tile.manager .role-name { color: var(--amber); }
+  .role-tile.rep .role-name { color: var(--primary); }
+  .role-tile .role-seats {
+    font-size: 10px; color: var(--muted); letter-spacing: 1.5px;
+    text-transform: uppercase; font-family: 'DM Mono', monospace;
+    margin-bottom: 10px;
+  }
+  .role-tile ul { list-style: none; padding: 0; }
+  .role-tile li {
+    font-size: 12px; color: var(--text); padding: 4px 0;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .role-tile li::before {
+    content: '✓'; color: var(--green); flex-shrink: 0; font-weight: 700;
+  }
+
+  /* Tip / quick-win blocks */
+  .tip-block {
+    background: rgba(16,185,129,.05);
+    border-left: 4px solid var(--green);
+    border-radius: 8px; padding: 14px 18px; margin-top: 12px;
+  }
+  .tip-block .tip-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--green); text-transform: uppercase;
+    font-family: 'DM Mono', monospace; margin-bottom: 6px;
+  }
+  .tip-block p { font-size: 13px; margin-bottom: 4px; }
+
+  /* Heads-up disclaimer */
+  .heads-up {
+    background: rgba(245,158,11,.06);
+    border: 1px solid rgba(245,158,11,.3);
+    border-radius: 10px; padding: 22px 24px; margin-top: 18px;
+  }
+  .heads-up h3 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 2px; color: var(--amber); margin-bottom: 12px;
+  }
+  .heads-up p { font-size: 13px; line-height: 1.7; }
+  .heads-up .contact-row {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px;
+    padding-top: 14px; border-top: 1px dashed rgba(245,158,11,.25);
+  }
+  .heads-up .contact-row a {
+    color: var(--text); text-decoration: none; font-weight: 700;
+    font-size: 13px; padding: 6px 12px;
+    background: rgba(0,0,0,.2); border-radius: 6px;
+    border: 1px solid rgba(245,158,11,.4);
+  }
+
+  /* Mono callouts */
+  .mono {
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    background: rgba(0,0,0,.3); padding: 2px 8px;
+    border-radius: 4px; color: var(--primary);
+  }
+
+  /* CTA */
+  .cta {
+    background: linear-gradient(135deg, #06b6d4, #f59e0b);
+    border-radius: 14px; padding: 30px;
+    text-align: center; margin-top: 24px;
+  }
+  .cta h3 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 26px;
+    letter-spacing: 3px; color: #000; margin-bottom: 8px;
+  }
+  .cta p { color: rgba(0,0,0,.75); font-size: 14px; margin-bottom: 18px; font-weight: 600; }
+  .cta-btn {
+    display: inline-block; background: #0a0e1a; color: #fff;
+    padding: 14px 36px; border-radius: 10px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 3px; text-decoration: none;
+    border: 2px solid #000; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  }
+  .cta-url {
+    display: block; margin-top: 14px;
+    font-family: 'DM Mono', monospace; color: rgba(0,0,0,.7);
+    font-size: 11px; letter-spacing: 0.5px; word-break: break-all;
+  }
+
+  /* Sign-off */
+  .signoff {
+    margin-top: 28px; padding: 22px 24px;
+    background: var(--surface2); border-left: 4px solid var(--primary);
+    border-radius: 8px;
+  }
+  .signoff p { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+  .signoff .name { font-weight: 700; color: var(--primary); }
+  .signoff .meta { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 1px; }
+
+  .footer {
+    text-align: center; margin-top: 36px; padding-top: 22px;
+    border-top: 1px solid var(--border); color: var(--muted);
+    font-size: 11px; font-family: 'DM Mono', monospace; letter-spacing: 1px;
+  }
+
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    body, html { background: var(--bg) !important; color: var(--text) !important; }
+    .card, .cta, .signoff, .heads-up { break-inside: avoid; }
+    .step-block, .role-tile, .tip-block { break-inside: avoid; }
+  }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── HEADER ── -->
+  <div class="header">
+    <img src="assets/logo-wide.jpg" alt="First Financial Canada" class="ff-logo-wide">
+    <div class="tagline">Day 1 Setup Guide · Gold Tier Walkthrough</div>
+
+    <div class="cobrand">
+      <img src="assets/logo-icon.png" alt="First Fin" class="ff-icon">
+      <span class="x-mark">×</span>
+      <img src="assets/hunt-chrysler-logo.png" alt="Hunt Chrysler" class="hunt-logo"
+           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\'font-family:Bebas Neue,sans-serif;font-size:28px;letter-spacing:3px;color:#1a1a1a;padding:10px 20px;background:white;border-radius:8px;\'>HUNT CHRYSLER</div>');">
+    </div>
+
+    <div class="crossmark">PREPARED EXCLUSIVELY FOR</div>
+    <div class="dealer-name">HUNT CHRYSLER FIAT</div>
+    <div class="dealer-sub">Mil Radenkovic · Sales Manager · Milton, Ontario</div>
+  </div>
+
+  <!-- ── PERSONAL OPENING ── -->
+  <div class="card">
+    <h1>Welcome aboard, <span class="accent">Mil.</span></h1>
+    <p class="lede" style="margin-top:14px;">
+      Your Hunt Chrysler account is set up and ready to go. We've handled the heavy lifting on our end —
+      <span class="preloaded">✓ Inventory Loaded</span>
+      <span class="preloaded">✓ Logo Set</span>
+      <span class="preloaded">✓ Lead Inbox Active</span>
+      <span class="preloaded">✓ Gold Tier · 10 Seats</span>
+      — so when you click your setup link, all you do is set your password, walk a quick wizard, and you're live. Whole thing takes about 5 minutes.
+    </p>
+    <p class="lede">
+      This guide walks you through what to expect, how Sarah works, how to bring Robbie + Wes + the reps onboard, and how to plug in your existing AutoTrader / Kijiji / CarCostCanada / TAQ leads so they start flowing into your CRM automatically.
+    </p>
+  </div>
+
+  <!-- ── WIZARD WALKTHROUGH ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">The 6-Step Welcome Wizard</h2>
+    <p>When you click your setup link and create your password, the wizard fires automatically. Each step takes ~30 seconds. Here's what to expect:</p>
+
+    <div class="step-block">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Welcome screen</div>
+        <div class="step-desc">Quick overview of what your Gold Tier includes — 10 seats, shared inventory, lead routing, Sarah AI, FB Marketplace auto-post, Deal Desk + lender compare.</div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Dealership info <span class="preloaded">PRE-FILLED</span></div>
+        <div class="step-desc">Hunt Chrysler name, Milton city, your logo — all already there. Just confirm and continue. (You can change anything later in Settings.)</div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Lead intake email <span class="preloaded">PRE-FILLED</span></div>
+        <div class="step-desc">Already set to <span class="mono">huntchrysler@firstfinancialcanada.com</span>. This is the address you'll paste into AutoTrader / Kijiji / CarCostCanada / TAQ as a lead recipient — every lead that arrives at this address auto-creates a CRM row in your dashboard.</div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Invite your team</div>
+        <div class="step-desc">Add Robbie, Wes, and your sales reps here (or skip and add them later from the Team menu). Each person you add gets their own setup link to set their password and join. More on roles below.</div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Pick Sarah's phone number ⭐</div>
+        <div class="step-desc">Type your area code (905 should be pre-filled for Milton), click Search, pick a number from the list, click <strong>Claim This Number</strong>. We instantly provision it on our end — Sarah is texting and answering calls from that number within 30 seconds. <strong>This is THE number for the whole dealership</strong> (more on this below).</div>
+      </div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <div class="step-title">You're live 🎉</div>
+        <div class="step-desc">Lands on the platform with all 208 vehicles loaded, your team invited, your Sarah number live. Start working.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SARAH NUMBER DEEP DIVE ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">Your Sarah Number — How It Works</h2>
+    <p class="lede">Sarah is your AI receptionist. The number you pick in Step 5 is what your customers will see on their caller ID and what they'll text. Here's the model we recommend starting with:</p>
+
+    <h3>One number for the whole team (recommended)</h3>
+    <p>You, Robbie, Wes, and your 7 reps all share <strong>one Sarah number</strong>. Inbound texts and calls land in your shared CRM. Sarah handles the conversation, qualifies the lead, and routes to whichever rep is assigned (per your routing rules). Replies go out from the SAME shared number — your customer experiences it as a single seamless line, not 10 different reps texting them from 10 different numbers.</p>
+    <p>This is how 95% of dealerships start. It's simpler, cleaner, and customers prefer it.</p>
+
+    <h3>Notifications go to YOUR personal cell</h3>
+    <p>When Sarah books an appointment, gets a callback request, or escalates a serious buyer — <strong>she texts you on your personal cell</strong> (whatever number you set as "Notify Phone" in Settings). That way you see what's happening in real time without having to log in. Reps can configure their own notify phones too.</p>
+
+    <h3>Want per-rep numbers later?</h3>
+    <p>Optional add-on at ~$15/mo per rep. Each rep gets a dedicated Sarah number for their assigned leads. Useful if your team prefers to feel "ownership" of their leads from first contact through close. <strong>Don't worry about this on day 1</strong> — start with one shared number, add per-rep numbers later if you actually want them. Most dealerships never bother.</p>
+  </div>
+
+  <!-- ── INVENTORY ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">Your Inventory — Already Loaded</h2>
+    <p>We've imported <strong>208 vehicles</strong> from Hunt's new <em>and</em> used inventory pages — full mileage, VIN, stock #, color, prices, and photos for each. They're sitting in your Inventory tab waiting for you.</p>
+
+    <h3>Editing or deleting individual vehicles</h3>
+    <p>Inventory tab → click the trash icon next to any vehicle to remove it. Click <strong>Use in Deal</strong> to pull it into the Deal Desk for a customer. Bulk-select with the checkboxes on the left → <strong>Delete Selected</strong> to clear groups at once.</p>
+
+    <h3>Need a full inventory overhaul?</h3>
+    <p>Adding new inventory page (e.g., Hunt's NEW vehicles)? Switching to a different lot? Importing 100+ more vehicles? <strong>Just call or email us</strong> — our development team can do a full overhaul remotely. No need to fight with the inventory controls yourself if it's a big job.</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:10px;">For day-to-day adds, use the <strong>Import CSV / Excel</strong> button at the top of the Inventory tab — drop in a spreadsheet and your vehicles populate. Click <strong>CSV Template</strong> next to it to grab the format if you need it.</p>
+  </div>
+
+  <!-- ── TEAM ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">Adding Your Team</h2>
+    <p>Step 4 of the wizard lets you invite team members on day 1. After the wizard, you can also add/remove people anytime via <strong>Team menu → Invite Member</strong> in the top header.</p>
+
+    <h3>Two roles — pick the right one for each person</h3>
+
+    <div class="role-grid">
+      <div class="role-tile manager">
+        <div class="role-name">MANAGER</div>
+        <div class="role-seats">3 of 10 seats included</div>
+        <ul>
+          <li>Full platform access — every panel, every setting</li>
+          <li>Can invite, edit, or remove team members</li>
+          <li>Can edit lender rates (custom rate sheets per lender)</li>
+          <li>Can change dealership settings (logo, GST, intake email)</li>
+          <li>Can view Team Activity dashboard (per-rep stats)</li>
+          <li>Sees ALL CRM leads + ALL deals across the team</li>
+          <li>Recommended: you, Robbie, Wes</li>
+        </ul>
+      </div>
+
+      <div class="role-tile rep">
+        <div class="role-name">SALES REP</div>
+        <div class="role-seats">7 of 10 seats included</div>
+        <ul>
+          <li>Sees inventory + assigned leads + own deals</li>
+          <li>Can post to FB Marketplace from inventory</li>
+          <li>Can text customers via Sarah from CRM</li>
+          <li>Can use Deal Desk to build deals</li>
+          <li>Cannot edit lender rates or dealership settings</li>
+          <li>Cannot see other reps' leads (unless you set CRM mode to "Team Read")</li>
+          <li>Recommended: your 7 sales floor reps</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top:22px;">What happens when you add someone</h3>
+    <p>You enter their name, email, role (manager or sales rep), and click <strong>+ Add Member</strong>. A 24-hour setup link appears on screen — copy and text/email it to them. They click → set their password → land on the platform with their assigned role pre-applied.</p>
+
+    <h3>Where to find the Manager Dashboard</h3>
+    <p>Top-right header → <strong>Analytics</strong> button → <strong>Team</strong> tab. Shows per-rep stats: FB Marketplace posts, leads worked, deals logged, last login. Use this on Mondays to see who pulled weight last week.</p>
+  </div>
+
+  <!-- ── PLUG IN LEAD PROVIDERS ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">Plug In Your Lead Providers</h2>
+    <p>This is the highest-leverage 10 minutes of your week. Your unique lead intake email is:</p>
+
+    <div style="text-align:center; margin: 14px 0; padding: 14px; background: var(--surface2); border-radius: 10px; border: 1px dashed var(--border2);">
+      <span class="mono" style="font-size:15px; color: var(--primary);">huntchrysler@firstfinancialcanada.com</span>
+    </div>
+
+    <p>Paste that address into the lead-recipient field of every lead source you use:</p>
+
+    <ul style="padding-left: 24px; margin-top: 10px; line-height: 1.9;">
+      <li><strong>AutoTrader.ca</strong> → Dealer dashboard → Lead Settings → Lead Email Recipient</li>
+      <li><strong>Kijiji Autos</strong> → Account → Notification Preferences → Lead Email</li>
+      <li><strong>CarCostCanada</strong> → Lead Settings → Forward Leads To</li>
+      <li><strong>TAQ Auto</strong> → Settings → Lead Routing</li>
+      <li>Any other lead source → look for "Lead Email Recipient" or "Forward Leads To"</li>
+    </ul>
+
+    <p style="margin-top:14px;">Every lead arriving at that address — instantly:</p>
+    <ul style="padding-left: 24px; line-height: 1.8; font-size: 13px;">
+      <li>Auto-creates a row in your CRM (with the customer's name, phone, vehicle of interest)</li>
+      <li>Routes to a rep based on your rules (round-robin, by source, by vehicle make — your call)</li>
+      <li>Sends the assigned rep an SMS notification</li>
+      <li>Sarah starts the SMS conversation if the customer texts back</li>
+    </ul>
+
+    <p style="margin-top:14px;font-size:12px;color:var(--muted);">Setup time: ~5 minutes per source. One-time job. After this, your AutoTrader / Kijiji / CarCostCanada / TAQ leads stop falling through the cracks.</p>
+  </div>
+
+  <!-- ── DAY 1 QUICK WINS ── -->
+  <div class="card">
+    <h2><img src="assets/logo-icon.png" alt="" class="h2-icon">Day 1 Quick Wins</h2>
+    <p>Recommended order of operations once you're inside the platform:</p>
+
+    <div class="tip-block">
+      <div class="tip-label">Tip 1 · Get to know Sarah first</div>
+      <p>Send 2-3 single SMS messages from your CRM to a friend's phone. Watch how Sarah handles inbound replies. Get a feel for her tone. <strong>Before you turn her loose on real leads, you want to know exactly what she'll say.</strong></p>
+    </div>
+
+    <div class="tip-block">
+      <div class="tip-label">Tip 2 · Set your GST / HST rate</div>
+      <p>Settings → <strong>Default GST Rate</strong> → change to <strong>13</strong> for Ontario HST. This auto-applies to every Deal Desk calculation.</p>
+    </div>
+
+    <div class="tip-block">
+      <div class="tip-label">Tip 3 · Try the FB Poster on 1 vehicle</div>
+      <p>Inventory → pick a vehicle → click <strong>FB Poster</strong> in the header → <strong>Auto-Fill Facebook</strong>. Watch all 14 fields populate from your vehicle data. Click <strong>Open All Photos</strong>, drag them into the FB Marketplace upload area. ~30 seconds per listing once you get the hang of it.</p>
+    </div>
+
+    <div class="tip-block">
+      <div class="tip-label">Tip 4 · Build a fake deal in the Deal Desk</div>
+      <p>Deal Desk → pick a vehicle → enter a fake customer credit profile → click <strong>Compare All</strong> to see every lender side-by-side with real-time rates.</p>
+    </div>
+  </div>
+
+  <!-- ── HEADS UP ── -->
+  <div class="card">
+    <div class="heads-up">
+      <h3>⚠ Heads up — this is a custom build</h3>
+      <p>First Fin is built specifically for dealerships like Hunt Chrysler. <strong>It's not a one-size-fits-all SaaS</strong> — every Gold-tier customer gets attention from the development team directly. That's the upside.</p>
+      <p>The flip side: things may not work exactly right on day 1. A button might not respond, a screen might look weird, a feature might behave differently than you expect. <strong>That's normal at this stage</strong> — we're still hardening the platform with each customer that comes on.</p>
+      <p style="margin-top:14px;"><strong>If something looks broken or weird:</strong></p>
+      <ul style="padding-left: 22px; line-height: 1.8; font-size: 13px;">
+        <li>Take a screenshot or short screen video of what happened (the more we can see, the faster we fix)</li>
+        <li>Email it over, or text/call us</li>
+        <li>For urgent things (Sarah misbehaving, a deal not saving, a customer-facing bug) — call directly</li>
+        <li>Most fixes turn around in <strong>under 2 hours</strong></li>
+      </ul>
+      <p style="margin-top:14px;"><strong>The development team is on call 24/7 for Hunt Chrysler.</strong> Don't suffer in silence — that's the whole point of building this with you instead of selling you a finished product.</p>
+      <div class="contact-row">
+        <a href="mailto:First@FirstFinancialCanada.com">📧 First@FirstFinancialCanada.com</a>
+        <a href="tel:+15873066133">📱 (587) 306-6133 · text or call</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CTA ── -->
+  <div class="cta">
+    <h3>Ready when you are, Mil.</h3>
+    <p>Your setup link is in the SMS we just sent. Click it, set your password, walk the wizard.</p>
+    <a href="https://app.firstfinancialcanada.com" class="cta-btn">APP.FIRSTFINANCIALCANADA.COM</a>
+    <span class="cta-url">Setup link expires 24h after generation — text us if you need a fresh one.</span>
+  </div>
+
+  <!-- ── SIGN-OFF ── -->
+  <div class="signoff">
+    <p>Mil — really glad to have Hunt Chrysler on board. Anything you need on day 1 — small or large — text me.</p>
+    <p style="margin-top:14px;">We're here to make this work for Hunt, not just sell it to you.</p>
+    <p style="margin-top:18px;"><span class="name">Franco Fannin</span> · Architect &amp; Founder · First Fin Dealer System</p>
+    <p class="meta">📧 First@FirstFinancialCanada.com &nbsp;·&nbsp; 📱 Text or call (587) 306-6133 · on call 24/7</p>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    <img src="assets/logo-icon.png" alt="First Fin" class="footer-logo">
+    <div>FIRST FINANCIAL CANADA LTD.</div>
+    <div style="margin-top:6px;">Confidential · Prepared exclusively for Hunt Chrysler Fiat<br>
+    © 2026 First Financial Canada Ltd. All rights reserved.</div>
+  </div>
+
+</div>
+</body>
+</html>
