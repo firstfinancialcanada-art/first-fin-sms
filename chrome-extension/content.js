@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.5
+// content.js — FIRST-FIN Inventory Importer v2.8.6
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.5-vdp-photo-strategies-2026-04-27';
+const __FF_VERSION = 'v2.8.6-d2c-position-dedupe-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -265,7 +265,15 @@ function parseVdpDetail(url) {
     if (/capital.?secure|appearance.?plan|warranty.?plan|reconditioned|certified.?pre.?owned|cpo.?(badge|info|logo|graphic|banner)|work.?completed|coverage.?includes/i.test(src)) return;
     if (altText && /capital.?secure|appearance.?plan|warranty|reconditioned|certified.?pre.?owned|cpo|coverage.?includes|work.?completed|first.?canadian.?financial/i.test(altText)) return;
     const clean = src.replace(/-\d+x\d+(\.\w+)$/, '$1');
-    if (clean.startsWith('http') && !seen.has(clean)) { seen.add(clean); photos.push(clean); }
+    if (!clean.startsWith('http')) return;
+    // d2cmedia (Hunt etc.) serves the same photo at multiple path prefixes
+    // (s.../cb.../etc — different image transforms). Dedupe by `{carid}/{position}`
+    // so each position only stores once instead of eating slots with size variants.
+    const d2cKey = clean.match(/d2cmedia\.ca\/[^/]+\/\d+\/(\d+)\/(\d+)\//i);
+    const seenKey = d2cKey ? ('d2c:' + d2cKey[1] + '/' + d2cKey[2]) : clean;
+    if (seen.has(seenKey)) return;
+    seen.add(seenKey);
+    photos.push(clean);
   }
 
   // Helper to get the best image URL from an img element (handles lazy-loading)
