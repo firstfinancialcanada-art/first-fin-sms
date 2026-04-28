@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.7
+// content.js — FIRST-FIN Inventory Importer v2.8.8
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.7-spec-extract-mirror-2026-04-27';
+const __FF_VERSION = 'v2.8.8-spec-regex-tolerant-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -232,15 +232,22 @@ function parseVdpDetail(url) {
     const m = body.match(re);
     return m ? String(m[1]).replace(/\s+/g, ' ').trim() : '';
   }
-  const NEXT_LABEL = '(?=Passengers|Doors|Kilometers|Stock|VIN|Price|Drive|Transmission|Fuel|Engine|Cylinders|Exterior|Interior|Category|Trim|Model|Body|Mileage|Year|Make|Color|Colour|Share|Download|Carfax|City|Highway|$)';
-  const _categoryRaw   = _specVal(new RegExp('Category\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
-  const _extColorRaw   = _specVal(new RegExp('Exterior\\s*Colou?r\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
-  const _intColorRaw   = _specVal(new RegExp('Interior\\s*Colou?r\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
+  // \s* prefix in NEXT_LABEL is critical for innerText: browsers put newlines
+  // between spec-list <li> items so "Black\nPassengers" needs the lookahead
+  // to skip the newline. Char class for values now allows /, &, comma, hyphen
+  // so categories like "SUVs / Crossovers" get captured (pre-fix this was
+  // why 2012 Jeep Grand Cherokee tagged Sedan — Category capture failed at
+  // the slash, fell through to grepping "Sedan" from the sidebar).
+  const NEXT_LABEL = '(?=\\s*(?:Passengers|Doors|Kilometers|Stock|VIN|Price|Drive|Transmission|Fuel|Engine|Cylinders|Exterior|Interior|Category|Trim|Model|Body|Mileage|Year|Make|Color|Colour|Share|Download|Carfax|City|Highway|$))';
+  const VALCHARS   = '[A-Za-z][A-Za-z ,/&\\-]{1,40}?';
+  const _categoryRaw   = _specVal(new RegExp('Category\\s*:\\s*(' + VALCHARS + ')' + NEXT_LABEL, 'i'));
+  const _extColorRaw   = _specVal(new RegExp('Exterior\\s*Colou?r\\s*:\\s*(' + VALCHARS + ')' + NEXT_LABEL, 'i'));
+  const _intColorRaw   = _specVal(new RegExp('Interior\\s*Colou?r\\s*:\\s*(' + VALCHARS + ')' + NEXT_LABEL, 'i'));
   const _driveTrainV   = _specVal(/Drive\s*train\s*:\s*((?:Front|Rear|All|Four)\s*-?\s*wheel\s+drive|FWD|RWD|AWD|4WD|4x4|2WD)/i);
   const _transmissionV = _specVal(new RegExp('Transmission\\s*:\\s*(\\d{1,2}\\s*-?\\s*Speed\\s+(?:Automatic|Auto|Manual|DCT|CVT))' + NEXT_LABEL, 'i'))
                       || _specVal(/Transmission\s*:\s*(Automatic|Manual|CVT|DCT|Auto-?manual|Dual\s*Clutch|Tiptronic)/i);
   const _fuelTypeV     = _specVal(/Fuel\s*:\s*(Plug-?in\s*Hybrid|Gasoline|Gas|Diesel|Electric|Hybrid|Plug-?in|Flex(?:\s*Fuel)?|E85|CNG|LPG)/i);
-  const _engineV       = _specVal(new RegExp('Engine\\s*:\\s*([A-Za-z0-9][A-Za-z0-9 \\.\\-/]{2,80}?)' + NEXT_LABEL, 'i'));
+  const _engineV       = _specVal(new RegExp('Engine\\s*:\\s*([A-Za-z0-9][A-Za-z0-9 \\.\\-/,]{2,80}?)' + NEXT_LABEL, 'i'));
 
   function _mapBodyStyle(s) {
     if (!s) return '';
