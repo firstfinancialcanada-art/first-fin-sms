@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FIRST FIN - Inventory Importer",
-  "version": "2.0.0",
-  "description": "Scan dealer inventory pages and sync vehicles to FIRST-FIN platform",
+  "name": "First-Fin Browser Helper",
+  "version": "2.1.0",
+  "description": "Auto-fills Facebook Marketplace vehicle listings using inventory from your First-Fin dealer platform.",
   "permissions": [
     "activeTab",
     "tabs",
@@ -11,18 +11,25 @@
   ],
   "host_permissions": [
     "https://app.firstfinancialcanada.com/*",
+    "https://*.firstfinancialcanada.com/*",
+    "https://www.facebook.com/*",
+    "https://*.facebook.com/*",
+    "https://*.fbcdn.net/*",
     "<all_urls>"
   ],
   "action": {
     "default_popup": "FIRSTFIN-Inventory-Scanner.html",
-    "default_title": "FIRST FIN Inventory Importer"
+    "default_title": "First-Fin Browser Helper"
   },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": [
+        "https://app.firstfinancialcanada.com/*",
+        "https://*.firstfinancialcanada.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
