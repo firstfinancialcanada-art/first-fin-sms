@@ -105,6 +105,7 @@ app.get('/',         (req, res) => res.sendFile(path.join(__dirname, 'public', '
 app.get('/platform', (req, res) => res.sendFile(path.join(__dirname, 'public', 'platform.html')));
 app.get('/setup',    (req, res) => res.sendFile(path.join(__dirname, 'public', 'setup.html')));
 app.get('/welcome',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
+app.get('/extension-install', (req, res) => res.sendFile(path.join(__dirname, 'public', 'extension-install.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth ──────────────────────────────────────────────────────────

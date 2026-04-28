@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Install First-Fin Browser Helper</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --surface2: #0d1526; --border: rgba(255,255,255,.08);
+    --border2: rgba(30,90,246,.3); --text: #e2e8f0; --muted: #64748b;
+    --primary: #06b6d4; --primary-hover: #0891b2; --amber: #f59e0b;
+    --green: #10b981; --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1e3a5f 0%, var(--bg) 55%);
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    padding: 32px 16px 80px;
+    line-height: 1.5;
+  }
+  .shell { max-width: 760px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 24px; }
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 38px; letter-spacing: 5px;
+    background: linear-gradient(90deg, var(--primary), var(--amber));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .logo span { -webkit-text-fill-color: var(--amber); }
+  .tagline {
+    font-size: 11px; letter-spacing: 3px; color: var(--amber);
+    text-transform: uppercase; margin-top: 4px; font-weight: 700;
+  }
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px; letter-spacing: 2px;
+    text-align: center; margin: 24px 0 8px;
+  }
+  h1 .accent { color: var(--amber); }
+  .lede {
+    text-align: center; color: var(--muted);
+    font-size: 14px; max-width: 560px;
+    margin: 0 auto 28px; line-height: 1.6;
+  }
+
+  /* ── Status banner ── */
+  .banner {
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 14px;
+    font-size: 14px; font-weight: 600;
+  }
+  .banner.success {
+    background: rgba(16,185,129,.1);
+    border: 1px solid rgba(16,185,129,.3);
+    color: var(--green);
+  }
+  .banner.warn {
+    background: rgba(245,158,11,.08);
+    border: 1px solid rgba(245,158,11,.25);
+    color: var(--amber);
+  }
+  .banner-icon {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .banner.success .banner-icon { background: rgba(16,185,129,.2); }
+  .banner.warn    .banner-icon { background: rgba(245,158,11,.2); }
+  .banner-msg { flex: 1; }
+  .banner-msg .small {
+    display: block; font-size: 12px; font-weight: 400;
+    color: var(--muted); margin-top: 3px;
+  }
+
+  /* ── Why card ── */
+  .why {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 28px;
+  }
+  .why h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 2px;
+    color: var(--primary); margin-bottom: 10px;
+  }
+  .why p {
+    font-size: 14px; color: var(--text);
+    line-height: 1.7; margin-bottom: 10px;
+  }
+  .why .footnote {
+    font-size: 12px; color: var(--muted);
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+
+  /* ── Steps ── */
+  .step {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 18px;
+    position: relative;
+  }
+  .step-num {
+    position: absolute;
+    top: -14px; left: 24px;
+    background: var(--primary);
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+  .step h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    margin-top: 4px;
+  }
+  .step p {
+    font-size: 14px; color: var(--text);
+    line-height: 1.65; margin-bottom: 10px;
+  }
+  .step ul, .step ol {
+    margin: 8px 0 12px 22px;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.8;
+  }
+  .step li { margin-bottom: 4px; }
+  .step .hint {
+    background: var(--surface2);
+    border-left: 3px solid var(--primary);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 12px 0;
+    line-height: 1.6;
+  }
+  .step code, .url {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--primary);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .url { display: inline-block; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+    margin: 8px 0;
+    letter-spacing: .3px;
+  }
+  .btn:hover { background: var(--primary-hover); }
+  .btn:active { transform: translateY(1px); }
+  .btn.large {
+    padding: 18px 28px;
+    font-size: 15px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .btn.secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn.secondary:hover { border-color: var(--primary); }
+  .download-row { text-align: center; padding: 8px 0 4px; }
+  .download-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: 1px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── Verify card ── */
+  .verify {
+    background: linear-gradient(135deg, rgba(6,182,212,.08), rgba(245,158,11,.04));
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 28px;
+    text-align: center;
+    margin-top: 24px;
+  }
+  .verify h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  .verify p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.8;
+    font-family: 'DM Mono', monospace;
+  }
+  .footer a { color: var(--primary); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
+  /* Mobile */
+  @media (max-width: 560px) {
+    body { padding: 20px 12px 60px; }
+    h1 { font-size: 26px; }
+    .logo { font-size: 30px; letter-spacing: 4px; }
+    .step, .why, .verify { padding: 20px; }
+    .btn.large { font-size: 14px; padding: 16px 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">FIRST&#8209;FIN<span> ◆</span> DEALER</div>
+    <div class="tagline">Browser Helper Install</div>
+  </div>
+
+  <h1>One-time setup<span class="accent"> · ~3 minutes</span></h1>
+  <p class="lede">
+    This tiny Chrome helper lets you click <b>Auto-Fill Facebook</b> from your
+    inventory and have all 14 Marketplace fields filled automatically. Without it,
+    you'll be copy-pasting each listing by hand. Worth the 3 minutes.
+  </p>
+
+  <!-- Live status banner — flips on once the extension content script injects window.__FIRSTFIN_LOADED -->
+  <div id="banner" class="banner warn" style="display:none;">
+    <div class="banner-icon">⚠</div>
+    <div class="banner-msg">
+      <span id="banner-title">Helper not detected yet</span>
+      <span class="small" id="banner-sub">Follow the steps below — takes about 3 minutes.</span>
+    </div>
+  </div>
+
+  <!-- Why we ask -->
+  <div class="why">
+    <h2>Why we're asking you to do this</h2>
+    <p>
+      Facebook doesn't allow software to post to Marketplace directly — every listing
+      has to come from a real Chrome browser logged in to a real Facebook account.
+      This helper sits quietly in <i>your</i> Chrome and fills the form for you when
+      you click the button.
+    </p>
+    <p>
+      We're publishing it to the Chrome Web Store this week (waiting on Google's
+      approval). Once it's there, install drops to <b>two clicks</b>. Until then,
+      please follow the steps below — same end result, just a few extra clicks once.
+    </p>
+    <div class="footnote">
+      <b>Privacy note:</b> The helper only runs on
+      <span class="url">app.firstfinancialcanada.com</span> and
+      <span class="url">facebook.com/marketplace/*</span>.
+      It doesn't read anything else, doesn't track you, and you can remove it
+      from <span class="url">chrome://extensions</span> any time.
+    </div>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step">
+    <div class="step-num">Step 1</div>
+    <h3>Download the helper</h3>
+    <p>One small zip file. Save it somewhere you'll remember (Downloads is fine).</p>
+    <div class="download-row">
+      <a class="btn large" href="/downloads/firstfin-extension.zip" download>
+        ⬇ Download First-Fin Helper (.zip)
+      </a>
+      <div class="download-meta">~80 KB · safe · audited code</div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step">
+    <div class="step-num">Step 2</div>
+    <h3>Unzip it</h3>
+    <p>Right-click the downloaded file → <b>Extract All</b> (Windows) or double-click
+       (Mac). You'll get a folder called <code>firstfin-extension</code>. Don't delete
+       this folder — Chrome reads from it directly.</p>
+    <div class="hint">
+      Tip: drag the unzipped folder somewhere permanent like Documents — if you delete it
+      later, the helper stops working.
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step">
+    <div class="step-num">Step 3</div>
+    <h3>Open Chrome's extensions page</h3>
+    <p>Copy this address and paste it into your Chrome address bar:</p>
+    <p style="text-align:center;margin:14px 0;">
+      <span class="url" style="font-size:15px;padding:8px 16px;cursor:pointer;"
+            onclick="copyText('chrome://extensions',this)">chrome://extensions</span>
+    </p>
+    <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:-2px;">
+      (Chrome won't let websites link directly to this page — you have to paste it manually.
+      Click the box above to copy it.)
+    </p>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step">
+    <div class="step-num">Step 4</div>
+    <h3>Turn on Developer Mode + load the helper</h3>
+    <ol>
+      <li>Top-right of the Extensions page, flip the <b>Developer mode</b> toggle ON.</li>
+      <li>Three new buttons appear at the top-left: <b>Load unpacked</b>, Pack extension, Update.</li>
+      <li>Click <b>Load unpacked</b>.</li>
+      <li>In the file picker, select the <code>firstfin-extension</code> folder you unzipped in Step 2.</li>
+      <li>You should now see <b>FIRST FIN - Inventory Importer</b> in your extensions list with a teal logo.</li>
+    </ol>
+    <div class="hint">
+      Done? You can flip Developer Mode back off if you want — the helper stays installed
+      and works fine either way.
+    </div>
+  </div>
+
+  <!-- Verify -->
+  <div class="verify">
+    <h3>Verify it's working</h3>
+    <p>Click below — we'll reload this page and check whether the helper is active.</p>
+    <button class="btn large" onclick="verifyInstall()">✓ Check installation</button>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Stuck? Text or call <a href="tel:+15873066133">587&#8209;306&#8209;6133</a>
+    or email <a href="mailto:First@FirstFinancialCanada.com">First@FirstFinancialCanada.com</a>
+    <br>
+    Once Chrome Web Store approves us, you'll get a 2-click upgrade link — no more dev mode.
+  </div>
+
+</div>
+
+<script>
+  // The extension's content.js sets these on every page it injects into.
+  // We check on load + on demand (Verify button).
+  function isInstalled() {
+    return !!(window.__FIRSTFIN_LOADED && window.__FIRSTFIN_VERSION);
+  }
+
+  function showBanner(state) {
+    const b = document.getElementById('banner');
+    const t = document.getElementById('banner-title');
+    const s = document.getElementById('banner-sub');
+    b.style.display = 'flex';
+    if (state === 'ok') {
+      b.className = 'banner success';
+      b.querySelector('.banner-icon').textContent = '✓';
+      t.textContent = 'Helper installed and active';
+      s.textContent = 'Version ' + (window.__FIRSTFIN_VERSION || 'detected') +
+                      ' · You’re ready to use Auto-Fill Facebook.';
+    } else {
+      b.className = 'banner warn';
+      b.querySelector('.banner-icon').textContent = '⚠';
+      t.textContent = 'Helper not detected yet';
+      s.textContent = 'Follow the steps below — takes about 3 minutes.';
+    }
+  }
+
+  function verifyInstall() {
+    // Mark a flag so we know the user clicked Verify (so we can show a
+    // friendlier message on the next load if it still doesn't detect).
+    try { sessionStorage.setItem('ff_ext_verify_attempted', '1'); } catch(_) {}
+    location.reload();
+  }
+
+  function copyText(t, el) {
+    navigator.clipboard.writeText(t).then(() => {
+      const orig = el.textContent;
+      el.textContent = 'Copied ✓';
+      el.style.color = 'var(--green)';
+      setTimeout(() => { el.textContent = orig; el.style.color = ''; }, 1400);
+    }).catch(() => {});
+  }
+
+  // Initial detection on load — small delay because the content script runs
+  // at document_idle, which is after DOMContentLoaded fires.
+  setTimeout(() => {
+    if (isInstalled()) {
+      showBanner('ok');
+    } else {
+      // Only show the warn banner if the user has actually attempted
+      // verification — first-time arrivals shouldn't see a scary "not detected"
+      // message before they’ve had a chance to read the steps.
+      if (sessionStorage.getItem('ff_ext_verify_attempted') === '1') {
+        showBanner('warn');
+      }
+    }
+  }, 300);
+</script>
+</body>
+</html>

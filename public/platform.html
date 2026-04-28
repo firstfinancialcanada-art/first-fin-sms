@@ -890,7 +890,41 @@ select option{background:#0d1526;color:var(--text);}
 </head>
 <body>
 
-  
+<!-- ═══ SETUP-INCOMPLETE BANNER ═══
+     Shown to Gold/Single owners who don't yet have a Twilio number on file
+     (e.g., bypassed the welcome wizard). Hidden by default; the inline script
+     below flips it on once FF.user resolves with hasTwilioNumber === false. -->
+<div id="ff-setup-banner" style="display:none;position:sticky;top:0;z-index:9998;background:linear-gradient(90deg,rgba(245,158,11,.18),rgba(239,68,68,.14));border-bottom:1px solid rgba(245,158,11,.4);padding:12px 18px;font-family:'Outfit',sans-serif;color:#fde68a;font-size:13px;">
+  <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="font-size:18px;flex-shrink:0;">⚠</div>
+    <div style="flex:1;min-width:240px;line-height:1.45;">
+      <b style="color:#fef3c7;">Setup not complete —</b>
+      you don't have a Sarah number yet. Customer texts and calls won't route until you claim one.
+    </div>
+    <a href="/welcome" style="background:#06b6d4;color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:700;font-size:13px;letter-spacing:.3px;flex-shrink:0;">Resume setup →</a>
+    <button onclick="document.getElementById('ff-setup-banner').style.display='none'" title="Dismiss for this session" style="background:transparent;border:none;color:#fde68a;font-size:18px;cursor:pointer;padding:4px 8px;flex-shrink:0;opacity:.6;">×</button>
+  </div>
+</div>
+<script>
+  // Poll once login overlay closes (i.e., we have FF.user) and show the banner
+  // for owners with no Twilio number. Reps/managers don't see this — they
+  // can't provision numbers anyway.
+  (function watchSetupState() {
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      const u = window.FF && window.FF.user;
+      if (u) {
+        clearInterval(t);
+        if (u.memberRole === 'owner' && u.hasTwilioNumber === false) {
+          document.getElementById('ff-setup-banner').style.display = 'block';
+        }
+      } else if (tries > 40) {
+        clearInterval(t); // give up after ~10s — user probably not logged in
+      }
+    }, 250);
+  })();
+</script>
 
 <!-- ═══ LOGIN OVERLAY ═══ -->
 <div id="ff-login-overlay" style="display:flex;position:fixed;inset:0;z-index:99999;background:#070d1a;align-items:flex-start;justify-content:center;font-family:'Outfit',sans-serif;overflow-y:auto;padding:24px 0;">

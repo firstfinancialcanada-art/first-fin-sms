@@ -240,11 +240,24 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // tenant admin) and to show the right dashboard variant.
   async function userPayload(row) {
     const settings = normalizeSettings(row.settings_json || {});
+    // twilio_number sits on desk_users directly. Some callers SELECT * (login,
+    // refresh) so it's already on the row; setup/complete uses a narrow SELECT
+    // and won't have it — fall back to a small lookup. We expose
+    // hasTwilioNumber so the platform can prompt owners who skipped the wizard
+    // (e.g., the /welcome 404 from earlier today) to come back and claim one.
+    let twilioNumber = row.twilio_number;
+    if (twilioNumber === undefined) {
+      try {
+        const r = await pool.query('SELECT twilio_number FROM desk_users WHERE id = $1', [row.id]);
+        twilioNumber = r.rows[0]?.twilio_number ?? null;
+      } catch { twilioNumber = null; }
+    }
     const payload = {
       id: row.id,
       email: row.email,
       name: row.display_name,
       role: row.role,
+      hasTwilioNumber: !!twilioNumber,
       tenantBranding: buildTenantBrandingFromSettings(settings)
     };
     try {
