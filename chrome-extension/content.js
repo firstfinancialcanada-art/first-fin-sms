@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.4
+// content.js — FIRST-FIN Inventory Importer v2.8.5
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.4-pagination-postprocess-2026-04-27';
+const __FF_VERSION = 'v2.8.5-vdp-photo-strategies-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -338,15 +338,35 @@ function parseVdpDetail(url) {
   try { document.documentElement.dataset.ffDebugPhotos = photos.length; } catch(_){}
   try { document.documentElement.dataset.ffDebugFirst = photos[0]?.substring(0, 80) || 'NONE'; } catch(_){}
 
-  // Strategy 2: If gallery had < 3 photos, try all images but filter aggressively
-  if (photos.length < 3) {
+  // Strategy 2: ALWAYS sweep all <img> for known dealer-photo CDN URLs
+  // (was gated on `< 3` — same bug as the server-side scraper had).
+  // 2026-04-27: bumped to `< 30` so this fills up to the cap even when
+  // Strategy 1's gallery container already returned a healthy-but-
+  // incomplete set. Mirrors the server-side fix in lib/scraper.js.
+  if (photos.length < 30) {
     document.querySelectorAll('img').forEach(img => {
       const src = getBestSrc(img);
-      // Only accept images that look like vehicle photos (large CDN images)
       if (/homenet|dealerphoto|dealerphotos|vehiclephoto|d2cmedia|imagescdn|autotradercdn|getedealer|pictures\.dealer\.com|cdn.*\/(640|800|1024|1280)/i.test(src)) {
         addPhoto(src, img.alt || img.title || '');
       }
     });
+  }
+
+  // Strategy 2.5: regex sweep on raw HTML for known dealer-photo CDN
+  // URLs that aren't in <img> tags (preload links, JSON blobs, hidden
+  // carousel templates, data-* attributes). Hunt VDPs embed ~26+
+  // d2cmedia URLs but the gallery <img> selector only sees ~20 — the
+  // rest live in non-img DOM. Mirrors lib/scraper.js Strategy 2.5.
+  if (photos.length < 30) {
+    try {
+      const rawHtml = document.documentElement.outerHTML || '';
+      const cdnRe = /https?:\/\/[^\s"'<>)\\,]*(?:d2cmedia|imagescdn|autotradercdn|getedealer|dealerphoto|homenet)[^\s"'<>)\\,]*\.(?:jpg|jpeg|png|webp)[^\s"'<>)\\,]*/gi;
+      const found = [...new Set(rawHtml.match(cdnRe) || [])];
+      for (const url of found) {
+        if (photos.length >= 30) break;
+        addPhoto(url, '');
+      }
+    } catch (_) {}
   }
 
   // Strategy 3: Still nothing? Take any non-junk image over 200px wide
