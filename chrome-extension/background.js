@@ -54,6 +54,7 @@ function isRealVehicle(v) {
 
 
 async function scrapeTabBg(tabId) {
+  console.log('[FF-bg] scrapeTabBg ENTRY for tabId', tabId);
   // Step 1: Client-side scrape via SCRAPE_LOCAL (no server relay — avoids deadlock)
   let clientResult = null;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -270,6 +271,7 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
       const link = links[i];
       activeScan.current = i + 1;
       const label = link.split('/').filter(Boolean).pop()?.slice(0, 45) || link;
+      console.log('[FF-bg] iteration', i+1, '/', links.length, '→', link.slice(0,80));
 
       try {
         await chrome.tabs.update(bgTab.id, { url: link });
@@ -277,7 +279,9 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
         // Extra wait for lazy-loaded gallery images to render
         const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
         await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
+        console.log('[FF-bg] iteration', i+1, 'calling scrapeTabBg');
         const vResp = await scrapeTabBg(bgTab.id);
+        console.log('[FF-bg] iteration', i+1, 'scrapeTabBg returned:', vResp?.result?.vehicles?.[0]?._photos?.length || 'no vehicles');
 
         if (vResp?.result?.vehicles?.length) {
           let v = vResp.result.vehicles[0];
