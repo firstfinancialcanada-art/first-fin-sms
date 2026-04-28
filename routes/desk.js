@@ -954,7 +954,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
               numbers: ovNums.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
               fallback: true,
               overlayUsed: ov,
-              message: `Area code ${areaCode} is currently out of stock — showing ${ov} numbers (same region, your customers won't see a difference)`
+              message: `No ${areaCode} numbers available — showing ${ov} numbers`
             });
           }
         } catch (_) { /* skip this overlay, try next */ }
