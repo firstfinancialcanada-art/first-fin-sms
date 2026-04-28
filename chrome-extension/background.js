@@ -71,40 +71,43 @@ async function scrapeTabBg(tabId) {
   }
 
   // Step 2: If client returned a low photo count, try the server for a
-  // potentially-bigger set. The server runs cheerio against the raw HTML
-  // (no JS execution) and often finds 25-30 d2cmedia URLs the client
-  // gallery selector missed (e.g. Hunt Chrysler — client gets 20 from
-  // the visible gallery, server cheerio finds 26+ unique positions in
-  // the raw HTML). Comparison at line 92 below keeps the bigger set.
-  // Threshold was 3 — bumped to 25 (just under our 30-cap) so we always
-  // probe the server unless the client is already at/near the cap.
-  // Caught 2026-04-27 by Franco re-scraping Hunt RAMs.
+  // potentially-bigger set. Verbose logging added 2026-04-27 to trace
+  // why Hunt VDPs stuck at 📷20 even after server returns 30 (verified
+  // via /api/admin/debug-scrape-vdp).
   if (clientResult?.result?.vehicles?.length) {
     const v = clientResult.result.vehicles[0];
-    if ((v._photos?.length || 0) < 25) {
+    const clientCount = v._photos?.length || 0;
+    console.log('[FF-bg] scrapeTabBg client returned', clientCount, 'photos');
+    if (clientCount < 25) {
       try {
         const token = (await chrome.storage.local.get('token')).token;
+        console.log('[FF-bg] scrapeTabBg server-fallback: token?', !!token);
         if (token) {
           const [{ result: capture }] = await chrome.scripting.executeScript({
             target: { tabId },
             func: () => ({ html: document.documentElement.outerHTML, url: location.href })
           });
+          console.log('[FF-bg] scrapeTabBg captured', capture?.html?.length || 0, 'bytes for', capture?.url);
           if (capture?.html && capture.html.length > 500) {
             const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
               body: JSON.stringify({ html: capture.html, url: capture.url })
             });
+            console.log('[FF-bg] scrapeTabBg server status', resp.status);
             if (resp.ok) {
               const data = await resp.json();
-              if (data.ok && data.result?.vehicles?.[0]?._photos?.length > v._photos?.length) {
+              const srvCount = data.result?.vehicles?.[0]?._photos?.length || 0;
+              console.log('[FF-bg] scrapeTabBg server returned', srvCount, 'photos (client had', clientCount, ')');
+              if (data.ok && srvCount > clientCount) {
                 v._photos = data.result.vehicles[0]._photos;
+                console.log('[FF-bg] scrapeTabBg merged: using server photos');
               }
             }
           }
         }
       } catch (e) {
-        // Server failed — keep client photos, no harm done
+        console.warn('[FF-bg] scrapeTabBg server-fallback error:', e.message);
       }
     }
   }
