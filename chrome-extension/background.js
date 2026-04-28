@@ -493,14 +493,29 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
             if (data.ok && data.adUrls?.length) {
               const adSet = new Set(data.adUrls);
               let totalRemoved = 0;
+              let kept_placeholder = 0;
               for (const v of activeScan.vehicles) {
                 if (!v._photos?.length) continue;
                 const before = v._photos.length;
-                v._photos = v._photos.filter(p => !adSet.has(p));
-                totalRemoved += before - v._photos.length;
+                const filtered = v._photos.filter(p => !adSet.has(p));
+                // Don't ever empty a vehicle's photo array — for vehicles
+                // where the dealer only uploaded a brand-placeholder image
+                // (Jeep/VW/Dodge logo card on white background), the OCR
+                // detects dealer text and would otherwise strip everything,
+                // leaving "No photos" in FB Poster. Better to keep the
+                // placeholder so the vehicle has SOMETHING to display.
+                if (filtered.length === 0) {
+                  v._photos = v._photos.slice(0, 1);
+                  kept_placeholder++;
+                  totalRemoved += before - 1;
+                } else {
+                  v._photos = filtered;
+                  totalRemoved += before - filtered.length;
+                }
               }
               if (totalRemoved > 0) {
-                activeScan.log.push({ cls: 'hi', text: `🧹 Removed ${totalRemoved} dealer ad photos across ${activeScan.vehicles.length} vehicles` });
+                const placeholderNote = kept_placeholder > 0 ? ` (kept ${kept_placeholder} brand placeholder${kept_placeholder===1?'':'s'})` : '';
+                activeScan.log.push({ cls: 'hi', text: `🧹 Removed ${totalRemoved} dealer ad photos across ${activeScan.vehicles.length} vehicles${placeholderNote}` });
               }
             }
           }

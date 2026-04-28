@@ -1,10 +1,10 @@
-// content.js — FIRST-FIN Inventory Importer v2.8.6
+// content.js — FIRST-FIN Inventory Importer v2.8.7
 // Injected into dealer pages. Responds to SCRAPE messages from the popup.
 'use strict';
 // Version-tagged guard: when content.js is updated, the old guard tag won't match
 // the new one, so the new code re-initializes (overrides the old listeners).
 // IMPORTANT: bump this string whenever content.js changes meaningfully.
-const __FF_VERSION = 'v2.8.6-d2c-position-dedupe-2026-04-27';
+const __FF_VERSION = 'v2.8.7-spec-extract-mirror-2026-04-27';
 if (window.__FIRSTFIN_VERSION === __FF_VERSION) { /* already injected this exact version — skip */ } else {
 window.__FIRSTFIN_VERSION = __FF_VERSION;
 window.__FIRSTFIN_LOADED  = true;
@@ -220,8 +220,46 @@ function parseVdpDetail(url) {
   if (!stock && vin) stock = vin.slice(-8);
   if (!stock) stock = (url.split('/').filter(Boolean).pop() || '').slice(0, 12).toUpperCase();
 
-  const typeM = body.match(/\b(sedan|suv|truck|pickup|coupe|hatchback|van|wagon|convertible|crossover)\b/i);
-  const type  = typeM ? typeM[1][0].toUpperCase() + typeM[1].slice(1).toLowerCase() : 'Used';
+  // ── Spec-block label extraction (mirrors lib/scraper.js) ─────────────────
+  // Hunt and most D2C dealer pages have a structured spec list with
+  // `Label: Value` rows. Pull these directly instead of grepping for body
+  // style words in the whole page text — pre-fix every Hunt vehicle was
+  // tagged "Sedan" or "Van" because the body-style regex matched the FIRST
+  // body-style word anywhere on the page (sidebars list "Honda Civic Sedan",
+  // "RAM Promaster Cargo Van", etc.). The label-based version pulls the
+  // CANONICAL category and never hits sidebars.
+  function _specVal(re) {
+    const m = body.match(re);
+    return m ? String(m[1]).replace(/\s+/g, ' ').trim() : '';
+  }
+  const NEXT_LABEL = '(?=Passengers|Doors|Kilometers|Stock|VIN|Price|Drive|Transmission|Fuel|Engine|Cylinders|Exterior|Interior|Category|Trim|Model|Body|Mileage|Year|Make|Color|Colour|Share|Download|Carfax|City|Highway|$)';
+  const _categoryRaw   = _specVal(new RegExp('Category\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
+  const _extColorRaw   = _specVal(new RegExp('Exterior\\s*Colou?r\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
+  const _intColorRaw   = _specVal(new RegExp('Interior\\s*Colou?r\\s*:\\s*([A-Za-z][A-Za-z ]{1,30}?)' + NEXT_LABEL, 'i'));
+  const _driveTrainV   = _specVal(/Drive\s*train\s*:\s*((?:Front|Rear|All|Four)\s*-?\s*wheel\s+drive|FWD|RWD|AWD|4WD|4x4|2WD)/i);
+  const _transmissionV = _specVal(new RegExp('Transmission\\s*:\\s*(\\d{1,2}\\s*-?\\s*Speed\\s+(?:Automatic|Auto|Manual|DCT|CVT))' + NEXT_LABEL, 'i'))
+                      || _specVal(/Transmission\s*:\s*(Automatic|Manual|CVT|DCT|Auto-?manual|Dual\s*Clutch|Tiptronic)/i);
+  const _fuelTypeV     = _specVal(/Fuel\s*:\s*(Plug-?in\s*Hybrid|Gasoline|Gas|Diesel|Electric|Hybrid|Plug-?in|Flex(?:\s*Fuel)?|E85|CNG|LPG)/i);
+  const _engineV       = _specVal(new RegExp('Engine\\s*:\\s*([A-Za-z0-9][A-Za-z0-9 \\.\\-/]{2,80}?)' + NEXT_LABEL, 'i'));
+
+  function _mapBodyStyle(s) {
+    if (!s) return '';
+    const t = s.toLowerCase();
+    if (/truck|pickup/.test(t))                      return 'Pickup';
+    if (/suv|crossover|sport.?utility|cuv/.test(t))  return 'SUV';
+    if (/van|minivan|cargo/.test(t))                 return 'Van';
+    if (/sedan/.test(t))                             return 'Sedan';
+    if (/coupe/.test(t))                             return 'Coupe';
+    if (/hatchback/.test(t))                         return 'Hatchback';
+    if (/wagon/.test(t))                             return 'Wagon';
+    if (/convertible/.test(t))                       return 'Convertible';
+    return s.replace(/s$/i, '');
+  }
+  let type = _mapBodyStyle(_categoryRaw);
+  if (!type) {
+    const typeM = body.match(/\b(sedan|suv|truck|pickup|coupe|hatchback|wagon|convertible|crossover)\b/i);
+    type = typeM ? typeM[1][0].toUpperCase() + typeM[1].slice(1).toLowerCase() : 'Used';
+  }
 
   // Collect photos from vehicle gallery only (not "similar vehicles" or site chrome)
   const photos = [];
@@ -446,6 +484,10 @@ function parseVdpDetail(url) {
     }
   }
 
+  // Prefer labeled "Exterior Colour:" over regex-mined `color`
+  const _finalColor    = parseColor(_extColorRaw) || color;
+  const _finalIntColor = parseColor(_intColorRaw);
+
   return {
     stock, vin, type,
     mileage,
@@ -454,10 +496,15 @@ function parseVdpDetail(url) {
     make:      finalMake,
     model:     finalModel,
     trim:      finalTrim,
-    color,
+    color:     _finalColor,
     condition: 'Used',
     carfax:    0,
     book_value: 0,
+    int_color:    _finalIntColor,
+    transmission: _transmissionV,
+    fuel_type:    _fuelTypeV,
+    drive_train:  _driveTrainV,
+    engine:       _engineV,
     _title:  title,
     _photos: photos.slice(0, 30),
     _url:    url
