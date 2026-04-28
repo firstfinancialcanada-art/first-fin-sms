@@ -232,13 +232,14 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
+const __FF_BG_VERSION = 'bg-v2.8.7-d2c-instrument-2026-04-27';
 async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
   activeScan = {
     status:  'running',
     total:   links.length,
     current: 0,
     vehicles: [],
-    log: [{ cls: 'hi', text: `Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : (d2cSlugPages > 1 ? ` + ${d2cSlugPages - 1} more pages (button pagination)` : '')} — starting scan...` },
+    log: [{ cls: 'hi', text: `[${__FF_BG_VERSION}] Found ${links.length} vehicles on page 1${pageLinks.length ? ` + ${pageLinks.length} more pages to collect` : (d2cSlugPages > 1 ? ` + ${d2cSlugPages - 1} more pages (button pagination)` : '')} — starting scan...` },
           { cls: 'hi', text: 'You can navigate away — scan runs in background.' }]
   };
   await persistState();
@@ -324,6 +325,12 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
     // via /api/admin/debug-scrape-vdp 2026-04-27).
     const isD2CScan = links.length > 0 && /-id\d+\.html|d2cmedia|huntchryslerfiat|inventory\.html\?filterid/i.test(links[0]);
     console.log('[FF-bg] D2C scan?', isD2CScan, 'sample link:', links[0]?.slice(0,80));
+    activeScan.log.push({ cls: 'hi', text: `🔬 D2C path: ${isD2CScan ? 'YES (server-direct)' : 'NO (client fallback)'} — sample: ${(links[0]||'').slice(-50)}` });
+    broadcastProgress();
+    // Pre-flight check: do we have an auth token? Critical for server-direct.
+    const __token_check = (await chrome.storage.local.get('token')).token;
+    activeScan.log.push({ cls: __token_check ? 'ok' : 'err', text: `🔬 Auth token: ${__token_check ? 'present (' + __token_check.length + ' chars)' : 'MISSING — server-direct will skip!'}` });
+    broadcastProgress();
 
     for (let i = 0; i < links.length; i++) {
       const link = links[i];
@@ -347,10 +354,15 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
                 const data = await resp.json();
                 if (data.ok && data.result?.vehicles?.length) {
                   vResp = { result: data.result };
-                  console.log('[FF-bg] iteration', i+1, 'server-direct returned', data.result.vehicles[0]._photos?.length || 0, 'photos');
+                  const srvCount = data.result.vehicles[0]._photos?.length || 0;
+                  console.log('[FF-bg] iteration', i+1, 'server-direct returned', srvCount, 'photos');
+                  if (i < 2) activeScan.log.push({ cls: 'ok', text: `🔬 [${i+1}] server-direct → ${srvCount} photos` });
+                } else {
+                  activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct returned no vehicles` });
                 }
               } else {
                 console.warn('[FF-bg] iteration', i+1, 'server-direct failed', resp.status);
+                if (i < 2) activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct HTTP ${resp.status}` });
               }
             } catch (e) {
               console.warn('[FF-bg] iteration', i+1, 'server-direct error:', e.message);
@@ -365,8 +377,11 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
           const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
           await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
           console.log('[FF-bg] iteration', i+1, 'fallback to scrapeTabBg');
+          if (i < 2) activeScan.log.push({ cls: '', text: `🔬 [${i+1}] no server-direct → using client scrapeTabBg` });
           vResp = await scrapeTabBg(bgTab.id);
-          console.log('[FF-bg] iteration', i+1, 'scrapeTabBg returned:', vResp?.result?.vehicles?.[0]?._photos?.length || 'no vehicles');
+          const cliCount = vResp?.result?.vehicles?.[0]?._photos?.length;
+          console.log('[FF-bg] iteration', i+1, 'scrapeTabBg returned:', cliCount || 'no vehicles');
+          if (i < 2) activeScan.log.push({ cls: '', text: `🔬 [${i+1}] client returned ${cliCount || 0} photos` });
         }
 
         if (vResp?.result?.vehicles?.length) {
