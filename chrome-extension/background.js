@@ -70,10 +70,18 @@ async function scrapeTabBg(tabId) {
     }
   }
 
-  // Step 2: If client got few photos, try server for better photos (cheerio parses raw HTML)
+  // Step 2: If client returned a low photo count, try the server for a
+  // potentially-bigger set. The server runs cheerio against the raw HTML
+  // (no JS execution) and often finds 25-30 d2cmedia URLs the client
+  // gallery selector missed (e.g. Hunt Chrysler — client gets 20 from
+  // the visible gallery, server cheerio finds 26+ unique positions in
+  // the raw HTML). Comparison at line 92 below keeps the bigger set.
+  // Threshold was 3 — bumped to 25 (just under our 30-cap) so we always
+  // probe the server unless the client is already at/near the cap.
+  // Caught 2026-04-27 by Franco re-scraping Hunt RAMs.
   if (clientResult?.result?.vehicles?.length) {
     const v = clientResult.result.vehicles[0];
-    if ((v._photos?.length || 0) < 3) {
+    if ((v._photos?.length || 0) < 25) {
       try {
         const token = (await chrome.storage.local.get('token')).token;
         if (token) {
