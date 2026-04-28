@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First-Fin Browser Helper — Privacy Policy</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #131825; --border: rgba(255,255,255,.08);
+    --text: #e2e8f0; --muted: #94a3b8; --primary: #06b6d4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    line-height: 1.65;
+    padding: 40px 20px 80px;
+  }
+  .shell { max-width: 760px; margin: 0 auto; }
+  h1 {
+    font-size: 28px; font-weight: 700; margin-bottom: 6px;
+    color: var(--text);
+  }
+  .meta {
+    font-size: 12px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2 {
+    font-size: 18px; font-weight: 700;
+    margin: 28px 0 10px;
+    color: var(--primary);
+  }
+  p, li { font-size: 15px; color: var(--text); margin-bottom: 12px; }
+  ul, ol { margin-left: 22px; }
+  li { margin-bottom: 6px; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--primary);
+  }
+  .footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  a { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <h1>First-Fin Browser Helper — Privacy Policy</h1>
+  <div class="meta">Last updated: 2026-04-28 · Effective immediately</div>
+
+  <p>
+    This policy describes how the First-Fin Browser Helper (the "Extension")
+    handles data. The Extension is published by First Financial Canada
+    ("First-Fin", "we", "us") to support its dealer-platform customers.
+  </p>
+
+  <h2>What the Extension does</h2>
+  <p>
+    The Extension is a single-purpose tool: it auto-fills the
+    <b>Facebook Marketplace "create vehicle listing"</b> form with vehicle
+    inventory data that is already loaded inside the user's authenticated
+    First-Fin dealer-platform tab. The user clicks a button on the platform;
+    the platform passes vehicle fields (year, make, model, price, mileage,
+    description, photo URLs) to the Extension via in-page <code>postMessage</code>;
+    the Extension opens or focuses a Facebook Marketplace tab and types those
+    fields into the form. That is the entire flow.
+  </p>
+
+  <h2>Data the Extension reads</h2>
+  <ul>
+    <li>
+      Vehicle data passed to it from <code>app.firstfinancialcanada.com</code>
+      (the user's logged-in dealer dashboard). The user explicitly initiates
+      this transfer by clicking the platform's "Auto-Fill Facebook" button.
+    </li>
+    <li>
+      Public images at the photo URLs the platform passes to it (we fetch
+      them as base64 so Facebook's form will accept them).
+    </li>
+    <li>
+      The current state of the Facebook Marketplace listing form — only to
+      determine which fields exist and where to type the values. We do not
+      read existing form values, account data, messages, or anything else
+      on Facebook.
+    </li>
+  </ul>
+
+  <h2>Data the Extension does NOT read or transmit</h2>
+  <ul>
+    <li>Facebook account information, messages, friends list, ad activity, or browsing history</li>
+    <li>Other tabs, windows, or websites the user has open</li>
+    <li>Cookies, saved passwords, or autofill data from any site</li>
+    <li>Any personally identifiable information of customers, leads, or end-buyers</li>
+    <li>Analytics, telemetry, or usage tracking of any kind</li>
+  </ul>
+
+  <h2>Where data goes</h2>
+  <p>
+    Vehicle data flows in one direction only:
+  </p>
+  <ol>
+    <li>From the First-Fin dealer platform tab (where the user is authenticated)</li>
+    <li>Into the Extension's local memory</li>
+    <li>Into the Facebook Marketplace form fields on the user's screen</li>
+  </ol>
+  <p>
+    The Extension does not transmit data to any third-party server, analytics
+    provider, advertising network, or anywhere outside the user's own browser
+    and the Facebook tab they are filling. There is no "phone home" call.
+    Photo URLs are fetched directly from First-Fin's CDN (the same CDN the
+    user's platform tab is already loading from).
+  </p>
+
+  <h2>Storage</h2>
+  <p>
+    The Extension uses Chrome's <code>chrome.storage</code> API only to cache
+    short-lived state needed to coordinate the platform tab with the Facebook
+    tab during a single auto-fill action. No persistent user data is stored.
+    Uninstalling the Extension removes all its storage.
+  </p>
+
+  <h2>Authentication</h2>
+  <p>
+    The Extension itself does not authenticate. It relies on the user being
+    signed in to <code>app.firstfinancialcanada.com</code> in their own browser
+    tab. The Extension never sees the user's First-Fin password, JWT secret,
+    or Facebook password.
+  </p>
+
+  <h2>Permissions and why we ask for them</h2>
+  <ul>
+    <li>
+      <code>tabs</code> + <code>scripting</code>: needed to open or focus the
+      Facebook Marketplace listing tab and inject the form-filler script
+      into it.
+    </li>
+    <li>
+      <code>storage</code>: short-lived state caching during one auto-fill
+      action (see "Storage" above).
+    </li>
+    <li>
+      Host access to <code>app.firstfinancialcanada.com</code>: to receive
+      the auto-fill request the dealer platform sends from its own page.
+    </li>
+    <li>
+      Host access to <code>facebook.com/marketplace/*</code>: to fill the
+      Marketplace listing form on the user's behalf.
+    </li>
+  </ul>
+
+  <h2>Sharing &amp; sale of data</h2>
+  <p>
+    We do not sell, rent, share, or trade any data the Extension touches with
+    anyone. There is no advertising network integration, no analytics SDK,
+    and no resale of vehicle or dealer information.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    The Extension is a B2B tool for licensed automotive dealers and their
+    employees. It is not directed to anyone under 18 and we do not knowingly
+    collect data from minors.
+  </p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    If we materially change how the Extension handles data, we will publish
+    an updated version of this page at the same URL and update the
+    "Last updated" date at the top.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions, security reports, or data requests:
+    <a href="mailto:First@FirstFinancialCanada.com">First@FirstFinancialCanada.com</a>
+    or call/text <a href="tel:+15873066133">587-306-6133</a>.
+  </p>
+
+  <div class="footer">
+    First Financial Canada · Calgary, AB
+  </div>
+
+</div>
+</body>
+</html>
