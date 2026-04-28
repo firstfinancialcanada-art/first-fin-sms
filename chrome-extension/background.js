@@ -55,6 +55,45 @@ function isRealVehicle(v) {
 
 async function scrapeTabBg(tabId) {
   console.log('[FF-bg] scrapeTabBg ENTRY for tabId', tabId);
+
+  // Step 0 (added 2026-04-27): server-first capture for D2C-style sites.
+  // Hunt Chrysler (and other newer D2C variants) consistently returned
+  // ~20 photos via the client-side path because gallery containers only
+  // expose visible carousel photos to JS. Server-side cheerio sees the
+  // full 26-30 unique d2cmedia URLs in the raw HTML response. Capture
+  // the raw HTML once via executeScript and POST it to scrape-vdp;
+  // server result is authoritative when its photo count beats client.
+  let serverResult = null;
+  try {
+    const token = (await chrome.storage.local.get('token')).token;
+    if (token) {
+      const [{ result: capture }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => ({ html: document.documentElement.outerHTML, url: location.href })
+      });
+      console.log('[FF-bg] scrapeTabBg server-first captured', capture?.html?.length || 0, 'bytes for', capture?.url);
+      const isD2C = capture?.url && /d2cmedia|huntchryslerfiat|-id\d+\.html/i.test(capture.url);
+      if (isD2C && capture?.html && capture.html.length > 500) {
+        const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ html: capture.html, url: capture.url })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.ok && data.result?.vehicles?.[0]) {
+            serverResult = { result: data.result };
+            console.log('[FF-bg] scrapeTabBg server-first returned', data.result.vehicles[0]._photos?.length || 0, 'photos');
+          }
+        } else {
+          console.warn('[FF-bg] scrapeTabBg server-first failed', resp.status);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[FF-bg] scrapeTabBg server-first error:', e.message);
+  }
+
   // Step 1: Client-side scrape via SCRAPE_LOCAL (no server relay — avoids deadlock)
   let clientResult = null;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -68,6 +107,17 @@ async function scrapeTabBg(tabId) {
           await new Promise(r => setTimeout(r, 400));
         } catch (_) {}
       }
+    }
+  }
+
+  // If server already returned good data, use it (skips remaining merge logic)
+  if (serverResult?.result?.vehicles?.[0]?._photos?.length >= 20) {
+    const srvPhotos = serverResult.result.vehicles[0]._photos;
+    const cliPhotos = clientResult?.result?.vehicles?.[0]?._photos || [];
+    if (srvPhotos.length > cliPhotos.length) {
+      // Use server-first result wholesale
+      console.log('[FF-bg] scrapeTabBg returning server-first result');
+      return serverResult;
     }
   }
 
