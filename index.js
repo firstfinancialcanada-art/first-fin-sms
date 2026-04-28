@@ -104,6 +104,7 @@ app.use('/api/voice',   makeRateLimit({ windowMs: 60 * 1000, max: 60 }));
 app.get('/',         (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/platform', (req, res) => res.sendFile(path.join(__dirname, 'public', 'platform.html')));
 app.get('/setup',    (req, res) => res.sendFile(path.join(__dirname, 'public', 'setup.html')));
+app.get('/welcome',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth ──────────────────────────────────────────────────────────
