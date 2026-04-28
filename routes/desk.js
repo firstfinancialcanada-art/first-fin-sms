@@ -573,10 +573,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       // Clear onboardingPending + tempPassword from settings_json (in case an
       // earlier flow stored it); keep all other settings.
+      // Cast through ::jsonb because legacy production rows have settings_json
+      // as TEXT, not JSONB — without the cast, COALESCE(text, '{}'::jsonb)
+      // hits "COALESCE types text and jsonb cannot be matched" (42804).
       await client.query(
         `UPDATE desk_users
             SET password_hash  = $1,
-                settings_json  = COALESCE(settings_json, '{}'::jsonb)
+                settings_json  = COALESCE(settings_json::jsonb, '{}'::jsonb)
                                  - 'tempPassword' - 'onboardingPending'
           WHERE id = $2`,
         [passHash, uid]
