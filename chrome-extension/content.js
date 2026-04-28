@@ -605,8 +605,11 @@ function scrapeCurrentPage() {
             });
           });
 
-          // Cap at 20 (any more is overkill for a CRM thumbnail strip)
-          if (photos.length > 20) photos.length = 20;
+          // 2026-04-27: dropped the explicit truncate — the slice(0, 30)
+          // on _photos below is the actual cap, and the in-loop truncate
+          // was leaving Hunt-style VDPs at exactly 20 photos when they
+          // had more available. Keep up to 30 so dealers can pick the
+          // best 20 in FB Poster.
 
           vehicles.push({
             stock, vin, year, make, model, trim,

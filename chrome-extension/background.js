@@ -270,11 +270,30 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
 
         if (vResp?.result?.vehicles?.length) {
           let v = vResp.result.vehicles[0];
-          // If card data provided, use it for price/mileage/VIN — only take photos from VDP
+          // Merge card data + VDP data: card has clean year/make/model/price
+          // from JSON-LD, VDP has accurate mileage/VIN/color/condition that
+          // JSON-LD typically lacks. Pre-fix this just spread `card` over
+          // `v` which threw away VDP-parsed mileage — Hunt vehicles all
+          // showed 0 km even when they were 2022 used units. Now we let
+          // VDP win for fields it actually populated, falling back to card
+          // values only when VDP returned an empty/zero default.
           if (cardVehicles && cardVehicles[i]) {
             const card = cardVehicles[i];
             const vdpPhotos = v._photos || [];
-            v = { ...card, _photos: vdpPhotos.length > (card._photos?.length || 0) ? vdpPhotos : (card._photos || []) };
+            v = {
+              ...card,
+              ...v,
+              year:    v.year    || card.year,
+              make:    v.make    || card.make,
+              model:   v.model   || card.model,
+              trim:    v.trim    || card.trim || '',
+              price:   v.price   || card.price || 0,
+              mileage: (v.mileage > 0) ? v.mileage : (card.mileage || 0),
+              vin:     v.vin     || card.vin   || '',
+              color:   v.color   || card.color || '',
+              _photos: vdpPhotos.length > (card._photos?.length || 0) ? vdpPhotos : (card._photos || []),
+              _url:    v._url    || card._url,
+            };
           }
           if (isRealVehicle(v)) {
             activeScan.vehicles.push(v);
