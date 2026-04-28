@@ -866,6 +866,57 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // TWILIO NUMBER PROVISIONING
   // ═══════════════════════════════════════════════════════════
 
+  // Canadian overlay area codes — when Twilio is dry on the user's requested
+  // code, we try its OVERLAYS (same physical region, different prefix) before
+  // falling back to random national inventory. A Milton dealer searching 905
+  // who lands on 289/365/437 still has a local number; one who lands on 825
+  // (Alberta) or 782 (Atlantic) doesn't. Hunt at Hunt Chrysler hit this
+  // 2026-04-28 when 905 happened to be empty.
+  const CA_OVERLAYS = {
+    // Greater Toronto Area + Hamilton/Niagara
+    '905': ['289', '365', '437', '647', '416'],
+    '416': ['647', '437', '289', '905', '365'],
+    '289': ['905', '365', '437', '647', '416'],
+    '365': ['905', '289', '437', '647', '416'],
+    '647': ['416', '437', '289', '905'],
+    '437': ['416', '647', '289', '905'],
+    // Calgary / Edmonton — share an Alberta-wide overlay (587/825)
+    '403': ['587', '825'],
+    '780': ['587', '825'],
+    '587': ['403', '780', '825'],
+    '825': ['403', '780', '587'],
+    // Vancouver / Lower Mainland
+    '604': ['778', '236', '672'],
+    '778': ['604', '236', '672'],
+    '236': ['604', '778', '672'],
+    '672': ['604', '778', '236'],
+    // Ottawa
+    '613': ['343', '753'],
+    '343': ['613', '753'],
+    // Montreal
+    '514': ['438', '263'],
+    '438': ['514', '263'],
+    // Quebec City
+    '418': ['367', '581'],
+    '367': ['418', '581'],
+    // SW Ontario (Kitchener/London/Windsor)
+    '519': ['226', '548'],
+    '226': ['519', '548'],
+    '548': ['519', '226'],
+    // Northern/Central Ontario (Barrie/Sudbury)
+    '705': ['249', '683'],
+    '249': ['705', '683'],
+    // Halifax / Atlantic
+    '902': ['782'],
+    '782': ['902'],
+    // Manitoba
+    '204': ['431'],
+    '431': ['204'],
+    // Saskatchewan
+    '306': ['639'],
+    '639': ['306']
+  };
+
   // Search available local numbers by area code
   app.get('/api/desk/twilio/available-numbers', requireAuth, async (req, res) => {
     if (!twilioClient) return res.status(503).json({ success: false, error: 'Twilio not configured on server' });
@@ -873,24 +924,49 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     if (!areaCode || areaCode.length !== 3) {
       return res.status(400).json({ success: false, error: 'Provide a 3-digit area code' });
     }
+    // Twilio's smsEnabled/voiceEnabled flags on CA local numbers are
+    // unreliable — sometimes false on numbers that DO support both once
+    // purchased. Filtering on them throws away real 905 inventory. We just
+    // search local numbers and trust they support SMS+Voice (every Canadian
+    // local long code on Twilio does).
+    const search = (ac) =>
+      twilioClient.availablePhoneNumbers('CA').local.list({ areaCode: ac, limit: 10 });
+
     try {
-      const numbers = await twilioClient.availablePhoneNumbers('CA')
-        .local.list({ areaCode, limit: 10, smsEnabled: true, voiceEnabled: true });
-      if (!numbers.length) {
-        // Fallback: try without area code restriction
-        const fallback = await twilioClient.availablePhoneNumbers('CA')
-          .local.list({ limit: 10, smsEnabled: true, voiceEnabled: true });
+      // 1) Try the user's requested area code first
+      const direct = await search(areaCode);
+      if (direct.length) {
         return res.json({
           success: true,
-          numbers: fallback.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
-          fallback: true,
-          message: `No numbers found for area code ${areaCode} — showing other available Canadian numbers`
+          numbers: direct.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
+          fallback: false
         });
       }
-      res.json({
+
+      // 2) Empty? Try OVERLAY codes serving the same physical region
+      const overlays = CA_OVERLAYS[areaCode] || [];
+      for (const ov of overlays) {
+        try {
+          const ovNums = await search(ov);
+          if (ovNums.length) {
+            return res.json({
+              success: true,
+              numbers: ovNums.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
+              fallback: true,
+              overlayUsed: ov,
+              message: `Area code ${areaCode} is currently out of stock — showing ${ov} numbers (same region, your customers won't see a difference)`
+            });
+          }
+        } catch (_) { /* skip this overlay, try next */ }
+      }
+
+      // 3) Last resort: any Canadian local number (may be out-of-province)
+      const fallback = await twilioClient.availablePhoneNumbers('CA').local.list({ limit: 10 });
+      return res.json({
         success: true,
-        numbers: numbers.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
-        fallback: false
+        numbers: fallback.map(n => ({ number: n.phoneNumber, friendly: n.friendlyName, region: n.region })),
+        fallback: true,
+        message: `No local inventory for ${areaCode} or its overlays right now — these are other Canadian options. Call us at 587-306-6133 if you'd like us to reserve a ${areaCode} for you when one frees up.`
       });
     } catch(e) {
       console.error('Twilio number search error:', e.message);
