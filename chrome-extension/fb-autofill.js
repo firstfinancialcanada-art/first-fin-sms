@@ -267,18 +267,32 @@ async function fillFacebookForm(vehicle) {
 
   // Step 11: Condition — inventory is fully inspected & reconditioned,
   // so 'Excellent' is the appropriate FB Marketplace label (not 'Good').
-  await selectDropdown('Condition', 'Excellent');
+  // FB renamed the label "Condition" -> "Vehicle condition" at some point;
+  // try both so we don't silently miss it.
+  let _condOk = await selectDropdown('Vehicle condition', 'Excellent');
+  if (!_condOk) await selectDropdown('Condition', 'Excellent');
   await sleep(300);
 
-  // Step 12: Fuel type
+  // Step 12: Fuel type — Hunt sometimes returns "Gas", FB option is "Gasoline".
   if (vehicle.fuel) {
-    await selectDropdown('Fuel type', vehicle.fuel);
+    const fuelMap = { gas: 'Gasoline', gasoline: 'Gasoline', diesel: 'Diesel',
+      hybrid: 'Hybrid', electric: 'Electric', 'plug-in hybrid': 'Plug-in hybrid',
+      'plugin hybrid': 'Plug-in hybrid', flex: 'Flex', e85: 'Flex' };
+    const fbFuel = fuelMap[String(vehicle.fuel).toLowerCase().trim()] || vehicle.fuel;
+    await selectDropdown('Fuel type', fbFuel);
     await sleep(300);
   }
 
-  // Step 13: Transmission
+  // Step 13: Transmission — FB Marketplace dropdown only has "Automatic"
+  // and "Manual", so normalize whatever the scraper returned ("4-Speed
+  // automatic", "8-Speed automatic", "Auto", "CVT", etc.) to one of those
+  // two values before we ask the dropdown to match. CVT/DCT/Auto-manual
+  // all map to "Automatic" since they all behave like one to a buyer.
   if (vehicle.transmission) {
-    await selectDropdown('Transmission', vehicle.transmission);
+    const t = String(vehicle.transmission).toLowerCase();
+    let fbTrans = 'Automatic';
+    if (/\bmanual\b/.test(t) && !/auto-?manual/.test(t)) fbTrans = 'Manual';
+    await selectDropdown('Transmission', fbTrans);
     await sleep(300);
   }
 
@@ -288,17 +302,48 @@ async function fillFacebookForm(vehicle) {
     await sleep(300);
   }
 
-  // Try to check "Clean title" if available
+  // Try to check "Clean title" — FB renders it as a custom checkbox
+  // (div role="checkbox" or input[type=checkbox]) sitting next to a heading
+  // "This vehicle has a clean title." Find by either path.
   try {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    for (const cb of checkboxes) {
-      const label = cb.closest('label') || cb.parentElement;
-      if (label && /clean title/i.test(label.textContent)) {
-        if (!cb.checked) cb.click();
-        break;
+    let toggled = false;
+    // Path 1: text-match heading, find nearest checkbox-like element
+    const headings = document.querySelectorAll('span, div, label');
+    for (const h of headings) {
+      const txt = (h.textContent || '').trim();
+      if (!/this vehicle has a clean title/i.test(txt)) continue;
+      if (txt.length > 90) continue; // skip the description paragraph
+      // Walk up to a row container, then find the checkbox-like element
+      let row = h;
+      for (let i = 0; i < 6 && row; i++) {
+        const cb = row.querySelector?.('input[type="checkbox"], [role="checkbox"], [role="switch"]');
+        if (cb) {
+          const isChecked = cb.checked === true || cb.getAttribute('aria-checked') === 'true';
+          if (!isChecked) { cb.click(); toggled = true; }
+          break;
+        }
+        row = row.parentElement;
+      }
+      if (toggled) break;
+    }
+    // Path 2: fallback — find any unchecked checkbox whose ancestor mentions "clean title"
+    if (!toggled) {
+      const allCbs = document.querySelectorAll('input[type="checkbox"], [role="checkbox"], [role="switch"]');
+      for (const cb of allCbs) {
+        let p = cb;
+        for (let i = 0; i < 8 && p; i++) {
+          if (/clean title/i.test(p.textContent || '')) {
+            const isChecked = cb.checked === true || cb.getAttribute('aria-checked') === 'true';
+            if (!isChecked) { cb.click(); toggled = true; }
+            break;
+          }
+          p = p.parentElement;
+        }
+        if (toggled) break;
       }
     }
-  } catch (e) { /* non-critical */ }
+    console.log('[FIRST-FIN] Clean title checkbox:', toggled ? 'checked' : 'not found');
+  } catch (e) { console.warn('[FIRST-FIN] clean-title click failed:', e.message); }
 
   console.log('[FIRST-FIN] Form fill complete!');
 }
