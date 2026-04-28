@@ -39,6 +39,12 @@ async function fetchHtml(url) {
   console.log('Year/Make/Model:', v.year, v.make, v.model);
   console.log('Mileage/Price:   ', v.mileage, '/', v.price);
   console.log('VIN/Stock:       ', v.vin, '/', v.stock);
+  console.log('Type/Condition:  ', v.type, '/', v.condition);
+  console.log('Ext / Int color: ', v.color, '/', v.int_color);
+  console.log('Transmission:    ', v.transmission);
+  console.log('Fuel type:       ', v.fuel_type);
+  console.log('Drive train:     ', v.drive_train);
+  console.log('Engine:          ', v.engine);
   console.log('Photos returned: ', v._photos?.length || 0);
   if (v._photos?.length) {
     console.log('All photos:');
