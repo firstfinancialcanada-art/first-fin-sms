@@ -317,6 +317,14 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
       await persistState();
     }
 
+    // Detect if these are D2C-style URLs (Hunt Chrysler etc.) — for those
+    // we skip the chrome extension's iteration entirely and let the server
+    // fetch + parse each VDP. Bypasses content.js loading issues + the
+    // 20-photo client cap. Server returns 30 photos reliably (verified
+    // via /api/admin/debug-scrape-vdp 2026-04-27).
+    const isD2CScan = links.length > 0 && /-id\d+\.html|d2cmedia|huntchryslerfiat|inventory\.html\?filterid/i.test(links[0]);
+    console.log('[FF-bg] D2C scan?', isD2CScan, 'sample link:', links[0]?.slice(0,80));
+
     for (let i = 0; i < links.length; i++) {
       const link = links[i];
       activeScan.current = i + 1;
@@ -324,14 +332,42 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
       console.log('[FF-bg] iteration', i+1, '/', links.length, '→', link.slice(0,80));
 
       try {
-        await chrome.tabs.update(bgTab.id, { url: link });
-        await waitForTabLoad(bgTab.id);
-        // Extra wait for lazy-loaded gallery images to render
-        const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
-        await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
-        console.log('[FF-bg] iteration', i+1, 'calling scrapeTabBg');
-        const vResp = await scrapeTabBg(bgTab.id);
-        console.log('[FF-bg] iteration', i+1, 'scrapeTabBg returned:', vResp?.result?.vehicles?.[0]?._photos?.length || 'no vehicles');
+        let vResp = null;
+        if (isD2CScan) {
+          // Server-direct path — pass URL, server fetches + parses
+          const token = (await chrome.storage.local.get('token')).token;
+          if (token) {
+            try {
+              const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ url: link })
+              });
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data.ok && data.result?.vehicles?.length) {
+                  vResp = { result: data.result };
+                  console.log('[FF-bg] iteration', i+1, 'server-direct returned', data.result.vehicles[0]._photos?.length || 0, 'photos');
+                }
+              } else {
+                console.warn('[FF-bg] iteration', i+1, 'server-direct failed', resp.status);
+              }
+            } catch (e) {
+              console.warn('[FF-bg] iteration', i+1, 'server-direct error:', e.message);
+            }
+          }
+        }
+
+        if (!vResp) {
+          // Fallback to original chrome-extension iteration
+          await chrome.tabs.update(bgTab.id, { url: link });
+          await waitForTabLoad(bgTab.id);
+          const isD2C = /d2cmedia|renfrewchrysler|\.html\?|filterid/i.test(link);
+          await new Promise(r => setTimeout(r, isD2C ? 3000 : 1500));
+          console.log('[FF-bg] iteration', i+1, 'fallback to scrapeTabBg');
+          vResp = await scrapeTabBg(bgTab.id);
+          console.log('[FF-bg] iteration', i+1, 'scrapeTabBg returned:', vResp?.result?.vehicles?.[0]?._photos?.length || 'no vehicles');
+        }
 
         if (vResp?.result?.vehicles?.length) {
           let v = vResp.result.vehicles[0];

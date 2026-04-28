@@ -2203,10 +2203,42 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
-  app.post('/api/desk/scrape-vdp', requireAuth, requireBilling, (req, res) => {
+  // Accepts either { html, url } (client provides HTML, server parses) OR
+  // just { url } (server fetches the VDP itself and parses). The latter
+  // path lets the chrome extension bypass its own per-VDP iteration —
+  // background.js can just hand over a URL and let the server do
+  // everything. Critical for D2C-style sites (Hunt Chrysler etc.) where
+  // the chrome extension's client-side photo extraction caps at 20 even
+  // though the raw HTML has 26-30 photos available. Server-side cheerio
+  // (parseVdpDetailHtml + extractPhotos Strategy 2/2.5) reliably finds
+  // the full set and respects the 30-photo cap.
+  app.post('/api/desk/scrape-vdp', requireAuth, requireBilling, async (req, res) => {
     try {
-      const { html, url } = req.body;
-      if (!html || !url) return res.status(400).json({ success: false, error: 'html and url required' });
+      let { html, url } = req.body;
+      if (!url) return res.status(400).json({ success: false, error: 'url required' });
+      // Server-fetch path — when extension passes just URL, we fetch with
+      // a desktop UA + 15s timeout. Avoids Cloudflare bot blocks that
+      // bare server fetches sometimes hit.
+      if (!html) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const r = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (!r.ok) return res.json({ ok: false, error: `Fetch failed: ${r.status}` });
+          html = await r.text();
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          return res.json({ ok: false, error: `Fetch error: ${fetchErr.message}` });
+        }
+      }
       const vehicle = scraper.parseVdpDetailHtml(html, url);
       res.json({ ok: true, result: { type: 'detail', vehicles: [vehicle] } });
     } catch (e) {
