@@ -232,7 +232,9 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-const __FF_BG_VERSION = 'bg-v2.8.8-fetch-timeout-2026-04-27';
+const __FF_BG_VERSION = 'bg-v2.8.9-skip-blocked-server-2026-04-27';
+let __ffServerDirectFails = 0;
+const __FF_SERVER_DIRECT_FAIL_LIMIT = 3;
 async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
   activeScan = {
     status:  'running',
@@ -323,6 +325,7 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
     // fetch + parse each VDP. Bypasses content.js loading issues + the
     // 20-photo client cap. Server returns 30 photos reliably (verified
     // via /api/admin/debug-scrape-vdp 2026-04-27).
+    __ffServerDirectFails = 0; // reset per scan
     const isD2CScan = links.length > 0 && /-id\d+\.html|d2cmedia|huntchryslerfiat|inventory\.html\?filterid/i.test(links[0]);
     console.log('[FF-bg] D2C scan?', isD2CScan, 'sample link:', links[0]?.slice(0,80));
     activeScan.log.push({ cls: 'hi', text: `🔬 D2C path: ${isD2CScan ? 'YES (server-direct)' : 'NO (client fallback)'} — sample: ${(links[0]||'').slice(-50)}` });
@@ -340,12 +343,18 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
 
       try {
         let vResp = null;
-        if (isD2CScan) {
-          // Server-direct path — pass URL, server fetches + parses
+        // Server-direct path — only attempt if D2C URL AND we haven't already
+        // hit the consecutive-failure limit (Hunt's Cloudflare frequently
+        // blocks Railway's IP, returning {ok:false,error:"Fetch failed: 403"}.
+        // Each blocked attempt wastes ~15s server-side waiting on Hunt before
+        // we fall back to client. After 3 consecutive failures we skip
+        // server-direct for the rest of the scan and go straight to client,
+        // saving ~12s × remaining vehicles.
+        if (isD2CScan && __ffServerDirectFails < __FF_SERVER_DIRECT_FAIL_LIMIT) {
           const token = (await chrome.storage.local.get('token')).token;
           if (token) {
             const ctrl = new AbortController();
-            const t = setTimeout(() => ctrl.abort(), 25000); // 25s hard cap per VDP
+            const t = setTimeout(() => ctrl.abort(), 20000);
             try {
               const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
                 method: 'POST',
@@ -358,21 +367,29 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
                 const data = await resp.json();
                 if (data.ok && data.result?.vehicles?.length) {
                   vResp = { result: data.result };
+                  __ffServerDirectFails = 0; // reset on success
                   const srvCount = data.result.vehicles[0]._photos?.length || 0;
                   console.log('[FF-bg] iteration', i+1, 'server-direct returned', srvCount, 'photos');
                   if (i < 2) activeScan.log.push({ cls: 'ok', text: `🔬 [${i+1}] server-direct → ${srvCount} photos` });
                 } else {
-                  activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct returned no vehicles` });
+                  __ffServerDirectFails++;
+                  const errMsg = (data && data.error) || 'no vehicles in response';
+                  if (i < 3) activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct: ${errMsg}` });
+                  if (__ffServerDirectFails === __FF_SERVER_DIRECT_FAIL_LIMIT) {
+                    activeScan.log.push({ cls: 'hi', text: `🔬 server-direct disabled (${__FF_SERVER_DIRECT_FAIL_LIMIT} consecutive failures) — using client scrape for remaining vehicles` });
+                  }
                 }
               } else {
+                __ffServerDirectFails++;
                 console.warn('[FF-bg] iteration', i+1, 'server-direct failed', resp.status);
-                if (i < 2) activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct HTTP ${resp.status}` });
+                if (i < 3) activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct HTTP ${resp.status}` });
               }
             } catch (e) {
               clearTimeout(t);
-              const reason = e.name === 'AbortError' ? 'timeout (25s)' : e.message;
+              __ffServerDirectFails++;
+              const reason = e.name === 'AbortError' ? 'timeout (20s)' : e.message;
               console.warn('[FF-bg] iteration', i+1, 'server-direct error:', reason);
-              activeScan.log.push({ cls: '', text: `[${i+1}/${links.length}] ⏱ server-direct ${reason} — falling back` });
+              if (i < 3) activeScan.log.push({ cls: '', text: `🔬 [${i+1}] server-direct ${reason}` });
             }
           }
         }
