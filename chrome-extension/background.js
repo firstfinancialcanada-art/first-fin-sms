@@ -232,7 +232,7 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-const __FF_BG_VERSION = 'bg-v2.8.7-d2c-instrument-2026-04-27';
+const __FF_BG_VERSION = 'bg-v2.8.8-fetch-timeout-2026-04-27';
 async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
   activeScan = {
     status:  'running',
@@ -344,12 +344,16 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
           // Server-direct path — pass URL, server fetches + parses
           const token = (await chrome.storage.local.get('token')).token;
           if (token) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 25000); // 25s hard cap per VDP
             try {
               const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ url: link })
+                body: JSON.stringify({ url: link }),
+                signal: ctrl.signal
               });
+              clearTimeout(t);
               if (resp.ok) {
                 const data = await resp.json();
                 if (data.ok && data.result?.vehicles?.length) {
@@ -365,7 +369,10 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
                 if (i < 2) activeScan.log.push({ cls: 'err', text: `🔬 [${i+1}] server-direct HTTP ${resp.status}` });
               }
             } catch (e) {
-              console.warn('[FF-bg] iteration', i+1, 'server-direct error:', e.message);
+              clearTimeout(t);
+              const reason = e.name === 'AbortError' ? 'timeout (25s)' : e.message;
+              console.warn('[FF-bg] iteration', i+1, 'server-direct error:', reason);
+              activeScan.log.push({ cls: '', text: `[${i+1}/${links.length}] ⏱ server-direct ${reason} — falling back` });
             }
           }
         }
