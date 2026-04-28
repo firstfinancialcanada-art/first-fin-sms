@@ -107,6 +107,22 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // Adds desk_inventory.tenant_id, backfills from desk_members, switches the
   // active uniqueness boundary to (tenant_id, stock). Reads/writes downstream
   // use scope.tenantId so any rep on the dealer's tenant sees the full pool.
+  // 2026-04-27: spec fields the Hunt scraper now extracts but the schema
+  // didn't have columns for. Without these the inventory/sync INSERT silently
+  // dropped int_color/transmission/fuel/drive_train/engine, so the FB Poster
+  // showed "skip" for every dropdown that wasn't ext_color. NULL-able so old
+  // rows aren't broken; new sync writes populate them.
+  ;(async () => {
+    try {
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS int_color    VARCHAR(40)`);
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS transmission VARCHAR(40)`);
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS fuel_type    VARCHAR(40)`);
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS drive_train  VARCHAR(40)`);
+      await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS engine       VARCHAR(120)`);
+      console.log('✅ desk_inventory spec columns ready (int_color/transmission/fuel_type/drive_train/engine)');
+    } catch(e) { console.error('⚠️ spec columns migration:', e.message); }
+  })();
+
   ;(async () => {
     try {
       await pool.query(`ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
@@ -942,11 +958,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const scope = await resolveScope(req);
       const result = scope?.tenantId
         ? await client.query(
-            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE tenant_id = $1 ORDER BY stock',
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine FROM desk_inventory WHERE tenant_id = $1 ORDER BY stock',
             [scope.tenantId]
           )
         : await client.query(
-            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
             [req.user.userId]
           );
       res.json({ success: true, inventory: result.rows });
@@ -1260,7 +1276,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         return ('IMP' + Date.now() + stockCounter).slice(0, 20);
       }
 
-      // 16-param insert: (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, color, trim, photos)
+      // 21-param insert: ...color, trim, photos, int_color, transmission, fuel_type, drive_train, engine
       function insertParams(v) {
         return [
           userId,
@@ -1280,7 +1296,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           (v.trim   || '').slice(0, 80),
           // Phase 6: photo cap raised from 10 -> 25 to match the deep-scan
           // output (extension delivers up to 25 photos per vehicle).
-          JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0, 25) : [])
+          JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0, 25) : []),
+          (v.int_color    || '').slice(0, 40) || null,
+          (v.transmission || '').slice(0, 40) || null,
+          (v.fuel_type    || v.fuel || '').slice(0, 40) || null,
+          (v.drive_train  || '').slice(0, 40) || null,
+          (v.engine       || '').slice(0, 120) || null,
         ];
       }
 
@@ -1291,11 +1312,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         for (const v of vehicles) {
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'available')
              ON CONFLICT ${conflictTarget} DO UPDATE SET
                year=$4,make=$5,model=$6,mileage=$7,price=$8,condition=$9,carfax=$10,
                type=$11,vin=$12,book_value=$13,color=$14,trim=$15,photos=$16,
+               int_color=$17,transmission=$18,fuel_type=$19,drive_train=$20,engine=$21,
                status='available',updated_at=NOW()`,
             insertParams(v)
           );
@@ -1330,8 +1352,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           if (existingStocks.has(stock)) { skipped++; continue; }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'available')
              ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );
@@ -1350,6 +1372,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                 `UPDATE desk_inventory SET
                    year=$3,make=$4,model=$5,mileage=$6,price=$7,condition=$8,
                    type=$9,book_value=$10,color=$11,trim=$12,photos=$13,
+                   int_color=$14,transmission=$15,fuel_type=$16,drive_train=$17,engine=$18,
                    status='available',updated_at=NOW()
                  WHERE ${ownerWhere} AND vin=$2`,
                 [ownerScopeId, v.vin.toUpperCase(),
@@ -1358,7 +1381,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                  v.type||'Used', v.book_value||0,
                  (v.color||'').slice(0,30), (v.trim||'').slice(0,80),
                  // Phase 6: 25 photo cap to match deep-scan output
-                 JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0,25) : [])]
+                 JSON.stringify(Array.isArray(v.photos) ? v.photos.slice(0,25) : []),
+                 (v.int_color||'').slice(0,40)||null,
+                 (v.transmission||'').slice(0,40)||null,
+                 (v.fuel_type||v.fuel||'').slice(0,40)||null,
+                 (v.drive_train||'').slice(0,40)||null,
+                 (v.engine||'').slice(0,120)||null]
               );
               updated++;
               continue;
@@ -1366,8 +1394,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'available')
              ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );
