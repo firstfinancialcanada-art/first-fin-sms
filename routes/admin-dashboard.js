@@ -924,6 +924,35 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   //
   // Returns: { success, tenantId, tier, setupUrl?, invalidatedTokens,
   //            tenantBackfilled, phoneUpdated, intakeEmailUpdated }
+  // ── Diagnostic: server-side scrape a VDP URL and return photo count ──
+  // Used 2026-04-27 to verify lib/scraper.js extractPhotos was actually
+  // returning the expected 25-30 photos for Hunt VDPs (they were stuck
+  // at 📷20 in scan logs and we needed to confirm whether the cap was
+  // server-side or in the chrome extension's threshold).
+  app.get('/api/admin/debug-scrape-vdp', adminAuth, async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ ok: false, error: 'url query param required' });
+    try {
+      const r = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      });
+      if (!r.ok) return res.json({ ok: false, status: r.status });
+      const html = await r.text();
+      const scraper = require('../lib/scraper');
+      const v = scraper.parseVdpDetailHtml(html, url);
+      res.json({
+        ok: true,
+        url,
+        htmlBytes: html.length,
+        photoCount: v?._photos?.length || 0,
+        firstThreePhotos: (v?._photos || []).slice(0, 3),
+        year: v?.year, make: v?.make, model: v?.model, mileage: v?.mileage,
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.post('/api/admin/users/:id/onboarding-repair', adminAuth, async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (!userId) return res.status(400).json({ success: false, error: 'Invalid user id' });
