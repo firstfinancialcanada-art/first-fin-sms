@@ -315,12 +315,17 @@
   <div class="step">
     <div class="step-num">Step 2</div>
     <h3>Unzip it</h3>
-    <p>Right-click the downloaded file → <b>Extract All</b> (Windows) or double-click
-       (Mac). You'll get a folder called <code>firstfin-extension</code>. Don't delete
-       this folder — Chrome reads from it directly.</p>
+    <p>Right-click the downloaded file → <b>Extract All</b> (Windows) or double-click (Mac).
+       You'll end up with a folder named <code>firstfin-extension</code> that contains
+       <code>manifest.json</code> + several other files + an <code>icons</code> subfolder.
+       That's the folder Chrome will load.</p>
     <div class="hint">
-      Tip: drag the unzipped folder somewhere permanent like Documents — if you delete it
-      later, the helper stops working.
+      <b>Quick check:</b> open the unzipped folder. You should see <code>manifest.json</code>
+      directly inside it. If you only see another folder named <code>firstfin-extension</code>,
+      double-click into it — Chrome wants the level that has <code>manifest.json</code>.
+      <br><br>
+      <b>Tip:</b> drag the unzipped folder somewhere permanent like Documents — if you delete
+      it later, the helper stops working.
     </div>
   </div>
 
@@ -347,7 +352,9 @@
       <li>Top-right of the Extensions page, flip the <b>Developer mode</b> toggle ON.</li>
       <li>Three new buttons appear at the top-left: <b>Load unpacked</b>, Pack extension, Update.</li>
       <li>Click <b>Load unpacked</b>.</li>
-      <li>In the file picker, select the <code>firstfin-extension</code> folder you unzipped in Step 2.</li>
+      <li>In the file picker, select the folder that contains <code>manifest.json</code>
+          (it's the <code>firstfin-extension</code> folder from Step 2). <b>Do NOT pick the
+          <code>icons</code> subfolder</b> — Chrome will say "Manifest file is missing".</li>
       <li>You should now see <b>First-Fin Extension</b> in your extensions list with a teal logo.</li>
     </ol>
     <div class="hint">
