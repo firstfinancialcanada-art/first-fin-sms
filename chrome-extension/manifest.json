@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "First-Fin Browser Helper",
+  "name": "First-Fin Extension",
   "version": "2.1.0",
   "description": "Auto-fills Facebook Marketplace vehicle listings using inventory from your First-Fin dealer platform.",
   "permissions": [
@@ -19,7 +19,7 @@
   ],
   "action": {
     "default_popup": "FIRSTFIN-Inventory-Scanner.html",
-    "default_title": "First-Fin Browser Helper"
+    "default_title": "First-Fin Extension"
   },
   "background": {
     "service_worker": "background.js"
