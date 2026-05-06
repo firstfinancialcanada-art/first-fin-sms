@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoice — Hunt Chrysler — May 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #f5f5f7; }
+  body {
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    color: #1a1a1a;
+    padding: 32px 16px 80px;
+    line-height: 1.55;
+  }
+
+  /* Print/screen toggle */
+  .toolbar {
+    max-width: 800px;
+    margin: 0 auto 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+  .toolbar button {
+    background: #06b6d4;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+  }
+  .toolbar button:hover { background: #0891b2; }
+  .toolbar .note { color: #6b7280; align-self: center; }
+
+  /* Invoice paper */
+  .invoice {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    padding: 56px 56px 48px;
+    position: relative;
+  }
+
+  /* Header strip */
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid #06b6d4;
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+  .brand {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 5px;
+    color: #1a1a1a;
+  }
+  .brand .dot { color: #06b6d4; }
+  .brand-sub {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #6b7280;
+    text-transform: uppercase;
+    margin-top: 4px;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+  }
+  .doc-title {
+    text-align: right;
+  }
+  .doc-title h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    letter-spacing: 6px;
+    color: #06b6d4;
+    line-height: 1;
+  }
+  .doc-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #4b5563;
+    margin-top: 10px;
+    line-height: 1.7;
+  }
+  .doc-meta b {
+    color: #1a1a1a;
+    font-weight: 500;
+  }
+
+  /* From / To columns */
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 36px;
+  }
+  .party-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #6b7280;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+  .party-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  .party-detail {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.7;
+  }
+  .placeholder {
+    color: #f59e0b;
+    font-style: italic;
+  }
+
+  /* Items table */
+  .items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 28px;
+  }
+  .items thead th {
+    background: #1a1a1a;
+    color: #fff;
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+  }
+  .items thead th:last-child { text-align: right; }
+  .items tbody td {
+    padding: 18px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 14px;
+    color: #1a1a1a;
+    vertical-align: top;
+  }
+  .items tbody td:last-child {
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+  .items .item-name { font-weight: 600; }
+  .items .item-desc {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  /* Totals block */
+  .totals {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 36px;
+  }
+  .totals-table {
+    width: 320px;
+    border-collapse: collapse;
+  }
+  .totals-table td {
+    padding: 8px 14px;
+    font-size: 14px;
+    font-family: 'DM Mono', monospace;
+  }
+  .totals-table td:first-child {
+    color: #4b5563;
+  }
+  .totals-table td:last-child {
+    text-align: right;
+    font-weight: 500;
+    color: #1a1a1a;
+  }
+  .totals-table tr.total td {
+    border-top: 2px solid #1a1a1a;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+  .totals-table tr.paid td {
+    background: rgba(16,185,129,.08);
+    color: #047857;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  /* Notes */
+  .notes {
+    background: #f9fafb;
+    border-left: 4px solid #06b6d4;
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 28px;
+  }
+  .notes-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #6b7280;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+  .notes-body {
+    font-size: 13px;
+    color: #1a1a1a;
+    line-height: 1.65;
+  }
+
+  /* Footer */
+  .footer {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 18px;
+    font-size: 11px;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.7;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: .5px;
+  }
+
+  /* Print rules */
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; }
+    .toolbar { display: none; }
+    .invoice {
+      box-shadow: none;
+      max-width: none;
+      margin: 0;
+      padding: 32px 40px;
+    }
+    .placeholder { color: #f59e0b !important; }  /* keep orange so unfilled bits stay obvious */
+  }
+
+  /* Mobile */
+  @media (max-width: 640px) {
+    body { padding: 16px 8px 60px; }
+    .invoice { padding: 28px 22px; }
+    .head { flex-direction: column; gap: 16px; }
+    .doc-title { text-align: left; }
+    .doc-title h1 { font-size: 38px; }
+    .parties { grid-template-columns: 1fr; gap: 18px; }
+    .totals-table { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- On-screen toolbar (hidden when printed) -->
+<div class="toolbar">
+  <span class="note">Edit any orange placeholder by editing the source file, then:</span>
+  <button onclick="window.print()">⎙ Print / Save as PDF</button>
+</div>
+
+<!-- ── Invoice paper ─────────────────────────────────────────── -->
+<div class="invoice">
+
+  <!-- Header strip -->
+  <div class="head">
+    <div>
+      <div class="brand">FIRST&#8209;FIN<span class="dot"> ◆</span> DEALER</div>
+      <div class="brand-sub">First Financial Canada</div>
+    </div>
+    <div class="doc-title">
+      <h1>INVOICE</h1>
+      <div class="doc-meta">
+        <b>Invoice #:</b> FF-2026-05-001<br>
+        <b>Issue date:</b> 2026-05-02<br>
+        <b>Service period:</b> May 1 – May 31, 2026<br>
+        <b>Due:</b> Paid in full
+      </div>
+    </div>
+  </div>
+
+  <!-- From / To -->
+  <div class="parties">
+    <div>
+      <div class="party-label">From</div>
+      <div class="party-name">First Financial Canada</div>
+      <div class="party-detail">
+        <span class="placeholder">[Street address]</span><br>
+        Calgary, AB <span class="placeholder">[Postal code]</span><br>
+        Canada<br>
+        <br>
+        First@FirstFinancialCanada.com<br>
+        587-306-6133<br>
+        <br>
+        <b>GST/HST #:</b> <span class="placeholder">[Your HST number]</span>
+      </div>
+    </div>
+    <div>
+      <div class="party-label">Bill to</div>
+      <div class="party-name">Hunt Chrysler Dodge Jeep Ram</div>
+      <div class="party-detail">
+        <span class="placeholder">[Street address]</span><br>
+        Milton, ON <span class="placeholder">[Postal code]</span><br>
+        Canada<br>
+        <br>
+        Attn: Mil Radenkovic, Sales Manager<br>
+        billing@huntchrysler.com
+      </div>
+    </div>
+  </div>
+
+  <!-- Line items -->
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:65%;">Description</th>
+        <th style="width:15%;">Qty</th>
+        <th style="width:20%;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="item-name">First-Fin Dealer Platform — Gold Tier</div>
+          <div class="item-desc">
+            Monthly subscription, May 2026. Includes 10 user seats,
+            tenant-shared inventory + CRM, Sarah AI SMS line, Facebook Marketplace
+            auto-poster, lender rate sheets, and Deal Desk.
+          </div>
+        </td>
+        <td>1</td>
+        <td>$464.60</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Totals -->
+  <div class="totals">
+    <table class="totals-table">
+      <tr>
+        <td>Subtotal</td>
+        <td>$464.60</td>
+      </tr>
+      <tr>
+        <td>HST (Ontario, 13%)</td>
+        <td>$60.40</td>
+      </tr>
+      <tr class="total">
+        <td>Total (CAD)</td>
+        <td>$525.00</td>
+      </tr>
+      <tr class="paid">
+        <td>✓ Paid</td>
+        <td>$525.00</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Notes -->
+  <div class="notes">
+    <div class="notes-label">Payment received</div>
+    <div class="notes-body">
+      Paid in full via credit card on 2026-04-27 through our Stripe payment processor.
+      Stripe transaction reference: <span class="placeholder">[Stripe charge ID — e.g. ch_3P… from your Stripe dashboard]</span>.
+      No further payment is required for the May 2026 service period.
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Thank you for your business. Questions? Email First@FirstFinancialCanada.com or call 587-306-6133.<br>
+    First Financial Canada · firstfinancialcanada.com
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -107,6 +107,7 @@ app.get('/setup',    (req, res) => res.sendFile(path.join(__dirname, 'public', '
 app.get('/welcome',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
 app.get('/extension-install', (req, res) => res.sendFile(path.join(__dirname, 'public', 'extension-install.html')));
 app.get('/privacy-extension', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy-extension.html')));
+app.get('/invoices/hunt-chrysler-2026-05', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices', 'hunt-chrysler-2026-05.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth ──────────────────────────────────────────────────────────
