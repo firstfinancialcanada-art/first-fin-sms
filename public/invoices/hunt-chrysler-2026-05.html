@@ -287,9 +287,9 @@
       <h1>INVOICE</h1>
       <div class="doc-meta">
         <b>Invoice #:</b> FF-2026-05-001<br>
-        <b>Issue date:</b> 2026-05-02<br>
+        <b>Issue date:</b> 2026-05-06<br>
         <b>Service period:</b> May 1 – May 31, 2026<br>
-        <b>Due:</b> Paid in full
+        <b>Balance due:</b> $68.25 CAD
       </div>
     </div>
   </div>
@@ -344,7 +344,7 @@
           </div>
         </td>
         <td>1</td>
-        <td>$464.60</td>
+        <td>$525.00</td>
       </tr>
     </tbody>
   </table>
@@ -354,30 +354,45 @@
     <table class="totals-table">
       <tr>
         <td>Subtotal</td>
-        <td>$464.60</td>
+        <td>$525.00</td>
       </tr>
       <tr>
         <td>HST (Ontario, 13%)</td>
-        <td>$60.40</td>
+        <td>$68.25</td>
       </tr>
       <tr class="total">
         <td>Total (CAD)</td>
-        <td>$525.00</td>
+        <td>$593.25</td>
       </tr>
       <tr class="paid">
-        <td>✓ Paid</td>
-        <td>$525.00</td>
+        <td>Paid via Stripe (2026-04-27)</td>
+        <td>−$525.00</td>
+      </tr>
+      <tr class="total" style="border-top:2px solid #f59e0b;">
+        <td style="color:#b45309;">Balance due</td>
+        <td style="color:#b45309;">$68.25</td>
       </tr>
     </table>
   </div>
 
   <!-- Notes -->
   <div class="notes">
-    <div class="notes-label">Payment received</div>
+    <div class="notes-label">Tax adjustment — balance due $68.25</div>
     <div class="notes-body">
-      Paid in full via credit card on 2026-04-27 through our Stripe payment processor.
-      Stripe transaction reference: <span class="placeholder">[Stripe charge ID — e.g. ch_3P… from your Stripe dashboard]</span>.
-      No further payment is required for the May 2026 service period.
+      Your initial credit card payment of <b>$525.00</b> on 2026-04-27 was processed
+      through our Stripe payment processor without HST applied (Stripe transaction
+      reference: <span class="placeholder">[Stripe charge ID]</span>). Per Canadian tax
+      law on B2B SaaS subscriptions, 13% Ontario HST is owing on top of the $525.00
+      service fee. The balance of <b>$68.25</b> represents that HST line — please remit
+      via one of the options below for your records and ours:
+      <br><br>
+      <b>Option 1 — Interac e-Transfer:</b> send $68.25 to
+      <a href="mailto:First@FirstFinancialCanada.com">First@FirstFinancialCanada.com</a>
+      with memo "FF-2026-05-001 HST".<br>
+      <b>Option 2 — Credit card:</b> reply to this email and we'll send a Stripe
+      payment link for the $68.25.
+      <br><br>
+      Once received, a paid receipt will be issued.
     </div>
   </div>
 
