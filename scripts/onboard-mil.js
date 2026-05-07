@@ -32,15 +32,16 @@ require('dotenv').config();
 // ── Constants — verify before running ─────────────────────────────────────
 const MIL_EMAIL          = 'mil@huntchrysler.com';
 const MIL_CORRECT_CELL   = '+19052082825';                     // E.164
-// 2026-05-06: Originally set to huntchrysler@firstfinancialcanada.com
-// (matching the wizard's suggested per-tenant address). That alias was
-// never actually created in Google Workspace — Mil's forwarded test
-// bounced with "Address not found". His Kijiji/AT lead aggregators are
-// already configured to send to leads@firstfinancialcanada.com (the
-// shared fallback alias that DOES exist and forwards into the IMAP-
-// polled gmail inbox), so route this tenant against THAT address to
-// make incoming leads actually land in the CRM.
-const HUNT_INTAKE_EMAIL  = 'leads@firstfinancialcanada.com';
+// 2026-05-06: huntchrysler@firstfinancialcanada.com NOW exists in Google
+// Workspace (Franco created it as a user; auto-forwarding to the IMAP-
+// polled firstfinancialcanada@gmail.com is set up via Gmail Settings on
+// the new account). This is the canonical, branded address Hunt's lead
+// aggregators (Kijiji, AT, CCC, TAQ) should send to. Mil's existing
+// Kijiji setup may temporarily still send to leads@firstfinancialcanada
+// .com while Greg from Kijiji's tech team updates the destination —
+// content-based fallback routing in lib/lead-intake.js handles that
+// transition window so neither address loses leads.
+const HUNT_INTAKE_EMAIL  = 'huntchrysler@firstfinancialcanada.com';
 const TARGET_TIER        = 'gold';
 const TARGET_SEATS       = 10;
 
