@@ -16,6 +16,7 @@ const {
 const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
+const crmHistory = require('../lib/crm-history');
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -1524,9 +1525,27 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         // Shouldn't happen post-Phase-1 backfill, but guard for safety
         return res.status(401).json({ success: false, error: 'No tenant membership found' });
       }
-      const { where, params } = buildCrmReadFilter(scope, 'desk_crm');
+      const { where, params } = buildCrmReadFilter(scope, 'c');
+      // LATERAL join pulls the most-recent non-deleted note per lead for
+      // the table-row preview without N+1. Soft-deleted leads excluded.
       const result = await client.query(
-        `SELECT * FROM desk_crm WHERE ${where} ORDER BY updated_at DESC`,
+        `SELECT c.*,
+                n.body       AS latest_note,
+                n.created_at AS latest_note_at,
+                n.author_id  AS latest_note_author_id,
+                ua.display_name AS latest_note_author_name,
+                (SELECT COUNT(*)::int FROM desk_crm_notes
+                  WHERE crm_entry_id = c.id AND deleted_at IS NULL) AS note_count
+           FROM desk_crm c
+           LEFT JOIN LATERAL (
+             SELECT body, created_at, author_id
+               FROM desk_crm_notes
+              WHERE crm_entry_id = c.id AND deleted_at IS NULL
+              ORDER BY created_at DESC, id DESC LIMIT 1
+           ) n ON TRUE
+           LEFT JOIN desk_users ua ON ua.id = n.author_id
+          WHERE ${where} AND c.deleted_at IS NULL
+          ORDER BY c.updated_at DESC`,
         params
       );
       res.json({ success: true, crm: result.rows });
@@ -1624,13 +1643,22 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const scope = await resolveScope(req);
       if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
 
-      // Permission check: fetch the row + verify same tenant + role/owner
-      const row = await client.query(
-        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+      // Permission check: fetch the row + verify same tenant + role/owner.
+      // Also fetch the prior values of every editable field so we can (a)
+      // snapshot the row for one-step undo and (b) build a JSONB diff for
+      // the audit log without a second SELECT.
+      const priorRes = await client.query(
+        `SELECT id, tenant_id, assigned_rep_id, deleted_at,
+                ${crmHistory.SNAPSHOT_FIELDS.join(', ')}
+           FROM desk_crm WHERE id = $1`,
         [req.params.id]
       );
-      if (!row.rows.length) return res.status(404).json({ success: false, error: 'CRM entry not found' });
-      if (!canMutateCrmRow(scope, row.rows[0])) {
+      if (!priorRes.rows.length) return res.status(404).json({ success: false, error: 'CRM entry not found' });
+      const prior = priorRes.rows[0];
+      if (prior.deleted_at) {
+        return res.status(410).json({ success: false, error: 'Lead is deleted — restore it before editing' });
+      }
+      if (!canMutateCrmRow(scope, prior)) {
         return res.status(403).json({ success: false, error: 'You cannot modify this lead' });
       }
 
@@ -1663,17 +1691,42 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
       // Auto-claim from pool: if a rep PATCHes an unassigned row they
       // implicitly claim it (matches buildCrmReadFilter's pool semantics).
-      if (!roleAtLeast(scope, 'manager') && row.rows[0].assigned_rep_id == null) {
+      if (!roleAtLeast(scope, 'manager') && prior.assigned_rep_id == null) {
         sets.push(`assigned_rep_id = $${idx++}`);
         vals.push(req.user.userId);
       }
+
+      // Snapshot the prior editable fields into previous_state so the
+      // user can one-click undo this change. Only the fields in
+      // SNAPSHOT_FIELDS make it in — JSONB stays small + targeted.
+      const snapshot = {};
+      for (const f of crmHistory.SNAPSHOT_FIELDS) snapshot[f] = prior[f] ?? null;
+      sets.push(`previous_state    = $${idx++}::jsonb`);
+      vals.push(JSON.stringify(snapshot));
+      sets.push(`previous_state_at = NOW()`);
+      sets.push(`previous_state_by = $${idx++}`);
+      vals.push(req.user.userId);
+
       vals.push(req.params.id, scope.tenantId);
+      await client.query('BEGIN');
       await client.query(
         `UPDATE desk_crm SET ${sets.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx}`,
         vals
       );
+      // Audit: only write a row if at least one tracked field actually
+      // changed. buildDiff handles the empty case internally.
+      const diff = crmHistory.buildDiff(prior, req.body, ALLOWED);
+      if (Object.keys(diff).length) {
+        await client.query(
+          `INSERT INTO desk_crm_audit (crm_entry_id, tenant_id, user_id, action, changes)
+           VALUES ($1, $2, $3, 'update', $4)`,
+          [req.params.id, scope.tenantId, req.user.userId, JSON.stringify(diff)]
+        );
+      }
+      await client.query('COMMIT');
       res.json({ success: true });
     } catch (e) {
+      try { await client.query('ROLLBACK'); } catch {}
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
@@ -1743,26 +1796,301 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
+  // Soft delete — sets desk_crm.deleted_at instead of hard-deleting. Lead
+  // disappears from the main /api/desk/crm list (filtered out via WHERE
+  // c.deleted_at IS NULL) but stays restorable from the Recently Deleted
+  // view for 30 days, after which a daily cron can prune. Notes attached
+  // to the lead are preserved so a restore brings the lead back fully.
   app.delete('/api/desk/crm/:id', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
       const scope = await resolveScope(req);
       if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
-
       const row = await client.query(
-        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+        'SELECT id, tenant_id, assigned_rep_id, deleted_at FROM desk_crm WHERE id = $1',
         [req.params.id]
       );
       if (!row.rows.length) return res.status(404).json({ success: false, error: 'CRM entry not found' });
+      if (row.rows[0].deleted_at) return res.json({ success: true, alreadyDeleted: true });
       if (!canMutateCrmRow(scope, row.rows[0])) {
         return res.status(403).json({ success: false, error: 'You cannot delete this lead' });
       }
-      await client.query('DELETE FROM desk_crm WHERE id = $1 AND tenant_id = $2', [req.params.id, scope.tenantId]);
+      const r = await crmHistory.softDeleteLead({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+      });
+      if (!r.ok) return res.status(409).json({ success: false, error: r.error });
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // CRM HISTORY: notes timeline, audit log, undo, soft-delete
+  // ═══════════════════════════════════════════════════════════
+
+  // ── Notes timeline ────────────────────────────────────────
+  // Each note is its own row in desk_crm_notes with an author + timestamp.
+  // Replaces the legacy single-TEXT desk_crm.notes overwrite behaviour.
+  // Soft-delete keeps the last 3 deleted notes per lead recoverable.
+
+  // Helper: confirm the lead is visible to this user given their crm_mode.
+  // Reuses buildCrmReadFilter so private/pool_plus_own/team_read all behave
+  // identically for read endpoints (notes, audit) as the main /crm list.
+  async function _leadVisibleTo(scope, leadId) {
+    const { where, params } = buildCrmReadFilter(scope, 'c');
+    const r = await pool.query(
+      `SELECT c.id FROM desk_crm c WHERE ${where} AND c.id = $${params.length + 1} LIMIT 1`,
+      [...params, leadId]
+    );
+    return r.rows.length > 0;
+  }
+
+  app.get('/api/desk/crm/:id/notes', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const leadId = parseInt(req.params.id, 10);
+      if (!(await _leadVisibleTo(scope, leadId))) {
+        return res.status(404).json({ success: false, error: 'Lead not found' });
+      }
+      const includeDeleted = String(req.query.includeDeleted || '') === 'true';
+      const notes = await crmHistory.listNotes({
+        tenantId: scope.tenantId,
+        leadId,
+        includeDeleted,
+      });
+      res.json({ success: true, notes });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  app.post('/api/desk/crm/:id/notes', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const row = await client.query(
+        'SELECT id, tenant_id, assigned_rep_id, deleted_at FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+      if (row.rows[0].deleted_at) {
+        return res.status(410).json({ success: false, error: 'Lead is deleted — restore it before adding notes' });
+      }
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot add notes to this lead' });
+      }
+      const body = String(req.body?.body || '').trim();
+      if (!body) return res.status(400).json({ success: false, error: 'Note body is required' });
+      if (body.length > 4000) return res.status(400).json({ success: false, error: 'Note too long (max 4000 chars)' });
+
+      const r = await crmHistory.addNote({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        authorId: req.user.userId,
+        body,
+      });
+      if (!r.ok) return res.status(400).json({ success: false, error: r.error });
+
+      // Auto-claim from pool on first note (matches PATCH semantics).
+      if (!roleAtLeast(scope, 'manager') && row.rows[0].assigned_rep_id == null) {
+        await client.query(
+          `UPDATE desk_crm SET assigned_rep_id = $1, last_contact = NOW(), updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3`,
+          [req.user.userId, req.params.id, scope.tenantId]
+        );
+      } else {
+        await client.query(
+          `UPDATE desk_crm SET last_contact = NOW(), updated_at = NOW()
+            WHERE id = $1 AND tenant_id = $2`,
+          [req.params.id, scope.tenantId]
+        );
+      }
+      // Audit entry — captures who added what.
+      await crmHistory.logAudit({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+        action: 'note_added',
+        changes: { note_id: r.note.id, body: body.slice(0, 200) },
+      });
+      res.json({ success: true, note: r.note });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.delete('/api/desk/crm/:id/notes/:noteId', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      // Permission check via the parent lead row (same as PATCH/DELETE).
+      const row = await pool.query(
+        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot delete notes on this lead' });
+      }
+      const r = await crmHistory.softDeleteNote({
+        tenantId: scope.tenantId,
+        noteId: parseInt(req.params.noteId, 10),
+        userId: req.user.userId,
+      });
+      if (!r.ok) return res.status(404).json({ success: false, error: r.error });
+      await crmHistory.logAudit({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+        action: 'note_deleted',
+        changes: { note_id: parseInt(req.params.noteId, 10) },
+      });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  app.post('/api/desk/crm/:id/notes/:noteId/restore', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const row = await pool.query(
+        'SELECT id, tenant_id, assigned_rep_id FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot restore notes on this lead' });
+      }
+      const r = await crmHistory.restoreNote({
+        tenantId: scope.tenantId,
+        noteId: parseInt(req.params.noteId, 10),
+      });
+      if (!r.ok) return res.status(404).json({ success: false, error: 'Note not found or not deleted' });
+      await crmHistory.logAudit({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+        action: 'note_restored',
+        changes: { note_id: parseInt(req.params.noteId, 10) },
+      });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Audit log ─────────────────────────────────────────────
+  // Returns the change history for one lead (newest first). Visibility
+  // gated by buildCrmReadFilter so reps on private/pool modes can't see
+  // history for leads they can't see in the main list.
+  app.get('/api/desk/crm/:id/audit', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const leadId = parseInt(req.params.id, 10);
+      if (!(await _leadVisibleTo(scope, leadId))) {
+        return res.status(404).json({ success: false, error: 'Lead not found' });
+      }
+      const audit = await crmHistory.listAudit({
+        tenantId: scope.tenantId,
+        leadId,
+        limit: parseInt(req.query.limit, 10) || 50,
+      });
+      res.json({ success: true, audit });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Undo last change ──────────────────────────────────────
+  // Restores the lead row from previous_state JSONB and clears it so
+  // the same change can't be undone twice (one-step undo, not a stack).
+  app.post('/api/desk/crm/:id/undo', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const row = await pool.query(
+        'SELECT id, tenant_id, assigned_rep_id, deleted_at FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+      if (row.rows[0].deleted_at) {
+        return res.status(410).json({ success: false, error: 'Restore the lead first' });
+      }
+      if (!canMutateCrmRow(scope, row.rows[0])) {
+        return res.status(403).json({ success: false, error: 'You cannot undo on this lead' });
+      }
+      const r = await crmHistory.undoLastChange({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+      });
+      if (!r.ok) return res.status(409).json({ success: false, error: r.error });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Restore a soft-deleted lead ───────────────────────────
+  app.post('/api/desk/crm/:id/restore', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const row = await pool.query(
+        'SELECT id, tenant_id, assigned_rep_id, deleted_at FROM desk_crm WHERE id = $1',
+        [req.params.id]
+      );
+      if (!row.rows.length) return res.status(404).json({ success: false, error: 'Lead not found' });
+      if (!row.rows[0].deleted_at) return res.json({ success: true, alreadyRestored: true });
+      // Skip canMutateCrmRow's pool semantics here — soft-deleted rows
+      // shouldn't auto-claim. Only the original assignee, a manager, or
+      // the original deleter can restore.
+      if (!roleAtLeast(scope, 'manager') &&
+          row.rows[0].assigned_rep_id !== scope.userId) {
+        return res.status(403).json({ success: false, error: 'Only the assigned rep or a manager can restore this lead' });
+      }
+      const r = await crmHistory.restoreLead({
+        tenantId: scope.tenantId,
+        leadId: parseInt(req.params.id, 10),
+        userId: req.user.userId,
+      });
+      if (!r.ok) return res.status(409).json({ success: false, error: r.error });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Recently deleted leads (last 30 days, restorable) ─────
+  app.get('/api/desk/crm/recently-deleted', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const days = Math.min(parseInt(req.query.days, 10) || 30, 90);
+      const list = await crmHistory.listRecentlyDeleted({
+        tenantId: scope.tenantId,
+        days,
+        limit: parseInt(req.query.limit, 10) || 100,
+      });
+      // Reps see only their own + pool deletes; managers see everything.
+      const filtered = roleAtLeast(scope, 'manager')
+        ? list
+        : list.filter(r => r.assigned_rep_id === scope.userId || r.assigned_rep_id == null);
+      res.json({ success: true, leads: filtered });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 

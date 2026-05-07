@@ -3141,59 +3141,150 @@ function renderCRM(){
   if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   const container=document.getElementById('crmContainer');
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  container.innerHTML=`<table class="data-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:120px">Actions</th></tr></thead><tbody>
+  container.innerHTML=`<table class="data-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:140px">Actions</th></tr></thead><tbody>
   ${crmData.map(c=>{
     const fuClass = crmFollowUpClass(c);
     const fuDisplay = c.follow_up_date ? new Date(c.follow_up_date+'T12:00:00').toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
-    const notesPreview = c.notes ? c.notes.substring(0,25)+(c.notes.length>25?'...':'') : '';
+    // Preview latest_note (new history table) → fallback to legacy c.notes
+    // for any rows that haven't been touched since the migration ran.
+    const previewSrc = c.latest_note || c.notes || '';
+    const notesPreview = previewSrc ? previewSrc.substring(0,25)+(previewSrc.length>25?'...':'') : '';
+    const noteCount = c.note_count != null ? c.note_count : (c.notes ? 1 : 0);
+    const undoable = !!c.previous_state_at;
     return `<tr class="${fuClass}">
     <td style="font-size:9px;color:var(--muted)">${c.date||''}</td>
-    <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)">'+notesPreview+'</span>':''}</td>
+    <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)" title="Latest note">'+_esc(notesPreview)+'</span>':''}</td>
     <td>${c.phone||'—'}</td>
     <td>${c.vehicle_interest||c.vehicle||'—'}${c.budget_range?' <span style="font-size:8px;color:var(--muted)">('+c.budget_range+')</span>':''}</td>
     <td style="font-size:9px;font-weight:600;font-family:'DM Mono',monospace;">${_crmRelativeTime(c.last_contact)}</td>
     <td>${leadScoreBadge(calcLeadScore(c))}</td>
-    <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+c.follow_up_note.substring(0,20)+'</span>':''}</td>
+    <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+_esc(c.follow_up_note.substring(0,20))+'</span>':''}</td>
     <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
-    <td style="display:flex;gap:4px">
-      <button onclick="openCrmNotes(${c.id})" title="Notes" style="background:none;border:none;cursor:pointer;font-size:14px">&#128221;</button>
+    <td style="display:flex;gap:4px;align-items:center">
+      <button onclick="openCrmNotes(${c.id})" title="Notes & contact info${noteCount?' ('+noteCount+')':''}" style="background:none;border:none;cursor:pointer;font-size:14px;position:relative">&#128221;${noteCount>0?'<span style="position:absolute;top:-4px;right:-6px;background:var(--primary);color:white;border-radius:8px;font-size:8px;padding:1px 4px;font-weight:700">'+noteCount+'</span>':''}</button>
+      ${undoable?`<button onclick="undoCrmChange(${c.id})" title="Undo last change" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--amber)">&#8630;</button>`:''}
       <select onchange="updateCRM(${c.id},this.value);this.blur()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 4px;font-size:8px;font-family:'Outfit',sans-serif;width:70px">
         ${['Lead','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}
       </select>
-      <button onclick="deleteCRM(${c.id})" title="Delete" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--dim)">&#10006;</button>
+      <button onclick="deleteCRM(${c.id})" title="Delete (recoverable for 30 days)" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--dim)">&#10006;</button>
     </td>
   </tr>`}).join('')}
   </tbody></table>
-  <div id="crmNotesPanel" style="display:none;position:fixed;right:0;top:0;width:340px;height:100vh;background:var(--surface);border-left:2px solid var(--border);z-index:999;padding:20px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.3)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div><strong id="crmNotesName"></strong><br><span id="crmNotesPhone" style="font-size:10px;color:var(--muted)"></span></div>
-      <button onclick="closeCrmNotes()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:5px;">&#10005; Close</button>
+  <div id="crmNotesPanel" style="display:none;position:fixed;right:0;top:0;width:420px;height:100vh;background:var(--surface);border-left:2px solid var(--border);z-index:999;padding:18px;overflow-y:auto;box-shadow:-4px 0 20px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+      <div><strong id="crmNotesName" style="font-size:14px"></strong><br><span id="crmNotesSub" style="font-size:10px;color:var(--muted)"></span></div>
+      <button onclick="closeCrmNotes()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:5px;">&#10005;</button>
     </div>
-    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes</label>
-    <textarea id="crmNotesText" rows="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0 12px" placeholder="Add notes about this customer..."></textarea>
-    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Vehicle Interest</label>
-    <input id="crmNotesVehicle" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:4px 0 12px" placeholder="e.g., SUV, Truck, F-150">
-    <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Follow-up Date</label>
-    <input type="date" id="crmNotesFU" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:4px 0 8px">
-    <input id="crmNotesFUNote" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-size:10px;margin:0 0 12px" placeholder="Follow-up reason...">
-    <button onclick="saveCrmNotes()" style="width:100%;padding:8px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer">Save</button>
-    <button onclick="closeCrmNotes()" style="width:100%;padding:8px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:5px;font-weight:600;cursor:pointer;margin-top:6px;">Close</button>
-    <div id="crmNotesSaved" style="text-align:center;font-size:9px;color:var(--green);margin-top:6px;display:none">Saved!</div>
+    <div id="crmUndoBar" style="display:none;background:rgba(255,176,32,.1);border:1px solid var(--amber);border-radius:5px;padding:6px 8px;margin:6px 0 10px;font-size:9px;color:var(--amber);display:flex;justify-content:space-between;align-items:center">
+      <span id="crmUndoText">Last change available to undo</span>
+      <button onclick="undoCrmChange(_crmNotesId)" style="background:var(--amber);color:#000;border:none;border-radius:4px;padding:3px 8px;font-size:9px;font-weight:700;cursor:pointer">Undo</button>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin:6px 0 10px">
+      <button id="crmTabBtnNotes" onclick="switchCrmTab('notes')" class="crm-tab-btn active" style="flex:1;padding:6px;background:none;border:none;border-bottom:2px solid var(--primary);color:var(--text);font-size:10px;font-weight:600;cursor:pointer">Notes & Contact</button>
+      <button id="crmTabBtnHistory" onclick="switchCrmTab('history')" class="crm-tab-btn" style="flex:1;padding:6px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer">History</button>
+    </div>
+
+    <div id="crmTabNotes">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px;margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Name</label>
+            <input id="crmEditName" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px"></div>
+          <div><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Phone</label>
+            <input id="crmEditPhone" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px"></div>
+        </div>
+        <div style="margin-top:6px"><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Email</label>
+          <input id="crmEditEmail" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px"></div>
+        <div style="margin-top:6px"><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Vehicle Interest</label>
+          <input id="crmEditVehicle" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px" placeholder="e.g., SUV, Truck, F-150"></div>
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:6px;margin-top:6px">
+          <div><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Follow-up</label>
+            <input type="date" id="crmEditFU" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px"></div>
+          <div><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Reason</label>
+            <input id="crmEditFUNote" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px" placeholder="Follow-up reason..."></div>
+        </div>
+        <button onclick="saveCrmContact()" style="width:100%;padding:6px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer;margin-top:8px;font-size:10px">Save Contact Info</button>
+        <div id="crmContactSaved" style="text-align:center;font-size:9px;color:var(--green);margin-top:4px;display:none">Saved</div>
+      </div>
+
+      <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Add a note</label>
+      <textarea id="crmNoteNew" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0 6px" placeholder="What happened with this customer?"></textarea>
+      <button onclick="addCrmNote()" style="width:100%;padding:6px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer;font-size:10px">Add Note</button>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
+        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes timeline</label>
+        <label style="font-size:9px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="crmShowDeletedNotes" onchange="loadCrmNotes()"> Show deleted
+        </label>
+      </div>
+      <div id="crmNotesTimeline" style="font-size:10px"></div>
+    </div>
+
+    <div id="crmTabHistory" style="display:none">
+      <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Lead change history</label>
+      <div id="crmAuditTimeline" style="font-size:10px;margin-top:6px"></div>
+    </div>
+
+    <button onclick="closeCrmNotes()" style="width:100%;padding:8px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:5px;font-weight:600;cursor:pointer;margin-top:14px;font-size:10px">Close</button>
   </div>`;
 }
+
+// Tiny HTML-escape — used everywhere we render user-supplied note text or
+// names into the panel. Lots of dealer-supplied content includes & < > "
+// and we render with innerHTML, so escape or get pwned.
+function _esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _fmtTs(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now - d;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return d.toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return ''; }
+}
+
 let _crmNotesId = null;
+let _crmNotesTab = 'notes';
+
 function openCrmNotes(id) {
   const c = crmData.find(x => x.id === id);
   if (!c) return;
   _crmNotesId = id;
+  _crmNotesTab = 'notes';
   document.getElementById('crmNotesName').textContent = c.name || 'Unknown';
-  document.getElementById('crmNotesPhone').textContent = c.phone || '';
-  document.getElementById('crmNotesText').value = c.notes || '';
-  document.getElementById('crmNotesVehicle').value = c.vehicle_interest || c.vehicle || '';
-  document.getElementById('crmNotesFU').value = c.follow_up_date || '';
-  document.getElementById('crmNotesFUNote').value = c.follow_up_note || '';
+  const sub = [c.phone, c.email].filter(Boolean).join(' · ');
+  document.getElementById('crmNotesSub').textContent = sub || 'No contact info yet';
+  // Pre-fill contact-info inputs from the row
+  document.getElementById('crmEditName').value    = c.name || '';
+  document.getElementById('crmEditPhone').value   = c.phone || '';
+  document.getElementById('crmEditEmail').value   = c.email || '';
+  document.getElementById('crmEditVehicle').value = c.vehicle_interest || c.vehicle || '';
+  document.getElementById('crmEditFU').value      = c.follow_up_date || '';
+  document.getElementById('crmEditFUNote').value  = c.follow_up_note || '';
+  document.getElementById('crmNoteNew').value     = '';
+  document.getElementById('crmContactSaved').style.display = 'none';
+  document.getElementById('crmShowDeletedNotes').checked = false;
+  // Undo bar
+  if (c.previous_state_at) {
+    document.getElementById('crmUndoBar').style.display = 'flex';
+    document.getElementById('crmUndoText').textContent = 'Last edit ' + _fmtTs(c.previous_state_at) + ' — undo available';
+  } else {
+    document.getElementById('crmUndoBar').style.display = 'none';
+  }
+  // Default tab + show panel
+  switchCrmTab('notes');
   document.getElementById('crmNotesPanel').style.display = 'block';
-  document.getElementById('crmNotesSaved').style.display = 'none';
+  loadCrmNotes();
+
   // Click-outside overlay
   let ov = document.getElementById('crmNotesOverlay');
   if (!ov) {
@@ -3205,30 +3296,273 @@ function openCrmNotes(id) {
   }
   ov.style.display = 'block';
 }
+
 function closeCrmNotes() {
   document.getElementById('crmNotesPanel').style.display = 'none';
   const ov = document.getElementById('crmNotesOverlay');
   if (ov) ov.style.display = 'none';
   _crmNotesId = null;
 }
-async function saveCrmNotes() {
+
+function switchCrmTab(name) {
+  _crmNotesTab = name;
+  document.getElementById('crmTabNotes').style.display   = name === 'notes'   ? 'block' : 'none';
+  document.getElementById('crmTabHistory').style.display = name === 'history' ? 'block' : 'none';
+  const btnN = document.getElementById('crmTabBtnNotes');
+  const btnH = document.getElementById('crmTabBtnHistory');
+  btnN.style.borderBottomColor = name === 'notes'   ? 'var(--primary)' : 'transparent';
+  btnN.style.color             = name === 'notes'   ? 'var(--text)'    : 'var(--muted)';
+  btnH.style.borderBottomColor = name === 'history' ? 'var(--primary)' : 'transparent';
+  btnH.style.color             = name === 'history' ? 'var(--text)'    : 'var(--muted)';
+  if (name === 'history') loadCrmAudit();
+}
+
+async function loadCrmNotes() {
+  if (!_crmNotesId) return;
+  const showDeleted = document.getElementById('crmShowDeletedNotes')?.checked;
+  const url = '/api/desk/crm/' + _crmNotesId + '/notes' + (showDeleted ? '?includeDeleted=true' : '');
+  const tl = document.getElementById('crmNotesTimeline');
+  tl.innerHTML = '<div style="color:var(--muted);font-size:9px;padding:8px 0">Loading…</div>';
+  try {
+    const r = await FF.apiFetch(url);
+    const data = await r.json();
+    const notes = (data && data.notes) || [];
+    if (!notes.length) {
+      tl.innerHTML = '<div style="color:var(--muted);font-size:9px;padding:8px 0;text-align:center">No notes yet — add the first one above.</div>';
+      return;
+    }
+    tl.innerHTML = notes.map(n => {
+      const deleted = !!n.deleted_at;
+      const author = n.author_name || (n.author_id ? 'User #'+n.author_id : 'system');
+      const meta = _esc(author) + ' · ' + _esc(_fmtTs(n.created_at));
+      const delMeta = deleted
+        ? '<div style="font-size:8px;color:var(--red);margin-top:3px">Deleted '+_esc(_fmtTs(n.deleted_at))+(n.deleted_by_name?' by '+_esc(n.deleted_by_name):'')+'</div>'
+        : '';
+      const action = deleted
+        ? '<button onclick="restoreCrmNote('+n.id+')" style="background:none;border:none;color:var(--green);font-size:9px;cursor:pointer;font-weight:700">Restore</button>'
+        : '<button onclick="deleteCrmNote('+n.id+')" style="background:none;border:none;color:var(--dim);font-size:11px;cursor:pointer" title="Delete this note">&#10006;</button>';
+      const bodyHtml = _esc(n.body).replace(/\n/g,'<br>');
+      return '<div style="border-left:2px solid '+(deleted?'var(--red)':'var(--primary)')+';padding:6px 0 6px 8px;margin-bottom:8px;'+(deleted?'opacity:.55':'')+'">'+
+             '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'+
+             '<div style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">'+meta+'</div>'+
+             action+'</div>'+
+             '<div style="margin-top:3px;color:var(--text);'+(deleted?'text-decoration:line-through':'')+'">'+bodyHtml+'</div>'+
+             delMeta+'</div>';
+    }).join('');
+  } catch (e) {
+    console.error('loadCrmNotes failed:', e);
+    tl.innerHTML = '<div style="color:var(--red);font-size:9px;padding:8px 0">Could not load notes.</div>';
+  }
+}
+
+async function loadCrmAudit() {
+  if (!_crmNotesId) return;
+  const tl = document.getElementById('crmAuditTimeline');
+  tl.innerHTML = '<div style="color:var(--muted);font-size:9px;padding:8px 0">Loading…</div>';
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/audit');
+    const data = await r.json();
+    const audit = (data && data.audit) || [];
+    if (!audit.length) {
+      tl.innerHTML = '<div style="color:var(--muted);font-size:9px;padding:8px 0;text-align:center">No history yet.</div>';
+      return;
+    }
+    tl.innerHTML = audit.map(a => _renderAuditEntry(a)).join('');
+  } catch (e) {
+    console.error('loadCrmAudit failed:', e);
+    tl.innerHTML = '<div style="color:var(--red);font-size:9px;padding:8px 0">Could not load history.</div>';
+  }
+}
+
+function _renderAuditEntry(a) {
+  const who = _esc(a.user_name || (a.user_id ? 'User #'+a.user_id : 'system'));
+  const when = _esc(_fmtTs(a.occurred_at));
+  let bodyHtml = '';
+  const ch = a.changes || {};
+  if (a.action === 'update') {
+    const fields = Object.keys(ch);
+    bodyHtml = fields.length
+      ? fields.map(f => {
+          const from = ch[f]?.from;
+          const to   = ch[f]?.to;
+          return '<div style="font-size:9px;margin-top:2px"><strong>'+_esc(f)+':</strong> <span style="color:var(--dim);text-decoration:line-through">'+_esc(from??'∅')+'</span> &rarr; <span style="color:var(--green)">'+_esc(to??'∅')+'</span></div>';
+        }).join('')
+      : '<div style="font-size:9px;color:var(--muted)">no field changes recorded</div>';
+  } else if (a.action === 'note_added') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--muted)">Added a note</div>';
+  } else if (a.action === 'note_deleted') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--muted)">Deleted a note</div>';
+  } else if (a.action === 'note_restored') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--muted)">Restored a deleted note</div>';
+  } else if (a.action === 'undo') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--amber)">Undid the previous change</div>';
+  } else if (a.action === 'delete') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--red)">Soft-deleted the lead</div>';
+  } else if (a.action === 'restore') {
+    bodyHtml = '<div style="font-size:9px;margin-top:2px;color:var(--green)">Restored the lead</div>';
+  }
+  return '<div style="border-left:2px solid var(--border);padding:5px 0 5px 8px;margin-bottom:8px">'+
+         '<div style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">'+who+' · '+when+' · '+_esc(a.action)+'</div>'+
+         bodyHtml+'</div>';
+}
+
+async function saveCrmContact() {
   if (!_crmNotesId) return;
   const body = {
-    notes: document.getElementById('crmNotesText').value,
-    vehicle_interest: document.getElementById('crmNotesVehicle').value,
-    follow_up_date: document.getElementById('crmNotesFU').value || null,
-    follow_up_note: document.getElementById('crmNotesFUNote').value,
-    last_contact: new Date().toISOString()
+    name:             document.getElementById('crmEditName').value,
+    phone:            document.getElementById('crmEditPhone').value,
+    email:            document.getElementById('crmEditEmail').value,
+    vehicle_interest: document.getElementById('crmEditVehicle').value,
+    follow_up_date:   document.getElementById('crmEditFU').value || null,
+    follow_up_note:   document.getElementById('crmEditFUNote').value,
   };
   try {
-    await FF.apiFetch('/api/desk/crm/' + _crmNotesId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await FF.apiFetch('/api/desk/crm/' + _crmNotesId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     const c = crmData.find(x => x.id === _crmNotesId);
-    if (c) { Object.assign(c, body); }
+    if (c) {
+      Object.assign(c, body);
+      c.previous_state_at = new Date().toISOString();
+    }
+    document.getElementById('crmContactSaved').style.display = 'block';
+    setTimeout(() => { const el = document.getElementById('crmContactSaved'); if (el) el.style.display = 'none'; }, 1800);
     renderCRM();
-    openCrmNotes(_crmNotesId); // re-open to keep panel visible
-    document.getElementById('crmNotesSaved').style.display = 'block';
-    setTimeout(() => { const el = document.getElementById('crmNotesSaved'); if (el) el.style.display = 'none'; }, 2000);
-  } catch (e) { console.error('CRM notes save failed:', e); }
+    openCrmNotes(_crmNotesId);
+  } catch (e) {
+    console.error('saveCrmContact failed:', e);
+    toast('Save failed');
+  }
+}
+
+async function addCrmNote() {
+  if (!_crmNotesId) return;
+  const body = (document.getElementById('crmNoteNew').value || '').trim();
+  if (!body) { toast('Enter a note first'); return; }
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body })
+    });
+    const data = await r.json();
+    if (!data.success) { toast('Add note failed: ' + (data.error || 'unknown')); return; }
+    document.getElementById('crmNoteNew').value = '';
+    // Optimistically reflect in cached row so the table preview updates
+    const c = crmData.find(x => x.id === _crmNotesId);
+    if (c) {
+      c.latest_note = body;
+      c.latest_note_at = new Date().toISOString();
+      c.note_count = (c.note_count || 0) + 1;
+      c.last_contact = new Date().toISOString();
+    }
+    await loadCrmNotes();
+    renderCRM();
+    openCrmNotes(_crmNotesId);
+  } catch (e) {
+    console.error('addCrmNote failed:', e);
+    toast('Add note failed');
+  }
+}
+
+async function deleteCrmNote(noteId) {
+  if (!_crmNotesId || !noteId) return;
+  if (!confirm('Delete this note? It will stay restorable for the last 3 deleted notes per lead.')) return;
+  try {
+    await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes/' + noteId, { method: 'DELETE' });
+    await loadCrmNotes();
+    if (window.FF?.loadAllData) await window.FF.loadAllData();
+    renderCRM();
+    openCrmNotes(_crmNotesId);
+  } catch (e) {
+    console.error('deleteCrmNote failed:', e);
+    toast('Delete note failed');
+  }
+}
+
+async function restoreCrmNote(noteId) {
+  if (!_crmNotesId || !noteId) return;
+  try {
+    await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes/' + noteId + '/restore', { method: 'POST' });
+    await loadCrmNotes();
+    if (window.FF?.loadAllData) await window.FF.loadAllData();
+    renderCRM();
+    openCrmNotes(_crmNotesId);
+  } catch (e) {
+    console.error('restoreCrmNote failed:', e);
+    toast('Restore note failed');
+  }
+}
+
+async function undoCrmChange(id) {
+  const leadId = id || _crmNotesId;
+  if (!leadId) return;
+  if (!confirm('Undo the most recent change to this lead?')) return;
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/' + leadId + '/undo', { method: 'POST' });
+    const data = await r.json();
+    if (!data.success) { toast('Undo failed: ' + (data.error || 'unknown')); return; }
+    if (window.FF?.loadAllData) await window.FF.loadAllData();
+    renderCRM();
+    if (_crmNotesId === leadId) openCrmNotes(leadId);
+    toast('Undone.');
+  } catch (e) {
+    console.error('undoCrmChange failed:', e);
+    toast('Undo failed');
+  }
+}
+
+async function openRecentlyDeleted() {
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/recently-deleted');
+    const data = await r.json();
+    const leads = (data && data.leads) || [];
+    let modal = document.getElementById('crmRecentlyDeletedModal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'crmRecentlyDeletedModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center';
+    const list = leads.length ? leads.map(l => `
+      <div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div style="font-weight:700;font-size:11px">${_esc(l.name||'(no name)')}</div>
+          <div style="font-size:9px;color:var(--muted)">${_esc(l.phone||'no phone')} · ${_esc(l.email||'no email')}</div>
+          <div style="font-size:8px;color:var(--dim);margin-top:2px">Deleted ${_esc(_fmtTs(l.deleted_at))}${l.deleted_by_name?' by '+_esc(l.deleted_by_name):''} · ${_esc(l.vehicle_interest||'no vehicle')}</div>
+        </div>
+        <button onclick="restoreCrmLead(${l.id})" style="background:var(--green);color:#000;border:none;border-radius:5px;padding:6px 12px;font-size:10px;font-weight:700;cursor:pointer">Restore</button>
+      </div>`).join('') : '<div style="text-align:center;color:var(--muted);font-size:10px;padding:20px">No leads deleted in the last 30 days.</div>';
+    modal.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;width:520px;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <strong>Recently Deleted (last 30 days)</strong>
+          <button onclick="document.getElementById('crmRecentlyDeletedModal').remove()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:5px">&#10005;</button>
+        </div>
+        <div>${list}</div>
+      </div>`;
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+  } catch (e) {
+    console.error('openRecentlyDeleted failed:', e);
+    toast('Could not load recently deleted leads');
+  }
+}
+
+async function restoreCrmLead(id) {
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/' + id + '/restore', { method: 'POST' });
+    const data = await r.json();
+    if (!data.success) { toast('Restore failed: ' + (data.error || 'unknown')); return; }
+    toast('Lead restored');
+    const modal = document.getElementById('crmRecentlyDeletedModal');
+    if (modal) modal.remove();
+    if (window.FF?.loadAllData) await window.FF.loadAllData();
+    renderCRM();
+  } catch (e) {
+    console.error('restoreCrmLead failed:', e);
+    toast('Restore failed');
+  }
 }
 async function syncSarahToCRM() {
   try {
@@ -3247,10 +3581,11 @@ async function updateCRM(id,status){
   catch(e){console.error('CRM update failed:',e);}
 }
 async function deleteCRM(id){
-  if(!confirm('Delete?'))return;
+  if(!confirm('Delete this lead? It will move to Recently Deleted (restorable for 30 days).'))return;
   try{
     await FF.apiFetch('/api/desk/crm/'+id,{method:'DELETE'});
     crmData=crmData.filter(c=>c.id!==id);renderCRM();
+    toast('Deleted — open Recently Deleted to restore.');
   }catch(e){toast('Delete failed');}
 }
 
