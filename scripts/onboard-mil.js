@@ -32,7 +32,15 @@ require('dotenv').config();
 // ── Constants — verify before running ─────────────────────────────────────
 const MIL_EMAIL          = 'mil@huntchrysler.com';
 const MIL_CORRECT_CELL   = '+19052082825';                     // E.164
-const HUNT_INTAKE_EMAIL  = 'huntchrysler@firstfinancialcanada.com';
+// 2026-05-06: Originally set to huntchrysler@firstfinancialcanada.com
+// (matching the wizard's suggested per-tenant address). That alias was
+// never actually created in Google Workspace — Mil's forwarded test
+// bounced with "Address not found". His Kijiji/AT lead aggregators are
+// already configured to send to leads@firstfinancialcanada.com (the
+// shared fallback alias that DOES exist and forwards into the IMAP-
+// polled gmail inbox), so route this tenant against THAT address to
+// make incoming leads actually land in the CRM.
+const HUNT_INTAKE_EMAIL  = 'leads@firstfinancialcanada.com';
 const TARGET_TIER        = 'gold';
 const TARGET_SEATS       = 10;
 
