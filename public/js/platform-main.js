@@ -3237,6 +3237,72 @@ function _esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Refresh crmData from the server and re-render the table. Called after
+// every CRM mutation so the UI stays in sync with the DB (snapshot
+// columns, deleted_at, note counts, latest_note preview, etc.). Use
+// this instead of FF.loadAllData() — that one writes to localStorage
+// but doesn't touch the live `crmData` array used by renderCRM().
+async function _refreshCrmData() {
+  try {
+    const r = await FF.apiFetch('/api/desk/crm');
+    const d = await r.json();
+    if (!d.success) return;
+    crmData = d.crm.map(row => ({
+      ...row,
+      date:   row.created_at ? new Date(row.created_at).toLocaleDateString('en-CA') : '—',
+      phone:  row.phone || '',
+      email:  row.email || '',
+      beacon: row.beacon || '',
+      status: row.status || 'Lead',
+    }));
+    renderCRM();
+  } catch (e) {
+    console.warn('_refreshCrmData failed:', e.message);
+  }
+}
+
+// Custom in-page confirm modal — returns Promise<boolean>. Replaces
+// native confirm() so (a) the dialog matches the platform's dark theme
+// and (b) it doesn't block the JS thread / Selenium / Mil if his browser
+// supresses native dialogs (some pop-up blockers do).
+function _confirmModal(message, opts = {}) {
+  return new Promise((resolve) => {
+    const okLabel     = opts.okLabel     || 'Confirm';
+    const cancelLabel = opts.cancelLabel || 'Cancel';
+    const variant     = opts.variant     || 'primary';   // 'primary' | 'danger' | 'warning'
+    const colorMap = {
+      primary: 'var(--primary)',
+      danger:  '#ef4444',
+      warning: 'var(--amber)',
+    };
+    const okColor   = colorMap[variant] || colorMap.primary;
+    const okTextCol = variant === 'warning' ? '#000' : '#fff';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;width:380px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+        <div style="font-size:11px;color:var(--text);line-height:1.5;margin-bottom:14px">${_esc(message)}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button data-act="cancel" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer">${_esc(cancelLabel)}</button>
+          <button data-act="ok" style="background:${okColor};border:none;color:${okTextCol};padding:6px 14px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer">${_esc(okLabel)}</button>
+        </div>
+      </div>`;
+    const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    overlay.addEventListener('click', (e) => {
+      const act = e.target?.dataset?.act;
+      if (act === 'ok') close(true);
+      else if (act === 'cancel' || e.target === overlay) close(false);
+    });
+    const onKey = (e) => {
+      if (e.key === 'Escape') close(false);
+      if (e.key === 'Enter')  close(true);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-act="ok"]').focus();
+  });
+}
+
 function _fmtTs(ts) {
   if (!ts) return '';
   try {
@@ -3422,14 +3488,9 @@ async function saveCrmContact() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const c = crmData.find(x => x.id === _crmNotesId);
-    if (c) {
-      Object.assign(c, body);
-      c.previous_state_at = new Date().toISOString();
-    }
     document.getElementById('crmContactSaved').style.display = 'block';
     setTimeout(() => { const el = document.getElementById('crmContactSaved'); if (el) el.style.display = 'none'; }, 1800);
-    renderCRM();
+    await _refreshCrmData();
     openCrmNotes(_crmNotesId);
   } catch (e) {
     console.error('saveCrmContact failed:', e);
@@ -3450,16 +3511,8 @@ async function addCrmNote() {
     const data = await r.json();
     if (!data.success) { toast('Add note failed: ' + (data.error || 'unknown')); return; }
     document.getElementById('crmNoteNew').value = '';
-    // Optimistically reflect in cached row so the table preview updates
-    const c = crmData.find(x => x.id === _crmNotesId);
-    if (c) {
-      c.latest_note = body;
-      c.latest_note_at = new Date().toISOString();
-      c.note_count = (c.note_count || 0) + 1;
-      c.last_contact = new Date().toISOString();
-    }
     await loadCrmNotes();
-    renderCRM();
+    await _refreshCrmData();
     openCrmNotes(_crmNotesId);
   } catch (e) {
     console.error('addCrmNote failed:', e);
@@ -3469,12 +3522,15 @@ async function addCrmNote() {
 
 async function deleteCrmNote(noteId) {
   if (!_crmNotesId || !noteId) return;
-  if (!confirm('Delete this note? It will stay restorable for the last 3 deleted notes per lead.')) return;
+  const ok = await _confirmModal(
+    'Delete this note? It stays restorable while it’s one of the last 3 deleted notes on this lead.',
+    { okLabel: 'Delete note', variant: 'danger' }
+  );
+  if (!ok) return;
   try {
     await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes/' + noteId, { method: 'DELETE' });
     await loadCrmNotes();
-    if (window.FF?.loadAllData) await window.FF.loadAllData();
-    renderCRM();
+    await _refreshCrmData();
     openCrmNotes(_crmNotesId);
   } catch (e) {
     console.error('deleteCrmNote failed:', e);
@@ -3487,8 +3543,7 @@ async function restoreCrmNote(noteId) {
   try {
     await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes/' + noteId + '/restore', { method: 'POST' });
     await loadCrmNotes();
-    if (window.FF?.loadAllData) await window.FF.loadAllData();
-    renderCRM();
+    await _refreshCrmData();
     openCrmNotes(_crmNotesId);
   } catch (e) {
     console.error('restoreCrmNote failed:', e);
@@ -3499,13 +3554,25 @@ async function restoreCrmNote(noteId) {
 async function undoCrmChange(id) {
   const leadId = id || _crmNotesId;
   if (!leadId) return;
-  if (!confirm('Undo the most recent change to this lead?')) return;
+  const ok = await _confirmModal(
+    'Undo the most recent change to this lead? Phone, name, follow-up etc. will revert to their prior values.',
+    { okLabel: 'Undo change', variant: 'warning' }
+  );
+  if (!ok) return;
   try {
     const r = await FF.apiFetch('/api/desk/crm/' + leadId + '/undo', { method: 'POST' });
     const data = await r.json();
-    if (!data.success) { toast('Undo failed: ' + (data.error || 'unknown')); return; }
-    if (window.FF?.loadAllData) await window.FF.loadAllData();
-    renderCRM();
+    if (!data.success) {
+      const msg = data.error === 'no_snapshot'
+        ? 'Nothing left to undo on this lead.'
+        : 'Undo failed: ' + (data.error || 'unknown');
+      toast(msg);
+      // Refresh anyway — server may have cleared previous_state already
+      await _refreshCrmData();
+      if (_crmNotesId === leadId) openCrmNotes(leadId);
+      return;
+    }
+    await _refreshCrmData();
     if (_crmNotesId === leadId) openCrmNotes(leadId);
     toast('Undone.');
   } catch (e) {
@@ -3557,8 +3624,7 @@ async function restoreCrmLead(id) {
     toast('Lead restored');
     const modal = document.getElementById('crmRecentlyDeletedModal');
     if (modal) modal.remove();
-    if (window.FF?.loadAllData) await window.FF.loadAllData();
-    renderCRM();
+    await _refreshCrmData();
   } catch (e) {
     console.error('restoreCrmLead failed:', e);
     toast('Restore failed');
@@ -3581,7 +3647,11 @@ async function updateCRM(id,status){
   catch(e){console.error('CRM update failed:',e);}
 }
 async function deleteCRM(id){
-  if(!confirm('Delete this lead? It will move to Recently Deleted (restorable for 30 days).'))return;
+  const ok = await _confirmModal(
+    'Delete this lead? It will move to Recently Deleted and stay restorable for 30 days.',
+    { okLabel: 'Delete lead', variant: 'danger' }
+  );
+  if(!ok) return;
   try{
     await FF.apiFetch('/api/desk/crm/'+id,{method:'DELETE'});
     crmData=crmData.filter(c=>c.id!==id);renderCRM();
