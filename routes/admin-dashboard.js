@@ -1124,6 +1124,63 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   // logged-in manager can edit them via the UI in their tenant).
   // ═══════════════════════════════════════════════════════════════════
 
+  // ── GET /api/admin/lead-drops ─────────────────────────────────────
+  // How many lead-intake messages were dropped (status != 'ok') and a
+  // sample of the most recent so we can decide whether to replay.
+  app.get('/api/admin/lead-drops', adminAuth, async (req, res) => {
+    try {
+      const status = String(req.query.status || '').trim() || null;
+      const limit  = Math.min(parseInt(req.query.limit, 10) || 25, 200);
+      const where  = status ? `status = $1` : `status != 'ok'`;
+      const params = status ? [status, limit] : [limit];
+      const limitParam = status ? '$2' : '$1';
+      const counts = await pool.query(
+        `SELECT status, COUNT(*)::int AS n
+           FROM lead_intake_log
+          GROUP BY status
+          ORDER BY n DESC`
+      );
+      const recent = await pool.query(
+        `SELECT id, message_id, intake_addr, sender_from, subject, source, status, error, processed_at
+           FROM lead_intake_log
+          WHERE ${where}
+          ORDER BY processed_at DESC NULLS LAST
+          LIMIT ${limitParam}`,
+        params
+      );
+      res.json({
+        success: true,
+        countsByStatus: counts.rows,
+        recent: recent.rows,
+      });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── POST /api/admin/replay-leads ──────────────────────────────────
+  // Body or query: { to?, since?, limit?, dryRun? }
+  // Walks the polled IMAP inbox and re-runs each matching message
+  // through processMessage. Dedup-on-success in processMessage keeps
+  // it idempotent — only previously-failed entries actually re-route.
+  // Use this after a routing fix to backfill historical drops.
+  app.post('/api/admin/replay-leads', adminAuth, async (req, res) => {
+    try {
+      const opts = {
+        to:     req.body?.to     || req.query.to     || null,
+        since:  req.body?.since  || req.query.since  || null,
+        limit:  parseInt(req.body?.limit || req.query.limit || '50', 10),
+        dryRun: String(req.body?.dryRun ?? req.query.dryRun ?? 'false') === 'true',
+      };
+      // Lazy require so we don't add startup load
+      const { replayInbox } = require('../lib/lead-intake');
+      const result = await replayInbox(opts);
+      res.json({ success: true, opts, result });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
   // ── GET /api/admin/tenant/:userId/intake ──────────────────────────
   // Returns the tenant's lead_intake_email + a sample preview of the
   // setup instructions text the dealer copies into AutoTrader/Kijiji.
