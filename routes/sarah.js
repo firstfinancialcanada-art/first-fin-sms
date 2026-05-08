@@ -879,10 +879,16 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return `Congrats ${name}! 🎉 If something else comes up — selling, trading, or buying — we'd love the chance. Want a quick call from our team to introduce themselves?`;
     }
 
-    // Hard "not interested" — same handling as sales mode
-    if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') || lowerMsg.includes('wrong number') ||
-        lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') || lowerMsg.includes('do not contact') ||
-        lowerMsg === 'no' || lowerMsg === 'nah' || lowerMsg === 'nope' || lowerMsg.includes('go away')) {
+    // Hard "not interested" — same handling as sales mode.
+    // CRITICAL: do NOT match bare "no" / "nah" / "nope" here. Customers
+    // legitimately answer "no" to binary stage questions ("looking to
+    // replace it?" → "no" means no replacement, not opt-out). Bug caught
+    // 2026-05-08 by Franco when his test reply "No" at acq_replacement
+    // got interpreted as universal opt-out and stopped the conversation.
+    if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') || lowerMsg.includes('no thank you') ||
+        lowerMsg.includes('wrong number') || lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
+        lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
+        lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
       await updateConversation(conversation.id, { status: 'stopped' });
       await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'acquisition' }, userId);
       return "No worries! I've taken you off our list. If anything changes — selling, buying, or trading — just text back anytime.";
@@ -1229,11 +1235,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       );
     }
 
+    // CRITICAL: do NOT match bare "no" / "nah" / "nope" — customers say
+    // "no" to legitimate binary stage questions (e.g. "got a trade?" →
+    // "no" means no trade). Stage handlers below decide what bare "no"
+    // means in context. Universal opt-out only fires on explicit phrases.
     if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') ||
         lowerMsg.includes('no thank you') || lowerMsg.includes('wrong number') ||
         lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
-        lowerMsg.includes('do not contact') || lowerMsg === 'no' || lowerMsg === 'nah' ||
-        lowerMsg === 'nope' || lowerMsg.includes('go away')) {
+        lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
+        lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
       await updateConversation(conversation.id, { status: 'stopped' });
       await logAnalytics('conversation_stopped', phone, { reason: 'not_interested' }, userId);
       return "No worries at all! I've taken you off our list. If anything changes down the road, just text back anytime. Take care!";
