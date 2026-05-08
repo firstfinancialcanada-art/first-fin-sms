@@ -277,7 +277,12 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   // ── Start SMS campaign ────────────────────────────────────────
   app.post('/api/start-sms', requireAuth, requireBilling, async (req, res) => {
     try {
-      const { phone, message } = req.body;
+      const { phone, message, mode } = req.body;
+      // 'sales' (default — buy-side qualification) or 'acquisition' (Sarah
+      // is reaching out to a prospective seller — qualifies the customer's
+      // vehicle, mileage, condition, asking price, then pivots to "looking
+      // to replace it?" before booking). Same modes as the bulk launcher.
+      const launchMode = (mode === 'acquisition') ? 'acquisition' : 'sales';
       if (!phone) return res.json({ success: false, error: 'Phone number required' });
       const normalizedPhone = toE164NorthAmerica(phone);
       if (!normalizedPhone) return res.json({ success: false, error: 'Invalid phone number format' });
@@ -312,8 +317,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (!conversation.source) {
         await pool.query('UPDATE conversations SET source = $1 WHERE id = $2', ['manual', conversation.id]).catch(() => {});
       }
+      // Phase 7 — propagate launch mode to the conversation so when the
+      // customer replies, Sarah runs the acquisition FSM instead of the
+      // sales one. Only sets if the conversation isn't already in
+      // acquisition mode (don't downgrade an existing acq thread).
+      if (launchMode === 'acquisition' && conversation.mode !== 'acquisition') {
+        await updateConversation(conversation.id, { mode: 'acquisition', stage: 'acq_confirm' });
+      }
       await saveMessage(conversation.id, normalizedPhone, 'assistant', messageBody, uid);
-      await logAnalytics('sms_sent', normalizedPhone, { messageBody }, uid);
+      await logAnalytics('sms_sent', normalizedPhone, { messageBody, mode: launchMode }, uid);
       // Use tenant's twilio number for outbound
       let startFromNumber = process.env.TWILIO_PHONE_NUMBER;
       try {

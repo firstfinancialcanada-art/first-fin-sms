@@ -4749,9 +4749,29 @@ function phoneInputToE164(input){
   return null;
 }
 
+// Mirrors onCampaignModeChange (used by the Bulk SMS launcher) but for
+// the single Launch SMS card. Same _SARAH_OPENERS map; only auto-swaps
+// if the textarea matches one of the canned defaults so dealer edits
+// aren't lost.
+function onLaunchModeChange(newMode) {
+  const ta = document.getElementById('launchMessage');
+  if (!ta) return;
+  const cur = (ta.value || '').trim();
+  const isDefault = typeof _SARAH_OPENERS !== 'undefined' &&
+    Object.values(_SARAH_OPENERS).some(t => t.trim() === cur);
+  if (!cur || isDefault) {
+    ta.value = (typeof _SARAH_OPENERS !== 'undefined' && _SARAH_OPENERS[newMode])
+      || _SARAH_OPENERS?.sales
+      || ta.value;
+    const cc = document.getElementById('launchCharCount');
+    if (cc) cc.textContent = ta.value.length + ' characters';
+  }
+}
+
 async function sendLaunchSMS(){
   const phone = phoneInputToE164(document.getElementById('launchPhone')?.value||'');
   const msg   = document.getElementById('launchMessage')?.value?.trim();
+  const mode  = document.getElementById('launchMode')?.value || 'sales';
   const btn   = document.getElementById('launchSendBtn');
   const res   = document.getElementById('launchResult');
   if(!phone){ toast('Invalid phone number'); return; }
@@ -4761,11 +4781,12 @@ async function sendLaunchSMS(){
   try {
     const data = await FF.apiFetch('/api/start-sms',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone,message:msg})
+      body:JSON.stringify({phone,message:msg,mode})
     }).then(r=>r.json());
     if(data.success){
+      const modeLabel = mode === 'acquisition' ? 'ACQUISITION' : 'SALES';
       res.style.cssText='display:block;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:10px;font-size:12px;color:var(--green);';
-      res.textContent='SMS sent to '+phone;
+      res.textContent='SMS sent to '+phone+' ('+modeLabel+')';
       document.getElementById('launchPhone').value='';
     } else throw new Error(data.error||'Failed');
   } catch(e){

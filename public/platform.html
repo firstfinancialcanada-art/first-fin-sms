@@ -2397,6 +2397,13 @@ select option{background:#0d1526;color:var(--text);}
         <input type="tel" id="launchPhone" class="phone-fmt" placeholder="(587) 000-0000" oninput="formatPhoneInput(this)">
       </div>
       <div class="fgroup">
+        <label>Outreach Type <span style="color:var(--muted);font-size:10px;">— controls which Sarah script runs on replies</span></label>
+        <select id="launchMode" onchange="onLaunchModeChange(this.value)" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;">
+          <option value="sales" selected>Sales outreach — Sarah qualifies budget &amp; books appointments</option>
+          <option value="acquisition">Vehicle acquisition — Sarah qualifies the customer's vehicle &amp; books appraisal</option>
+        </select>
+      </div>
+      <div class="fgroup">
         <label>Opening Message</label>
         <textarea id="launchMessage" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi! I'm Sarah from the dealership. I wanted to reach out and see if you're interested in finding your perfect vehicle. What type of car are you looking for? (Reply STOP to opt out)</textarea>
       <div style="font-size:10px;color:var(--muted);margin-top:4px;">💡 Dealer name auto-fills when settings are loaded. You can edit this message freely.</div>
