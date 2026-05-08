@@ -4870,18 +4870,42 @@ function processContactLines(lines) {
     toast(contacts.length+' contacts ready');
 }
 
+// Default opener templates per campaign type. Used by onCampaignModeChange
+// when the dealer flips the dropdown — swaps the textarea contents UNLESS
+// they've already customized it (we detect "customized" by checking
+// whether the current value matches one of the defaults verbatim).
+const _SARAH_OPENERS = {
+  sales: "Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)",
+  acquisition: "Hi {name}! I'm Sarah from the dealership. I wanted to reach out about your vehicle — are you considering selling it soon? (Reply STOP to opt out)"
+};
+
+function onCampaignModeChange(newMode) {
+  const ta = document.getElementById('messageTemplate');
+  if (!ta) return;
+  const cur = (ta.value || '').trim();
+  // Only auto-swap if the textarea matches one of the canned defaults.
+  // Custom edits stay intact so the dealer doesn't lose their work.
+  const isDefault = Object.values(_SARAH_OPENERS).some(t => t.trim() === cur);
+  if (!cur || isDefault) {
+    ta.value = _SARAH_OPENERS[newMode] || _SARAH_OPENERS.sales;
+    document.getElementById('charCount').textContent = ta.value.length;
+  }
+}
+
 async function launchBulkCampaign(){
   const name = document.getElementById('campaignName')?.value?.trim();
   const tmpl = document.getElementById('messageTemplate')?.value?.trim();
+  const mode = document.getElementById('campaignMode')?.value || 'sales';
   if(!name){ toast('Enter a campaign name'); return; }
   if(!tmpl){ toast('Enter a message template'); return; }
   if(!tmpl.includes('{name}')){ toast('Template must include {name}'); return; }
   if(!parsedContacts.length){ toast('Upload a CSV first'); return; }
-  if(!confirm('Launch "'+name+'" to '+parsedContacts.length+' contacts?')) return;
+  const modeLabel = mode === 'acquisition' ? 'VEHICLE ACQUISITION' : 'SALES OUTREACH';
+  if(!confirm('Launch "'+name+'" ('+modeLabel+') to '+parsedContacts.length+' contacts?')) return;
   try {
     const res = await FF.apiFetch('/api/bulk-sms/create-campaign',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({campaignName:name,messageTemplate:tmpl,contacts:parsedContacts})
+      body:JSON.stringify({campaignName:name,messageTemplate:tmpl,contacts:parsedContacts,mode})
     }).then(r=>r.json());
     if(res.success){
       document.getElementById('campaignForm').style.display='none';

@@ -54,10 +54,14 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
   // ── Create campaign ───────────────────────────────────────────
   app.post('/api/bulk-sms/create-campaign', requireAuth, requireBilling, async (req, res) => {
     try {
-      const { campaignName, messageTemplate, contacts } = req.body;
+      const { campaignName, messageTemplate, contacts, mode } = req.body;
       if (!campaignName || !messageTemplate || !contacts || contacts.length === 0) {
         return res.status(400).json({ error: 'Missing fields' });
       }
+      // 'sales' (existing default) or 'acquisition' (new — Sarah asks
+      // about the customer's vehicle, mileage, condition, asking price,
+      // and pivots to "looking to replace it?" before booking).
+      const campaignMode = (mode === 'acquisition') ? 'acquisition' : 'sales';
       if (!messageTemplate.includes('{name}')) {
         return res.status(400).json({ error: 'Message must include {name}' });
       }
@@ -105,8 +109,8 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       if (placeholderCount > 3) {
         console.warn(`⚠️ Campaign "${campaignName}" has ${placeholderCount} {name} placeholders`);
       }
-      const messageIds = await saveBulkCampaign(campaignName, messageTemplate, contacts, req.user.userId);
-      res.json({ success: true, campaignName, messageCount: messageIds.length, estimatedTime: Math.ceil(contacts.length * 15 / 60) });
+      const messageIds = await saveBulkCampaign(campaignName, messageTemplate, contacts, req.user.userId, campaignMode);
+      res.json({ success: true, campaignName, messageCount: messageIds.length, mode: campaignMode, estimatedTime: Math.ceil(contacts.length * 15 / 60) });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

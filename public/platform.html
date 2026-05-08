@@ -2442,6 +2442,13 @@ select option{background:#0d1526;color:var(--text);}
           <div class="card-title green"><i data-lucide="rocket" class="ico" style="color:var(--green)"></i>Campaign Setup</div>
           <div class="fgroup"><label>Campaign Name</label><input type="text" id="campaignName" placeholder="March Follow-Up 2025"></div>
           <div class="fgroup">
+            <label>Campaign Type <span style="color:var(--muted);font-size:10px;">— controls which Sarah script runs on replies</span></label>
+            <select id="campaignMode" onchange="onCampaignModeChange(this.value)" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;">
+              <option value="sales" selected>Sales outreach — Sarah qualifies budget &amp; books appointments</option>
+              <option value="acquisition">Vehicle acquisition — Sarah qualifies the customer's vehicle &amp; books appraisal</option>
+            </select>
+          </div>
+          <div class="fgroup">
             <label>Message Template <span style="color:var(--muted);font-size:10px;">— must include {name}</span></label>
             <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)</textarea>
             <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px;"><span id="charCount">0</span> characters</div>

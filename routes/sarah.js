@@ -52,6 +52,39 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     } catch(e) { /* index already exists or schema issue */ }
   })();
 
+  // ── Sarah modes + acquisition fields (Phase 7) ─────────────────────
+  // Adds a 'mode' switch on conversations + the columns the acquisition
+  // FSM populates (vehicle being sold, mileage, condition, asking price,
+  // replacement interest). Plus trade-in fields used by BOTH modes — the
+  // sales flow asks "got a trade?" before booking, the acquisition flow
+  // asks "looking to replace it?" — same fields, opposite lead direction.
+  // Idempotent ALTER ADD COLUMN IF NOT EXISTS so re-deploys are no-ops.
+  ;(async () => {
+    try {
+      await pool.query(`
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode VARCHAR(20) DEFAULT 'sales';
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source VARCHAR(40);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_make    VARCHAR(60);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_model   VARCHAR(80);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_year    INTEGER;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_mileage INTEGER;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_condition VARCHAR(50);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS asking_price   INTEGER;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS replacement_interest BOOLEAN;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_make  VARCHAR(60);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_model VARCHAR(80);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_year  INTEGER;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_value INTEGER;
+      `);
+      // bulk_messages carries the campaign mode through to the processor so
+      // the conversation it creates inherits the right mode.
+      await pool.query(`
+        ALTER TABLE bulk_messages ADD COLUMN IF NOT EXISTS mode VARCHAR(20) DEFAULT 'sales';
+      `);
+      console.log('✅ conversations.mode + acquisition/trade-in columns ready');
+    } catch(e) { console.warn('Sarah modes schema:', e.message); }
+  })();
+
 
   // ── Dashboard stats ───────────────────────────────────────────
   app.get('/api/dashboard', requireAuth, async (req, res) => {
@@ -570,7 +603,277 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   });
 
   // ── Sarah / Jerry AI Logic ────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────────
+  // ACQUISITION MODE — Sarah is reaching out to a prospective seller
+  // (Kijiji private listing, etc.) instead of a buyer. Mirrors the design
+  // of getJerryResponse (rule-based FSM, no LLM, on-rails by design) but
+  // with stages tuned for "buy a car FROM the customer" instead of "sell
+  // a car TO the customer". Both flows always land on appointment OR
+  // callback per Franco's universal rule.
+  //
+  // Stages (conversation.stage values used in acquisition mode):
+  //   acq_confirm        — opener replied to; confirm vehicle + intent
+  //   acq_mileage        — capture km/mi
+  //   acq_condition      — accidents, mods, owners, overall shape
+  //   acq_asking_price   — what they want for it
+  //   acq_replacement    — Mil's pivot: are they also looking to buy?
+  //   acq_appointment    — appraisal vs callback choice
+  //   name / datetime / confirmed — shared with sales mode
+  // ────────────────────────────────────────────────────────────────────
+  async function getAcquisitionResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName = 'the dealership', dealerCity = 'our location') {
+    const lowerMsg = message.toLowerCase().trim();
+    const name = conversation.customer_name || '';
+    function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
+
+    // ── Universal handlers (mirror sales mode) ─────────────────────
+    // STOP / unsubscribe
+    if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
+        lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
+      await updateConversation(conversation.id, { status: 'stopped' });
+      await addOptOut(phone, 'sms_stop');
+      await logAnalytics('conversation_stopped', phone, { mode: 'acquisition' }, userId);
+      return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
+    }
+    if (lowerMsg === 'start' || lowerMsg.includes('resubscribe') || lowerMsg.includes('opt in')) {
+      await updateConversation(conversation.id, { status: 'active', stage: 'acq_confirm' });
+      await removeOptOut(phone);
+      return `Welcome back! I'm Sarah from ${dealerName}. Are you still considering selling your vehicle?`;
+    }
+    if (conversation.status === 'stopped') return "You're currently unsubscribed. Reply START to receive messages again.";
+
+    // "Already sold it" / "already in the works with someone" — graceful exit + door open
+    if (lowerMsg.includes('already sold') || lowerMsg.includes('sold it') ||
+        lowerMsg.includes('already gone') || lowerMsg.includes('found a buyer') ||
+        lowerMsg.includes('not selling anymore') || lowerMsg.includes("don't want to sell")) {
+      await updateConversation(conversation.id, { intent: 'callback', stage: 'name' });
+      if (!name) {
+        return pick(
+          "All good — congrats on the sale! 🎉 If you ever have another vehicle to sell or are looking to buy something next, we'd love the chance. What's your name? I'll keep you on file.",
+          "Got it — congrats! 🎉 If something else comes up down the road, just text me. What's your name?"
+        );
+      }
+      return `Congrats ${name}! 🎉 If something else comes up — selling, trading, or buying — we'd love the chance. Want a quick call from our team to introduce themselves?`;
+    }
+
+    // Hard "not interested" — same handling as sales mode
+    if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') || lowerMsg.includes('wrong number') ||
+        lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') || lowerMsg.includes('do not contact') ||
+        lowerMsg === 'no' || lowerMsg === 'nah' || lowerMsg === 'nope' || lowerMsg.includes('go away')) {
+      await updateConversation(conversation.id, { status: 'stopped' });
+      await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'acquisition' }, userId);
+      return "No worries! I've taken you off our list. If anything changes — selling, buying, or trading — just text back anytime.";
+    }
+
+    // ── STAGE: acq_confirm — opener replied to ─────────────────────
+    // Default initial stage for acquisition; "Yes" / "I am" / "sure"
+    // affirms; numbers in this stage we treat as mileage (skip ahead).
+    if (!conversation.stage || conversation.stage === 'greeting' || conversation.stage === 'acq_confirm') {
+      // Negative — they said no / not really / not sure
+      if (lowerMsg === 'no' || lowerMsg === 'nah' || lowerMsg === 'nope' ||
+          lowerMsg.includes('not really') || lowerMsg.includes('not sure') ||
+          lowerMsg.includes('maybe later') || lowerMsg.includes('thinking about')) {
+        await updateConversation(conversation.id, { intent: 'callback', stage: 'name' });
+        if (!name) return "No worries! If you ever decide to, we'd love the chance to give you a fair offer — and we can also help if you're looking for something next. What's your name? I'll have someone follow up later.";
+        return `${name}, no rush! When you're ready, we'd love the chance — and if you're also looking for something next, we can line that up too. Want a quick call now or later?`;
+      }
+      // Positive confirm — yes, sure, considering, looking to sell
+      if (lowerMsg === 'yes' || lowerMsg === 'yep' || lowerMsg === 'sure' || lowerMsg === 'i am' ||
+          lowerMsg.includes('selling') || lowerMsg.includes('considering') || lowerMsg.includes('thinking of') ||
+          lowerMsg.includes('looking to sell') || lowerMsg.includes('want to sell') ||
+          lowerMsg.includes('would sell') || lowerMsg.includes('open to')) {
+        await updateConversation(conversation.id, { stage: 'acq_mileage' });
+        return pick(
+          "Great! What's the current mileage on it? (km or miles is fine)",
+          "Awesome — to get you a real offer I'll need a couple quick details. What's the mileage?"
+        );
+      }
+      // Customer said wrong direction — "I'm buying not selling" or similar
+      if (lowerMsg.includes('not selling') || lowerMsg.includes("i'm buying") || lowerMsg.includes('looking to buy') ||
+          lowerMsg.includes('want to buy')) {
+        // Pivot: switch them to sales mode and acknowledge
+        await updateConversation(conversation.id, { mode: 'sales', stage: 'greeting' });
+        return "Oh got it — I had you down as a potential seller but if you're looking to buy, we can absolutely help! Are you thinking Car, Truck, Van, or SUV?";
+      }
+      // Number alone — treat as mileage if reasonable
+      const acqNumbers = message.match(/\d[\d,]*/g);
+      if (acqNumbers && acqNumbers.length === 1) {
+        const num = parseInt(acqNumbers[0].replace(/,/g, ''));
+        if (num >= 1000 && num <= 500000) {
+          await updateConversation(conversation.id, { vehicle_mileage: num, stage: 'acq_condition' });
+          return `Got it — ${num.toLocaleString()} km. How's the condition? Any accidents, major repairs, or modifications I should know about?`;
+        }
+      }
+      // Default — re-confirm
+      return pick(
+        "Just to confirm — are you still considering selling your vehicle? A simple yes or no is fine.",
+        "Sorry if I caught you at a weird time — are you open to selling? Yes or no, no pressure either way."
+      );
+    }
+
+    // ── STAGE: acq_mileage ─────────────────────────────────────────
+    if (conversation.stage === 'acq_mileage' && !conversation.vehicle_mileage) {
+      const numbers = message.match(/\d[\d,]*/g);
+      if (numbers) {
+        let n = parseInt(numbers[0].replace(/,/g, ''));
+        if (lowerMsg.includes('k')) n *= 1000;
+        if (n >= 1000 && n <= 500000) {
+          await updateConversation(conversation.id, { vehicle_mileage: n, stage: 'acq_condition' });
+          return pick(
+            `Got it — ${n.toLocaleString()} km. How's the overall condition? Any accidents, repairs, or modifications worth mentioning?`,
+            `${n.toLocaleString()} km, noted. What's the condition like? Accidents, mods, or anything I should flag?`
+          );
+        }
+      }
+      return "Just need a rough number — like 80,000 or 150k. Whatever's close.";
+    }
+
+    // ── STAGE: acq_condition ───────────────────────────────────────
+    if (conversation.stage === 'acq_condition' && !conversation.vehicle_condition) {
+      // Categorize roughly so the closer has a snapshot
+      let cond = null;
+      if (lowerMsg.includes('mint') || lowerMsg.includes('excellent') || lowerMsg.includes('like new') ||
+          lowerMsg.includes('immaculate') || lowerMsg.includes('perfect')) cond = 'Excellent';
+      else if (lowerMsg.includes('good') || lowerMsg.includes('clean') || lowerMsg.includes('great shape') ||
+          lowerMsg.includes('well maintained') || lowerMsg === 'no accidents' || lowerMsg.includes('no accidents')) cond = 'Good';
+      else if (lowerMsg.includes('fair') || lowerMsg.includes('decent') || lowerMsg.includes('average') ||
+          lowerMsg.includes('minor') || lowerMsg.includes('small dent') || lowerMsg.includes('scratch')) cond = 'Fair';
+      else if (lowerMsg.includes('rough') || lowerMsg.includes('accident') || lowerMsg.includes('damage') ||
+          lowerMsg.includes('rebuilt') || lowerMsg.includes('salvage') || lowerMsg.includes('mechanical')) cond = 'Needs Work';
+      else cond = message.slice(0, 50); // Free-text capture if unclassifiable
+      await updateConversation(conversation.id, { vehicle_condition: cond, stage: 'acq_asking_price' });
+      return pick(
+        "Thanks. What are you hoping to get for it?",
+        "Got it. What number are you hoping to sell it for?",
+        "Noted. Ballpark — what would you want for it?"
+      );
+    }
+
+    // ── STAGE: acq_asking_price ────────────────────────────────────
+    if (conversation.stage === 'acq_asking_price' && !conversation.asking_price) {
+      const numbers = message.match(/\d[\d,]*/g);
+      if (numbers) {
+        let n = parseInt(numbers[0].replace(/,/g, ''));
+        if (lowerMsg.includes('k') && n < 1000) n *= 1000;
+        if (n >= 500 && n <= 500000) {
+          await updateConversation(conversation.id, { asking_price: n, stage: 'acq_replacement' });
+          return pick(
+            `$${n.toLocaleString()} — got it. Quick question while we're at it: are you also looking to replace it with something? We could line up the appraisal AND a test drive at the same visit.`,
+            `Noted — $${n.toLocaleString()}. One more thing: are you considering buying something next? If so we can do both at once and save you a trip.`
+          );
+        }
+      }
+      // Customer said "not sure" or "what's it worth" — they want our opinion
+      if (lowerMsg.includes('not sure') || lowerMsg.includes("don't know") || lowerMsg.includes("what's it worth") ||
+          lowerMsg.includes('what would you offer') || lowerMsg.includes('open to offers') || lowerMsg.includes('best offer')) {
+        await updateConversation(conversation.id, { asking_price: 0, stage: 'acq_replacement' });
+        return pick(
+          "All good — we can put a real number on it once we see it in person. Quick question: are you also looking to replace it with something? We can do both in one visit.",
+          "No problem — we'll give you a fair appraisal once we look at it. While we're at it, are you also looking for something next? Trade-in often makes the math work better."
+        );
+      }
+      return "Just a rough number is fine — even a range like $8k–$10k. Or 'not sure' if you'd like an offer from us.";
+    }
+
+    // ── STAGE: acq_replacement — the Mil pivot ─────────────────────
+    if (conversation.stage === 'acq_replacement' && conversation.replacement_interest == null) {
+      if (lowerMsg === 'yes' || lowerMsg === 'yep' || lowerMsg === 'sure' || lowerMsg === 'maybe' ||
+          lowerMsg.includes('looking') || lowerMsg.includes('interested') || lowerMsg.includes('thinking about') ||
+          lowerMsg.includes('would like') || lowerMsg.includes('want to')) {
+        await updateConversation(conversation.id, { replacement_interest: true, stage: 'acq_appointment' });
+        return pick(
+          "Perfect — that's how most of our deals work. Want to come in for a free appraisal and check out a few options at the same time? Or would a quick call to line it up first work better?",
+          "Awesome — we'll put both together. Easier to come by in person for the appraisal + look at options, or do you want a quick call first?"
+        );
+      }
+      if (lowerMsg === 'no' || lowerMsg === 'nope' || lowerMsg === 'nah' ||
+          lowerMsg.includes('not looking') || lowerMsg.includes("don't need") || lowerMsg.includes('just selling') ||
+          lowerMsg.includes('not interested in buying')) {
+        await updateConversation(conversation.id, { replacement_interest: false, stage: 'acq_appointment' });
+        return pick(
+          "All good — selling only. Want to come in for a free appraisal, or would a quick call from our buyer work better first?",
+          "Got it. Free appraisal in person, or a quick call to talk numbers — what's easier for you?"
+        );
+      }
+      // Customer named a vehicle type / make in the response
+      const replWords = ['truck','suv','car','sedan','van','minivan','jeep','ram','ford','chevy','toyota','honda'];
+      if (replWords.some(w => lowerMsg.includes(w))) {
+        await updateConversation(conversation.id, { replacement_interest: true, stage: 'acq_appointment' });
+        return "Nice — we'll have options ready. Easier to come in for the appraisal + a look around, or want a call first?";
+      }
+      return "Yes or no is fine — looking to replace it, or just selling?";
+    }
+
+    // ── STAGE: acq_appointment — book or callback ─────────────────
+    if (conversation.stage === 'acq_appointment' && !conversation.intent) {
+      if (lowerMsg.includes('come') || lowerMsg.includes('visit') || lowerMsg.includes('appraisal') ||
+          lowerMsg.includes('in person') || lowerMsg.includes('drop by') || lowerMsg.includes('show') ||
+          lowerMsg.includes('book') || lowerMsg.includes('appointment')) {
+        await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
+        return name
+          ? `${name}, when works best to come in? We're flexible — mornings, afternoons, evenings, weekends.`
+          : "Sounds great! What's your name so I can get the appraisal lined up?";
+      }
+      if (lowerMsg.includes('call') || lowerMsg.includes('phone') || lowerMsg.includes('talk') ||
+          lowerMsg.includes('reach') || lowerMsg.includes('contact') || lowerMsg.includes('ring')) {
+        await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+        return name
+          ? `${name}, when's the best time for our buyer to give you a call?`
+          : "Got it — what's your name? I'll have our buyer reach out.";
+      }
+      if (lowerMsg.includes('maybe') || lowerMsg.includes('not sure') || lowerMsg.includes('think') || lowerMsg.includes('busy')) {
+        return `No rush${name ? ' '+name : ''}. Whenever you're ready — appraisal in person or a quick call from our buyer. Either works.`;
+      }
+      // Default — assume callback so we always advance
+      await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+      return name
+        ? `${name}, I'll have our buyer give you a call. When's the best time?`
+        : "What's your name? I'll have our buyer reach out and line everything up.";
+    }
+
+    // ── STAGE: name ────────────────────────────────────────────────
+    if (conversation.stage === 'name' && !name) {
+      let parsedName = message.trim();
+      if (lowerMsg.includes('my name is')) parsedName = message.split(/my name is/i)[1].trim();
+      else if (lowerMsg.includes("i'm")) parsedName = message.split(/i'm/i)[1].trim();
+      else if (lowerMsg.includes("i am")) parsedName = message.split(/i am/i)[1].trim();
+      else if (lowerMsg.includes("call me")) parsedName = message.split(/call me/i)[1].trim();
+      parsedName = parsedName.replace(/[^a-zA-Z\s'-]/g, '').trim().substring(0, 100);
+      const parts = parsedName.split(/\s+/).slice(0, 2);
+      parsedName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+      if (!parsedName || parsedName.length < 2) return "Sorry, didn't catch that — what's your first name?";
+      await updateConversation(conversation.id, { customer_name: parsedName, stage: 'datetime' });
+      await pool.query('UPDATE customers SET name = $1, last_contact = CURRENT_TIMESTAMP WHERE phone = $2', [parsedName, phone]);
+      if (conversation.intent === 'test_drive') {
+        return `Hey ${parsedName}! When works best to come by for the appraisal? Mornings, afternoons, or evenings — and weekends are open too.`;
+      }
+      return `Hey ${parsedName}! When's the best time for our buyer to give you a quick call?`;
+    }
+
+    // ── STAGE: datetime — handled by the shared logic in getJerryResponse
+    // Reuse: re-enter the sales-mode getJerryResponse from datetime onward
+    // since the datetime → confirmed path is identical regardless of mode.
+    if (conversation.stage === 'datetime' || conversation.stage === 'confirmed') {
+      // Hand off to the buy-side function for datetime parsing + confirmation
+      // (it doesn't read mode-specific fields past this point).
+      return await getJerryResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName, dealerCity, []);
+    }
+
+    // ── Fallback: re-prompt to keep her on rails ───────────────────
+    return pick(
+      `Sorry — to make sure I help right, are you still considering selling? A yes or no is fine.`,
+      "Got a bit lost there — let me reset. Are you open to selling your vehicle?"
+    );
+  }
+
   async function getJerryResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName = 'the dealership', dealerCity = 'our location', inventory = []) {
+    // Mode router — acquisition campaigns go to a separate FSM that asks
+    // about the seller's vehicle, mileage, condition, asking price, and
+    // pivots to "looking to replace it?" before booking. Sales mode (the
+    // historical default) continues unchanged below.
+    if (conversation.mode === 'acquisition') {
+      return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName, dealerCity);
+    }
+
     const lowerMsg = message.toLowerCase().trim();
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
@@ -979,19 +1282,64 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       const parts = parsedName.split(/\s+/).slice(0, 2);
       parsedName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
       if (!parsedName || parsedName.length < 2) return "Sorry, I didn't catch that — what's your first name?";
-      await updateConversation(conversation.id, { customer_name: parsedName, stage: 'datetime' });
+      // Phase 7 — sales flow now asks trade-in BEFORE datetime so the
+      // closer walks into the conversation knowing if there's a trade
+      // (and an appraisal opportunity) on the table.
+      await updateConversation(conversation.id, { customer_name: parsedName, stage: 'trade_in_check' });
       await pool.query('UPDATE customers SET name = $1, last_contact = CURRENT_TIMESTAMP WHERE phone = $2', [parsedName, phone]);
-      if (conversation.intent === 'test_drive') {
-        return pick(
-          `Hey ${parsedName}! When works best for a viewing? We're flexible — mornings, afternoons, evenings, weekends. We can also deliver.`,
-          `Nice to meet you ${parsedName}! When works best to book a time? We'll have everything ready — and we can deliver too if that's easier.`
-        );
-      } else {
-        return pick(
-          `Hey ${parsedName}! When's the best time for a quick call? Morning, afternoon, or evening?`,
-          `${parsedName}, great! When should we give you a ring? We'll keep it quick.`
-        );
+      return pick(
+        `Hey ${parsedName}! Quick one before we lock in a time — do you have a vehicle to trade in? Even a rough year/make/model helps.`,
+        `Nice to meet you ${parsedName}! One quick thing — any vehicle you'd want to trade in? If yes, what is it and what would you want for it?`,
+        `${parsedName}, before we book — got a trade? If you tell me year/make/model and what you'd want for it, I can have it appraised by the time you come in.`
+      );
+    }
+
+    // ── STAGE 4.5: TRADE-IN CHECK (Phase 7) ────────────────────
+    // Asks every buyer about a potential trade-in. Captures details if
+    // they have one; either way advances to datetime so we always end on
+    // an appointment or callback.
+    if (conversation.stage === 'trade_in_check') {
+      // Negative — no trade
+      if (lowerMsg === 'no' || lowerMsg === 'nope' || lowerMsg === 'nah' ||
+          lowerMsg.includes('no trade') || lowerMsg.includes("don't have") || lowerMsg.includes('not trading') ||
+          lowerMsg.includes('nothing to trade') || lowerMsg.includes('just buying')) {
+        await updateConversation(conversation.id, { trade_in_value: 0, stage: 'datetime' });
+        if (conversation.intent === 'test_drive') {
+          return pick(
+            `All good ${name}! When works best for a viewing? Mornings, afternoons, evenings — even weekends.`,
+            `No worries ${name}! When would you like to come in?`
+          );
+        }
+        return `No problem ${name}! When's the best time for a quick call? Morning, afternoon, or evening?`;
       }
+      // Positive — they have a trade. Try to extract year/make.
+      const yearMatch = message.match(/\b(19|20)\d{2}\b/);
+      const makeWords = ['ford','toyota','honda','chevrolet','chevy','gmc','dodge','ram','jeep','nissan','hyundai','kia','mazda','subaru','volkswagen','vw','bmw','mercedes','audi','lexus','infiniti','acura','cadillac','lincoln','buick','chrysler','mitsubishi','volvo','tesla','genesis'];
+      const make = makeWords.find(m => lowerMsg.includes(m));
+      const dollarMatch = message.match(/\$?(\d{1,3}(?:[,.]?\d{3})+|\d{4,6})/);
+      const year = yearMatch ? parseInt(yearMatch[0]) : null;
+      const makeLabel = make ? make.charAt(0).toUpperCase() + make.slice(1) : null;
+      const tradeValue = dollarMatch ? parseInt(dollarMatch[1].replace(/[,.]/g, '')) : null;
+      // Affirmative without details — ask for them
+      if ((lowerMsg === 'yes' || lowerMsg === 'yep' || lowerMsg === 'sure' || lowerMsg.includes('have one') ||
+           lowerMsg.includes('have a trade') || lowerMsg === 'i do' || lowerMsg.includes('yeah')) &&
+          !year && !make && !tradeValue) {
+        return "Awesome — what is it? Year, make, model and what you'd want for it (rough number is fine).";
+      }
+      // We got something — capture what we can and advance
+      const updates = { stage: 'datetime' };
+      if (year)       updates.trade_in_year = year;
+      if (makeLabel)  updates.trade_in_make = makeLabel;
+      if (tradeValue && tradeValue >= 500 && tradeValue <= 200000) updates.trade_in_value = tradeValue;
+      // If nothing parsed, save the raw message as the model so the closer has something
+      if (!year && !makeLabel && !tradeValue) updates.trade_in_model = message.slice(0, 80);
+      await updateConversation(conversation.id, updates);
+      const summary = [year, makeLabel].filter(Boolean).join(' ') || 'your trade';
+      const valueNote = tradeValue ? ` ($${tradeValue.toLocaleString()})` : '';
+      if (conversation.intent === 'test_drive') {
+        return `Perfect — ${summary}${valueNote} noted. We'll appraise it when you come in. When works best — mornings, afternoons, evenings, or a weekend?`;
+      }
+      return `Got it — ${summary}${valueNote} noted. Our team will work up a real number for the trade. When's a good time for a quick call?`;
     }
 
     // ── STAGE 5: DATETIME ─────────────────────────────────────
