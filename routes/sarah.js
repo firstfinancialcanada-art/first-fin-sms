@@ -9,6 +9,190 @@ const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-ca
 const { notifyTenantManagers } = require('../lib/notify');
 const validateTwilio = makeTwilioWebhookValidator();
 
+// ── Phase 7+ — Centralised vehicle vocabulary ─────────────────────────
+// Used by BOTH the sales and acquisition FSMs so they stay consistent and
+// recognise the same dealer-customer slang. Expand a list here, both
+// scripts get smarter at once. Lower-cased — callers compare with .toLowerCase().
+const VEHICLE_VOCAB = {
+  truck: [
+    'truck','pickup','pick-up','pick up','f-150','f150','f-250','f250','f-350','f350','f-450','f450',
+    'silverado','sierra','ram','tacoma','tundra','ranger','frontier','colorado','canyon','gladiator',
+    'titan','dakota','ridgeline','maverick','santa cruz','half ton','3/4 ton','1 ton','dually',
+    'heavy duty','hd','work truck','wt','lifted','diesel','super duty','cummins','duramax','powerstroke',
+    'crew cab','quad cab','extended cab','reg cab','regular cab',
+  ],
+  suv: [
+    'suv','crossover','cuv','jeep','wagoneer','grand cherokee','cherokee','compass','wrangler','renegade',
+    'rav4','rav-4','crv','cr-v','hr-v','hrv','passport','pilot','element','highlander','4runner','sequoia',
+    'venza','escape','explorer','expedition','edge','equinox','tahoe','suburban','traverse','trailblazer',
+    'blazer','yukon','acadia','terrain','bronco','bronco sport','tucson','santa fe','santa cruz','palisade',
+    'kona','venue','sorento','sportage','seltos','telluride','rogue','murano','pathfinder','armada','xterra',
+    'kicks','ariya','outback','forester','ascent','crosstrek','q3','q5','q7','q8','x1','x3','x5','x6','x7',
+    'glc','gle','gls','glb','gla','rx','nx','gx','lx','tx','ux','rdx','mdx','xt5','xt6','xt4','escalade',
+    'navigator','aviator','corsair','range rover','discovery','defender','evoque','velar','cayenne','macan',
+    'levante','urus','dbx','bentayga','cullinan',
+  ],
+  car: [
+    'car','sedan','coupe','2-door','two door','hatchback','hatch','sports car','sportscar','sport',
+    'convertible','cabrio','cabriolet','drop top','droptop','roadster','wagon','station wagon','liftback',
+    'civic','accord','corolla','camry','prius','altima','sentra','maxima','versa','elantra','sonata',
+    'optima','k5','stinger','forte','rio','soul','niro','jetta','passat','golf','arteon','beetle',
+    '3 series','5 series','7 series','8 series','m3','m4','m5','m8','c-class','e-class','s-class','cls','amg',
+    'a3','a4','a5','a6','a7','a8','rs','is','es','ls','rc','lc','tlx','ilx','rlx','model 3','model s','model y','model x','plaid',
+    'mustang','camaro','challenger','charger','300','dart','focus','fusion','fiesta','taurus','impala',
+    'malibu','cruze','spark','sonic','volt','bolt','lancer','mirage','eclipse','cts','ats','xts',
+    'mazda3','mazda 3','mazda6','mazda 6','miata','mx-5','mx5','brz','frs','86','supra','gt-r','gtr','nsx',
+    'wrx','sti','impreza','legacy','genesis g70','genesis g80','genesis g90','g70','g80','g90',
+  ],
+  van: [
+    'van','minivan','mini-van','mini van','sienna','odyssey','pacifica','voyager','carnival','caravan',
+    'town and country','town & country','town country','quest','transit','transit connect','sprinter',
+    'promaster','metris','express','savana','nv200','cargo van','passenger van',
+  ],
+  ev: [
+    'electric','ev','hybrid','phev','bev','plug-in','plug in','plugin','battery electric',
+    'tesla','model 3','model s','model y','model x','rivian','r1t','r1s','lucid','air','polestar',
+    'ioniq','ioniq 5','ioniq 6','mach-e','mach e','mache','lightning','f-150 lightning','bolt','bolt euv',
+    'leaf','i3','i4','i5','i7','ix','ix3','etron','e-tron','q4 e-tron','q8 e-tron','taycan',
+    'eqs','eqe','eqb','genesis gv60','gv60','prius prime','volt','rav4 prime','niro ev','kona ev','ev6','ev9',
+  ],
+};
+
+// All known makes — broad, includes spelling variants. Used to recognise
+// "do you have any 2020 Mustangs?" or "I'm selling my 2018 Civic".
+const VEHICLE_MAKES = [
+  'ford','chevrolet','chevy','gmc','dodge','ram','jeep','chrysler','fiat','alfa romeo','alfa-romeo','alfa',
+  'toyota','honda','acura','lexus','infiniti','nissan','datsun','mazda','subaru','mitsubishi','suzuki','isuzu',
+  'volkswagen','vw','audi','bmw','mini','mercedes','mercedes-benz','mercedes benz','smart','porsche',
+  'volvo','jaguar','land rover','range rover','rover',
+  'hyundai','kia','genesis','tesla','rivian','lucid','polestar','byd',
+  'cadillac','lincoln','buick','pontiac','saturn','oldsmobile','mercury','saab','hummer',
+  'ferrari','lamborghini','maserati','bentley','rolls-royce','rolls royce','aston martin','aston-martin',
+  'mclaren','bugatti','lotus','koenigsegg','pagani',
+];
+
+// Returns vehicleType ('Truck' | 'SUV' | 'Car' | 'Van' | 'Electric/Hybrid' | null)
+// for a customer message — runs against VEHICLE_VOCAB. Also handles bare
+// affirmatives like "yes" / "looking" by returning generic 'Vehicle' so
+// the FSM can advance instead of looping.
+function detectVehicleType(lowerMsg) {
+  if (!lowerMsg) return null;
+  const has = (list) => list.some(w => lowerMsg.includes(w));
+  // Order matters — EV check first because "tesla model 3" should classify
+  // as EV not Car (the model 3 token is in both lists by design).
+  if (has(VEHICLE_VOCAB.ev))    return 'Electric/Hybrid';
+  if (has(VEHICLE_VOCAB.truck)) return 'Truck';
+  if (has(VEHICLE_VOCAB.suv))   return 'SUV';
+  if (has(VEHICLE_VOCAB.van))   return 'Van';
+  if (has(VEHICLE_VOCAB.car))   return 'Car';
+  if (lowerMsg.includes('yes') || lowerMsg.includes('interested') || lowerMsg.includes('looking') ||
+      lowerMsg.includes('want') || lowerMsg.includes('need') || lowerMsg.includes('vehicle') ||
+      lowerMsg.includes('something')) return 'Vehicle';
+  return null;
+}
+
+// Detects when a customer's message clearly indicates the OPPOSITE direction
+// from the conversation's current mode. Examples:
+//  - In sales mode, customer says "selling my civic" → returns 'acquisition'
+//  - In acquisition mode, customer says "looking for a truck" → returns 'sales'
+// Returns null if no clear signal. Defensive — only fires on unambiguous cues
+// so accidental pivots are rare. Used at the top of both FSMs for mid-flow
+// dynamicity (Franco's bulletproofing requirement).
+function detectWrongDirection(lowerMsg, currentMode) {
+  if (!lowerMsg) return null;
+  // SELL-side intent — pivots TO acquisition mode if currently in sales
+  const sellingPhrases = [
+    "selling my","sell my","want to sell","wanna sell","looking to sell","trying to sell",
+    "trade in my","trade my","appraise my","appraisal on my","value of my","what's my",
+    "i'm selling","im selling","got a car to sell","got a truck to sell",
+    "sell you my","sell to you","unload my","get rid of my","traded in my",
+  ];
+  // BUY-side intent — pivots TO sales mode if currently in acquisition
+  const buyingPhrases = [
+    "looking to buy","want to buy","wanna buy","need to buy","looking for a","need a",
+    "shopping for","in the market for","interested in buying","i'm buying","im buying",
+    "do you have any","do you have a","got any","any ", // " any " with trailing space — generic ask
+  ];
+  if (currentMode === 'sales') {
+    if (sellingPhrases.some(p => lowerMsg.includes(p))) return 'acquisition';
+  }
+  if (currentMode === 'acquisition') {
+    if (buyingPhrases.some(p => lowerMsg.includes(p))) return 'sales';
+  }
+  return null;
+}
+
+// Robust mileage / odometer parser. Handles:
+//   "150000", "150,000", "150K", "150k", "150 km", "150,000 kms", "150 thousand"
+// Tightened: "k" multiplier ONLY fires when it's a true suffix (e.g. "150k"
+// or "150K" with no letters after) — NOT when the message contains "km"/"kms"
+// alone (which means "kilometers" the unit, not "thousand"). Returns the
+// parsed integer or null if ambiguous / out of plausible range.
+function parseMileage(message) {
+  if (!message) return null;
+  const lower = message.toLowerCase();
+  // Word-form: "150 thousand" / "two hundred thousand" — handle the digit case
+  const thousandMatch = lower.match(/(\d[\d,]*)\s*(thousand|grand)/);
+  if (thousandMatch) {
+    const n = parseInt(thousandMatch[1].replace(/,/g, ''), 10) * 1000;
+    return (n >= 1000 && n <= 999999) ? n : null;
+  }
+  // Standard digit pattern
+  const numMatch = message.match(/\d[\d,]*/);
+  if (!numMatch) return null;
+  let n = parseInt(numMatch[0].replace(/,/g, ''), 10);
+  // K multiplier: ONLY if the digit is followed directly by 'k' (no 'm' after,
+  // i.e. "150k" yes, "150km" no). Use regex with word boundary.
+  if (/\d+\s*k(?![ms])/i.test(message)) n *= 1000;
+  if (n >= 100 && n <= 999999) return n;
+  return null;
+}
+
+// Parse a dollar amount: "$15,000" / "15k" / "15000" / "fifteen thousand".
+// Same K-vs-unit safeguard.
+function parseDollarAmount(message) {
+  if (!message) return null;
+  const cleaned = message.replace(/[\$,]/g, '');
+  const m = cleaned.match(/\d+/);
+  if (!m) return null;
+  let n = parseInt(m[0], 10);
+  if (/\d+\s*k\b/i.test(message)) n *= 1000;
+  if (n >= 100 && n <= 999999) return n;
+  return null;
+}
+
+// Try to extract year/make/model from a message like "yes my 2020 Mustang"
+// or "selling a 2018 Civic". Returns { year, make, model } where any field
+// may be null.
+function extractVehicleFromText(message) {
+  if (!message) return { year: null, make: null, model: null };
+  const lower = message.toLowerCase();
+  const yearMatch = message.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
+  const make = VEHICLE_MAKES.find(m => lower.includes(m)) || null;
+  // Naive model: scan all VEHICLE_VOCAB lists for a hit other than the generic
+  // category words ("truck", "suv", "car", etc).
+  let model = null;
+  const generic = new Set(['truck','suv','car','sedan','van','minivan','mini-van','mini van',
+    'crossover','coupe','hatchback','hatch','sports car','sportscar','sport','convertible','wagon',
+    'electric','ev','hybrid','phev','vehicle','pickup','pick-up','pick up']);
+  for (const list of Object.values(VEHICLE_VOCAB)) {
+    for (const word of list) {
+      if (generic.has(word)) continue;
+      if (lower.includes(word) && (!model || word.length > model.length)) {
+        model = word;
+      }
+    }
+  }
+  const makeLabel = make
+    ? make.split(/[\s-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+    : null;
+  const modelLabel = model
+    ? model.split(/[\s-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+    : null;
+  return { year, make: makeLabel, model: modelLabel };
+}
+
 module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireBilling, notifyOwner }) {
 
   // ── Tenant settings cache — 5 min TTL ────────────────────────────
@@ -649,6 +833,22 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
 
+    // ── MID-FLOW MODE PIVOT (Phase 7+ dynamicity) ────────────────────
+    // If a seller-side customer drops a clear "looking to buy a truck"
+    // signal at ANY stage of the acquisition FSM, flip into sales mode
+    // and route through the buy-side greeting. Mirrors the sales-side
+    // pivot so customers can change direction without restarting.
+    const wrongDir = detectWrongDirection(lowerMsg, 'acquisition');
+    if (wrongDir === 'sales' && conversation.stage !== 'confirmed') {
+      const detectedType = detectVehicleType(lowerMsg);
+      const updates = { mode: 'sales', stage: detectedType ? 'budget' : 'greeting' };
+      if (detectedType && detectedType !== 'Vehicle') updates.vehicle_type = detectedType;
+      await updateConversation(conversation.id, updates);
+      return detectedType && detectedType !== 'Vehicle'
+        ? `Switching gears — looking for a ${detectedType.toLowerCase()}, got it. What monthly payment range works for you? Like $300, $500, $700?`
+        : "Got it — switching to buy-side. Are you looking for a Car, Truck, Van, or SUV?";
+    }
+
     // ── Universal handlers (mirror sales mode) ─────────────────────
     // STOP / unsubscribe
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
@@ -700,32 +900,39 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         if (!name) return "No worries! If you ever decide to, we'd love the chance to give you a fair offer — and we can also help if you're looking for something next. What's your name? I'll have someone follow up later.";
         return `${name}, no rush! When you're ready, we'd love the chance — and if you're also looking for something next, we can line that up too. Want a quick call now or later?`;
       }
-      // Positive confirm — yes, sure, considering, looking to sell
-      if (lowerMsg === 'yes' || lowerMsg === 'yep' || lowerMsg === 'sure' || lowerMsg === 'i am' ||
-          lowerMsg.includes('selling') || lowerMsg.includes('considering') || lowerMsg.includes('thinking of') ||
-          lowerMsg.includes('looking to sell') || lowerMsg.includes('want to sell') ||
-          lowerMsg.includes('would sell') || lowerMsg.includes('open to')) {
-        await updateConversation(conversation.id, { stage: 'acq_mileage' });
+      // Try to extract year/make/model from any positive response — capture
+      // for the closer's screen even if the customer keeps it short.
+      const extracted = extractVehicleFromText(message);
+      // Positive confirm — yes, sure, considering, looking to sell, plus
+      // expanded forms ("yeah", "sure am", "definitely", "absolutely",
+      // "for sure", "i'd be open").
+      const positiveCues = [
+        'yes','yep','yeah','sure','i am','sure am','considering','thinking of','looking to sell',
+        'want to sell','wanna sell','would sell','open to','open to it','open to selling',
+        "i'd be open",'definitely','absolutely','for sure','let me know','tell me more','interested',
+      ];
+      if (positiveCues.some(p => lowerMsg === p || lowerMsg.includes(p)) ||
+          extracted.year || extracted.make || extracted.model) {
+        const updates = { stage: 'acq_mileage' };
+        if (extracted.year)  updates.vehicle_year  = extracted.year;
+        if (extracted.make)  updates.vehicle_make  = extracted.make;
+        if (extracted.model) updates.vehicle_model = extracted.model;
+        await updateConversation(conversation.id, updates);
+        const vSummary = [extracted.year, extracted.make, extracted.model].filter(Boolean).join(' ');
+        if (vSummary) {
+          return `Great — ${vSummary}, got it. What's the current mileage on it? (km or miles, whichever you've got)`;
+        }
         return pick(
           "Great! What's the current mileage on it? (km or miles is fine)",
           "Awesome — to get you a real offer I'll need a couple quick details. What's the mileage?"
         );
       }
-      // Customer said wrong direction — "I'm buying not selling" or similar
-      if (lowerMsg.includes('not selling') || lowerMsg.includes("i'm buying") || lowerMsg.includes('looking to buy') ||
-          lowerMsg.includes('want to buy')) {
-        // Pivot: switch them to sales mode and acknowledge
-        await updateConversation(conversation.id, { mode: 'sales', stage: 'greeting' });
-        return "Oh got it — I had you down as a potential seller but if you're looking to buy, we can absolutely help! Are you thinking Car, Truck, Van, or SUV?";
-      }
-      // Number alone — treat as mileage if reasonable
-      const acqNumbers = message.match(/\d[\d,]*/g);
-      if (acqNumbers && acqNumbers.length === 1) {
-        const num = parseInt(acqNumbers[0].replace(/,/g, ''));
-        if (num >= 1000 && num <= 500000) {
-          await updateConversation(conversation.id, { vehicle_mileage: num, stage: 'acq_condition' });
-          return `Got it — ${num.toLocaleString()} km. How's the condition? Any accidents, major repairs, or modifications I should know about?`;
-        }
+      // Number alone — treat as mileage via the tighter parser so "150" alone
+      // doesn't silently become 150k.
+      const acqMileage = parseMileage(message);
+      if (acqMileage != null && acqMileage >= 1000) {
+        await updateConversation(conversation.id, { vehicle_mileage: acqMileage, stage: 'acq_condition' });
+        return `Got it — ${acqMileage.toLocaleString()} km. How's the condition? Any accidents, major repairs, or modifications I should know about?`;
       }
       // Default — re-confirm
       return pick(
@@ -736,16 +943,21 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── STAGE: acq_mileage ─────────────────────────────────────────
     if (conversation.stage === 'acq_mileage' && !conversation.vehicle_mileage) {
-      const numbers = message.match(/\d[\d,]*/g);
-      if (numbers) {
-        let n = parseInt(numbers[0].replace(/,/g, ''));
-        if (lowerMsg.includes('k')) n *= 1000;
-        if (n >= 1000 && n <= 500000) {
-          await updateConversation(conversation.id, { vehicle_mileage: n, stage: 'acq_condition' });
-          return pick(
-            `Got it — ${n.toLocaleString()} km. How's the overall condition? Any accidents, repairs, or modifications worth mentioning?`,
-            `${n.toLocaleString()} km, noted. What's the condition like? Accidents, mods, or anything I should flag?`
-          );
+      const n = parseMileage(message);
+      if (n != null) {
+        await updateConversation(conversation.id, { vehicle_mileage: n, stage: 'acq_condition' });
+        return pick(
+          `Got it — ${n.toLocaleString()} km. How's the overall condition? Any accidents, repairs, or modifications worth mentioning?`,
+          `${n.toLocaleString()} km, noted. What's the condition like? Accidents, mods, or anything I should flag?`
+        );
+      }
+      // Ambiguous — clarify rather than silently picking the wrong interpretation.
+      // Common case: "150" alone — could be 150 km exact (rare) or 150K km. Ask.
+      const rawNum = message.match(/\d[\d,]*/);
+      if (rawNum) {
+        const small = parseInt(rawNum[0].replace(/,/g, ''), 10);
+        if (small > 0 && small < 100) {
+          return `Just to confirm — ${small} thousand km, or ${small} km exact? Either way's fine, just want to be precise for the appraisal.`;
         }
       }
       return "Just need a rough number — like 80,000 or 150k. Whatever's close.";
@@ -774,17 +986,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── STAGE: acq_asking_price ────────────────────────────────────
     if (conversation.stage === 'acq_asking_price' && !conversation.asking_price) {
-      const numbers = message.match(/\d[\d,]*/g);
-      if (numbers) {
-        let n = parseInt(numbers[0].replace(/,/g, ''));
-        if (lowerMsg.includes('k') && n < 1000) n *= 1000;
-        if (n >= 500 && n <= 500000) {
-          await updateConversation(conversation.id, { asking_price: n, stage: 'acq_replacement' });
-          return pick(
-            `$${n.toLocaleString()} — got it. Quick question while we're at it: are you also looking to replace it with something? We could line up the appraisal AND a test drive at the same visit.`,
-            `Noted — $${n.toLocaleString()}. One more thing: are you considering buying something next? If so we can do both at once and save you a trip.`
-          );
-        }
+      const n = parseDollarAmount(message);
+      if (n != null && n >= 500) {
+        await updateConversation(conversation.id, { asking_price: n, stage: 'acq_replacement' });
+        return pick(
+          `$${n.toLocaleString()} — got it. Quick question while we're at it: are you also looking to replace it with something? We could line up the appraisal AND a test drive at the same visit.`,
+          `Noted — $${n.toLocaleString()}. One more thing: are you considering buying something next? If so we can do both at once and save you a trip.`
+        );
       }
       // Customer said "not sure" or "what's it worth" — they want our opinion
       if (lowerMsg.includes('not sure') || lowerMsg.includes("don't know") || lowerMsg.includes("what's it worth") ||
@@ -901,6 +1109,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const lowerMsg = message.toLowerCase().trim();
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
+
+    // ── MID-FLOW MODE PIVOT (Phase 7+ dynamicity) ────────────────────
+    // If a buy-side customer drops a clear "I'm selling my X" signal at
+    // ANY stage of the sales FSM, flip into acquisition mode + extract
+    // year/make/model from the same message. Avoids the bug Mil hit
+    // where Sarah ignored the seller signal and kept asking for budget.
+    const wrongDir = detectWrongDirection(lowerMsg, 'sales');
+    if (wrongDir === 'acquisition' && conversation.stage !== 'confirmed') {
+      const v = extractVehicleFromText(message);
+      const updates = { mode: 'acquisition', stage: 'acq_confirm' };
+      if (v.year)  updates.vehicle_year  = v.year;
+      if (v.make)  updates.vehicle_make  = v.make;
+      if (v.model) updates.vehicle_model = v.model;
+      await updateConversation(conversation.id, updates);
+      const vSummary = [v.year, v.make, v.model].filter(Boolean).join(' ');
+      return vSummary
+        ? `Got it — sounds like you've got a ${vSummary} you're thinking of selling. Want me to walk you through what we'd offer? What's the mileage on it?`
+        : "Oh — sounds like you're thinking about selling. We do those too! What is it (year/make/model) and what's the mileage?";
+    }
 
     // ── BARE GREETING — hi/hello/hey ─────────────────────────
     if (lowerMsg === 'hi' || lowerMsg === 'hello' || lowerMsg === 'hey' ||
@@ -1164,21 +1391,12 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── STAGE 1: GREETING ─────────────────────────────────────
     if (conversation.stage === 'greeting' || !conversation.vehicle_type) {
-      const truckWords = ['ram','f-150','f150','silverado','tacoma','tundra','pickup','sierra','ranger','frontier','colorado','gladiator','canyon','half ton','3/4 ton','1 ton','ton','truck'];
-      const suvWords   = ['suv','highlander','rav4','cr-v','crv','pilot','explorer','suburban','tahoe','yukon','equinox','escape','compass','cherokee','wrangler','4runner','pathfinder','tucson','santa fe','sorento','sportage','bronco','telluride'];
-      const sedanWords = ['sedan','civic','corolla','camry','accord','altima','elantra','sonata','jetta','charger','car'];
-      const vanWords   = ['van','minivan','sienna','odyssey','pacifica','carnival','caravan'];
-      const evWords    = ['electric','ev','hybrid','tesla','model 3','model y'];
-
-      let vehicleType = '';
-      if (truckWords.some(w => lowerMsg.includes(w))) vehicleType = 'Truck';
-      else if (suvWords.some(w => lowerMsg.includes(w))) vehicleType = 'SUV';
-      else if (vanWords.some(w => lowerMsg.includes(w))) vehicleType = 'Van';
-      else if (evWords.some(w => lowerMsg.includes(w))) vehicleType = 'Electric/Hybrid';
-      else if (sedanWords.some(w => lowerMsg.includes(w))) vehicleType = 'Car';
-      else if (lowerMsg.includes('yes') || lowerMsg.includes('interested') || lowerMsg.includes('looking') ||
-               lowerMsg.includes('want') || lowerMsg.includes('need') || lowerMsg.includes('vehicle') ||
-               lowerMsg.includes('something')) vehicleType = 'Vehicle';
+      // Phase 7+ — uses centralised VEHICLE_VOCAB via detectVehicleType().
+      // Recognises sports cars, hatchbacks, convertibles, EVs, and a much
+      // broader make/model list than the old inline word lists. Easy to
+      // expand: add a word to VEHICLE_VOCAB at the top of this file and
+      // it works in both sales and acquisition modes.
+      const vehicleType = detectVehicleType(lowerMsg);
 
       if (vehicleType) {
         await updateConversation(conversation.id, { vehicle_type: vehicleType, stage: 'budget' });
