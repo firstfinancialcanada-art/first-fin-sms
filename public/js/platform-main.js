@@ -3003,6 +3003,16 @@ async function saveSettings(){
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Save failed');
+      // Phase 7 — also persist Notify Phone onto the per-user column
+      // (desk_users.notify_phone) so the new tenant-scoped fan-out can
+      // find it. Falls back to settings_json.notifyPhone for any tenants
+      // we miss here — see lib/notify.js. Best-effort, non-fatal.
+      try {
+        await window.FF.apiFetch('/api/desk/me/notify-phone', {
+          method: 'PATCH',
+          body: JSON.stringify({ notify_phone: rawNotify })
+        });
+      } catch (_) {}
     } else {
       localStorage.setItem('ffSettings', JSON.stringify(settings));
     }

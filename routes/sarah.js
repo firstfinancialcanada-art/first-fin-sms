@@ -6,6 +6,7 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-cap');
+const { notifyTenantManagers } = require('../lib/notify');
 const validateTwilio = makeTwilioWebhookValidator();
 
 module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireBilling, notifyOwner }) {
@@ -410,29 +411,40 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return res.status(500).send('No tenant');
     }
 
-    // Fetch tenant settings (cached) + inventory in parallel
+    // Fetch tenant settings (cached) + inventory in parallel.
+    // Phase 7 — TENANT_NOTIFY_PHONE is no longer carried as a single phone
+    // through the FSM. notifications fan out to all owner+manager members
+    // via lib/notify.js using TENANT_ID resolved below. Dropped the
+    // process.env.FORWARD_PHONE / OWNER_PHONE fallback that was leaking
+    // every tenant's lead alerts to the platform operator's phone.
     let TENANT_FROM_NUMBER = process.env.TWILIO_PHONE_NUMBER;
-    let TENANT_NOTIFY_PHONE = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
     let TENANT_DEALER_NAME  = process.env.DEALER_NAME  || 'First Financial Auto';
     let TENANT_DEALER_CITY  = process.env.DEALER_CITY  || 'Calgary, AB';
     let TENANT_INVENTORY    = [];
+    let TENANT_ID           = null;
     try {
-      const [ts, invResult] = await Promise.all([
+      const [ts, invResult, tenantRow] = await Promise.all([
         getTenantSettings(WEBHOOK_USER_ID),
         pool.query(
           `SELECT year, make, model, mileage, price, type, condition, stock
            FROM desk_inventory WHERE user_id = $1 AND status = 'available'
            ORDER BY year DESC LIMIT 20`,
           [WEBHOOK_USER_ID]
-        )
+        ),
+        pool.query(
+          `SELECT m.tenant_id FROM desk_members m
+            WHERE m.user_id = $1 AND m.active = TRUE
+            ORDER BY m.id ASC LIMIT 1`,
+          [WEBHOOK_USER_ID]
+        ),
       ]);
       if (ts) {
         if (ts.twilioNumber) TENANT_FROM_NUMBER  = ts.twilioNumber;
-        if (ts.notifyPhone)  TENANT_NOTIFY_PHONE = ts.notifyPhone;
         if (ts.dealerName)   TENANT_DEALER_NAME  = ts.dealerName;
         if (ts.dealerCity)   TENANT_DEALER_CITY  = ts.dealerCity;
       }
       TENANT_INVENTORY = invResult.rows;
+      TENANT_ID = tenantRow.rows[0]?.tenant_id || null;
     } catch(e) { console.error('⚠️ Tenant settings/inventory fetch failed:', e.message); }
 
     try {
@@ -520,7 +532,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           await saveMessage(conversation.id, phone, 'user', message, WEBHOOK_USER_ID);
           try { await logAnalytics('message_received', phone, { message }, WEBHOOK_USER_ID); } catch(e) { console.error('Analytics error:', e.message); }
 
-          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_NOTIFY_PHONE, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY);
+          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY);
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
           try {
@@ -575,20 +587,20 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
               'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = $1',
               [conversation.id]
             )).rows[0]?.cnt <= 2;
-          if (TENANT_NOTIFY_PHONE && isFirstContact) {
-            guardedSmsSend(twilioClient, WEBHOOK_USER_ID, {
+          if (isFirstContact && TENANT_ID) {
+            // Fan out the new-lead alert to every owner+manager in the
+            // tenant. Falls back to legacy settings.notifyPhone (the owner)
+            // if no member has a per-user phone yet. Never falls back to
+            // env vars — see lib/notify.js for the safety reasoning.
+            notifyTenantManagers({
+              tenantId: TENANT_ID,
+              fromNumber: TENANT_FROM_NUMBER,
               body: `💬 New lead from ${custName}\n📞 ${custPhone}\n\n"${preview}"\n\nReply via: app.firstfinancialcanada.com`,
-              from: TENANT_FROM_NUMBER,
-              to: TENANT_NOTIFY_PHONE
+              twilioClient,
             }).then(r => {
-              if (r.ok) console.log(`✅ New lead notify sent to ${TENANT_NOTIFY_PHONE}`);
-              else if (r.reason === 'SPEND_CAP_EXCEEDED') console.warn(`⚠️ Notify skipped (spend cap) for user ${WEBHOOK_USER_ID}`);
-              else console.error(`❌ Notify FAILED to ${TENANT_NOTIFY_PHONE}: ${r.error?.message} (code ${r.error?.code})`);
-            }).catch(err => {
-              console.error(`❌ Notify send error: ${err.message}`);
-            });
-          } else if (!TENANT_NOTIFY_PHONE) {
-            console.warn('⚠️ No notify phone configured — skipping lead alert');
+              if (r.sent > 0) console.log(`✅ New lead notify: ${r.sent}/${r.targetCount} delivered`);
+              else if (r.reason === 'no_targets') console.warn(`⚠️ Tenant ${TENANT_ID} has no notify_phone configured — alert skipped`);
+            }).catch(err => console.error('❌ Notify fan-out error:', err.message));
           }
 
         } catch (bgError) {
@@ -620,7 +632,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   //   acq_appointment    — appraisal vs callback choice
   //   name / datetime / confirmed — shared with sales mode
   // ────────────────────────────────────────────────────────────────────
-  async function getAcquisitionResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName = 'the dealership', dealerCity = 'our location') {
+  async function getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = 'our location') {
     const lowerMsg = message.toLowerCase().trim();
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
@@ -855,7 +867,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     if (conversation.stage === 'datetime' || conversation.stage === 'confirmed') {
       // Hand off to the buy-side function for datetime parsing + confirmation
       // (it doesn't read mode-specific fields past this point).
-      return await getJerryResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName, dealerCity, []);
+      return await getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, []);
     }
 
     // ── Fallback: re-prompt to keep her on rails ───────────────────
@@ -865,13 +877,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     );
   }
 
-  async function getJerryResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName = 'the dealership', dealerCity = 'our location', inventory = []) {
+  async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = 'our location', inventory = []) {
     // Mode router — acquisition campaigns go to a separate FSM that asks
     // about the seller's vehicle, mileage, condition, asking price, and
     // pivots to "looking to replace it?" before booking. Sales mode (the
     // historical default) continues unchanged below.
     if (conversation.mode === 'acquisition') {
-      return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, notifyPhone, dealerName, dealerCity);
+      return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity);
     }
 
     const lowerMsg = message.toLowerCase().trim();
@@ -1376,9 +1388,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (conversation.intent === 'test_drive') {
         await saveAppointment(data);
         try {
-          if (notifyPhone) await twilioClient.messages.create({
+          await notifyTenantManagers({
+            tenantId, fromNumber, twilioClient,
             body: `APPOINTMENT BOOKED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'} / ${conversation.budget || 'Budget TBD'}\nTime: ${finalDateTime}`,
-            from: fromNumber, to: notifyPhone
           });
         } catch(e) {}
         // Send customer a confirmation reminder 60s later
@@ -1394,9 +1406,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       } else {
         await saveCallback(data);
         try {
-          if (notifyPhone) await twilioClient.messages.create({
+          await notifyTenantManagers({
+            tenantId, fromNumber, twilioClient,
             body: `CALLBACK REQUESTED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'}\nCall them: ${finalDateTime}`,
-            from: fromNumber, to: notifyPhone
           });
         } catch(e) {}
         await logAnalytics('callback_requested', phone, data, userId);
@@ -1416,9 +1428,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (lowerMsg.includes('inventory') || lowerMsg.includes('photos') || lowerMsg.includes('pictures') || lowerMsg.includes('send')) {
         try {
-          if (notifyPhone) await twilioClient.messages.create({
+          await notifyTenantManagers({
+            tenantId, fromNumber, twilioClient,
             body: `PHOTOS REQUESTED\n${name}\n${formatPretty(phone)}\n${conversation.vehicle_type || '—'} / ${conversation.budget || '—'}`,
-            from: fromNumber, to: notifyPhone
           });
         } catch(e) {}
         await saveCallback({ phone, name, vehicleType: conversation.vehicle_type, budget: conversation.budget, budgetAmount: conversation.budget_amount, datetime: 'ASAP - Requested photos' });

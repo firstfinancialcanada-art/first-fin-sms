@@ -16,7 +16,9 @@ const {
 const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
+const { toE164NorthAmerica } = require('../lib/helpers');
 const crmHistory = require('../lib/crm-history');
+require('../lib/notify'); // triggers idempotent schema migration on boot
 
 // ── Error sanitizer — never leak DB internals to client ──────────
 function sanitizeError(e) {
@@ -462,7 +464,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       const result = await client.query(
         `SELECT id, email, display_name, role, created_at, last_login, settings_json,
-                subscription_status, trial_ends_at, features
+                subscription_status, trial_ends_at, features, notify_phone
          FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -488,6 +490,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           role: row.role,
           created_at: row.created_at,
           last_login: row.last_login,
+          notify_phone: row.notify_phone || null,
           tenantBranding: buildTenantBrandingFromSettings(row.settings_json),
           features
         },
@@ -497,6 +500,32 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ── PATCH /api/desk/me/notify-phone ─────────────────────────────
+  // Per-user notification phone for Sarah lead alerts. Owners + managers
+  // get SMS notifications when Sarah books an appointment / callback /
+  // photos request. Reps watch in-app only — they can still set the phone
+  // here for future role escalation but it doesn't fire alerts today.
+  // Phone is normalised to E.164; empty string clears the field.
+  app.patch('/api/desk/me/notify-phone', requireAuth, async (req, res) => {
+    try {
+      const raw = (req.body?.notify_phone ?? '').toString().trim();
+      let normalized = null;
+      if (raw) {
+        normalized = toE164NorthAmerica(raw);
+        if (!normalized) {
+          return res.status(400).json({ success: false, error: 'Phone format invalid — use 10 digits or +1XXXXXXXXXX' });
+        }
+      }
+      await pool.query(
+        `UPDATE desk_users SET notify_phone = $1 WHERE id = $2`,
+        [normalized, req.user.userId]
+      );
+      res.json({ success: true, notify_phone: normalized });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
 
