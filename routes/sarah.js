@@ -966,7 +966,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           return `Just to confirm — ${small} thousand km, or ${small} km exact? Either way's fine, just want to be precise for the appraisal.`;
         }
       }
-      return "Just need a rough number — like 80,000 or 150k. Whatever's close.";
+      // Fail-forward: customer didn't give a parseable number. Don't loop —
+      // capture nothing, advance to condition. The closer gets exact mileage
+      // at the appraisal/callback. Per Franco: extract once, then move on.
+      await updateConversation(conversation.id, { stage: 'acq_condition' });
+      return pick(
+        "All good — we can confirm the exact mileage when our buyer follows up. How's the overall condition? Any accidents, repairs, or mods worth mentioning?",
+        "No worries, we'll lock that in later. What's the condition like — accidents, mods, or anything to flag?"
+      );
     }
 
     // ── STAGE: acq_condition ───────────────────────────────────────
@@ -996,8 +1003,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       if (n != null && n >= 500) {
         await updateConversation(conversation.id, { asking_price: n, stage: 'acq_replacement' });
         return pick(
-          `$${n.toLocaleString()} — got it. Quick question while we're at it: are you also looking to replace it with something? We could line up the appraisal AND a test drive at the same visit.`,
-          `Noted — $${n.toLocaleString()}. One more thing: are you considering buying something next? If so we can do both at once and save you a trip.`
+          `$${n.toLocaleString()} — got it. Quick question while we're at it: are you also looking for something next? Trade-ins often make the math work better.`,
+          `Noted — $${n.toLocaleString()}. One more thing: are you considering buying something next? We can line both up together.`
         );
       }
       // Customer said "not sure" or "what's it worth" — they want our opinion
@@ -1005,40 +1012,64 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           lowerMsg.includes('what would you offer') || lowerMsg.includes('open to offers') || lowerMsg.includes('best offer')) {
         await updateConversation(conversation.id, { asking_price: 0, stage: 'acq_replacement' });
         return pick(
-          "All good — we can put a real number on it once we see it in person. Quick question: are you also looking to replace it with something? We can do both in one visit.",
-          "No problem — we'll give you a fair appraisal once we look at it. While we're at it, are you also looking for something next? Trade-in often makes the math work better."
+          "All good — our buyer can put a real number on it when they look. Quick question: are you also looking for something next? Trade-ins often make the math work better.",
+          "No problem — we'll give you a fair number when our buyer follows up. While we're here, considering something next? We can line both up."
         );
       }
-      return "Just a rough number is fine — even a range like $8k–$10k. Or 'not sure' if you'd like an offer from us.";
+      // Fail-forward: no price extracted, treat as "open to offers" and
+      // advance. Don't loop on price — the closer prices it later.
+      await updateConversation(conversation.id, { asking_price: 0, stage: 'acq_replacement' });
+      return pick(
+        "All good — our buyer can put a real number on it when they look. Quick question: are you also looking for something next? Trade-ins often make the math work better.",
+        "No worries — we'll give you a fair number when we connect. While we're here, considering something next as well? Easy to line both up."
+      );
     }
 
     // ── STAGE: acq_replacement — the Mil pivot ─────────────────────
     if (conversation.stage === 'acq_replacement' && conversation.replacement_interest == null) {
-      if (lowerMsg === 'yes' || lowerMsg === 'yep' || lowerMsg === 'sure' || lowerMsg === 'maybe' ||
+      // Broader positive signals — capture "just sell" and "considering"
+      // patterns that previously fell to the loop fallback.
+      const replYes = ['yes','yep','sure','maybe','possibly','probably',"i'd be open",'open to it'];
+      if (replYes.some(p => lowerMsg === p) ||
           lowerMsg.includes('looking') || lowerMsg.includes('interested') || lowerMsg.includes('thinking about') ||
-          lowerMsg.includes('would like') || lowerMsg.includes('want to')) {
+          lowerMsg.includes('would like') || lowerMsg.includes('want to') || lowerMsg.includes('shopping') ||
+          lowerMsg.includes('in the market')) {
         await updateConversation(conversation.id, { replacement_interest: true, stage: 'acq_appointment' });
         return pick(
-          "Perfect — that's how most of our deals work. Want to come in for a free appraisal and check out a few options at the same time? Or would a quick call to line it up first work better?",
-          "Awesome — we'll put both together. Easier to come by in person for the appraisal + look at options, or do you want a quick call first?"
+          "Perfect — that's how most of our deals work. Phone call first to talk numbers, or come in for the appraisal and check out options at the same time? Either works.",
+          "Awesome, we'll put both together. Quick call to line it up, or come in for the appraisal + a look around? Up to you."
         );
       }
+      // Broader negative / "just selling" signals — added "just sell",
+      // "selling only", "not buying", "no replacement" so the matcher
+      // catches the language Franco hit during the live test.
       if (lowerMsg === 'no' || lowerMsg === 'nope' || lowerMsg === 'nah' ||
-          lowerMsg.includes('not looking') || lowerMsg.includes("don't need") || lowerMsg.includes('just selling') ||
-          lowerMsg.includes('not interested in buying')) {
+          lowerMsg.includes('not looking') || lowerMsg.includes("don't need") ||
+          lowerMsg.includes('just sell') || lowerMsg.includes('selling only') ||
+          lowerMsg.includes('only selling') || lowerMsg.includes('not buying') ||
+          lowerMsg.includes('no replacement') || lowerMsg.includes('not interested in buying')) {
         await updateConversation(conversation.id, { replacement_interest: false, stage: 'acq_appointment' });
         return pick(
-          "All good — selling only. Want to come in for a free appraisal, or would a quick call from our buyer work better first?",
-          "Got it. Free appraisal in person, or a quick call to talk numbers — what's easier for you?"
+          "All good — selling only. Quick call from our buyer to talk numbers, or come in for the appraisal? Whichever's easier for you.",
+          "Got it. Phone or in-person — both get you a real offer. What works better?"
         );
       }
       // Customer named a vehicle type / make in the response
       const replWords = ['truck','suv','car','sedan','van','minivan','jeep','ram','ford','chevy','toyota','honda'];
       if (replWords.some(w => lowerMsg.includes(w))) {
         await updateConversation(conversation.id, { replacement_interest: true, stage: 'acq_appointment' });
-        return "Nice — we'll have options ready. Easier to come in for the appraisal + a look around, or want a call first?";
+        return "Nice — we'll have options ready. Quick call to line it up, or come in for the appraisal and a look around? Either's fine.";
       }
-      return "Yes or no is fine — looking to replace it, or just selling?";
+      // Fail-forward: can't tell from this reply. Don't loop a yes/no at a
+      // hot lead — they've already given mileage + condition + price. Hand
+      // off to the closer, who'll clarify replacement intent in person or
+      // on the call. Stage advances; replacement_interest stays null so the
+      // closer knows it wasn't captured (vs. an explicit "no").
+      await updateConversation(conversation.id, { stage: 'acq_appointment' });
+      return pick(
+        "Got it — we'll sort that out together. Quick call to talk numbers, or come in for the appraisal? Either works on our end.",
+        "All good — let's get you in front of our buyer. Phone or in-person, both get you a real offer. Which works better?"
+      );
     }
 
     // ── STAGE: acq_appointment — book or callback ─────────────────
@@ -1059,7 +1090,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           : "Got it — what's your name? I'll have our buyer reach out.";
       }
       if (lowerMsg.includes('maybe') || lowerMsg.includes('not sure') || lowerMsg.includes('think') || lowerMsg.includes('busy')) {
-        return `No rush${name ? ' '+name : ''}. Whenever you're ready — appraisal in person or a quick call from our buyer. Either works.`;
+        // Fail-forward: don't loop on hedging. Default to callback (less
+        // pushy than an in-person ask), advance toward name/datetime, let
+        // the closer pace from there.
+        await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+        return name
+          ? `No rush ${name} — I'll have our buyer give you a quick call. What time of day usually works best?`
+          : "No rush — I'll have our buyer reach out. What's your name and when's a good time for a quick call?";
       }
       // Default — assume callback so we always advance
       await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
@@ -1096,11 +1133,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return await getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, []);
     }
 
-    // ── Fallback: re-prompt to keep her on rails ───────────────────
-    return pick(
-      `Sorry — to make sure I help right, are you still considering selling? A yes or no is fine.`,
-      "Got a bit lost there — let me reset. Are you open to selling your vehicle?"
-    );
+    // ── Fallback: fail-forward to a human ──────────────────────────
+    // Stage is in some unexpected state. Don't re-prompt — get them to a
+    // closer. Default to callback (less pushy than an in-person ask) and
+    // let our buyer untangle whatever's happening over the phone.
+    await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+    return name
+      ? `${name}, let me have our buyer give you a quick call to sort everything out — what time of day works best?`
+      : "Let me have our buyer give you a quick call to sort everything out. What's your name and a good time to reach you?";
   }
 
   async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = 'our location', inventory = []) {
