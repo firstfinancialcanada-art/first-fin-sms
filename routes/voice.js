@@ -2,6 +2,7 @@
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
 const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { guardedVoiceCall, reconcileSpend } = require('../lib/spend-cap');
+const { notifyTenantManagers } = require('../lib/notify');
 const validateTwilio = makeTwilioWebhookValidator();
 
 // ── Voice table setup ─────────────────────────────────────────────
@@ -56,11 +57,17 @@ async function getCustomerSMSHistory(phone, userId, limit = 4) {
 }
 
 // ── Resolve tenant from inbound Twilio number ─────────────────────
+// forwardPhone NO LONGER falls back to process.env.FORWARD_PHONE /
+// OWNER_PHONE — that was the cross-tenant leak (Hunt's customers got
+// connected to Franco's cell). Tenants without notifyPhone configured
+// return '' for forwardPhone; callers MUST check truthiness and skip
+// the SMS/dial rather than leak. Per Franco's directive: a missed
+// notification is safer than a misrouted one.
 async function getTenantByNumber(toNumber) {
   const fallbackSettings = {
     userId:      null,
     fromNumber:  process.env.TWILIO_PHONE_NUMBER,
-    forwardPhone: process.env.FORWARD_PHONE || process.env.OWNER_PHONE || '',
+    forwardPhone: '',
     dealerName:  process.env.DEALER_NAME || 'First Financial'
   };
   if (!toNumber) return fallbackSettings;
@@ -75,7 +82,7 @@ async function getTenantByNumber(toNumber) {
     return {
       userId:       row.id,
       fromNumber:   s.twilioNumber  || process.env.TWILIO_PHONE_NUMBER,
-      forwardPhone: s.notifyPhone   || process.env.FORWARD_PHONE || process.env.OWNER_PHONE || '',
+      forwardPhone: s.notifyPhone   || '',
       dealerName:   s.dealerName    || process.env.DEALER_NAME   || 'First Financial'
     };
   } catch(e) {
@@ -439,23 +446,39 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
           finally { convCheck.release(); }
         }
 
-        const forward = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
-        if (forward && transcript.length > 5) {
+        // Tenant-scoped voicemail transcript SMS. Replaces the legacy
+        // process.env.FORWARD_PHONE / OWNER_PHONE leak that sent every
+        // tenant's voicemail transcripts to Franco's cell. Now fans out
+        // to the tenant's owner + managers via notifyTenantManagers —
+        // same pattern as Sarah's appointment/callback alerts.
+        if (transcript.length > 5 && voicemailUserId) {
           const callerFmt = (caller||'').replace('+1','');
-          // Use tenant from voicemail record for correct from number
+          // Resolve tenant + per-tenant from-number from the voicemail's user
           let fromNum = process.env.TWILIO_PHONE_NUMBER;
+          let tenantId = null;
           try {
-            if (voicemailUserId) {
-              const sr = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [voicemailUserId]);
-              const s = typeof sr.rows[0]?.settings_json === 'string' ? JSON.parse(sr.rows[0].settings_json) : (sr.rows[0]?.settings_json || {});
-              if (s.twilioNumber) fromNum = s.twilioNumber;
-            }
-          } catch(e) {}
-          await twilioClient.messages.create({
-            body: `📝 Voicemail transcript from ${callerFmt}:\n\n"${transcript.substring(0,280)}"`,
-            from: fromNum,
-            to: forward
-          });
+            const sr = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [voicemailUserId]);
+            const s = typeof sr.rows[0]?.settings_json === 'string' ? JSON.parse(sr.rows[0].settings_json) : (sr.rows[0]?.settings_json || {});
+            if (s.twilioNumber) fromNum = s.twilioNumber;
+            const tr = await pool.query(
+              `SELECT tenant_id FROM desk_members WHERE user_id = $1 AND active = TRUE LIMIT 1`,
+              [voicemailUserId]
+            );
+            tenantId = tr.rows[0]?.tenant_id || null;
+          } catch(e) { console.warn('voicemail transcript tenant lookup:', e.message); }
+          if (tenantId) {
+            const r = await notifyTenantManagers({
+              tenantId,
+              fromNumber: fromNum,
+              body: `📝 Voicemail transcript from ${callerFmt}:\n\n"${transcript.substring(0,280)}"`,
+              twilioClient,
+            });
+            if (r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenantId} has no notify_phone — transcript SMS skipped`);
+          } else {
+            console.warn(`⚠️ Voicemail user ${voicemailUserId} has no active membership — transcript SMS skipped`);
+          }
+        } else if (transcript.length > 5) {
+          console.warn('⚠️ Voicemail transcript: no user_id on voicemail record — SMS skipped (no env-var fallback)');
         }
       } catch(e) { console.error('❌ Transcript save error:', e.message); }
     }
@@ -713,10 +736,26 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     }
   });
 
-  // ── Legacy keypress handler (v1) ──────────────────────────────
-  app.post('/api/voice/keypress', validateTwilio, (req, res) => {
-    const digit     = req.body.Digits;
-    const forwardTo = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
+  // ── Legacy keypress handler (v1) — tenant-scoped ──────────────
+  // The v1 handler used to dial process.env.FORWARD_PHONE / OWNER_PHONE
+  // on every "press 1" — meaning callers to ANY tenant's Twilio number
+  // ended up on Franco's cell. Now resolves the tenant from the inbound
+  // To: number and dials the tenant's configured forward (notify_phone /
+  // settings_json.notifyPhone). No env-var fallback — silent hangup
+  // (with a text-back invitation) if the tenant has nothing configured,
+  // which is safer than leaking the call cross-tenant.
+  app.post('/api/voice/keypress', validateTwilio, async (req, res) => {
+    const digit  = req.body.Digits;
+    const tenant = await getTenantByNumber(req.body.To || process.env.TWILIO_PHONE_NUMBER);
+    // tenant.forwardPhone now resolves from s.notifyPhone first; the env-var
+    // legacy fallback inside getTenantByNumber will be removed in a follow-up.
+    // For now, only dial if the resolved value matches a tenant-set notifyPhone.
+    let forwardTo = '';
+    if (tenant.userId) {
+      const sr = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [tenant.userId]);
+      const s  = typeof sr.rows[0]?.settings_json === 'string' ? JSON.parse(sr.rows[0].settings_json) : (sr.rows[0]?.settings_json || {});
+      if (s.notifyPhone && String(s.notifyPhone).length >= 10) forwardTo = s.notifyPhone;
+    }
     if (digit === '1' && forwardTo) {
       res.type('text/xml').send(`<Response><Say voice="Polly.Joanna">Please hold while we connect you.</Say><Dial>${forwardTo}</Dial></Response>`);
     } else {
