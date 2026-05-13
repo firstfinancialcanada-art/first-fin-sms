@@ -247,6 +247,13 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   app.delete('/api/admin/users/:id', adminAuth, async (req, res) => {
     const uid = req.params.id;
     try {
+      // Ensure deleted_at exists — setup-database-v2.js adds it on initial
+      // setup, but production tenants that predate that migration never got
+      // the column. Idempotent: no-op if it's already there. Same pattern as
+      // routes/desk.js:294 for subscription_status / trial_ends_at.
+      await pool.query(`
+        ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ
+      `).catch(() => {});
       const userRow = await pool.query('SELECT email, display_name FROM desk_users WHERE id = $1', [uid]);
       if (!userRow.rows.length) return res.status(404).json({ success: false, error: 'User not found' });
       await pool.query('UPDATE desk_users SET deleted_at = NOW(), suspended = TRUE WHERE id = $1', [uid]);
