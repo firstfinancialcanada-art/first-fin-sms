@@ -279,6 +279,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
   // ── REGISTER ─────────────────────────────────────────────
   app.post('/api/desk/register', async (req, res) => {
+    // Self-signup is closed by default. Real signups flow through Stripe
+    // checkout → the webhook auto-creates the user (routes/stripe.js).
+    // The marketing site has no public registration form anymore — so this
+    // endpoint is only callable via direct API POST, which is how
+    // test@test.com got in (2026-05-13). Lock it unless SELF_REGISTRATION
+    // is explicitly enabled.
+    if (process.env.SELF_REGISTRATION_ENABLED !== 'true') {
+      console.warn(`🚫 Blocked /api/desk/register attempt — email=${(req.body && req.body.email) || '(none)'} ip=${req.ip || '?'}`);
+      return res.status(403).json({
+        success: false,
+        error: 'Self-registration is disabled. Please contact First@FirstFinancialCanada.com or complete checkout to create an account.',
+      });
+    }
     const client = await pool.connect();
     try {
       const { email, password, name } = req.body;
