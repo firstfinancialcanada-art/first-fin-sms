@@ -347,6 +347,28 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     }
   });
 
+  // ── POST /api/admin/inquiries/bulk-delete ─────────────────
+  // Body: { ids: [int, int, ...] } — admin-scrub for bot/spam drops
+  // (e.g. the 2026-05-28 Test1-Test5 drop). Hard-delete; no soft path
+  // for inquiries because the audit signal lives in the lockdown
+  // route's stdout logs, not the row itself.
+  app.post('/api/admin/inquiries/bulk-delete', adminAuth, async (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(n => parseInt(n, 10)).filter(Number.isFinite) : [];
+    if (!ids.length) return res.status(400).json({ success: false, error: 'ids[] required' });
+    const client = await pool.connect();
+    try {
+      const r = await client.query(
+        `DELETE FROM platform_inquiries WHERE id = ANY($1::int[]) RETURNING id`,
+        [ids]
+      );
+      res.json({ success: true, deleted: r.rowCount, deletedIds: r.rows.map(x => x.id) });
+    } catch(e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
   // ── POST /api/admin/users/create ─────────────────────────
   app.post('/api/admin/users/create', adminAuth, async (req, res) => {
     const bcrypt = require('bcryptjs');
