@@ -136,17 +136,67 @@ module.exports = function adminRoutes(app, { twilioClient }) {
     }
   });
 
+  // ── Public inquiry rate limiting + abuse detection ─────────────
+  // Bot hit on 2026-05-28 07:23-07:26 UTC inserted 6 garbage rows
+  // (Test1-Test5 + "Test User") with sequential phones (5550001-5550005,
+  // 5551234567), null email, null dealership — classic scripted POST.
+  // Lock it down without killing the legitimate marketing-site form.
+  const _inquiryHits = new Map();             // ip -> [timestamps]
+  const INQ_WINDOW_MS = 60 * 60 * 1000;       // 1 hour sliding window
+  const INQ_MAX_PER_IP = 3;                   // max per IP per window
+
   // POST /api/request-access
   app.post('/api/request-access', async (req, res) => {
-    const { name, dealership, phone, email } = req.body;
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim() || 'unknown';
+    const ua = (req.headers['user-agent'] || '').toString().slice(0, 300);
+    const { name, dealership, phone, email, website } = req.body || {};
+
+    // Honeypot — hidden `website` form field. Real humans don't see it;
+    // bots auto-fill every field. If present + non-empty, silently 200
+    // to make the bot think it worked so it doesn't escalate.
+    if (typeof website === 'string' && website.trim().length > 0) {
+      console.warn(`🪤 inquiry honeypot tripped — ip=${ip} ua=${ua.slice(0, 60)}`);
+      return res.json({ success: true });
+    }
+
     if (!name || !phone) {
       return res.status(400).json({ success: false, error: 'Name and phone are required' });
     }
+
+    // Pattern reject — bot signature: Test\d? name + 555-phone + null
+    // email + null dealership. All 6 attack rows matched this; zero
+    // legitimate historical inquiries match.
+    const looksBot =
+      /^Test\s?\w{0,8}$/i.test(String(name).trim()) &&
+      /^555/.test(String(phone).replace(/\D/g, '')) &&
+      !email && !dealership;
+    if (looksBot) {
+      console.warn(`🚫 inquiry pattern-block — ip=${ip} name="${name}" phone="${phone}"`);
+      return res.json({ success: true });   // 200 to confuse the bot
+    }
+
+    // Per-IP rate limit (in-memory, single-instance — fine for Railway 1-replica)
+    const now = Date.now();
+    const hits = (_inquiryHits.get(ip) || []).filter(t => now - t < INQ_WINDOW_MS);
+    if (hits.length >= INQ_MAX_PER_IP) {
+      console.warn(`🚫 inquiry rate-limited — ip=${ip} hits=${hits.length}`);
+      return res.status(429).json({ success: false, error: 'Too many requests. Please contact First@FirstFinancialCanada.com.' });
+    }
+    hits.push(now);
+    _inquiryHits.set(ip, hits);
+
     const client = await pool.connect();
     try {
+      // Idempotent migration — ip + user_agent columns weren't on the
+      // original platform_inquiries table; add them so we can audit.
+      await client.query(`
+        ALTER TABLE platform_inquiries
+          ADD COLUMN IF NOT EXISTS ip TEXT,
+          ADD COLUMN IF NOT EXISTS user_agent TEXT
+      `).catch(() => {});
       await client.query(
-        `INSERT INTO platform_inquiries (name, dealership, phone, email) VALUES ($1, $2, $3, $4)`,
-        [name, dealership || null, phone, email || null]
+        `INSERT INTO platform_inquiries (name, dealership, phone, email, ip, user_agent) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [name, dealership || null, phone, email || null, ip, ua]
       );
       const ownerPhone = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;
       if (ownerPhone && twilioClient) {
