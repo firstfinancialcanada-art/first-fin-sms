@@ -1220,6 +1220,13 @@
         <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;">Email Address</label>
         <input id="inq_email" type="email" placeholder="john@abcauto.ca" style="width:100%;box-sizing:border-box;padding:10px 13px;background:#111d36;border:1px solid rgba(30,90,246,.25);border-radius:7px;color:#e2e8f0;font-family:'Outfit',sans-serif;font-size:13px;outline:none;">
       </div>
+      <!-- ── Honeypot — hidden field humans don't see. Bots auto-fill
+           every input; if this carries any value at submit, the
+           server silently 200s the bot (no signal it was caught).
+           Pairs with the route-side check in routes/admin.js. ── -->
+      <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+        <label>If you are human, leave this blank: <input id="inq_website" name="website" type="text" tabindex="-1" autocomplete="off" value=""></label>
+      </div>
       <div id="inq_error" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:10px 13px;font-size:12px;color:#ef4444;margin-bottom:14px;"></div>
 <button onclick="submitInquiry()" id="inq_btn" style="width:100%;padding:13px;background:#1e5af6;border:none;border-radius:8px;color:white;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:background .2s;">
         Request Access →
@@ -1485,6 +1492,9 @@ async function submitInquiry() {
   const dealership = document.getElementById('inq_dealership').value.trim();
   const phone      = document.getElementById('inq_phone').value.trim();
   const email      = document.getElementById('inq_email').value.trim();
+  // Honeypot — read the hidden field. Humans never touch it; bots fill it.
+  // Server-side check in routes/admin.js silently 200s the bot if non-empty.
+  const website    = (document.getElementById('inq_website') || {}).value || '';
   const errEl      = document.getElementById('inq_error');
   const btn        = document.getElementById('inq_btn');
   if (!name || !dealership || !phone) {
@@ -1498,7 +1508,7 @@ async function submitInquiry() {
     const res  = await fetch('/api/request-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, dealership, phone, email })
+      body: JSON.stringify({ name, dealership, phone, email, website })
     });
     const data = await res.json();
     if (data.success) {
