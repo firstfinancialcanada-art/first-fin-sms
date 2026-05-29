@@ -386,6 +386,20 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
       }
 
+      // Suspended / soft-deleted accounts are locked out at the door — no
+      // token issued. requireBilling already 403s their write + scrape
+      // calls, but without this gate a suspended user could still log in,
+      // read, and hold a renewable session. This makes the admin-dashboard
+      // "Suspend" button a hard cut: no login, and refresh is gated too.
+      if (user.suspended || user.deleted_at) {
+        console.warn('🚫 Login blocked — suspended/deleted account:', cleanEmail);
+        return res.status(403).json({
+          success: false,
+          error: 'Account suspended. Please contact First-Fin at 587-306-6133.',
+          code: 'SUSPENDED'
+        });
+      }
+
       // Update last login
       await client.query('UPDATE desk_users SET last_login = NOW() WHERE id = $1', [user.id]);
 
@@ -450,6 +464,19 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       const user = await client.query('SELECT * FROM desk_users WHERE id = $1', [decoded.userId]);
       if (user.rows.length === 0) return res.status(401).json({ success: false, error: 'User not found' });
+
+      // Suspended / soft-deleted: the presented refresh token was already
+      // deleted above (rotation), so refusing here leaves them with NO valid
+      // refresh token — locked out on the spot, not just at the 4h access
+      // expiry. Combined with the login gate, suspension is now absolute.
+      if (user.rows[0].suspended || user.rows[0].deleted_at) {
+        console.warn('🚫 Refresh blocked — suspended/deleted account:', user.rows[0].email);
+        return res.status(403).json({
+          success: false,
+          error: 'Account suspended. Please contact First-Fin at 587-306-6133.',
+          code: 'SUSPENDED'
+        });
+      }
 
       const newAccess = await generateAccessToken(user.rows[0]);
       const newRefresh = generateRefreshToken(user.rows[0]);
