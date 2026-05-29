@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>First-Fin Dealer System — Capability Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: letter; margin: 0.55in 0.7in; }
+  :root {
+    --blue:    #1e5af6;
+    --blue-2:  #2d6cff;
+    --amber:   #f59e0b;
+    --paper:   #ffffff;
+    --ink:     #0a0e1a;
+    --ink-2:   #1f2937;
+    --muted:   #6b7280;
+    --rule:    #e4e7ec;
+    --rule-2:  #cbd5e1;
+    --tint:    #f5f8ff;
+    --warn:    #fef6e0;
+    --logo-bg: #0a0e1a;
+  }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body {
+    margin: 0; padding: 0;
+    color: var(--ink);
+    background: var(--paper);
+    font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 9.75pt;
+    line-height: 1.5;
+    font-feature-settings: "kern", "liga", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  @media screen {
+    html { background: #eef1f6; padding: 30px 0; min-height: 100vh; }
+    body {
+      max-width: 7.5in;
+      margin: 0 auto;
+      padding: 0.55in 0.7in;
+      box-shadow: 0 0 0 1px var(--rule), 0 16px 48px rgba(10, 14, 26, 0.08);
+    }
+  }
+
+  /* ── DOC STATUS LINE ────────────────────────────────────────── */
+  .status-line {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7pt;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 14pt;
+    padding-bottom: 8pt;
+    border-bottom: 1px solid var(--rule);
+  }
+  .status-line .right { color: var(--blue); }
+
+  /* ── HEADER ─────────────────────────────────────────────────── */
+  .head {
+    display: grid;
+    grid-template-columns: 76pt 1fr;
+    gap: 22pt;
+    align-items: center;
+    margin-bottom: 18pt;
+  }
+  .head .logo-wrap {
+    position: relative;
+    width: 76pt; height: 76pt;
+    background: linear-gradient(135deg, var(--logo-bg) 0%, #1a2238 100%);
+    border-radius: 10pt;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .head .logo-wrap::before, .head .logo-wrap::after {
+    content: ""; position: absolute; width: 80%; height: 80%;
+    pointer-events: none;
+  }
+  .head .logo-wrap::before {
+    top: -30%; right: -30%;
+    background: radial-gradient(circle, rgba(30, 90, 246, 0.4) 0%, transparent 60%);
+  }
+  .head .logo-wrap::after {
+    bottom: -30%; left: -30%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.2) 0%, transparent 60%);
+  }
+  .head .logo-wrap img {
+    width: 56pt; height: auto; display: block; position: relative; z-index: 1;
+  }
+  .head .wordmark {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 30pt;
+    letter-spacing: 2.5px;
+    line-height: 0.95;
+    background: linear-gradient(90deg, var(--blue) 0%, var(--amber) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    margin: 0 0 2pt 0;
+  }
+  .head .sublabel {
+    font-size: 9pt;
+    color: var(--ink-2);
+    font-weight: 500;
+    margin: 0;
+  }
+  .head .doctype {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin: 4pt 0 0 0;
+  }
+
+  /* ── HOOK ───────────────────────────────────────────────────── */
+  .hook {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13pt;
+    line-height: 1.38;
+    color: var(--ink);
+    margin: 0 0 18pt 0;
+    letter-spacing: -0.015em;
+    padding: 16pt 18pt;
+    background: var(--tint);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 6pt 6pt 0;
+  }
+  .hook .accent {
+    background: linear-gradient(90deg, var(--blue), var(--amber));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+  }
+  .hook .em {
+    color: var(--blue);
+    font-weight: 700;
+  }
+
+  /* ── SECTION LABELS ─────────────────────────────────────────── */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 10pt;
+    margin: 14pt 0 9pt 0;
+  }
+  .section-label .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--tint);
+    padding: 2pt 6pt;
+    border-radius: 3pt;
+  }
+  .section-label .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-2);
+  }
+  .section-label .rule {
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--rule-2), transparent);
+  }
+
+  /* ── PILLARS ────────────────────────────────────────────────── */
+  .pillars { display: grid; gap: 12pt; }
+  .pillar {
+    display: grid;
+    grid-template-columns: 22pt 1fr;
+    gap: 10pt;
+    align-items: start;
+  }
+  .pillar .pnum {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18pt;
+    line-height: 1;
+    background: linear-gradient(180deg, var(--blue), var(--amber));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .pillar h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 11pt;
+    color: var(--ink);
+    margin: 1pt 0 4pt 0;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+  }
+  .pillar .pain {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 9.5pt;
+    font-style: italic;
+    color: var(--ink-2);
+    margin: 0 0 3pt 0;
+    line-height: 1.4;
+  }
+  .pillar p {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 9.5pt;
+    line-height: 1.48;
+  }
+  .pillar p strong { font-weight: 600; color: var(--ink); }
+  .pillar .outcome {
+    margin: 4pt 0 0 0;
+    font-weight: 600;
+    color: var(--blue);
+    font-size: 9.5pt;
+  }
+
+  /* ── STAT CARD ──────────────────────────────────────────────── */
+  .stat-card {
+    margin: 6pt 0 0 0;
+    display: grid;
+    grid-template-columns: 150pt 1fr;
+    gap: 22pt;
+    align-items: center;
+    padding: 16pt 18pt;
+    background: linear-gradient(135deg, var(--tint) 0%, #fffbf0 100%);
+    border: 1px solid var(--rule-2);
+    border-radius: 8pt;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 3pt;
+    background: linear-gradient(180deg, var(--blue), var(--amber));
+  }
+  .stat-card .big-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44pt;
+    line-height: 0.9;
+    background: linear-gradient(135deg, var(--blue), var(--amber));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+    margin: 0;
+  }
+  .stat-card .big-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin: 3pt 0 0 0;
+    line-height: 1.4;
+  }
+  .stat-card .stat-body {
+    font-size: 9.75pt;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0;
+    font-weight: 500;
+  }
+  .stat-card .stat-body strong {
+    color: var(--blue);
+    font-weight: 700;
+  }
+  .stat-card .stat-body .amber {
+    color: #c47600;
+    font-weight: 700;
+  }
+
+  /* ── INVITATION ─────────────────────────────────────────────── */
+  .invite {
+    font-size: 10pt;
+    line-height: 1.55;
+    color: var(--ink);
+    margin: 0;
+    font-weight: 500;
+  }
+  .invite strong { color: var(--blue); font-weight: 700; }
+
+  /* ── FOOT ───────────────────────────────────────────────────── */
+  footer.foot {
+    margin-top: 20pt;
+    padding-top: 12pt;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  footer.foot .who {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16pt;
+    letter-spacing: 1.5px;
+    color: var(--ink);
+    margin: 0;
+    line-height: 1;
+  }
+  footer.foot .title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 5pt 0 0 0;
+  }
+  footer.foot .contact {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    line-height: 1.65;
+    color: var(--ink-2);
+  }
+  footer.foot .contact .url {
+    color: var(--blue);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="status-line">
+  <span>FIRST-FIN DEALER SYSTEM // CAPABILITY BRIEF</span>
+  <span class="right">PREPARED FOR · STELLANTIS DIGITAL CANADA</span>
+</div>
+
+<div class="head">
+  <div class="logo-wrap"><img src="../public/images/logo.png" alt=""></div>
+  <div>
+    <div class="wordmark">FIRST-FIN DEALER SYSTEM</div>
+    <p class="sublabel">The dealer-operations platform built for the Canadian franchised network.</p>
+    <p class="doctype">Multi-tenant · Customizable · OEM-ready</p>
+  </div>
+</div>
+
+<p class="hook">
+  While your dealers' sales teams are still walking back to their desks with a coffee, <span class="em">First-Fin has already replied to the lead, qualified the customer, captured the trade-in details, and booked the appointment.</span> <span class="accent">Faster response wins more deals.</span> First-Fin makes every Stellantis-program dealer faster — across every lead, every channel, every shift.
+</p>
+
+<div class="section-label">
+  <span class="num">01</span><span class="label">Why dealers buy it</span><span class="rule"></span>
+</div>
+
+<div class="pillars">
+  <div class="pillar">
+    <div class="pnum">01</div>
+    <div>
+      <h3>Stop losing leads to the dealer that responded faster.</h3>
+      <p class="pain">The first dealer to respond to an internet lead wins the customer roughly 50% of the time. Most stores respond in hours. Your competitors are already automating.</p>
+      <p>First-Fin captures every Kijiji, AutoTrader, CarGurus, and FCA Digital lead the instant it arrives, drops it into the right dealer's CRM, and fires <strong>Sarah</strong> — our AI SMS responder — to text the customer within seconds. Sarah qualifies intent, captures trade-in details, books the appointment, and hands the rep a hot, structured deal that's already half-built.</p>
+      <p class="outcome">→ More appointments booked. More test drives kept. More cars sold.</p>
+    </div>
+  </div>
+
+  <div class="pillar">
+    <div class="pnum">02</div>
+    <div>
+      <h3>Replace four to six monthly subscriptions with one.</h3>
+      <p class="pain">A typical franchised rooftop pays four to six separate vendors for CRM, lead intake, AI follow-up, inventory, voice, and deal-desk tools — and they don't talk to each other. The dealer pays the bills and absorbs the integration tax.</p>
+      <p>First-Fin consolidates the whole operational stack into one platform, one login, one vendor, one bill. <strong>The only thing First-Fin doesn't touch is credit-app submission and bank funding</strong> — DealerTrack and RouteOne keep their lane. Everything else a franchised store runs day-to-day lives here.</p>
+      <p class="outcome">→ Less software cost per rooftop. Less staff training. Less finger-pointing.</p>
+    </div>
+  </div>
+
+  <div class="pillar">
+    <div class="pnum">03</div>
+    <div>
+      <h3>Tuned to each rooftop. Built for the whole network.</h3>
+      <p class="pain">Rigid SaaS doesn't fit dealerships. Every store has its own brand, its own workflow, its own way of handing off a lead. Most platforms make the dealer adapt to the tool.</p>
+      <p>First-Fin lets every rooftop run the platform their way — branding, role-scoped access, custom AI conversation flows, lender rate sheets, inventory sources, notification routing. For OEM-program clients, <strong>tier-dedicated databases</strong>, encryption end-to-end, and a complete audit trail on every customer interaction come standard.</p>
+      <p class="outcome">→ Dealers stop fighting the tool. Owners get visibility. OEMs get a clean partner.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section-label">
+  <span class="num">02</span><span class="label">The Network Case</span><span class="rule"></span>
+</div>
+
+<div class="stat-card">
+  <div>
+    <div class="big-num">3,000+</div>
+    <p class="big-label">Stellantis<br>retail rooftops</p>
+  </div>
+  <p class="stat-body">
+    Consolidating the SaaS stack a typical store carries today into First-Fin's all-in-one platform unlocks <strong>substantial network-wide savings</strong> — while making every dealer faster on every lead. <span class="amber">One platform. One vendor. One integration surface for Stellantis Digital.</span>
+  </p>
+</div>
+
+<div class="section-label">
+  <span class="num">03</span><span class="label">Partnership</span><span class="rule"></span>
+</div>
+
+<p class="invite">
+  We're inviting Stellantis Digital Canada into a conversation about certifying First-Fin as the <strong>preferred ADF lead destination</strong> for Stellantis-program dealers — and exploring how a single Canadian-built platform serving the broader network can replace the patchwork your dealers are stitching together today. Our infrastructure is ready to receive the FCA Digital feed at the platform level immediately, and we welcome any technical, security, or commercial review your team requires.
+</p>
+
+<footer class="foot">
+  <div>
+    <p class="who">FRANCO FANNIN</p>
+    <p class="title">Architect &amp; Founder · First-Fin Dealer System</p>
+  </div>
+  <div class="contact">
+    First@FirstFinancialCanada.com<br>
+    (587) 306-6133<br>
+    <span class="url">firstfinancialcanada.com</span>
+  </div>
+</footer>
+
+</body>
+</html>

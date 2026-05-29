@@ -1365,7 +1365,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           fallbackScrape();
           return;
         }
-        console.log('[FF] SERVER scrape:', resp.result.type, 'vehicles:', resp.result.vehicles?.length);
+        // Server returns d2cSlugPages=0 when Hunt's SSR HTML has only an
+        // empty pagination wrapper (`<div id="fltPageId" class="elPaginationBox">
+        // </div>`). The page numbers get JS-rendered after page load, so
+        // server-side cheerio never sees them and the bg.js pagination clicker
+        // skips page 2+. Augment from the BROWSER DOM here — content.js runs
+        // in-page so document.querySelector finds the rendered buttons.
+        // 2026-04-27: caught when Hunt scans dropped from 57 → 36 vehicles.
+        if (resp.result?.type === 'listing' && !resp.result.d2cSlugPages) {
+          try {
+            // Try multiple known pagination DOM patterns: D2C platform's
+            // .divPaginationBox numbered buttons, or Hunt's newer
+            // .PaginationBox / .PaginationBoxes containers.
+            let pages = document.querySelectorAll('.divPaginationBox').length;
+            if (pages < 2) {
+              const altBoxes = document.querySelectorAll('.PaginationBox, .PaginationBoxes > *, [class*="paginationBox" i] [item-value]');
+              pages = altBoxes.length;
+            }
+            if (pages > 1) {
+              resp.result.d2cSlugPages = pages;
+              console.log('[FF] augmented d2cSlugPages from DOM:', pages);
+            }
+          } catch (_) {}
+        }
+        console.log('[FF] SERVER scrape:', resp.result.type, 'vehicles:', resp.result.vehicles?.length, 'pages:', resp.result.d2cSlugPages || 1);
         sendResponse({ ok: true, result: resp.result });
       }
     );

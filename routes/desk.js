@@ -1095,7 +1095,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── GET scrape domain lock (extension calls this before scraping) ─────
-  app.get('/api/desk/scrape-domain', requireAuth, async (req, res) => {
+  app.get('/api/desk/scrape-domain', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query('SELECT scrape_domain FROM desk_users WHERE id = $1', [req.user.userId]);
@@ -2795,7 +2795,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   const crypto = require('crypto');
 
-  app.post('/api/desk/filter-ad-photos', requireAuth, async (req, res) => {
+  app.post('/api/desk/filter-ad-photos', requireAuth, requireBilling, async (req, res) => {
     try {
       // vehicles: [{photos: [url, url, ...]}]
       const { vehicles } = req.body;

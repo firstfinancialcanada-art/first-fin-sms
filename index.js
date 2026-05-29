@@ -107,7 +107,9 @@ app.get('/setup',    (req, res) => res.sendFile(path.join(__dirname, 'public', '
 app.get('/welcome',  (req, res) => res.sendFile(path.join(__dirname, 'public', 'welcome.html')));
 app.get('/extension-install', (req, res) => res.sendFile(path.join(__dirname, 'public', 'extension-install.html')));
 app.get('/privacy-extension', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy-extension.html')));
-app.get('/invoices/hunt-chrysler-2026-05', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoices', 'hunt-chrysler-2026-05.html')));
+// Invoices are NOT web-served — they live in invoice-templates/ (outside
+// public/) and render to PDF locally. Serving them as unauthenticated static
+// HTML exposed tenant billing PII + our HST# (security audit 2026-05-29, M1).
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -169,7 +171,10 @@ require('./routes/lenders')(app, require('./lib/db').pool, requireBilling);
 const pool = require('./lib/db').pool;
 require('./routes/probability')(app, pool, requireAuth, requireBilling);  // User-facing: read-only probabilities
 require('./routes/outcomes-admin')(app, pool);                 // Admin: log/manage outcomes
-app.use('/api/fb-license', require('./routes/fb-license'));     // FB Poster license management
+// FB-license route retired — the per-device licensing model is gone; the
+// extension now gates entirely on /api/desk auth + requireBilling. Unmounted
+// to drop dead auth surface (security audit 2026-05-29, L3).
+// app.use('/api/fb-license', require('./routes/fb-license'));
 require('./routes/compare')(app, { requireAuth, requireBilling }); // Compare All engine (server-side)
 require('./routes/tenant-usage')(app, { requireAuth });            // Per-tenant spend + capacity usage
 
