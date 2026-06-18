@@ -1,5 +1,6 @@
 # First-Fin Dealer System — Security Audit
-**Date:** 2026-05-29  ·  **Scope:** Production application (Railway), commit `06bbe1f`
+**Audit date:** 2026-05-29  ·  **Last updated:** 2026-06-18 (remediation cycle, commit `f352a14`)
+**Scope:** Production application (Railway), `app.firstfinancialcanada.com`
 **Prepared for:** Internal review + Stellantis Digital vendor questionnaire readiness
 
 ---
@@ -10,18 +11,37 @@ First-Fin Dealer System presents a **strong baseline security posture** for a
 multi-tenant SaaS platform: signed JWT auth with refresh rotation, bcrypt
 password hashing, verified payment + telephony webhooks, parameterized database
 access with tenant isolation, rate limiting, locked CORS, and security headers.
+The platform also **deliberately minimizes its sensitive-data footprint** — it
+stores no credit-application data, no government IDs, and no payment-card data
+(see "Data minimization" below), which materially bounds its risk surface.
 
-This audit found **1 critical**, **1 high**, **2 medium**, and **3 low** issues.
-The single critical item (default admin token) is the only finding that
-materially undermines the otherwise solid posture and should be remediated
-immediately. Everything else is hardening or hygiene.
+The original audit found **1 critical, 1 high, 2 medium, and 3 low** issues.
+As of the 2026-06-18 remediation cycle, **4 of 8 are resolved** (see status
+update). The single **critical** item — default admin token — remains the only
+finding that materially undermines an otherwise solid posture and is a ~60-second
+fix.
 
-| Severity | Count | Status |
-|---|---|---|
-| 🔴 Critical | 1 | **Open — fix now** |
-| 🟠 High | 1 | Open — partial auto-fix available |
-| 🟡 Medium | 2 | Open |
-| 🟢 Low | 3 | Open / accepted |
+| Severity | Original | Resolved | Still open |
+|---|---|---|---|
+| 🔴 Critical | 1 | 0 | **1 (C1 — admin token)** |
+| 🟠 High | 1 | partial (H1a) | 1 (H1b — IMAP dep chain) |
+| 🟡 Medium | 2 | 1 (M1) | 1 (M2 — CSP) |
+| 🟢 Low | 3 | 2 (L1, L3) | 1 (L2 — accepted) |
+
+### Status update — 2026-06-18 (commit `f352a14` + `06bbe1f`)
+- ✅ **H1a resolved** — `npm audit fix` cleared the non-breaking advisories (axios, follow-redirects, fast-xml-builder); 6 of 10 gone. Remaining 4 are the IMAP chain (H1b).
+- ✅ **M1 resolved** — invoice page moved out of the web-served `public/` directory into `invoice-templates/` (not web-reachable); explicit route removed.
+- ✅ **L1 resolved** — `requireBilling` added to `/api/desk/scrape-domain` and `/api/desk/filter-ad-photos`.
+- ✅ **L3 resolved** — `/api/fb-license` route unmounted.
+- ✅ **Suspension hardening** — login + refresh now reject suspended/soft-deleted accounts (`06bbe1f`).
+- 🔴 **C1 still open** — admin token rotation (Franco, Railway).
+- ⏳ **H1b, M2 deferred** — both require tested branches (see below).
+
+### Data minimization (bounds the risk surface)
+Verified by codebase-wide search:
+- **No credit-application data** — no SIN, DOB, driver's-licence, or financial-app fields exist anywhere. Credit submission/funding is the dealer's DealerTrack/RouteOne lane; First-Fin never receives it.
+- **No payment-card data** — Stripe-hosted checkout; cards never reach First-Fin servers (PCI scope is Stripe's).
+- **PII held** is limited to standard CRM lead fields (name, phone, email, vehicle interest), tenant-isolated and TLS-only.
 
 ---
 
@@ -42,8 +62,12 @@ issuing subscription-status changes.
 
 ---
 
-### 🟠 H1 — Known dependency vulnerabilities (6 high, 4 moderate)
-`npm audit` reports 10 advisories in production dependencies.
+### 🟠 H1 — Known dependency vulnerabilities — **H1a RESOLVED, H1b deferred**
+**Update 2026-06-18 (`f352a14`):** `npm audit fix` cleared the non-breaking
+subset (axios, follow-redirects, fast-xml-builder) — **6 of 10 resolved**. The
+remaining **4 high** are the IMAP chain (H1b), pending a tested branch migration.
+
+Original finding: `npm audit` reported 10 advisories in production dependencies.
 
 - **Non-breaking subset** (axios prototype-pollution, follow-redirects header
   leak, fast-xml-builder): fixable with `npm audit fix` — no API changes.
@@ -61,8 +85,12 @@ issuing subscription-status changes.
 
 ---
 
-### 🟡 M1 — Public invoice page (unauthenticated PII)
-`/invoices/hunt-chrysler-2026-05` is served as a static, **unauthenticated**
+### ✅ M1 — Public invoice page (unauthenticated PII) — **RESOLVED 2026-06-18**
+**Fixed in `f352a14`:** the invoice HTML was moved out of `public/` into
+`invoice-templates/` (no longer web-served) and the explicit route removed.
+PDF generation still works (local file render). Original finding below for record.
+
+`/invoices/hunt-chrysler-2026-05` was served as a static, **unauthenticated**
 page (route at `index.js:110` + `express.static`). It exposes Hunt Chrysler's
 billing address, First-Fin's GST/HST registration number, payment instructions,
 and Stripe references to anyone with the URL. The path pattern is predictable
@@ -88,14 +116,10 @@ an unconstrained execution surface.
 
 ---
 
-### 🟢 L1 — Two FB-helper endpoints lack billing gate
-`/api/desk/scrape-domain` and `/api/desk/filter-ad-photos` are `requireAuth`
-only (no `requireBilling`). A suspended/unpaid user with a valid token could
-still call them.
-
-- **Impact:** Minimal — both are useless without the core scrape/sync endpoints,
-  which **are** billing-gated (return 403 SUSPENDED). Defense-in-depth gap only.
-- **Remediation:** Add `requireBilling` to both for consistency.
+### ✅ L1 — Two FB-helper endpoints lack billing gate — **RESOLVED 2026-06-18**
+**Fixed in `f352a14`:** `requireBilling` added to both `/api/desk/scrape-domain`
+and `/api/desk/filter-ad-photos`. Suspended/unpaid users now 403 consistently
+across the entire FB-poster path.
 
 ### 🟢 L2 — Access-token suspension lag (≤4h, by design)
 A suspended user's already-issued access token remains valid read-only until its
@@ -107,12 +131,9 @@ immediately.
   `requireAuth` — costs one DB lookup per authenticated request. Current ≤4h
   read-only tail is an accepted tradeoff.
 
-### 🟢 L3 — Retired `fb-license` route still mounted
-`/api/fb-license` (`routes/fb-license.js`) remains mounted (`index.js:172`)
-though the FB-poster licensing model is retired. Dead/duplicate auth surface.
-
-- **Remediation:** Remove the mount + file to reduce attack surface and
-  maintenance confusion.
+### ✅ L3 — Retired `fb-license` route still mounted — **RESOLVED 2026-06-18**
+**Fixed in `f352a14`:** `/api/fb-license` unmounted in `index.js`. Dead auth
+surface removed.
 
 ---
 
@@ -152,14 +173,17 @@ These were checked and confirmed during the audit:
 
 ## Remediation priority order
 
-1. **Now:** Rotate `ADMIN_TOKEN` (C1). [Franco — Railway]
-2. **This week:** `npm audit fix` non-breaking subset (H1a); gate invoice page (M1).
-3. **Near-term:** Add `requireBilling` to L1 endpoints; remove `fb-license` mount (L3).
+1. **Now — ONLY remaining must-do:** Rotate `ADMIN_TOKEN` (C1). [Franco — Railway]
+2. ~~`npm audit fix` non-breaking (H1a)~~ ✅ done · ~~gate invoice page (M1)~~ ✅ done
+3. ~~Add `requireBilling` to L1 endpoints~~ ✅ done · ~~remove `fb-license` mount (L3)~~ ✅ done
 4. **Scheduled:** IMAP-chain dependency migration with intake testing (H1b); CSP with nonces (M2).
 5. **Optional:** Instant suspension via `requireAuth` DB-check (L2).
 
 ---
 
-*Audit performed by reading source at commit `06bbe1f` and probing the live
-production endpoints. No destructive actions taken. Findings reflect state as of
-2026-05-29.*
+*Original audit (2026-05-29) performed by reading source at commit `06bbe1f` and
+probing live production endpoints. Remediation cycle (2026-06-18) shipped in
+commit `f352a14`. No destructive actions taken. With H1a/M1/L1/L3 resolved, the
+only open must-fix is C1 (admin token rotation); H1b and M2 are scheduled
+low-urgency items. This document is suitable for sharing in response to a vendor
+security questionnaire.*
