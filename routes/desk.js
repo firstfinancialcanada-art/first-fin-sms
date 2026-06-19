@@ -859,8 +859,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         storage: multer.memoryStorage(),
         limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB hard cap
         fileFilter: (req, file, cb) => {
-          const ok = ['image/png','image/jpeg','image/jpg','image/webp','image/svg+xml'].includes(file.mimetype);
-          cb(ok ? null : new Error('Logo must be PNG, JPG, WebP, or SVG'), ok);
+          // SVG intentionally excluded — it can carry <script> and would
+          // execute same-origin when served back (stored XSS). Security
+          // audit 2026-06-18. Raster formats only.
+          const ok = ['image/png','image/jpeg','image/jpg','image/webp'].includes(file.mimetype);
+          cb(ok ? null : new Error('Logo must be PNG, JPG, or WebP'), ok);
         },
       });
     } catch(e) {
@@ -924,6 +927,12 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         'Content-Type':  row.logo_mime || 'image/png',
         'Cache-Control': 'public, max-age=86400',  // 1 day; ?v=ts query forces refresh on update
         'ETag':          etag,
+        // Defense-in-depth for any legacy SVG already stored: nosniff stops
+        // MIME-confusion, and the sandbox CSP neutralizes script execution
+        // if the bytes are opened as a top-level document. (New SVG uploads
+        // are now blocked at the upload filter.) Security audit 2026-06-18.
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
       });
       res.send(row.logo_data);
     } catch (e) {

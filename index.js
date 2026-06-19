@@ -5,8 +5,12 @@ const path    = require('path');
 require('dotenv').config();
 
 // ── Environment validation ───────────────────────────────────────
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
-const WARN_ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'STRIPE_SECRET_KEY', 'ADMIN_TOKEN'];
+// ADMIN_TOKEN is REQUIRED: several admin routes gate with a bare
+// `token !== process.env.ADMIN_TOKEN`, which fails OPEN (grants access to a
+// request with no token) if the env var is ever undefined. Requiring it at
+// boot makes that impossible at runtime. Security audit 2026-06-18.
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_TOKEN'];
+const WARN_ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'STRIPE_SECRET_KEY'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) { console.error(`❌ FATAL: Missing required env var: ${key}`); process.exit(1); }
 }
@@ -15,14 +19,25 @@ for (const key of WARN_ENV) {
 }
 
 // ── Inline rate limiter (no external dep) ─────────────────────────
+// Per-key fixed window with INDEPENDENT expiry per key (not a global
+// Map.clear(), which let a burst sail through right after each reset).
+// Keys on req.ip only — with `trust proxy` set below, req.ip is the real
+// client IP from Railway's proxy and is NOT client-spoofable. (The old
+// x-forwarded-for fallback let an attacker rotate the header to defeat the
+// login/register throttle entirely.) Security audit 2026-06-18.
 function makeRateLimit({ windowMs, max, message }) {
-  const hits = new Map();
-  setInterval(() => hits.clear(), windowMs).unref();
+  const hits = new Map(); // key -> { count, resetAt }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+  }, windowMs).unref();
   return (req, res, next) => {
-    const key = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-    const count = (hits.get(key) || 0) + 1;
-    hits.set(key, count);
-    if (count > max) {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    let rec = hits.get(key);
+    if (!rec || rec.resetAt <= now) { rec = { count: 0, resetAt: now + windowMs }; hits.set(key, rec); }
+    rec.count++;
+    if (rec.count > max) {
       const body = message || { success: false, error: 'Too many requests' };
       return res.status(429).json(body);
     }
@@ -32,6 +47,10 @@ function makeRateLimit({ windowMs, max, message }) {
 
 // ── Core setup ────────────────────────────────────────────────────
 const app          = express();
+// Railway runs the app behind one proxy hop. Trust exactly one proxy so
+// req.ip resolves to the real client IP (from X-Forwarded-For) for rate
+// limiting + abuse logging, without trusting client-supplied XFF beyond it.
+app.set('trust proxy', 1);
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const PORT         = process.env.PORT || 3000;
 const HOST         = '0.0.0.0';
@@ -195,6 +214,17 @@ function shutdown(signal) {
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// ── Global error handler (terminal middleware) ──────────────────
+// Catches any uncaught error from routes/middleware and returns a generic
+// 500. Without this, Express's default handler leaks the full stack trace
+// to the client unless NODE_ENV==='production'. Logs server-side for
+// debugging. Security audit 2026-06-18.
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled route error:', (err && err.stack) ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ success: false, error: 'An unexpected error occurred.' });
+});
 
 // ── Start ─────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
