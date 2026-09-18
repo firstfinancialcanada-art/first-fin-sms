@@ -961,7 +961,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       try {
         // Fetch photos as base64 in the background (no CORS issues here)
         const photoData = [];
-        const photoUrls = msg.vehicle.photos || [];
+        // HomeNet stock_images are manufacturer press shots kept for the desk
+        // view only — posting one as the actual unit is what gets a
+        // Marketplace account flagged, so they never go up.
+        const allPhotoUrls = msg.vehicle.photos || [];
+        const photoUrls = allPhotoUrls.filter(u => !/\/stock_images\//i.test(String(u)));
+        if (allPhotoUrls.length && !photoUrls.length) {
+          reportError('This vehicle only has manufacturer stock photos — take real photos before posting it.');
+          return;
+        }
         if (photoUrls.length > 0) {
           console.log(`[FIRST-FIN] Fetching ${photoUrls.length} photos...`);
           // FB Marketplace cap is 50 photos per listing; we go up to 25 to
