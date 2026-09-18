@@ -693,6 +693,22 @@ async function fetchPhotosSameOrigin(tabId, items) {
 // start from zero — on South Trail that meant three runs fetching the same
 // 79 pages and each one getting throttled part-way. With the cache, runs
 // converge instead: whatever succeeded last time is free this time.
+// Carfax names the badge AccidentFree but displays it as "No Reported
+// Accidents" — use what a buyer would have seen on the dealer's site.
+const CARFAX_BADGE_LABELS = {
+  OneOwner: 'One Owner',
+  AccidentFree: 'No Reported Accidents',
+  NoAccidents: 'No Reported Accidents',
+  NoReportedAccidents: 'No Reported Accidents',
+  ServiceRecords: 'Service Records',
+};
+function carfaxBadgeText(names) {
+  return (names || [])
+    .map(n => CARFAX_BADGE_LABELS[n] || String(n).replace(/([a-z])([A-Z])/g, '$1 $2'))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .join(', ');
+}
+
 const PHOTO_CACHE_KEY = 'ffPhotoCache';
 const PHOTO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;  // a week — stale galleries aren't worth refetching sooner
 const PHOTO_CACHE_MAX = 3000;                      // entries, oldest pruned first
@@ -725,6 +741,10 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
   for (const v of vehicles) {
     const hit = v._url && photoCache[v._url];
     if (hit && hit.photos && hit.photos.length > (v._photos || []).length) { v._photos = hit.photos; fromCache++; }
+    if (hit && hit.carfax && (hit.carfax.names || []).length) {
+      v.carfax_badges = carfaxBadgeText(hit.carfax.names);
+      if (hit.carfax.url) v.carfax_url = hit.carfax.url;
+    }
   }
   if (fromCache) {
     activeScan.log.push({ cls: 'ok', text: `💾 ${fromCache} galleries loaded from cache — not refetching` });
@@ -760,7 +780,13 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
       // Only fetch FAILURES are worth another attempt.
       const answered = new Set();
       // Cached vehicles are already done — don't spend requests on them.
-      for (const v of withUrls) if (photoCache[v._url] && (photoCache[v._url].photos || []).length) answered.add(v._url);
+      // A cache entry written before badge support has no `carfax` key at
+      // all, so it gets fetched once more to pick the badges up; entries that
+      // were looked up (badges or explicitly none) are left alone.
+      for (const v of withUrls) {
+        const hit = photoCache[v._url];
+        if (hit && (hit.photos || []).length && 'carfax' in hit) answered.add(v._url);
+      }
       try {
         if (hostIsOurs) await waitForTabLoad(host.id, 20000);
         // Two passes: the second retries whatever failed, after a pause. A cf
@@ -784,14 +810,11 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
               answered.add(v._url);
               const photos = r.photos || [];
               if (photos.length > (v._photos || []).length) { v._photos = photos; got++; }
-              if (photos.length) photoCache[v._url] = { photos, ts: Date.now() };
+              if (photos.length) photoCache[v._url] = { photos, carfax: r.carfax || null, ts: Date.now() };
               // Plain field names (no leading _) so the sync payload keeps
               // them — popup strips scraper-internal underscore fields.
-              if (r.carfax && r.carfax.names && r.carfax.names.length) {
-                // Carfax names the badge AccidentFree but displays it as
-                // "No Reported Accidents" — match what the dealer shows.
-                const LABELS = { OneOwner: 'One Owner', AccidentFree: 'No Reported Accidents', NoAccidents: 'No Reported Accidents', NoReportedAccidents: 'No Reported Accidents', ServiceRecords: 'Service Records' };
-                v.carfax_badges = r.carfax.names.map(n => LABELS[n] || String(n).replace(/([a-z])([A-Z])/g, '$1 $2')).join(', ');
+              if (r.carfax && (r.carfax.names || []).length) {
+                v.carfax_badges = carfaxBadgeText(r.carfax.names);
                 if (r.carfax.url) v.carfax_url = r.carfax.url;
               }
             }
