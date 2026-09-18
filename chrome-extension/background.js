@@ -197,6 +197,32 @@ async function persistState() {
 
 // ── Collect VDP links from a pagination page ───────────────────────────────
 async function collectVdpLinksFromPage(tabId, pageUrl) {
+  // Server-first: driving the background tab through each pagination page
+  // races the site's render and silently returns 0 cars (Automaxx page 2,
+  // 2026-09-17). The server fetches the raw HTML and parses it with cheerio,
+  // which has no such race. Falls through to the tab path on any failure.
+  try {
+    const token = (await chrome.storage.local.get('token')).token;
+    if (token) {
+      const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ url: pageUrl })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const links = data?.result?.links || [];
+        if (data.ok && links.length) {
+          console.log('[FF-bg] collectVdpLinksFromPage server returned', links.length, 'links for', pageUrl);
+          return links;
+        }
+        console.warn('[FF-bg] collectVdpLinksFromPage server returned no links for', pageUrl, data?.error || '');
+      }
+    }
+  } catch (e) {
+    console.warn('[FF-bg] collectVdpLinksFromPage server error:', e.message);
+  }
+
   try {
     await chrome.tabs.update(tabId, { url: pageUrl });
     await waitForTabLoad(tabId);
@@ -252,7 +278,7 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-const __FF_BG_VERSION = 'bg-v2.8.9-skip-blocked-server-2026-04-27';
+const __FF_BG_VERSION = 'bg-v2.9.0-server-direct-all-2026-09-17';
 let __ffServerDirectFails = 0;
 const __FF_SERVER_DIRECT_FAIL_LIMIT = 3;
 async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
@@ -346,7 +372,15 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
     // 20-photo client cap. Server returns 30 photos reliably (verified
     // via /api/admin/debug-scrape-vdp 2026-04-27).
     __ffServerDirectFails = 0; // reset per scan
-    const isD2CScan = links.length > 0 && /-id\d+\.html|d2cmedia|huntchryslerfiat|inventory\.html\?filterid/i.test(links[0]);
+    // 2026-09-17: server-direct is no longer D2C-only. Driving a background
+    // tab through 176 Automaxx VDPs kept stalling mid-scan, and the client
+    // parser can't read Fox Dealer's JSON-LD anyway. The server fetches and
+    // parses each VDP with no tab involved. Sites the server can't reach
+    // (Hunt's Cloudflare 403s Railway) still fall back automatically after
+    // __FF_SERVER_DIRECT_FAIL_LIMIT consecutive failures, and a thin server
+    // record (no VIN/price) counts as a failure so the client still gets its
+    // turn on sites the server parses poorly.
+    const isD2CScan = links.length > 0;
     console.log('[FF-bg] D2C scan?', isD2CScan, 'sample link:', links[0]?.slice(0,80));
     activeScan.log.push({ cls: 'hi', text: `🔬 D2C path: ${isD2CScan ? 'YES (server-direct)' : 'NO (client fallback)'} — sample: ${(links[0]||'').slice(-50)}` });
     broadcastProgress();
@@ -385,7 +419,12 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
               clearTimeout(t);
               if (resp.ok) {
                 const data = await resp.json();
-                if (data.ok && data.result?.vehicles?.length) {
+                const srvVeh = data.ok && data.result?.vehicles?.[0];
+                // A record with no VIN and no price means the server fetched
+                // something it couldn't parse (login wall, challenge page,
+                // JS-rendered SPA) — treat it as a failure so the client tab
+                // path still runs for this vehicle.
+                if (srvVeh && (srvVeh.vin || srvVeh.price > 0)) {
                   vResp = { result: data.result };
                   __ffServerDirectFails = 0; // reset on success
                   const srvCount = data.result.vehicles[0]._photos?.length || 0;

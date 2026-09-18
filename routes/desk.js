@@ -2775,6 +2775,45 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // SCRAPE LISTING — server fetches an inventory page and returns its VDP
+  // links. The extension's own pagination drives a background tab through
+  // each page, which kept coming back empty on Automaxx (2026-09-17: page 2
+  // found 0 cars, retry lost page 3) — a load/render race the server doesn't
+  // have, since cheerio reads the raw HTML response. Same fetch shape as
+  // scrape-vdp's server-fetch path.
+  // ═══════════════════════════════════════════════════════════
+  app.post('/api/desk/scrape-listing', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ ok: false, error: 'url required' });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      let html;
+      try {
+        const r = await safeFetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!r.ok) return res.json({ ok: false, error: `Fetch failed: ${r.status}` });
+        html = await r.text();
+      } catch (fetchErr) {
+        clearTimeout(timeout);
+        return res.json({ ok: false, error: `Fetch error: ${fetchErr.message}` });
+      }
+      const result = await scraper.scrapePageHtml(html, url);
+      res.json({ ok: true, result });
+    } catch (e) {
+      console.error('❌ /api/desk/scrape-listing error:', e.message);
+      res.status(500).json({ ok: false, error: 'Server listing parse error' });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // OCR PHOTOS — detect wholesale-source dealer signage
   // Input: { urls: [photoUrl, ...] } — typically one vehicle's gallery.
   // Output: { kept: [...clean urls...], rejected: [{ url, matched, text }...] }
