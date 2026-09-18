@@ -1589,6 +1589,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
 
       await client.query('BEGIN');
+      // A stuck import must not wait forever: replace-mode was hanging on a
+      // lock with no response at all, which then blocked every later import
+      // behind it. Fail the statement instead, so the caller gets an error
+      // it can act on and the transaction unwinds.
+      await client.query("SET LOCAL lock_timeout = '10s'");
+      await client.query("SET LOCAL statement_timeout = '60s'");
+      await client.query("SET LOCAL idle_in_transaction_session_timeout = '60s'");
 
       if (mode === 'replace') {
         await client.query(`DELETE FROM desk_inventory WHERE ${ownerWhere}`, [ownerScopeId]);
