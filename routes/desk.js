@@ -12,6 +12,7 @@ const {
   JWT_SECRET,
   REFRESH_TTL_DAYS
 } = require('../middleware/auth');
+const { safeFetch } = require('../lib/url-guard'); // SSRF-guarded fetch for scrape/photo endpoints
 
 const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
@@ -2749,7 +2750,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
         try {
-          const r = await fetch(url, {
+          const r = await safeFetch(url, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -2818,7 +2819,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         const photos = (vehicles[vi].photos || []).filter(p => /d2cmedia\.ca|getedealer\.com/i.test(p));
         for (const url of photos) {
           try {
-            const resp = await fetch(url, { headers: { Range: 'bytes=0-999' } });
+            const resp = await safeFetch(url, { headers: { Range: 'bytes=0-999' } });
             if (!resp.ok && resp.status !== 206) continue;
             const buf = Buffer.from(await resp.arrayBuffer());
             const data = buf.length > 1000 ? buf.slice(0, 1000) : buf;
