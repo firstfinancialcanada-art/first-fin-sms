@@ -600,6 +600,11 @@ async function runSync() {
       // (Facebook Marketplace's hard cap is 20 photos per listing). Excess
       // beyond 30 is junk anyway (warranty graphics, dealer signage repeats).
       if (v._photos && v._photos.length) obj.photos = v._photos.slice(0, 30);
+      // Same reason photos need re-adding: the `_` filter above drops
+      // everything scraper-internal, and _source has to survive — it's what
+      // marks a unit as wholesale-priced so the FB Poster won't post dealer
+      // cost to Marketplace. Lost silently on the 2026-09-18 SmartBuy import.
+      if (v._source) obj.source = v._source;
       return obj;
     });
     const r = await authFetch('/api/desk/inventory/sync', {
