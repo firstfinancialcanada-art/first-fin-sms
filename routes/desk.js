@@ -1532,8 +1532,26 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         return ('IMP' + Date.now() + stockCounter).slice(0, 20);
       }
 
+      // ── Normalize what the sources don't give us ──────────────────────
+      // Convertus sites (South Trail) state no body style at all, so all 83
+      // of their units arrived as "Used" — Marketplace needs a real one. And
+      // their trim field carries feature marketing ("Comfortline 4MOTION |
+      // BACKUP CAM | HEATED SEATS"), which belongs in the description, not
+      // the trim. Done here so every source gets it, whichever path scraped.
+      const scraperLib = require('../lib/scraper');
+      function normalizeVehicle(v) {
+        const type = (v.type || '').trim();
+        if (!type || /^(used|new|pre-?owned|other)$/i.test(type)) {
+          const guess = scraperLib.bodyStyleFromModel(v.make || '', v.model || '');
+          if (guess) v.type = guess;
+        }
+        if (v.trim && v.trim.includes('|')) v.trim = v.trim.split('|')[0].trim();
+        return v;
+      }
+
       // 21-param insert: ...color, trim, photos, int_color, transmission, fuel_type, drive_train, engine
       function insertParams(v) {
+        normalizeVehicle(v);
         return [
           userId,
           tenantId,
@@ -1621,6 +1639,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
       } else { // consolidate
         for (const v of vehicles) {
+          normalizeVehicle(v);   // the UPDATE path below doesn't go through insertParams
           if (v.vin) {
             const { rows } = await client.query(
               `SELECT id FROM desk_inventory WHERE ${ownerWhere} AND vin=$2 LIMIT 1`,
