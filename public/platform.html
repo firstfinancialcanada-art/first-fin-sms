@@ -169,6 +169,10 @@ select option{background:#0d1526;color:var(--text);}
 .data-table{width:100%;border-collapse:collapse;font-size:12px;}
 .data-table th{background:var(--primary);color:white;padding:10px 8px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.8px;position:sticky;top:0;z-index:5;}
 .data-table td{padding:9px 8px;border-bottom:1px solid var(--border);color:var(--text);}
+.data-table th.inv-sort{cursor:pointer;user-select:none;white-space:nowrap;}
+.data-table th.inv-sort:hover{background:var(--primary-hover,#1248cc);}
+.data-table th.inv-sort .inv-arrow{font-size:9px;opacity:.45;margin-left:2px;}
+.data-table th.inv-sort.sorted .inv-arrow{opacity:1;}
 .data-table tr:hover td{background:rgba(30,90,246,0.07);cursor:pointer;}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;}
 .crm-overdue td{border-left:3px solid #ef4444!important;background:rgba(239,68,68,.05)!important;}
@@ -1688,8 +1692,16 @@ select option{background:#0d1526;color:var(--text);}
         <thead>
           <tr>
             <th style="width:30px;"><input type="checkbox" id="invSelectAll" onchange="invToggleAll(this.checked)" title="Select all"></th>
-            <th>Stock #</th><th>Year</th><th>Make</th><th>Model</th><th>Type</th>
-            <th>Mileage</th><th>Price</th><th>Book Val</th><th>Condition</th><th>Action</th>
+            <th class="inv-sort" data-sort="stock"      onclick="invSortBy('stock')">Stock # <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="year"       onclick="invSortBy('year')">Year <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="make"       onclick="invSortBy('make')">Make <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="model"      onclick="invSortBy('model')">Model <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="type"       onclick="invSortBy('type')">Type <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="mileage"    onclick="invSortBy('mileage')">Mileage <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="price"      onclick="invSortBy('price')">Price <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="book_value" onclick="invSortBy('book_value')">Book Val <span class="inv-arrow"></span></th>
+            <th class="inv-sort" data-sort="condition"  onclick="invSortBy('condition')">Condition <span class="inv-arrow"></span></th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody id="inventoryBody"></tbody>

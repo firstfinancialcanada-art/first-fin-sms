@@ -649,6 +649,51 @@ async function editBookValue(stock, currentVal, event) {
 
 let invSelected = new Set();
 
+// ── INVENTORY COLUMN SORT ─────────────────────────────────────────
+// Click a header to sort, click the same one again to reverse. Sorting is
+// applied inside renderInventory so it survives search filtering, deletes
+// and re-imports without every caller having to know about it.
+let invSort = { key: null, dir: 1 };
+const INV_NUMERIC = new Set(['year', 'mileage', 'price', 'book_value']);
+// Worst -> best, so "sort by condition" reads like a reconditioning queue.
+const INV_CONDITION_ORDER = { rough: 0, poor: 0, average: 1, avg: 1, clean: 2, excellent: 3 };
+
+function invSortList(list) {
+  if (!invSort.key) return list;
+  const k = invSort.key;
+  return list.slice().sort((a, b) => {
+    let x, y;
+    if (INV_NUMERIC.has(k)) {
+      x = Number(a[k]) || 0; y = Number(b[k]) || 0;
+    } else if (k === 'condition') {
+      const rank = v => {
+        const c = String(v || 'average').toLowerCase();
+        return (c in INV_CONDITION_ORDER) ? INV_CONDITION_ORDER[c] : 1;
+      };
+      x = rank(a[k]); y = rank(b[k]);
+    } else {
+      // Stock numbers are alphanumeric (AM25466A) — localeCompare with
+      // numeric:true keeps AM9 before AM10 instead of sorting them as text.
+      return String(a[k] || '').localeCompare(String(b[k] || ''), undefined, { numeric: true, sensitivity: 'base' }) * invSort.dir;
+    }
+    return (x - y) * invSort.dir;
+  });
+}
+
+function invSortBy(key) {
+  invSort = { key, dir: (invSort.key === key ? -invSort.dir : 1) };
+  renderInventory(window.__invRendered || window.ffInventory || []);
+}
+
+function invPaintSortHeaders() {
+  document.querySelectorAll('.data-table th.inv-sort').forEach(th => {
+    const on = th.dataset.sort === invSort.key;
+    th.classList.toggle('sorted', on);
+    const arrow = th.querySelector('.inv-arrow');
+    if (arrow) arrow.textContent = on ? (invSort.dir === 1 ? '▲' : '▼') : '↕';
+  });
+}
+
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
@@ -656,6 +701,12 @@ function renderInventory(list){
   if (!tbody) return;
   invSelected.clear();
   invUpdateBulkBar();
+
+  // Remember what's on screen (pre-sort) so a header click can re-sort the
+  // current search results rather than jumping back to the full lot.
+  window.__invRendered = list;
+  list = invSortList(list);
+  invPaintSortHeaders();
 
   tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
