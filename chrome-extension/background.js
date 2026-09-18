@@ -73,7 +73,13 @@ async function scrapeTabBg(tabId) {
       });
       console.log('[FF-bg] scrapeTabBg server-first captured', capture?.html?.length || 0, 'bytes for', capture?.url);
       const isD2C = capture?.url && /d2cmedia|huntchryslerfiat|-id\d+\.html/i.test(capture.url);
-      if (isD2C && capture?.html && capture.html.length > 500) {
+      // Fox Dealer (Automaxx, House of Cars) keeps price, make/model,
+      // drivetrain and odometer only in schema.org JSON-LD, which the
+      // client-side parser doesn't read: 2026-09-17 those imported as
+      // make "Mercedes" / model "Benz" and trim "SLT%2B". Server-side
+      // reads it, so treat Fox like D2C and go server-first.
+      const isFox = capture?.html && /static\.foxdealer\.com|foxdealer\.com\/wp-content/i.test(capture.html);
+      if ((isD2C || isFox) && capture?.html && capture.html.length > 500) {
         const resp = await fetch('https://app.firstfinancialcanada.com/api/desk/scrape-vdp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -111,12 +117,26 @@ async function scrapeTabBg(tabId) {
   }
 
   // If server already returned good data, use it (skips remaining merge logic)
-  if (serverResult?.result?.vehicles?.[0]?._photos?.length >= 20) {
-    const srvPhotos = serverResult.result.vehicles[0]._photos;
-    const cliPhotos = clientResult?.result?.vehicles?.[0]?._photos || [];
-    if (srvPhotos.length > cliPhotos.length) {
+  const srvV = serverResult?.result?.vehicles?.[0];
+  const cliV = clientResult?.result?.vehicles?.[0];
+  if (srvV) {
+    const srvPhotos = srvV._photos || [];
+    const cliPhotos = cliV?._photos || [];
+    if (srvPhotos.length >= 20 && srvPhotos.length > cliPhotos.length) {
       // Use server-first result wholesale
       console.log('[FF-bg] scrapeTabBg returning server-first result');
+      return serverResult;
+    }
+    // Fewer photos but a complete record (VIN + price) still means the
+    // server read fields the client couldn't — take the server record and
+    // keep whichever photo set is larger. A unit whose only photos are
+    // HomeNet stock images is meant to come back with none, so an empty
+    // server list does not fall back to the client's press shots.
+    if (srvV.vin && srvV.price > 0) {
+      if (cliPhotos.length > srvPhotos.length && !/homenetiol\.com\/stock_images\//i.test(cliPhotos[0] || '')) {
+        srvV._photos = cliPhotos;
+      }
+      console.log('[FF-bg] scrapeTabBg returning server record (photos:', (srvV._photos || []).length, ')');
       return serverResult;
     }
   }
