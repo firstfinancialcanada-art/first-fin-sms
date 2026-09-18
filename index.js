@@ -215,6 +215,23 @@ function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+// ── Crash visibility ─────────────────────────────────────────────
+// A replace-mode inventory sync was killing the whole process — the
+// request 502'd instantly and every other request died with it until
+// Railway restarted us ~4s later. Node exits silently on an unhandled
+// rejection, so nothing said why. Log the stack before we go, and keep
+// the process alive for a rejection (an unhandled rejection is a bug to
+// fix, not a reason to drop every other user's request).
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 UNHANDLED REJECTION:', reason && reason.stack ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', err && err.stack ? err.stack : err);
+  // An uncaught exception can leave state inconsistent — exit and let
+  // Railway restart, but only after the reason is on the record.
+  setTimeout(() => process.exit(1), 250);
+});
+
 // ── Global error handler (terminal middleware) ──────────────────
 // Catches any uncaught error from routes/middleware and returns a generic
 // 500. Without this, Express's default handler leaks the full stack trace
