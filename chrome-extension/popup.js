@@ -529,7 +529,14 @@ async function runScan() {
       // for 79 vehicles, popup can close, results updated live.
       const isConvertus = result.type === 'listing_cards' && scraped.some(v => v._url && /vehicle-card|convertus|chrysler|dealer/i.test(v._url + ' ' + (v._title || '')));
       const hasUrls     = scraped.length >= 2 && scraped.filter(v => v._url).length >= 2;
-      if (hasUrls && (isConvertus || result.type === 'listing_cards')) {
+      // Only go deep when there's something to gain. SmartBuy's feed already
+      // returns 8-20 photos per unit and gives every vehicle the same site
+      // URL, so the deep pass had nothing to visit and simply hammered
+      // Cloudflare 144 times (2026-09-18: every unit came back cf-blocked).
+      const thin        = scraped.filter(v => (v._photos || []).length < 5).length;
+      const needsDeep   = thin >= Math.ceil(scraped.length / 2);
+      const distinctVdp = new Set(scraped.map(v => v._url || '')).size >= 2;
+      if (hasUrls && needsDeep && distinctVdp && (isConvertus || result.type === 'listing_cards')) {
         log(`📷 Starting deep photo scan — visiting each VDP to grab full gallery (~${Math.ceil(scraped.length * 14 / 3 / 60)} min)`, 'hi');
         log('You can navigate away — scan runs in background.', 'hi');
         bgScanActive  = true;
