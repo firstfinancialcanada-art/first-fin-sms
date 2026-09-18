@@ -117,6 +117,19 @@ async function setup() {
     `);
     console.log('✅ desk_inventory fb_status + fb_posted_date + photos columns');
 
+    // ── 3c. WHOLESALE SOURCE COLUMNS (additive migration) ──────
+    // `source` records the site a vehicle was imported from. Wholesale
+    // sources (SmartBuy) carry dealer-only pricing, so those units must not
+    // reach Marketplace at the imported number — the FB Poster blocks them
+    // until a per-unit retail price is set, which lands in `retail_price`.
+    // Per-unit on purpose: a blanket markup was tried and dropped, because
+    // each wholesale unit prices differently.
+    await client.query(`
+      ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS source VARCHAR(60);
+      ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS retail_price NUMERIC(12,2);
+    `);
+    console.log('✅ desk_inventory source + retail_price columns');
+
     // ── 4. CRM (replaces ffCRM localStorage) ───────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS desk_crm (

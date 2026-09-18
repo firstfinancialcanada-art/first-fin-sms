@@ -3690,6 +3690,8 @@ async function startLoginBuy() {
 .fbp-chip.km{background:rgba(30,90,246,.1);color:#93c5fd;border:1px solid var(--border2);}
 .fbp-chip.stk{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
 .fbp-chip.ph{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.fbp-chip.whsl{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);cursor:pointer;}
+.fbp-chip.whsl.ok{background:rgba(16,185,129,.1);color:var(--green);border-color:rgba(16,185,129,.25);}
 .fbp-photo-row{display:flex;align-items:center;gap:9px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .fbp-pstrip{display:flex;gap:5px;flex:1;overflow-x:auto;}
 .fbp-pstrip::-webkit-scrollbar{height:3px;}
@@ -3938,8 +3940,16 @@ async function startLoginBuy() {
     }
   }
 
+  // Sites whose imported price is dealer-only (AMVIC wholesale). Those units
+  // must never list at the imported number, so the poster uses retail_price
+  // instead and refuses to fill until it's set for that specific unit.
+  const FBP_WHOLESALE_SOURCES = ['smartbuyauto.ca'];
+
   function fbpNorm(v) {
-    const price = parseFloat(v.price) || 0;
+    const listedPrice = parseFloat(v.price) || 0;
+    const retailPrice = parseFloat(v.retail_price) || 0;
+    const isWholesale = FBP_WHOLESALE_SOURCES.includes(String(v.source || '').toLowerCase());
+    const price = isWholesale ? retailPrice : listedPrice;
     const mileage = parseInt(v.mileage) || 0;
     const title = `${v.year||''} ${v.make||''} ${v.model||''}`.replace(/\s+/g,' ').trim() || 'Unknown';
     const today = new Date().toISOString().split('T')[0];
@@ -3958,6 +3968,11 @@ async function startLoginBuy() {
       engine:       v.engine       || '',
       description: fbpBuildDesc(v, title, price, mileage),
       stock: v.stock||'', vin: v.vin||'',
+      source: v.source || '',
+      is_wholesale: isWholesale,
+      wholesale_price: listedPrice,
+      retail_price: retailPrice,
+      needs_retail: isWholesale && !retailPrice,
       condition: v.condition||'Average',
       is_posted: v.fb_status === 'posted',
       is_skipped: v.fb_status === 'skipped',
@@ -4128,6 +4143,11 @@ async function startLoginBuy() {
     const meta = document.getElementById('fbp-v-meta');
     if (meta) meta.innerHTML =
       (v.price_display?`<span class="fbp-chip price">${v.price_display}</span>`:'') +
+      (v.is_wholesale
+        ? (v.needs_retail
+            ? `<span class="fbp-chip whsl" onclick="fbpSetRetail()" title="Wholesale unit — click to set the retail price">⚠ SET RETAIL · wholesale $${Number(v.wholesale_price).toLocaleString()}</span>`
+            : `<span class="fbp-chip whsl ok" onclick="fbpSetRetail('Update the retail price:')" title="Click to change the retail price">retail set · wholesale $${Number(v.wholesale_price).toLocaleString()}</span>`)
+        : '') +
       (v.mileage_display?`<span class="fbp-chip km">${v.mileage_display}</span>`:'') +
       (v.stock?`<span class="fbp-chip stk">Stock #${v.stock}</span>`:'') +
       (v.photos.length?`<span class="fbp-chip ph">${v.photos.length} photos</span>`:'');
@@ -4355,9 +4375,52 @@ async function startLoginBuy() {
     });
   }
 
+  // Wholesale units carry Marty's dealer-only price. Ask for this unit's
+  // retail number before anything reaches Marketplace, and remember it so
+  // it's asked once per vehicle, not once per post.
+  window.fbpSetRetail = async function(reason) {
+    if (!fbpV) return false;
+    const cost = Number(fbpV.wholesale_price) || 0;
+    const current = Number(fbpV.retail_price) || 0;
+    const answer = prompt(
+      `${fbpV.title}\n` +
+      `Wholesale (${fbpV.source}): ${cost ? '$' + cost.toLocaleString() : 'Call for price'}\n\n` +
+      (reason || 'Enter the RETAIL price to advertise on Marketplace:'),
+      current ? String(current) : ''
+    );
+    if (answer === null) return false;
+    const retail = Number(String(answer).replace(/[^0-9.]/g, ''));
+    if (!retail || retail <= 0) { fbpFlash('Retail price not set — nothing posted'); return false; }
+    if (cost && retail < cost) {
+      if (!confirm(`$${retail.toLocaleString()} is below the $${cost.toLocaleString()} wholesale cost.\n\nUse it anyway?`)) return false;
+    }
+    try {
+      const r = await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(fbpV.stock) + '/retail-price', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retail_price: retail })
+      });
+      const data = await r.json();
+      if (!data.success) throw new Error(data.error || 'save failed');
+    } catch (e) {
+      fbpFlash('Could not save retail price — ' + e.message);
+      return false;
+    }
+    // Refresh so the card, description and listing all carry the new number.
+    await fbpLoadInventory();
+    const again = fbpQueue.findIndex(x => x.stock === fbpV.stock);
+    if (again >= 0) { fbpIdx = -1; fbpSelect(again); }
+    fbpFlash('Retail set: $' + retail.toLocaleString());
+    return true;
+  };
+
   // Auto-fill Facebook via Chrome extension
-  window.fbpAutofill = function() {
+  window.fbpAutofill = async function() {
     if (!fbpV) { fbpFlash('Select a vehicle first'); return; }
+    if (fbpV.needs_retail) {
+      const ok = await fbpSetRetail('This is a WHOLESALE unit — set the retail price before posting:');
+      if (!ok) return;
+    }
     // Use currently-included photos (respects OCR filter + user toggles).
     // Falls back to full list if OCR hasn't run yet (e.g., non-SmartBuy source).
     const cleanedPhotos = fbpV._includedUrls
