@@ -690,7 +690,7 @@ async function savePhotoCache(cache) {
   } catch (_) {}
 }
 
-async function runDeepPhotoEnrichment(vehicles) {
+async function runDeepPhotoEnrichment(vehicles, hostTabId) {
   // Seed from cache before touching the network.
   const photoCache = await loadPhotoCache();
   let fromCache = 0;
@@ -711,7 +711,20 @@ async function runDeepPhotoEnrichment(vehicles) {
     if (origin && withUrls.length >= 2) {
       activeScan.log.push({ cls: 'hi', text: `⚡ Fetching galleries directly (no tab per vehicle)...` });
       broadcastProgress();
-      const host = await chrome.tabs.create({ url: origin, active: false });
+      // Prefer the tab the user is already on: it holds the cf_clearance
+      // cookie from a real page load, so its fetches sail through. A tab we
+      // open ourselves gets challenged on the way in, and every fetch from
+      // that challenge page then fails — which is what throttled South Trail
+      // run after run. Only open one if the caller gave us no usable tab.
+      let host = null, hostIsOurs = false;
+      if (hostTabId) {
+        try {
+          const t = await chrome.tabs.get(hostTabId);
+          if (t && new URL(t.url).origin === origin) host = t;
+        } catch (_) {}
+      }
+      if (!host) { host = await chrome.tabs.create({ url: origin, active: false }); hostIsOurs = true; }
+      activeScan.log.push({ cls: '', text: hostIsOurs ? '⚡ (using a new background tab — clearance may be weaker)' : '⚡ (reusing your inventory tab\'s session)' });
       let got = 0;
       // What the fetch actually answered. A car whose page genuinely has one
       // photo (South Trail's 2018 Escape) must not look like a failed fetch,
@@ -721,7 +734,7 @@ async function runDeepPhotoEnrichment(vehicles) {
       // Cached vehicles are already done — don't spend requests on them.
       for (const v of withUrls) if (photoCache[v._url] && (photoCache[v._url].photos || []).length) answered.add(v._url);
       try {
-        await waitForTabLoad(host.id, 20000);
+        if (hostIsOurs) await waitForTabLoad(host.id, 20000);
         // Two passes: the second retries whatever failed, after a pause. A cf
         // rate-limit is temporary, so a straggler usually succeeds on the
         // retry — much cheaper than the tab walk.
@@ -750,7 +763,7 @@ async function runDeepPhotoEnrichment(vehicles) {
           }
         }
       } finally {
-        chrome.tabs.remove(host.id).catch(() => {});
+        if (hostIsOurs) chrome.tabs.remove(host.id).catch(() => {});  // never close the user's own tab
         await savePhotoCache(photoCache);   // keep whatever this run managed
       }
       // Anything the fetch answered is finished, however few photos it has.
@@ -1085,7 +1098,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     activeScan.log.push({ cls: 'hi', text: 'You can navigate away — scan runs in background.' });
     persistState();
     broadcastProgress();
-    runDeepPhotoEnrichment(vehicles).catch(e => {
+    runDeepPhotoEnrichment(vehicles, msg.hostTabId).catch(e => {
       activeScan.log.push({ cls: 'err', text: `❌ Deep scan crashed: ${e.message}` });
       activeScan.status = 'error';
       broadcastProgress();

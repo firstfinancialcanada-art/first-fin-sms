@@ -541,7 +541,11 @@ async function runScan() {
         log('You can navigate away — scan runs in background.', 'hi');
         bgScanActive  = true;
         bgLogRendered = 0;
-        chrome.runtime.sendMessage({ type: 'START_DEEP_PHOTO_SCAN', vehicles: scraped })
+        // Hand over the tab the user is actually on. Fetching the galleries
+        // from that page reuses its Cloudflare clearance; a hidden tab the
+        // extension opens gets challenged on the way in, which is what kept
+        // throttling South Trail.
+        chrome.runtime.sendMessage({ type: 'START_DEEP_PHOTO_SCAN', vehicles: scraped, hostTabId: currentTab?.id })
           .catch(() => {
             bgScanActive = false;
             log('Could not start deep photo scan — sync with 1-photo cards.', 'err');
