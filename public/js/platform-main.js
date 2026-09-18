@@ -619,6 +619,15 @@ async function editBookValue(stock, currentVal, event) {
   async function save() {
     const newVal = parseFloat(input.value);
     if (isNaN(newVal) || newVal < 0) { cell.innerHTML = oldText; return; }
+    const prevVal = Number(currentVal) || 0;
+    if (newVal === prevVal) { cell.innerHTML = oldText; return; }
+    // Book value drives LTV and the lender checker, so confirm the change
+    // rather than letting a stray click rewrite it.
+    const veh = (window.ffInventory || window.inventory || []).find(x => x.stock === stock);
+    const name = veh ? `${veh.year} ${veh.make} ${veh.model}` : stock;
+    if (!confirm(`${name} (${stock})\n\nBook value  $${prevVal.toLocaleString()}  →  $${newVal.toLocaleString()}\n\nUpdate it?`)) {
+      cell.innerHTML = oldText; return;
+    }
     try {
       const res = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}/book-value`, {
         method: 'PATCH',
@@ -644,6 +653,74 @@ async function editBookValue(stock, currentVal, event) {
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { input.blur(); }
     if (e.key === 'Escape') { cell.innerHTML = oldText; }
+  });
+}
+
+// ── PRICE INLINE EDIT ─────────────────────────────────────────────
+// Asking prices move weekly at a franchise store (floorplan steps at 30/60/90
+// days), so re-scraping for one number is silly. Unlike book value, price is
+// what customers see on Marketplace, so a change always confirms first.
+async function editPrice(stock, currentVal, event) {
+  event.stopPropagation();
+  const cell = event.currentTarget;
+  const oldText = cell.innerHTML;
+  const oldVal = Number(currentVal) || 0;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = oldVal || '';
+  input.placeholder = 'e.g. 41900';
+  input.style.cssText = 'width:100px;background:var(--surface);border:1px solid var(--green);border-radius:4px;color:var(--text);padding:4px 6px;font-size:11px;font-family:Outfit,sans-serif;';
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  let saving = false;
+  async function save() {
+    if (saving) return;
+    saving = true;
+    const newVal = parseFloat(input.value);
+    if (isNaN(newVal) || newVal < 0) { cell.innerHTML = oldText; return; }
+    if (newVal === oldVal) { cell.innerHTML = oldText; return; }
+
+    const v = (window.ffInventory || window.inventory || []).find(x => x.stock === stock);
+    const label = v ? `${v.year} ${v.make} ${v.model}` : stock;
+    const delta = oldVal ? Math.round(((newVal - oldVal) / oldVal) * 100) : 0;
+    // A fat-fingered digit is the real risk here — $41,900 typed as $4,190.
+    const bigSwing = oldVal && Math.abs(delta) >= 20;
+    let msg = `${label} (${stock})\n\n$${oldVal.toLocaleString()}  →  $${newVal.toLocaleString()}`;
+    if (oldVal) msg += `   (${delta > 0 ? '+' : ''}${delta}%)`;
+    if (bigSwing) msg += `\n\n⚠ That's a ${Math.abs(delta)}% change — check the digits.`;
+    const book = v ? Number(v.book_value) || 0 : 0;
+    if (book && newVal < book) msg += `\n\n⚠ Below book value of $${book.toLocaleString()}.`;
+    msg += '\n\nUpdate the price?';
+    if (!confirm(msg)) { cell.innerHTML = oldText; return; }
+
+    try {
+      const res = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}/price`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price: newVal })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'failed');
+      if (v) v.price = newVal;
+      cell.innerHTML = `<strong style="color:var(--green);">$${newVal.toLocaleString()}</strong>`;
+      toast(`${stock}: $${oldVal.toLocaleString()} → $${newVal.toLocaleString()}`);
+      // FB Poster caches its own copy of inventory — refresh so a listing
+      // can't go out at the old price.
+      if (typeof window.initFbPoster === 'function') { try { window.initFbPoster(); } catch(_) {} }
+    } catch (e) {
+      cell.innerHTML = oldText;
+      toast('Price update failed — ' + e.message);
+    }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { saving = true; cell.innerHTML = oldText; }
   });
 }
 
@@ -717,7 +794,10 @@ function renderInventory(list){
       <td>${v.model}</td>
       <td style="color:var(--muted);">${v.type || ''}</td>
       <td>${Number(v.mileage).toLocaleString()} km</td>
-      <td><strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong></td>
+      <td style="cursor:pointer;" onclick="editPrice('${v.stock}',${Number(v.price)||0},event)" title="Click to edit price">
+        <strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong>
+        <span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>
+      </td>
       <td style="cursor:pointer;font-size:11px;" onclick="editBookValue('${v.stock}',${v.book_value||0},event)" title="Click to edit book value">
         ${v.book_value&&v.book_value>0
           ? `<span style="color:var(--green);">$${Number(v.book_value).toLocaleString()}</span>`

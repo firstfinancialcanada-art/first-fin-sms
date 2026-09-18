@@ -1286,16 +1286,54 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       if (isNaN(bookValue) || bookValue < 0) {
         return res.status(400).json({ success: false, error: 'Invalid book value' });
       }
-      const result = await client.query(
-        `UPDATE desk_inventory SET book_value = $1, updated_at = NOW()
-         WHERE stock = $2 AND user_id = $3 RETURNING stock, book_value`,
-        [bookValue, req.params.stock, req.user.userId]
-      );
+      // Tenant-scoped: the lot is shared, so a manager must be able to edit a
+      // row another rep imported. Scoping this to user_id meant "Vehicle not
+      // found" on anyone else's vehicle.
+      const scope = await resolveScope(req);
+      const result = scope?.tenantId
+        ? await client.query(
+            `UPDATE desk_inventory SET book_value = $1, updated_at = NOW()
+             WHERE stock = $2 AND tenant_id = $3 RETURNING stock, book_value`,
+            [bookValue, req.params.stock, scope.tenantId])
+        : await client.query(
+            `UPDATE desk_inventory SET book_value = $1, updated_at = NOW()
+             WHERE stock = $2 AND user_id = $3 AND tenant_id IS NULL RETURNING stock, book_value`,
+            [bookValue, req.params.stock, req.user.userId]);
       if (!result.rows.length) {
         return res.status(404).json({ success: false, error: 'Vehicle not found' });
       }
       // Update in-memory inventory on next load — no cache to clear
       res.json({ success: true, stock: result.rows[0].stock, book_value: result.rows[0].book_value });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // ── PRICE (inline edit on the inventory table) ──────────────────────────
+  // Asking prices move constantly at a franchise store — floorplan rates step
+  // at 30/60/90 days, so sales managers re-price aging units weekly. Editing
+  // on the desk beats re-scraping for a single number.
+  app.patch('/api/desk/inventory/:stock/price', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const price = parseFloat(req.body.price);
+      if (isNaN(price) || price < 0 || price > 10000000) {
+        return res.status(400).json({ success: false, error: 'Invalid price' });
+      }
+      const scope = await resolveScope(req);
+      const result = scope?.tenantId
+        ? await client.query(
+            `UPDATE desk_inventory SET price = $1, updated_at = NOW()
+             WHERE stock = $2 AND tenant_id = $3 RETURNING stock, price`,
+            [price, req.params.stock, scope.tenantId])
+        : await client.query(
+            `UPDATE desk_inventory SET price = $1, updated_at = NOW()
+             WHERE stock = $2 AND user_id = $3 AND tenant_id IS NULL RETURNING stock, price`,
+            [price, req.params.stock, req.user.userId]);
+      if (!result.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });
+      res.json({ success: true, ...result.rows[0] });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
