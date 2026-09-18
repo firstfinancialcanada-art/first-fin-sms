@@ -671,14 +671,19 @@ async function runDeepPhotoEnrichment(vehicles) {
       broadcastProgress();
       const host = await chrome.tabs.create({ url: origin, active: false });
       let got = 0;
+      // What the fetch actually answered. A car whose page genuinely has one
+      // photo (South Trail's 2018 Escape) must not look like a failed fetch,
+      // or it gets retried and then handed to the slow tab walk for nothing.
+      // Only fetch FAILURES are worth another attempt.
+      const answered = new Set();
       try {
         await waitForTabLoad(host.id, 20000);
-        // Two passes: the second retries whatever came back thin, after a
-        // pause. A cf rate-limit is temporary, so a straggler usually
-        // succeeds on the retry — much cheaper than the tab walk.
+        // Two passes: the second retries whatever failed, after a pause. A cf
+        // rate-limit is temporary, so a straggler usually succeeds on the
+        // retry — much cheaper than the tab walk.
         const BATCH = 8;
         for (let pass = 0; pass < 2; pass++) {
-          const todo = withUrls.filter(v => (v._photos || []).length < 2);
+          const todo = withUrls.filter(v => !answered.has(v._url));
           if (!todo.length) break;
           if (pass === 1) {
             activeScan.log.push({ cls: '', text: `⚡ Retrying ${todo.length} slow ones after a 20s pause...` });
@@ -689,8 +694,11 @@ async function runDeepPhotoEnrichment(vehicles) {
             const slice = todo.slice(i, i + BATCH);
             const res = await fetchPhotosSameOrigin(host.id, slice.map(v => v._url));
             for (const v of slice) {
-              const photos = res[v._url] && res[v._url].photos;
-              if (photos && photos.length > (v._photos || []).length) { v._photos = photos; got++; }
+              const r = res[v._url];
+              if (!r || r.error) continue;           // failed — retry / fall back
+              answered.add(v._url);
+              const photos = r.photos || [];
+              if (photos.length > (v._photos || []).length) { v._photos = photos; got++; }
             }
             activeScan.deepScan = { active: true, current: Math.min(i + BATCH, todo.length), total: todo.length, enriched: got, failed: 0 };
             broadcastProgress();
@@ -699,8 +707,9 @@ async function runDeepPhotoEnrichment(vehicles) {
       } finally {
         chrome.tabs.remove(host.id).catch(() => {});
       }
-      const thin = vehicles.filter(v => (v._photos || []).length < 2);
-      activeScan.log.push({ cls: 'ok', text: `⚡ Direct fetch enriched ${got}/${withUrls.length}${thin.length ? ` — ${thin.length} still thin, falling back to tab scan` : ''}` });
+      // Anything the fetch answered is finished, however few photos it has.
+      const thin = vehicles.filter(v => v._url && !answered.has(v._url) && (v._photos || []).length < 2);
+      activeScan.log.push({ cls: 'ok', text: `⚡ Direct fetch handled ${answered.size}/${withUrls.length} (${got} enriched)${thin.length ? ` — ${thin.length} unreachable, falling back to tab scan` : ''}` });
       broadcastProgress();
       if (!thin.length) {
         activeScan.deepScan = { active: false, current: vehicles.length, total: vehicles.length, enriched: got, failed: 0 };
