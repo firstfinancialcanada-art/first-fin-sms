@@ -660,7 +660,49 @@ async function fetchPhotosSameOrigin(tabId, urls) {
   return result || {};
 }
 
+// Photos keyed by VDP URL, so a rescan doesn't re-fetch what we already
+// have. Cloudflare throttles harder the more we ask, and every run used to
+// start from zero — on South Trail that meant three runs fetching the same
+// 79 pages and each one getting throttled part-way. With the cache, runs
+// converge instead: whatever succeeded last time is free this time.
+const PHOTO_CACHE_KEY = 'ffPhotoCache';
+const PHOTO_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;  // a week — stale galleries aren't worth refetching sooner
+const PHOTO_CACHE_MAX = 3000;                      // entries, oldest pruned first
+
+async function loadPhotoCache() {
+  try {
+    const store = (await chrome.storage.local.get(PHOTO_CACHE_KEY))[PHOTO_CACHE_KEY] || {};
+    const now = Date.now();
+    for (const k of Object.keys(store)) if (!store[k] || (now - store[k].ts) > PHOTO_CACHE_TTL) delete store[k];
+    return store;
+  } catch { return {}; }
+}
+
+async function savePhotoCache(cache) {
+  try {
+    const keys = Object.keys(cache);
+    if (keys.length > PHOTO_CACHE_MAX) {
+      keys.sort((a, b) => cache[a].ts - cache[b].ts)
+          .slice(0, keys.length - PHOTO_CACHE_MAX)
+          .forEach(k => delete cache[k]);
+    }
+    await chrome.storage.local.set({ [PHOTO_CACHE_KEY]: cache });
+  } catch (_) {}
+}
+
 async function runDeepPhotoEnrichment(vehicles) {
+  // Seed from cache before touching the network.
+  const photoCache = await loadPhotoCache();
+  let fromCache = 0;
+  for (const v of vehicles) {
+    const hit = v._url && photoCache[v._url];
+    if (hit && hit.photos && hit.photos.length > (v._photos || []).length) { v._photos = hit.photos; fromCache++; }
+  }
+  if (fromCache) {
+    activeScan.log.push({ cls: 'ok', text: `💾 ${fromCache} galleries loaded from cache — not refetching` });
+    broadcastProgress();
+  }
+
   // Try the same-origin fetch path first; anything it can't enrich falls
   // through to the original tab-per-VDP walk below.
   try {
@@ -676,6 +718,8 @@ async function runDeepPhotoEnrichment(vehicles) {
       // or it gets retried and then handed to the slow tab walk for nothing.
       // Only fetch FAILURES are worth another attempt.
       const answered = new Set();
+      // Cached vehicles are already done — don't spend requests on them.
+      for (const v of withUrls) if (photoCache[v._url] && (photoCache[v._url].photos || []).length) answered.add(v._url);
       try {
         await waitForTabLoad(host.id, 20000);
         // Two passes: the second retries whatever failed, after a pause. A cf
@@ -699,6 +743,7 @@ async function runDeepPhotoEnrichment(vehicles) {
               answered.add(v._url);
               const photos = r.photos || [];
               if (photos.length > (v._photos || []).length) { v._photos = photos; got++; }
+              if (photos.length) photoCache[v._url] = { photos, ts: Date.now() };
             }
             activeScan.deepScan = { active: true, current: Math.min(i + BATCH, todo.length), total: todo.length, enriched: got, failed: 0 };
             broadcastProgress();
@@ -706,6 +751,7 @@ async function runDeepPhotoEnrichment(vehicles) {
         }
       } finally {
         chrome.tabs.remove(host.id).catch(() => {});
+        await savePhotoCache(photoCache);   // keep whatever this run managed
       }
       // Anything the fetch answered is finished, however few photos it has.
       const thin = vehicles.filter(v => v._url && !answered.has(v._url) && (v._photos || []).length < 2);
