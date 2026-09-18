@@ -776,7 +776,19 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
         await persistState(); broadcastProgress();
         return;
       }
-      vehicles = thin; // only the stragglers take the slow path
+      // If the site throttled the fetches, the tab walk will be throttled
+      // harder — on South Trail it blocked every vehicle, every run, and cost
+      // ~10 minutes to learn that. Only bother for a handful of stragglers;
+      // otherwise stop, keep what's cached, and let the next scan pick them
+      // up (cached vehicles cost no requests, so runs converge).
+      if (thin.length > 5) {
+        activeScan.log.push({ cls: 'hi', text: `⏭ Leaving ${thin.length} for the next scan — the site is rate-limiting, and cached galleries carry over` });
+        activeScan.deepScan = { active: false, current: vehicles.length, total: vehicles.length, enriched: got, failed: thin.length };
+        activeScan.status = 'done';
+        await persistState(); broadcastProgress();
+        return;
+      }
+      vehicles = thin; // a few stragglers are worth the slow path
     }
   } catch (e) {
     activeScan.log.push({ cls: '', text: `⚡ Direct fetch unavailable (${e.message}) — using tab scan` });
