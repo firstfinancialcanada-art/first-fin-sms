@@ -603,7 +603,90 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
 // Updates activeScan.vehicles[i]._photos as photos come in, so the popup
 // can show progressive results. ~12-14s per vehicle; with 3 concurrent
 // tabs, ~5-7 minutes for 79 vehicles.
+// ── Same-origin fetch enrichment (preferred) ───────────────────────────────
+// Opening a hidden tab per VDP is what trips Cloudflare: South Trail
+// (Convertus) cf-blocked every vehicle that way, on the dealer's own site,
+// in the dealer's own browser. Fetching the VDP from INSIDE a page already on
+// that origin carries the session + cf_clearance, so it just works — 8 VDPs
+// came back in seconds with 1-28 photos each, no challenge.
+//
+// One hidden tab on the dealer's origin serves the whole run; each batch is
+// fetched and parsed in-page, so only photo URLs cross back.
+async function fetchPhotosSameOrigin(tabId, urls) {
+  const [{ result } = {}] = await chrome.scripting.executeScript({
+    target: { tabId },
+    args: [urls],
+    func: async (vdpUrls) => {
+      // Vehicle-photo CDNs across the vendors we scrape. Deliberately narrow:
+      // matching any image would drag in logos, badges and ad banners.
+      const CDN = /https:\/\/[^\s"'<>)\\,]*(?:autoscout24\.net\/listing-images|autotradercdn|cdn-convertus\.com\/[^"'\s]*?(?:vehicle|inventory|photo)|d2cmedia|homenetiol|imagescdn|getedealer|dealerphotos?)[^\s"'<>)\\,]*?\.(?:jpg|jpeg|png|webp)/gi;
+      const out = {};
+      for (const u of vdpUrls) {
+        try {
+          const res = await fetch(u, { credentials: 'include' });
+          if (!res.ok) { out[u] = { error: 'HTTP ' + res.status }; continue; }
+          // JSON-embedded URLs arrive escaped as \/ — unescape before matching.
+          const html = (await res.text()).replace(/\\\//g, '/');
+          const hits = html.match(CDN) || [];
+          const seen = new Set(); const photos = [];
+          for (const h of hits) {
+            if (/logo|placeholder|badge|sprite|favicon|carfax|banner/i.test(h)) continue;
+            if (seen.has(h)) continue;
+            seen.add(h); photos.push(h);
+            if (photos.length >= 30) break;
+          }
+          out[u] = { photos };
+        } catch (e) { out[u] = { error: String(e.message || e).slice(0, 80) }; }
+      }
+      return out;
+    }
+  });
+  return result || {};
+}
+
 async function runDeepPhotoEnrichment(vehicles) {
+  // Try the same-origin fetch path first; anything it can't enrich falls
+  // through to the original tab-per-VDP walk below.
+  try {
+    const withUrls = vehicles.filter(v => v._url);
+    const origin = withUrls.length ? new URL(withUrls[0]._url).origin : null;
+    if (origin && withUrls.length >= 2) {
+      activeScan.log.push({ cls: 'hi', text: `⚡ Fetching galleries directly (no tab per vehicle)...` });
+      broadcastProgress();
+      const host = await chrome.tabs.create({ url: origin, active: false });
+      let got = 0;
+      try {
+        await waitForTabLoad(host.id, 20000);
+        const BATCH = 6;
+        for (let i = 0; i < withUrls.length; i += BATCH) {
+          const slice = withUrls.slice(i, i + BATCH);
+          const res = await fetchPhotosSameOrigin(host.id, slice.map(v => v._url));
+          for (const v of slice) {
+            const photos = res[v._url] && res[v._url].photos;
+            if (photos && photos.length > (v._photos || []).length) { v._photos = photos; got++; }
+          }
+          activeScan.deepScan = { active: true, current: Math.min(i + BATCH, withUrls.length), total: withUrls.length, enriched: got, failed: 0 };
+          broadcastProgress();
+        }
+      } finally {
+        chrome.tabs.remove(host.id).catch(() => {});
+      }
+      const thin = vehicles.filter(v => (v._photos || []).length < 2);
+      activeScan.log.push({ cls: 'ok', text: `⚡ Direct fetch enriched ${got}/${withUrls.length}${thin.length ? ` — ${thin.length} still thin, falling back to tab scan` : ''}` });
+      broadcastProgress();
+      if (!thin.length) {
+        activeScan.deepScan = { active: false, current: vehicles.length, total: vehicles.length, enriched: got, failed: 0 };
+        activeScan.status = 'done';
+        await persistState(); broadcastProgress();
+        return;
+      }
+      vehicles = thin; // only the stragglers take the slow path
+    }
+  } catch (e) {
+    activeScan.log.push({ cls: '', text: `⚡ Direct fetch unavailable (${e.message}) — using tab scan` });
+    broadcastProgress();
+  }
+
   const CONCURRENCY     = 2;     // hidden tabs in flight (down from 3 — more cf-friendly)
   const PER_TAB_TIMEOUT = 30000; // safety bail per tab
   const COOLDOWN_THRESHOLD = 3;  // 3 consecutive cf-blocks → pause workers
