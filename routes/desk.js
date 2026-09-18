@@ -56,8 +56,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await pool.query(`
         ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS source VARCHAR(60);
         ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS retail_price NUMERIC(12,2);
+        ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS carfax_badges VARCHAR(160);
+        ALTER TABLE desk_inventory ADD COLUMN IF NOT EXISTS carfax_url TEXT;
       `);
-      console.log('✅ desk_inventory: source + retail_price columns ready');
+      console.log('✅ desk_inventory: source + retail_price + carfax columns ready');
     } catch(e) { console.error('⚠️ inventory wholesale columns migration:', e.message); }
   })();
 
@@ -1143,11 +1145,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       const scope = await resolveScope(req);
       const result = scope?.tenantId
         ? await client.query(
-            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine, source, retail_price FROM desk_inventory WHERE tenant_id = $1 ORDER BY stock',
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine, source, retail_price, carfax_badges, carfax_url FROM desk_inventory WHERE tenant_id = $1 ORDER BY stock',
             [scope.tenantId]
           )
         : await client.query(
-            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine, source, retail_price FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
+            'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine, source, retail_price, carfax_badges, carfax_url FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
             [req.user.userId]
           );
       res.json({ success: true, inventory: result.rows });
@@ -1579,6 +1581,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           // Where this unit came from. Wholesale sources gate posting; the
           // scraper sets _source, and older payloads leave it null.
           (v._source || v.source || '').slice(0, 60) || null,
+          // Carfax badge text ("One Owner, No Reported Accidents") + report
+          // link, for the Marketplace description.
+          (v.carfax_badges || '').slice(0, 160) || null,
+          (v.carfax_url || '').slice(0, 500) || null,
         ];
       }
 
@@ -1589,13 +1595,16 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         for (const v of vehicles) {
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,carfax_badges,carfax_url,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,'available')
              ON CONFLICT ${conflictTarget} DO UPDATE SET
                year=$4,make=$5,model=$6,mileage=$7,price=$8,condition=$9,carfax=$10,
                type=$11,vin=$12,book_value=$13,color=$14,trim=$15,photos=$16,
                int_color=$17,transmission=$18,fuel_type=$19,drive_train=$20,engine=$21,
-               source=$22,status='available',updated_at=NOW()`,
+               source=$22,
+               carfax_badges=COALESCE($23, carfax_badges),
+               carfax_url=COALESCE($24, carfax_url),
+               status='available',updated_at=NOW()`,
             insertParams(v)
           );
           inserted++;
@@ -1629,8 +1638,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           if (existingStocks.has(stock)) { skipped++; continue; }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,carfax_badges,carfax_url,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,'available')
              ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );
@@ -1652,6 +1661,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                    type=$9,book_value=$10,color=$11,trim=$12,photos=$13,
                    int_color=$14,transmission=$15,fuel_type=$16,drive_train=$17,engine=$18,
                    source=COALESCE($19, source),
+                   carfax_badges=COALESCE($20, carfax_badges),
+                   carfax_url=COALESCE($21, carfax_url),
                    status='available',updated_at=NOW()
                  WHERE ${ownerWhere} AND vin=$2`,
                 [ownerScopeId, v.vin.toUpperCase(),
@@ -1666,7 +1677,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                  (v.fuel_type||v.fuel||'').slice(0,40)||null,
                  (v.drive_train||'').slice(0,40)||null,
                  (v.engine||'').slice(0,120)||null,
-                 (v._source||v.source||'').slice(0,60)||null]
+                 (v._source||v.source||'').slice(0,60)||null,
+                 (v.carfax_badges||'').slice(0,160)||null,
+                 (v.carfax_url||'').slice(0,500)||null]
               );
               updated++;
               continue;
@@ -1674,8 +1687,8 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           }
           await client.query(
             `INSERT INTO desk_inventory
-               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'available')
+               (user_id,tenant_id,stock,year,make,model,mileage,price,condition,carfax,type,vin,book_value,color,trim,photos,int_color,transmission,fuel_type,drive_train,engine,source,carfax_badges,carfax_url,status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,'available')
              ON CONFLICT ${conflictTarget} DO NOTHING`,
             insertParams(v)
           );

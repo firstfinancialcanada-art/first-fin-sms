@@ -612,11 +612,19 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
 //
 // One hidden tab on the dealer's origin serves the whole run; each batch is
 // fetched and parsed in-page, so only photo URLs cross back.
-async function fetchPhotosSameOrigin(tabId, urls) {
+async function fetchPhotosSameOrigin(tabId, items) {
   const [{ result } = {}] = await chrome.scripting.executeScript({
     target: { tabId },
-    args: [urls],
-    func: async (vdpUrls) => {
+    args: [items],
+    func: async (vdpItems) => {
+      // items are {url, vin}; the VIN comes from the listing card, which is
+      // more reliable than re-finding it in the VDP markup.
+      const vinByUrl = {};
+      const vdpUrls = vdpItems.map(it => {
+        if (typeof it === 'string') return it;
+        if (it && it.vin) vinByUrl[it.url] = it.vin;
+        return it.url;
+      });
       // Vehicle-photo CDNs across the vendors we scrape. Deliberately narrow:
       // matching any image would drag in logos, badges and ad banners.
       const CDN = /https:\/\/[^\s"'<>)\\,]*(?:autoscout24\.net\/listing-images|autotradercdn|cdn-convertus\.com\/[^"'\s]*?(?:vehicle|inventory|photo)|d2cmedia|homenetiol|imagescdn|getedealer|dealerphotos?)[^\s"'<>)\\,]*?\.(?:jpg|jpeg|png|webp)/gi;
@@ -645,7 +653,27 @@ async function fetchPhotosSameOrigin(tabId, urls) {
               seen.add(h); photos.push(h);
               if (photos.length >= 30) break;
             }
-            out[u] = { photos };
+
+            // Carfax badges. Convertus renders these client-side, and
+            // badgingapi.carfax.ca 401s anywhere but the dealer's own page —
+            // which is exactly where this code runs. "One owner, no
+            // accidents" is what makes a Marketplace buyer message you.
+            let carfax = null;
+            try {
+              const company = (html.match(/carfaxAccountId\\?"?\s*:\s*\\?"?(\d{3,8})/) || [])[1];
+              const vin = vinByUrl[u] || (html.match(/"(?:vehicleIdentificationNumber|serialNumber)"\s*:\s*"([A-HJ-NPR-Z0-9]{17})"/i) || [])[1];
+              if (company && vin) {
+                const api = `https://badgingapi.carfax.ca/api/v3/badges?CompanyId=${company}&Language=en&Vin=${vin}&HideVin=false`;
+                const cr = await fetch(api, { credentials: 'include' });
+                if (cr.ok) {
+                  const data = await cr.json();
+                  const b = data && data.ResponseData && data.ResponseData.Badges && data.ResponseData.Badges[0];
+                  if (b) carfax = { names: (b.BadgeList || []).map(x => x.BadgeName), url: b.VhrReportUrl || '' };
+                }
+              }
+            } catch (_) { /* badges are a bonus, never fail the scrape for them */ }
+
+            out[u] = { photos, carfax };
             break;
           } catch (e) {
             if (attempt === 2) { out[u] = { error: String(e.message || e).slice(0, 80) }; break; }
@@ -749,7 +777,7 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
           }
           for (let i = 0; i < todo.length; i += BATCH) {
             const slice = todo.slice(i, i + BATCH);
-            const res = await fetchPhotosSameOrigin(host.id, slice.map(v => v._url));
+            const res = await fetchPhotosSameOrigin(host.id, slice.map(v => ({ url: v._url, vin: v.vin || '' })));
             for (const v of slice) {
               const r = res[v._url];
               if (!r || r.error) continue;           // failed — retry / fall back
@@ -757,6 +785,15 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
               const photos = r.photos || [];
               if (photos.length > (v._photos || []).length) { v._photos = photos; got++; }
               if (photos.length) photoCache[v._url] = { photos, ts: Date.now() };
+              // Plain field names (no leading _) so the sync payload keeps
+              // them — popup strips scraper-internal underscore fields.
+              if (r.carfax && r.carfax.names && r.carfax.names.length) {
+                // Carfax names the badge AccidentFree but displays it as
+                // "No Reported Accidents" — match what the dealer shows.
+                const LABELS = { OneOwner: 'One Owner', AccidentFree: 'No Reported Accidents', NoAccidents: 'No Reported Accidents', NoReportedAccidents: 'No Reported Accidents', ServiceRecords: 'Service Records' };
+                v.carfax_badges = r.carfax.names.map(n => LABELS[n] || String(n).replace(/([a-z])([A-Z])/g, '$1 $2')).join(', ');
+                if (r.carfax.url) v.carfax_url = r.carfax.url;
+              }
             }
             activeScan.deepScan = { active: true, current: Math.min(i + BATCH, todo.length), total: todo.length, enriched: got, failed: 0 };
             broadcastProgress();

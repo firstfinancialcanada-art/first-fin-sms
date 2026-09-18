@@ -3973,6 +3973,8 @@ async function startLoginBuy() {
       wholesale_price: listedPrice,
       retail_price: retailPrice,
       needs_retail: isWholesale && !retailPrice,
+      carfax_badges: v.carfax_badges || '',
+      carfax_url: v.carfax_url || '',
       condition: v.condition||'Average',
       is_posted: v.fb_status === 'posted',
       is_skipped: v.fb_status === 'skipped',
@@ -4010,6 +4012,13 @@ async function startLoginBuy() {
     if (v.condition) lines.push('Condition: ' + v.condition);
     if (v.stock) lines.push('Stock #: ' + v.stock);
     if (v.vin) lines.push('VIN: ' + v.vin);
+    // Carfax badges as scraped from the dealer's own listing — "One Owner",
+    // "No Reported Accidents". This is the line buyers scan for, so it goes
+    // above the boilerplate.
+    if (v.carfax_badges) {
+      lines.push('');
+      lines.push('CARFAX: ' + v.carfax_badges);
+    }
     lines.push('');
     lines.push('Fully inspected & reconditioned');
     lines.push('Financing available - all credit welcome');
