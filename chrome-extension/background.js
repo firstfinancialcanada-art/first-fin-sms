@@ -620,23 +620,39 @@ async function fetchPhotosSameOrigin(tabId, urls) {
       // Vehicle-photo CDNs across the vendors we scrape. Deliberately narrow:
       // matching any image would drag in logos, badges and ad banners.
       const CDN = /https:\/\/[^\s"'<>)\\,]*(?:autoscout24\.net\/listing-images|autotradercdn|cdn-convertus\.com\/[^"'\s]*?(?:vehicle|inventory|photo)|d2cmedia|homenetiol|imagescdn|getedealer|dealerphotos?)[^\s"'<>)\\,]*?\.(?:jpg|jpeg|png|webp)/gi;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
       const out = {};
+      // Cloudflare rate-limits sustained XHR too, not just tab loads: at full
+      // speed only the first ~29 of 79 South Trail VDPs came back. Pace the
+      // requests and back off when challenged rather than racing.
       for (const u of vdpUrls) {
-        try {
-          const res = await fetch(u, { credentials: 'include' });
-          if (!res.ok) { out[u] = { error: 'HTTP ' + res.status }; continue; }
-          // JSON-embedded URLs arrive escaped as \/ — unescape before matching.
-          const html = (await res.text()).replace(/\\\//g, '/');
-          const hits = html.match(CDN) || [];
-          const seen = new Set(); const photos = [];
-          for (const h of hits) {
-            if (/logo|placeholder|badge|sprite|favicon|carfax|banner/i.test(h)) continue;
-            if (seen.has(h)) continue;
-            seen.add(h); photos.push(h);
-            if (photos.length >= 30) break;
+        let delay = 1200;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const res = await fetch(u, { credentials: 'include' });
+            const html = res.ok ? (await res.text()).replace(/\\\//g, '/') : '';
+            const challenged = !res.ok || /cf-browser-verification|Just a moment|challenge-platform/i.test(html.slice(0, 4000));
+            if (challenged) {
+              if (attempt === 2) { out[u] = { error: 'cf ' + res.status }; break; }
+              await sleep(delay); delay *= 3;   // 1.2s, 3.6s, then give up
+              continue;
+            }
+            const hits = html.match(CDN) || [];
+            const seen = new Set(); const photos = [];
+            for (const h of hits) {
+              if (/logo|placeholder|badge|sprite|favicon|carfax|banner/i.test(h)) continue;
+              if (seen.has(h)) continue;
+              seen.add(h); photos.push(h);
+              if (photos.length >= 30) break;
+            }
+            out[u] = { photos };
+            break;
+          } catch (e) {
+            if (attempt === 2) { out[u] = { error: String(e.message || e).slice(0, 80) }; break; }
+            await sleep(delay); delay *= 3;
           }
-          out[u] = { photos };
-        } catch (e) { out[u] = { error: String(e.message || e).slice(0, 80) }; }
+        }
+        await sleep(350); // steady spacing between vehicles
       }
       return out;
     }
@@ -657,16 +673,28 @@ async function runDeepPhotoEnrichment(vehicles) {
       let got = 0;
       try {
         await waitForTabLoad(host.id, 20000);
-        const BATCH = 6;
-        for (let i = 0; i < withUrls.length; i += BATCH) {
-          const slice = withUrls.slice(i, i + BATCH);
-          const res = await fetchPhotosSameOrigin(host.id, slice.map(v => v._url));
-          for (const v of slice) {
-            const photos = res[v._url] && res[v._url].photos;
-            if (photos && photos.length > (v._photos || []).length) { v._photos = photos; got++; }
+        // Two passes: the second retries whatever came back thin, after a
+        // pause. A cf rate-limit is temporary, so a straggler usually
+        // succeeds on the retry — much cheaper than the tab walk.
+        const BATCH = 8;
+        for (let pass = 0; pass < 2; pass++) {
+          const todo = withUrls.filter(v => (v._photos || []).length < 2);
+          if (!todo.length) break;
+          if (pass === 1) {
+            activeScan.log.push({ cls: '', text: `⚡ Retrying ${todo.length} slow ones after a 20s pause...` });
+            broadcastProgress();
+            await new Promise(r => setTimeout(r, 20000));
           }
-          activeScan.deepScan = { active: true, current: Math.min(i + BATCH, withUrls.length), total: withUrls.length, enriched: got, failed: 0 };
-          broadcastProgress();
+          for (let i = 0; i < todo.length; i += BATCH) {
+            const slice = todo.slice(i, i + BATCH);
+            const res = await fetchPhotosSameOrigin(host.id, slice.map(v => v._url));
+            for (const v of slice) {
+              const photos = res[v._url] && res[v._url].photos;
+              if (photos && photos.length > (v._photos || []).length) { v._photos = photos; got++; }
+            }
+            activeScan.deepScan = { active: true, current: Math.min(i + BATCH, todo.length), total: todo.length, enriched: got, failed: 0 };
+            broadcastProgress();
+          }
         }
       } finally {
         chrome.tabs.remove(host.id).catch(() => {});
