@@ -1703,7 +1703,17 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
-      res.status(500).json({ success: false, error: sanitizeError(e) });
+      // Include the Postgres error code / constraint / column, not the
+      // message: enough to diagnose a failed import from the extension
+      // (a generic "unexpected error" told us nothing), without leaking
+      // row data or SQL text.
+      console.error('❌ inventory/sync failed:', mode, e.code, e.constraint || e.column || '', e.message);
+      res.status(500).json({
+        success: false,
+        error: sanitizeError(e),
+        code: e.code || undefined,
+        at: e.constraint || e.column || e.table || undefined,
+      });
     } finally {
       client.release();
     }
