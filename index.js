@@ -91,7 +91,13 @@ app.use(cors({
 // ── Stripe webhook needs raw body BEFORE express.json() ──────────
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json({ limit: '10mb' }));        // 10mb — handles inventory sync with photos + base64 logo uploads
+// Keep the raw bytes for the Meta lead webhook: its X-Hub-Signature-256 is
+// an HMAC over exactly what was sent, and re-serializing the parsed body
+// changes it (key order, spacing) so the check would always fail.
+app.use(express.json({
+  limit: '10mb',                                  // handles inventory sync with photos + base64 logo uploads
+  verify: (req, _res, buf) => { if (req.originalUrl.startsWith('/api/webhooks/meta-leads')) req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── Rate limiting ─────────────────────────────────────────────────
@@ -194,6 +200,9 @@ require('./routes/outcomes-admin')(app, pool);                 // Admin: log/man
 // extension now gates entirely on /api/desk auth + requireBilling. Unmounted
 // to drop dead auth surface (security audit 2026-05-29, L3).
 // app.use('/api/fb-license', require('./routes/fb-license'));
+// Meta lead-ads webhook — SaaS prospects (selling the system to dealers),
+// deliberately separate from desk_crm, which is car buyers per tenant.
+require('./routes/meta-leads')(app, { twilioClient });
 require('./routes/compare')(app, { requireAuth, requireBilling }); // Compare All engine (server-side)
 require('./routes/tenant-usage')(app, { requireAuth });            // Per-tenant spend + capacity usage
 
