@@ -3889,7 +3889,7 @@ async function startLoginBuy() {
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
       fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '',
-      fbpGroupDupes_ = true;
+      fbpGroupDupes_ = true, fbpNotReady_ = 0;
 
   // ── Identical builds post once ────────────────────────────────────────
   // A new-car lot stocks the same build repeatedly: four white Durango SXTs
@@ -4083,6 +4083,16 @@ async function startLoginBuy() {
     } else {
       // queue view — unposted only, capped at daily limit
       list = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
+      // A car with no photos or no price can't be listed, and a franchise
+      // lot carries plenty of both: 39 of South Trail's units are in transit
+      // with neither. Keep them out of the queue instead of making you click
+      // through them, and say how many are waiting on the dealer.
+      // Wholesale units are exempt from the price test — theirs is 0 until
+      // you set a retail number, which is the whole point of the gate.
+      const notReady = v => !(v.photos || []).length ||
+        (!v.is_wholesale && !(parseInt(v.price) || 0));
+      fbpNotReady_ = list.filter(notReady).length;
+      list = list.filter(v => !notReady(v));
       // Collapse before the daily cap, so the limit counts listings rather
       // than duplicate builds.
       list = fbpCollapseDupes(list);
@@ -4108,7 +4118,13 @@ async function startLoginBuy() {
     fbpQueue = list;
     const reposts = fbpAllV.filter(v => v.needs_repost);
     const bar = document.getElementById('fbp-repost-bar');
-    if (bar) { bar.style.display = reposts.length ? 'block':'none'; if(reposts.length) bar.textContent=`${reposts.length} need reposting`; }
+    if (bar) {
+      const parts = [];
+      if (reposts.length) parts.push(`${reposts.length} need reposting`);
+      if (fbpView_ === 'queue' && fbpNotReady_) parts.push(`${fbpNotReady_} waiting on photos or price`);
+      bar.style.display = parts.length ? 'block' : 'none';
+      bar.textContent = parts.join(' · ');
+    }
     fbpRenderQueue();
     const totalP = fbpAllV.filter(v => v.is_posted).length;
     const ids = {
