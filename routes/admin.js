@@ -195,7 +195,10 @@ module.exports = function adminRoutes(app, { twilioClient }) {
           ADD COLUMN IF NOT EXISTS user_agent TEXT
       `).catch(() => {});
       await client.query(
-        `INSERT INTO platform_inquiries (name, dealership, phone, email, ip, user_agent) VALUES ($1, $2, $3, $4, $5, $6)`,
+        // source distinguishes these from Facebook lead-ad rows, which land
+        // in the same table so the admin dashboard lists every SaaS prospect
+        // in one place.
+        `INSERT INTO platform_inquiries (name, dealership, phone, email, ip, user_agent, source) VALUES ($1, $2, $3, $4, $5, $6, 'landing')`,
         [name, dealership || null, phone, email || null, ip, ua]
       );
       const ownerPhone = process.env.FORWARD_PHONE || process.env.OWNER_PHONE;

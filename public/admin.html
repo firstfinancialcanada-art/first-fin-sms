@@ -1079,7 +1079,7 @@ function filterInq(filter) {
     return `<div class="inq-item">
       <div class="inq-top">
         <div>
-          <div class="inq-name">${esc(inq.name)}</div>
+          <div class="inq-name">${esc(inq.name)}${inq.source === 'facebook' ? ' <span style="font-size:9px;font-weight:700;color:#60a5fa;border:1px solid rgba(96,165,250,.4);border-radius:3px;padding:1px 4px;vertical-align:middle;">FB AD</span>' : ''}</div>
           <div class="inq-dealer">${esc(inq.dealership||'—')}</div>
           <div class="inq-contact">${esc(inq.phone)}${inq.email?` · ${esc(inq.email)}`:''}</div>
         </div>
