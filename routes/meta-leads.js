@@ -42,14 +42,27 @@ async function ensureColumns() {
 function verifySignature(req) {
   const secret = process.env.META_APP_SECRET;
   if (!secret) return { ok: false, why: 'META_APP_SECRET not set' };
-  const header = req.get('x-hub-signature-256') || '';
-  const expected = 'sha256=' + crypto.createHmac('sha256', secret)
-    .update(req.rawBody || Buffer.from(JSON.stringify(req.body)), 'utf8')
-    .digest('hex');
-  const a = Buffer.from(header);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return { ok: false, why: 'signature length mismatch' };
-  return { ok: crypto.timingSafeEqual(a, b), why: 'signature mismatch' };
+  const body = req.rawBody || Buffer.from(JSON.stringify(req.body));
+
+  // Real deliveries carry X-Hub-Signature-256. The dashboard's "Send to
+  // server" test only sends the older SHA-1 X-Hub-Signature, so a 256-only
+  // check silently 403s every test — which is exactly what happened on
+  // 2026-09-19 (logs showed the verify pings and no POST at all). Both are
+  // HMACs keyed on the app secret, so accepting SHA-1 as a fallback costs
+  // nothing; an unsigned request still gets rejected.
+  const candidates = [
+    { header: req.get('x-hub-signature-256'), algo: 'sha256', prefix: 'sha256=' },
+    { header: req.get('x-hub-signature'),     algo: 'sha1',   prefix: 'sha1='   },
+  ];
+  for (const c of candidates) {
+    if (!c.header) continue;
+    const expected = c.prefix + crypto.createHmac(c.algo, secret).update(body, 'utf8').digest('hex');
+    const a = Buffer.from(c.header);
+    const b = Buffer.from(expected);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { ok: true };
+    return { ok: false, why: `${c.algo} signature mismatch` };
+  }
+  return { ok: false, why: 'no signature header' };
 }
 
 // Field names vary per form ("full_name", "email", "phone_number",
