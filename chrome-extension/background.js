@@ -11,6 +11,23 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 // ── Scan state ────────────────────────────────────────────────────────────
 let activeScan = null;
 
+// ── Keep the service worker alive during a scan ───────────────────────────
+// MV3 kills an idle service worker after ~30s, and "idle" means no Chrome
+// API call — plain awaits and setTimeout don't count. A 316-vehicle South
+// Trail scan has quiet stretches (paced fetches, a 20s cooldown between
+// passes) and died mid-run with a blank service-worker console to show for
+// it. Touching a chrome.* API on a timer resets that countdown.
+let _keepAliveTimer = null;
+function startKeepAlive() {
+  if (_keepAliveTimer) return;
+  _keepAliveTimer = setInterval(() => {
+    try { chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError); } catch (_) {}
+  }, 20000);
+}
+function stopKeepAlive() {
+  if (_keepAliveTimer) { clearInterval(_keepAliveTimer); _keepAliveTimer = null; }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 function waitForTabLoad(tabId, timeoutMs = 14000) {
   return new Promise(resolve => {
@@ -278,10 +295,11 @@ async function collectVdpLinksFromPage(tabId, pageUrl) {
 }
 
 // ── Main background scan ───────────────────────────────────────────────────
-const __FF_BG_VERSION = 'bg-v2.9.0-server-direct-all-2026-09-17';
+const __FF_BG_VERSION = 'bg-v2.9.1-keepalive-2026-09-18';
 let __ffServerDirectFails = 0;
 const __FF_SERVER_DIRECT_FAIL_LIMIT = 3;
 async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2cSlugPages = 0, scanUrl = '') {
+  startKeepAlive();   // a 300-vehicle walk far outlives MV3's 30s idle limit
   activeScan = {
     status:  'running',
     total:   links.length,
@@ -586,6 +604,7 @@ async function runBackgroundScan(links, pageLinks = [], cardVehicles = null, d2c
   }
 
   if (activeScan.status !== 'error') activeScan.status = 'done';
+  stopKeepAlive();
   activeScan.log.push({ cls: activeScan.status === 'done' ? 'ok' : 'err',
     text: activeScan.status === 'done'
       ? `✅ ${activeScan.vehicles.length} vehicles ready to sync`
@@ -735,6 +754,7 @@ async function savePhotoCache(cache) {
 }
 
 async function runDeepPhotoEnrichment(vehicles, hostTabId) {
+  startKeepAlive();   // stopped in the completion block at the end
   // The whole scan result. The fallback below narrows `vehicles` to the
   // stragglers it still has to visit, and the completion step publishes
   // activeScan.vehicles — so without holding the full list here, a scan
@@ -839,6 +859,7 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
       if (!thin.length) {
         activeScan.deepScan = { active: false, current: vehicles.length, total: vehicles.length, enriched: got, failed: 0 };
         activeScan.status = 'done';
+        stopKeepAlive();
         await persistState(); broadcastProgress();
         return;
       }
@@ -851,6 +872,7 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
         activeScan.log.push({ cls: 'hi', text: `⏭ Leaving ${thin.length} for the next scan — the site is rate-limiting, and cached galleries carry over` });
         activeScan.deepScan = { active: false, current: vehicles.length, total: vehicles.length, enriched: got, failed: thin.length };
         activeScan.status = 'done';
+        stopKeepAlive();
         await persistState(); broadcastProgress();
         return;
       }
@@ -1103,6 +1125,7 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
   }
 
   const elapsed = Math.round((Date.now() - startTs) / 1000);
+  stopKeepAlive();
   activeScan.deepScan.active = false;
   // CRITICAL: mark scan as done so popup's SCAN_PROGRESS listener flips
   // from "Scanning X/Y..." to the preview/sync view. v2.7 missed this and
