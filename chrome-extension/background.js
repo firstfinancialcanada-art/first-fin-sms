@@ -735,6 +735,12 @@ async function savePhotoCache(cache) {
 }
 
 async function runDeepPhotoEnrichment(vehicles, hostTabId) {
+  // The whole scan result. The fallback below narrows `vehicles` to the
+  // stragglers it still has to visit, and the completion step publishes
+  // activeScan.vehicles — so without holding the full list here, a scan
+  // that fell back finished by handing the popup only those few cars
+  // (2026-09-18: 82 scanned, popup offered 2 to sync).
+  const allVehicles = vehicles;
   // Seed from cache before touching the network.
   const photoCache = await loadPhotoCache();
   let fromCache = 0;
@@ -1103,11 +1109,11 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
   // left the popup stuck even after the log showed completion.
   activeScan.status      = 'done';
   activeScan.current     = activeScan.total;
-  activeScan.vehicles    = vehicles; // ensure popup gets the enriched photos
+  activeScan.vehicles    = allVehicles; // the full scan, not just the stragglers
   activeScan.log.push({ cls: 'ok',
     text: `✅ Deep photo scan: ${enrichedCount}/${vehicles.length} enriched in ${elapsed}s${failedCount ? ` (${failedCount} kept card photo)` : ''}` });
   activeScan.log.push({ cls: 'ok',
-    text: `✅ ${vehicles.length} vehicles ready to sync` });
+    text: `✅ ${allVehicles.length} vehicles ready to sync` });
   await persistState();
   broadcastProgress();
 }
