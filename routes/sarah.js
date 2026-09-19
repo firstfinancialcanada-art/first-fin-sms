@@ -1672,7 +1672,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             tenantId, fromNumber, twilioClient,
             body: `APPOINTMENT BOOKED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'} / ${conversation.budget || 'Budget TBD'}\nTime: ${finalDateTime}`,
           });
-        } catch(e) {}
+        } catch(e) { console.error('❌ manager notify failed:', e.message); }
         // Send customer a confirmation reminder 60s later
         setTimeout(async () => {
           try {
@@ -1690,7 +1690,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             tenantId, fromNumber, twilioClient,
             body: `CALLBACK REQUESTED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'}\nCall them: ${finalDateTime}`,
           });
-        } catch(e) {}
+        } catch(e) { console.error('❌ manager notify failed:', e.message); }
         await logAnalytics('callback_requested', phone, data, userId);
         return `Got it ${conversation.customer_name}! One of our team will call you ${finalDateTime}. They'll have all the details on ${conversation.vehicle_type || 'vehicle'} options in your range.\n\nIf anything comes up, just text me. Talk soon!`;
       }
@@ -1712,7 +1712,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             tenantId, fromNumber, twilioClient,
             body: `PHOTOS REQUESTED\n${name}\n${formatPretty(phone)}\n${conversation.vehicle_type || '—'} / ${conversation.budget || '—'}`,
           });
-        } catch(e) {}
+        } catch(e) { console.error('❌ manager notify failed:', e.message); }
         await saveCallback({ phone, name, vehicleType: conversation.vehicle_type, budget: conversation.budget, budgetAmount: conversation.budget_amount, datetime: 'ASAP - Requested photos' });
         return `${name}, I've flagged it — someone will text you photos of what we've got in your range shortly!`;
       }
