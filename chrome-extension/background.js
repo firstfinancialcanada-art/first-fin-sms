@@ -846,6 +846,12 @@ async function runDeepPhotoEnrichment(vehicles, hostTabId) {
             }
             activeScan.deepScan = { active: true, current: Math.min(i + BATCH, todo.length), total: todo.length, enriched: got, failed: 0 };
             broadcastProgress();
+            // Persist as we go. Only broadcasting left storage showing the
+            // state from the start of the run, so a closed popup — or anyone
+            // asking "is it still going?" — saw nothing but stale data, and a
+            // worker restart lost every gallery fetched since.
+            await persistState();
+            await savePhotoCache(photoCache);
           }
         }
       } finally {
