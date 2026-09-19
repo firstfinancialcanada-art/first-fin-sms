@@ -3690,6 +3690,7 @@ async function startLoginBuy() {
 .fbp-chip.km{background:rgba(30,90,246,.1);color:#93c5fd;border:1px solid var(--border2);}
 .fbp-chip.stk{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
 .fbp-chip.ph{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.fbp-chip.dupe{background:rgba(147,51,234,.12);color:#c084fc;border:1px solid rgba(147,51,234,.3);}
 .fbp-chip.whsl{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);cursor:pointer;}
 .fbp-chip.whsl.ok{background:rgba(16,185,129,.1);color:var(--green);border-color:rgba(16,185,129,.25);}
 .fbp-photo-row{display:flex;align-items:center;gap:9px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
@@ -3887,7 +3888,46 @@ async function startLoginBuy() {
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
-      fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '';
+      fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '',
+      fbpGroupDupes_ = true;
+
+  // ── Identical builds post once ────────────────────────────────────────
+  // A new-car lot stocks the same build repeatedly: four white Durango SXTs
+  // are one Marketplace listing, not four. Group on year + make + model +
+  // trim + colour and queue the cheapest of each group, showing how many are
+  // behind it. Sell that one and the next takes its place.
+  //
+  // Colour is required to group: without it, a white SXT and a black SXT
+  // would collapse together and you'd advertise a car that isn't there.
+  function fbpGroupKey(v) {
+    if (!v.ext_color) return null;                 // never group a colourless unit
+    return [v.year, v.make, v.model, v.trim, v.ext_color]
+      .map(x => String(x || '').trim().toLowerCase()).join('|');
+  }
+
+  function fbpCollapseDupes(list) {
+    if (!fbpGroupDupes_) return list;
+    const groups = new Map();
+    const out = [];
+    for (const v of list) {
+      const key = fbpGroupKey(v);
+      if (!key) { out.push(v); continue; }
+      if (!groups.has(key)) { groups.set(key, [v]); out.push(v); }
+      else groups.get(key).push(v);
+    }
+    // Keep the cheapest as the one that gets posted — that's the number
+    // that pulls the calls — and hang the rest off it.
+    return out.map(v => {
+      const key = fbpGroupKey(v);
+      const members = key ? groups.get(key) : [v];
+      if (!members || members.length < 2) { v.dupe_count = 0; v.dupe_stocks = []; return v; }
+      const cheapest = members.reduce((a, b) =>
+        ((parseInt(b.price) || Infinity) < (parseInt(a.price) || Infinity) ? b : a));
+      cheapest.dupe_count  = members.length - 1;
+      cheapest.dupe_stocks = members.filter(m => m !== cheapest).map(m => m.stock);
+      return cheapest;
+    });
+  }
 
   // Init — called when FB Poster tab opens
   window.initFbPoster = async function() {
@@ -4043,6 +4083,9 @@ async function startLoginBuy() {
     } else {
       // queue view — unposted only, capped at daily limit
       list = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
+      // Collapse before the daily cap, so the limit counts listings rather
+      // than duplicate builds.
+      list = fbpCollapseDupes(list);
       if (fbpSort_ === 'cheapest') list.sort((a,b) => (parseInt(a.price)||999999)-(parseInt(b.price)||999999));
       else if (fbpSort_ === 'premium') list.sort((a,b) => (parseInt(b.price)||0)-(parseInt(a.price)||0));
       else if (fbpSort_ === 'newest') list.sort((a,b) => (parseInt(b.year)||0)-(parseInt(a.year)||0));
@@ -4158,6 +4201,7 @@ async function startLoginBuy() {
             : `<span class="fbp-chip whsl ok" onclick="fbpSetRetail('Update the retail price:')" title="Click to change the retail price">retail set · wholesale $${Number(v.wholesale_price).toLocaleString()}</span>`)
         : '') +
       (v.mileage_display?`<span class="fbp-chip km">${v.mileage_display}</span>`:'') +
+      (v.dupe_count?`<span class="fbp-chip dupe" title="Identical builds in stock: ${(v.dupe_stocks||[]).join(', ')}">+${v.dupe_count} identical in stock</span>`:'') +
       (v.stock?`<span class="fbp-chip stk">Stock #${v.stock}</span>`:'') +
       (v.photos.length?`<span class="fbp-chip ph">${v.photos.length} photos</span>`:'');
 
