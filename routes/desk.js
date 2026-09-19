@@ -17,7 +17,7 @@ const { safeFetch } = require('../lib/url-guard'); // SSRF-guarded fetch for scr
 const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
-const { toE164NorthAmerica } = require('../lib/helpers');
+const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
 const crmHistory = require('../lib/crm-history');
 require('../lib/notify'); // triggers idempotent schema migration on boot
 
@@ -242,7 +242,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     let s = raw;
     if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
     if (!s || typeof s !== 'object') s = {};
-    return { ...DEFAULT_SETTINGS, ...s };
+    const merged = { ...DEFAULT_SETTINGS, ...s };
+    // These two get compared as raw strings and handed to Twilio all over
+    // the app — opt-out lookups, the 24h bulk cooldown, <Dial>,
+    // messages.create. One tenant storing "5873066133" and another
+    // "+15873066133" makes the same line read as two different numbers, so
+    // canonicalise on the way through. An unparseable value is left alone
+    // rather than blanked, so nothing vanishes from the UI without warning
+    // — the PUT handler below rejects those on write.
+    for (const key of ['notifyPhone', 'twilioNumber']) {
+      if (merged[key]) merged[key] = normalizePhone(merged[key]) || merged[key];
+    }
+    return merged;
   }
 
   function buildTenantBrandingFromSettings(settingsJson) {
@@ -801,6 +812,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     const client = await pool.connect();
     try {
       const { settings } = req.body;
+
+      // Refuse junk rather than store it. The setup wizard used to save
+      // whatever was typed after stripping punctuation, which is how STC
+      // ended up with a bare "5873066133" as its notify number while every
+      // other tenant held E.164. Server-side because a stale cached copy of
+      // the front-end is still a client.
+      for (const [key, label] of [['notifyPhone', 'Notification phone'], ['twilioNumber', 'Sarah number']]) {
+        const raw = (settings || {})[key];
+        if (raw && !normalizePhone(raw)) {
+          return res.status(400).json({ success: false, error: `${label} must be a valid 10-digit Canadian or US number.` });
+        }
+      }
       const normalized = normalizeSettings(settings || {});
 
       // Ensure twilio_number column exists (safe to run repeatedly)

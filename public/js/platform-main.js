@@ -3085,6 +3085,17 @@ function removeLogo() {
   if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
   toast('Logo removed — click Save Settings to apply');
 }
+// Mirrors normalizePhone in lib/helpers.js. Returns E.164 or null, so
+// "(587) 306-6133", "587-306-6133" and "5873066133" all land as
+// "+15873066133" instead of being rejected or — worse, as happened with the
+// setup wizard — saved exactly as typed and handed to Twilio that way.
+// The server validates too; this is so the person gets told at the field.
+function ffNormalizePhone(input) {
+  const digits = String(input == null ? '' : input).replace(/\D/g, '');
+  if (digits.length === 10 && digits[0] >= '2') return '+1' + digits;
+  if (digits.length === 11 && digits.startsWith('1') && digits[1] >= '2') return '+' + digits;
+  return null;
+}
 async function saveSettings(){
   // 1. Read from form inputs
   settings.salesName = getVal('setPerson') || settings.salesName;
@@ -3097,17 +3108,21 @@ async function saveSettings(){
   settings.dealerCity   = (getVal('setDealerCity')   || '').trim();
   const rawTwilio = (getVal('setTwilioNumber') || '').trim();
   const rawNotify = (getVal('setNotifyPhone')  || '').trim();
-  const phoneRx   = /^\+1\d{10}$/;
-  if (rawTwilio && !phoneRx.test(rawTwilio)) {
-    toast('⚠️ Phone number must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+  const twilioNum = rawTwilio ? ffNormalizePhone(rawTwilio) : '';
+  const notifyNum = rawNotify ? ffNormalizePhone(rawNotify) : '';
+  if (rawTwilio && !twilioNum) {
+    toast('⚠️ Sarah number must be a valid 10-digit number');
     return;
   }
-  if (rawNotify && !phoneRx.test(rawNotify)) {
-    toast('⚠️ Notify Phone must be in +1XXXXXXXXXX format (e.g. +14031234567)');
+  if (rawNotify && !notifyNum) {
+    toast('⚠️ Notification phone must be a valid 10-digit number');
     return;
   }
-  settings.twilioNumber    = rawTwilio;
-  settings.notifyPhone     = rawNotify;
+  settings.twilioNumber    = twilioNum;
+  settings.notifyPhone     = notifyNum;
+  // Show the person what actually got stored.
+  setVal('setTwilioNumber', twilioNum);
+  setVal('setNotifyPhone',  notifyNum);
   settings.googleReviewUrl = (getVal('setGoogleReviewUrl') || '').trim();
 
   // 2. Apply locally immediately
@@ -7102,11 +7117,23 @@ function wizNext(step) {
     const name   = document.getElementById('wiz-salesName').value.trim();
     const dealer = document.getElementById('wiz-dealerName').value.trim();
     const city   = document.getElementById('wiz-dealerCity').value.trim();
-    const notify = document.getElementById('wiz-notifyPhone').value.trim().replace(/[\s\-\(\)]/g, '');
+    const rawNotify = document.getElementById('wiz-notifyPhone').value.trim();
+    // This step used to strip punctuation and keep whatever was left, so
+    // "587-306-6133" was stored as "5873066133" — not a number Twilio takes.
+    // Nothing downstream caught it, and the tenant found out by not being
+    // told about a lead. Hold the wizard here until it parses.
+    const notify = rawNotify ? ffNormalizePhone(rawNotify) : '';
+    if (rawNotify && !notify) {
+      toast('⚠️ Notification phone must be a valid 10-digit number');
+      return;
+    }
     settings.salesName   = name   || settings.salesName;
     settings.dealerName  = dealer || settings.dealerName;
     settings.dealerCity  = city   || settings.dealerCity;
-    if (notify) settings.notifyPhone = notify;
+    if (notify) {
+      settings.notifyPhone = notify;
+      document.getElementById('wiz-notifyPhone').value = notify;
+    }
     if (window.FF && FF.isLoggedIn) {
       FF.apiFetch('/api/desk/settings', { method: 'PUT', body: JSON.stringify({ settings }) })
         .then(r => r.json())

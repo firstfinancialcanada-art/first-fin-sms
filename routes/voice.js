@@ -82,7 +82,8 @@ async function getTenantByNumber(toNumber) {
     return {
       userId:       row.id,
       fromNumber:   s.twilioNumber  || process.env.TWILIO_PHONE_NUMBER,
-      forwardPhone: s.notifyPhone   || '',
+      // Unparseable → '' → callers skip the dial, same as unconfigured.
+      forwardPhone: normalizePhone(s.notifyPhone) || '',
       dealerName:   s.dealerName    || process.env.DEALER_NAME   || 'First Financial'
     };
   } catch(e) {
@@ -754,7 +755,12 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     if (tenant.userId) {
       const sr = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [tenant.userId]);
       const s  = typeof sr.rows[0]?.settings_json === 'string' ? JSON.parse(sr.rows[0].settings_json) : (sr.rows[0]?.settings_json || {});
-      if (s.notifyPhone && String(s.notifyPhone).length >= 10) forwardTo = s.notifyPhone;
+      // A length check isn't a validity check — "587306613" and "5873066133x"
+      // both pass it and both go straight into <Dial>. Parse or don't dial.
+      forwardTo = normalizePhone(s.notifyPhone) || '';
+      if (s.notifyPhone && !forwardTo) {
+        console.warn(`⚠️ voice: tenant ${tenant.userId} notify number "${s.notifyPhone}" is unusable — caller not connected`);
+      }
     }
     if (digit === '1' && forwardTo) {
       res.type('text/xml').send(`<Response><Say voice="Polly.Joanna">Please hold while we connect you.</Say><Dial>${forwardTo}</Dial></Response>`);
