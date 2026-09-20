@@ -1,6 +1,6 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
-const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator } = require('../lib/helpers');
+const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator, fillTemplate } = require('../lib/helpers');
 const { guardedVoiceCall, reconcileSpend } = require('../lib/spend-cap');
 const { notifyTenantManagers } = require('../lib/notify');
 const validateTwilio = makeTwilioWebhookValidator();
@@ -541,17 +541,24 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       const normalized = normalizePhone(phone);
       if (!normalized) return res.status(400).json({ success: false, error: 'Invalid phone' });
       const name    = twimlSafe(customerName || 'there');
-      const safeMsg = twimlSafe(message.replace(/{name}/gi, name));
       const baseUrl = process.env.BASE_URL || '';
 
-      // Use tenant's provisioned number so caller ID shows dealer's number
+      // Use tenant's provisioned number so caller ID shows dealer's number.
+      // The same lookup now feeds the script's {dealership} / {city}, which
+      // is why the message is rendered after it rather than before.
       let fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      let dealership = process.env.DEALER_NAME || '';
+      let dealerCity = '';
       try {
         const ts = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [uid]);
         const s  = ts.rows[0]?.settings_json;
         const p  = typeof s === 'string' ? JSON.parse(s) : (s || {});
         if (p.twilioNumber) fromNumber = p.twilioNumber;
+        if (p.dealerName)   dealership = p.dealerName;
+        if (p.dealerCity)   dealerCity = p.dealerCity;
       } catch(e) { console.warn('⚠️ voice drop tenant lookup:', e.message); }
+
+      const safeMsg = twimlSafe(fillTemplate(message, { name, dealership, city: dealerCity }));
 
       const dropResult = await guardedVoiceCall(twilioClient, uid, {
         to: normalized,
@@ -652,8 +659,10 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
         if (!normalized) { skipped++; continue; }
         setTimeout(async () => {
           try {
-            const name    = twimlSafe(contacts[i].name || 'there');
-            const safeMsg = twimlSafe(message.replace(/{name}/gi, name));
+            // Admin-token route with no tenant context — env branding only.
+            const safeMsg = twimlSafe(fillTemplate(message, {
+              name: contacts[i].name, dealership: process.env.DEALER_NAME || '',
+            }));
             const baseUrl = process.env.BASE_URL || '';
             await twilioClient.calls.create({
               to: normalized, from: process.env.TWILIO_PHONE_NUMBER,
@@ -700,13 +709,17 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       const { contacts, message, delaySeconds } = req.body;
       if (!contacts || !contacts.length || !message) return res.status(400).json({ success: false, error: 'contacts[] and message required' });
 
-      // Resolve tenant number once for entire campaign
+      // Resolve tenant number and branding once for the entire campaign.
       let fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      let dealership = process.env.DEALER_NAME || '';
+      let dealerCity = '';
       try {
         const ts = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [uid]);
         const s  = ts.rows[0]?.settings_json;
         const p  = typeof s === 'string' ? JSON.parse(s) : (s || {});
         if (p.twilioNumber) fromNumber = p.twilioNumber;
+        if (p.dealerName)   dealership = p.dealerName;
+        if (p.dealerCity)   dealerCity = p.dealerCity;
       } catch(e) { console.warn('⚠️ voice campaign tenant lookup:', e.message); }
 
       const delay = parseInt(delaySeconds) || 10;
@@ -715,7 +728,9 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
         const normalized = normalizePhone(contacts[i].phone);
         if (!normalized) continue;
         setTimeout(async () => {
-          const personalizedMsg = message.replace(/{name}/gi, contacts[i].name || 'there');
+          const personalizedMsg = fillTemplate(message, {
+            name: contacts[i].name, dealership, city: dealerCity,
+          });
           const r = await guardedVoiceCall(twilioClient, uid, {
             to: normalized, from: fromNumber,
             twiml: `<Response><Say voice="Polly.Joanna">${personalizedMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</Say><Pause length="1"/><Say voice="Polly.Joanna">Press 1 to speak with us or reply by text. Thank you!</Say><Gather numDigits="1" action="${process.env.BASE_URL || ''}/api/voice/keypress"><Pause length="5"/></Gather></Response>`

@@ -4602,15 +4602,20 @@ function showSarahTab(id, btn){
 }
 
 function populateVoiceTemplates(){
-  const dealer = settings.dealerName || getVal('dealerName') || 'First Financial';
+  // These scripts used to have the dealership name baked in as plain text at
+  // the moment the panel was opened. Edit the script even slightly and the
+  // name froze — rename the store in Settings afterwards and every voice drop
+  // kept announcing the old one, with nothing to notice, because it's an
+  // outbound blast nobody re-reads. {dealership} is substituted at send time
+  // from the tenant's settings now, so it stays correct on its own.
   const vd = document.getElementById('vd_message');
   const vc = document.getElementById('vc_message');
-  // Only replace if still contains the default placeholder name
-  if(vd && (vd.value.includes('First Financial') || vd.value.trim() === '')){
-    vd.value = `Hi {name}, this is calling from ${dealer}. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!`;
+  const stale = el => el && (el.value.includes('First Financial') || el.value.trim() === '');
+  if(stale(vd)){
+    vd.value = `Hi {name}, this is calling from {dealership}. We have some great vehicles in stock right now and I would love to find you something perfect. Give us a call back or just reply to this number by text. Talk soon!`;
   }
-  if(vc && (vc.value.includes('First Financial') || vc.value.trim() === '')){
-    vc.value = `Hi {name}, this is calling from ${dealer} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!`;
+  if(stale(vc)){
+    vc.value = `Hi {name}, this is calling from {dealership} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!`;
   }
 }
 

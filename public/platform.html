@@ -2484,7 +2484,7 @@ select option{background:#0d1526;color:var(--text);}
             </select>
           </div>
           <div class="fgroup">
-            <label>Message Template <span style="color:var(--muted);font-size:10px;">— must include {name}</span></label>
+            <label>Message Template <span style="color:var(--muted);font-size:10px;">— must include {name}. Also: {dealership}, {city}</span></label>
             <textarea id="messageTemplate" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;" oninput="document.getElementById('charCount').textContent=this.value.length">Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)</textarea>
             <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px;"><span id="charCount">0</span> characters</div>
           </div>
@@ -2528,8 +2528,8 @@ select option{background:#0d1526;color:var(--text);}
           <div class="fgroup"><label>Customer Name</label><input type="text" id="vd_name" placeholder="First Name"></div>
         </div>
         <div class="fgroup">
-          <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name} for customer's name)</span></label>
-          <textarea id="vd_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from {dealer}. We have some great vehicles in stock right now — give us a call back or reply here by text. Talk soon!</textarea>
+          <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name}, {dealership}, {city})</span></label>
+          <textarea id="vd_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is calling from {dealership}. We have some great vehicles in stock right now — give us a call back or reply here by text. Talk soon!</textarea>
         </div>
         <button class="btn btn-primary btn-full" onclick="sendVoiceDrop()">Send Voicemail Drop</button>
         <div id="voiceDropResult" style="display:none;margin-top:10px;padding:10px;border-radius:6px;font-size:12px;"></div>
@@ -2538,8 +2538,8 @@ select option{background:#0d1526;color:var(--text);}
         <div class="card-title"><i data-lucide="phone-outgoing" class="ico"></i>Bulk Voice Campaign</div>
         <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--amber);">Pulls from CRM. Each call spaced 10 seconds apart to avoid carrier flags. Customer can press 1 to connect live.</div>
         <div class="fgroup">
-          <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name})</span></label>
-          <textarea id="vc_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is {dealer} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!</textarea>
+          <label>Message Script <span style="color:var(--muted);font-size:10px;">(use {name}, {dealership}, {city})</span></label>
+          <textarea id="vc_message" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-size:13px;font-family:'Outfit',sans-serif;resize:vertical;">Hi {name}, this is {dealership} with a special offer just for you. Reply to this number by text or press 1 to connect with us now. Thanks!</textarea>
         </div>
         <div class="fgroup">
           <label>Target CRM Status</label>
