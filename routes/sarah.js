@@ -75,9 +75,41 @@ const VEHICLE_MAKES = [
 // for a customer message — runs against VEHICLE_VOCAB. Also handles bare
 // affirmatives like "yes" / "looking" by returning generic 'Vehicle' so
 // the FSM can advance instead of looping.
+// Matches a vocab term as a whole word, allowing a plural. Raw
+// String.includes() was matching short model codes inside ordinary words:
+// "my business is slow" → Lexus IS → Car. "i have a program" → RAM → Truck.
+// "interested", "address" and "available" all contain Lexus ES. Every one of
+// those false hits also wrote a wrong vehicle_type onto the lead and shoved
+// the customer into the buying funnel, which is where "Car — great choice!"
+// came from. Trailing s/es is allowed so "trucks" and "SUVs" still match.
+const VOCAB_RE_CACHE = new Map();
+function vocabMatch(text, term) {
+  let re = VOCAB_RE_CACHE.get(term);
+  if (!re) {
+    const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    re = new RegExp(`(^|[^a-z0-9])${esc}(s|es)?([^a-z0-9]|$)`, 'i');
+    VOCAB_RE_CACHE.set(term, re);
+  }
+  return re.test(text);
+}
+
+// Vocab terms that are also ordinary English words or bare numbers. Whole-word
+// matching isn't enough for these: "my name is chris" and "the price is too
+// high" are not people shopping for a Lexus IS, and "300 a month" is not a
+// Chrysler 300. They only count when the message also names a make.
+const AMBIGUOUS_TERMS = new Set(['is', 'es', 'ls', 'rs', 'rc', 'lc', 'gx', 'lx', 'nx', 'ux', 'tx', 'hd', 'wt', 'sport', '300', '86']);
+const MAKE_WORDS = [
+  'lexus', 'audi', 'bmw', 'mercedes', 'benz', 'chrysler', 'cadillac', 'toyota', 'honda',
+  'ford', 'chevy', 'chevrolet', 'gmc', 'ram', 'dodge', 'jeep', 'nissan', 'hyundai', 'kia',
+  'mazda', 'subaru', 'volkswagen', 'vw', 'tesla', 'acura', 'infiniti', 'lincoln', 'buick',
+  'genesis', 'porsche', 'volvo', 'mitsubishi', 'land rover', 'range rover', 'jaguar', 'mini',
+];
+
 function detectVehicleType(lowerMsg) {
   if (!lowerMsg) return null;
-  const has = (list) => list.some(w => lowerMsg.includes(w));
+  const hasMake = MAKE_WORDS.some(m => vocabMatch(lowerMsg, m));
+  const has = (list) => list.some(w =>
+    (AMBIGUOUS_TERMS.has(w) ? hasMake : true) && vocabMatch(lowerMsg, w));
   // Order matters — EV check first because "tesla model 3" should classify
   // as EV not Car (the model 3 token is in both lists by design).
   if (has(VEHICLE_VOCAB.ev))    return 'Electric/Hybrid';
@@ -85,10 +117,41 @@ function detectVehicleType(lowerMsg) {
   if (has(VEHICLE_VOCAB.suv))   return 'SUV';
   if (has(VEHICLE_VOCAB.van))   return 'Van';
   if (has(VEHICLE_VOCAB.car))   return 'Car';
-  if (lowerMsg.includes('yes') || lowerMsg.includes('interested') || lowerMsg.includes('looking') ||
-      lowerMsg.includes('want') || lowerMsg.includes('need') || lowerMsg.includes('vehicle') ||
-      lowerMsg.includes('something')) return 'Vehicle';
+  // Weak affirmatives — no specific vehicle named, but enough intent to
+  // advance instead of looping. Whole-word too: "yes" must not fire on
+  // "yesterday", and these only ever produce the generic 'Vehicle', which
+  // GENERIC_TYPES keeps out of anything we say back to the customer.
+  if (['yes', 'yeah', 'interested', 'looking', 'want', 'need', 'vehicle', 'something']
+      .some(w => vocabMatch(lowerMsg, w))) return 'Vehicle';
   return null;
+}
+
+// detectVehicleType returns these when it matched nothing specific — just a
+// word like "vehicle" or "looking". Never say one back to a customer: "Vehicle
+// — great choice!" is how a template slot full of nothing ends up in a text.
+const GENERIC_TYPES = new Set(['Vehicle']);
+
+// How each detected type reads inside a sentence. Naive .toLowerCase() gives
+// "a suv" and "a electric/hybrid"; the article has to follow the sound of the
+// word, not the spelling — "an SUV", "a Van".
+const TYPE_PHRASE = {
+  'Truck':            'a truck',
+  'SUV':              'an SUV',
+  'Van':              'a van',
+  'Car':              'a car',
+  'Electric/Hybrid':  'an EV or hybrid',
+};
+function typePhrase(type) { return TYPE_PHRASE[type] || ''; }
+
+// True when the customer answered without giving us anything — "no", "idk",
+// "just looking". The rule (Franco): stop probing and go book. One unanswered
+// discovery question is a signal, not an invitation to ask it differently.
+// Deliberately narrow: only explicit non-answers, so "Honda Civic" or "4x4"
+// can never be mistaken for a stall.
+const STALL_RE = /^(no|nope|nah|n\/?a|idk|dunno|i ?don'?t ?know|not ?sure|no ?idea|whatever|anything|any|doesn'?t ?matter|does ?not ?matter|don'?t ?care|nothing|none|(just ?)?(looking|browsing)|open|not ?really|maybe)\b[\s.!?]*$/i;
+function soundsStalled(raw) {
+  const t = String(raw || '').trim();
+  return !t || STALL_RE.test(t);
 }
 
 // Detects when a customer's message clearly indicates the OPPOSITE direction
@@ -249,6 +312,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       await pool.query(`
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode VARCHAR(20) DEFAULT 'sales';
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source VARCHAR(40);
+        -- What the buyer said they're after, verbatim, from the discovery
+        -- stage ("crew cab, 4x4, room for car seats"). Free text on purpose:
+        -- it's for the closer to read, not for us to parse.
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_detail  VARCHAR(255);
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_make    VARCHAR(60);
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_model   VARCHAR(80);
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS vehicle_year    INTEGER;
@@ -841,11 +908,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const wrongDir = detectWrongDirection(lowerMsg, 'acquisition');
     if (wrongDir === 'sales' && conversation.stage !== 'confirmed') {
       const detectedType = detectVehicleType(lowerMsg);
-      const updates = { mode: 'sales', stage: detectedType ? 'budget' : 'greeting' };
+      const updates = { mode: 'sales', stage: detectedType ? 'discovery' : 'greeting' };
       if (detectedType && detectedType !== 'Vehicle') updates.vehicle_type = detectedType;
       await updateConversation(conversation.id, updates);
+      // Lands in discovery, not budget — a customer who just changed
+      // direction is the last one to open with a payment question.
       return detectedType && detectedType !== 'Vehicle'
-        ? `Switching gears — looking for a ${detectedType.toLowerCase()}, got it. What monthly payment range works for you? Like $300, $500, $700?`
+        ? `Switching gears — looking for a ${detectedType.toLowerCase()}, got it. Any particular make or model in mind?`
         : "Got it — switching to buy-side. Are you looking for a Car, Truck, Van, or SUV?";
     }
 
@@ -1184,6 +1253,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (name && conversation.vehicle_type) {
         // Returning customer mid-funnel — pick up where they left off
+        if (conversation.stage === 'discovery') return `Hey ${name}! Still here 😊 Any particular make or model you had in mind?`;
         if (conversation.stage === 'budget' && !conversation.budget) return `Hey ${name}! Still here 😊 Where are you comfortable for monthly payments on a ${conversation.vehicle_type}?`;
         if (conversation.stage === 'appointment') return `Hey ${name}! Would you like to schedule a viewing — we can also deliver — or would a quick call be easier?`;
         if (conversation.stage === 'datetime') return `Hey ${name}! When works best for you?`;
@@ -1208,6 +1278,12 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (conversation.stage === 'datetime') return `When works best${name ? ' '+name : ''}? Morning, afternoon, or evening?`;
       if (conversation.stage === 'name' && !name) return "What's your name?";
+      // "ok" to "any particular make in mind?" is a non-answer. Don't ask it
+      // a second way — go book.
+      if (conversation.stage === 'discovery') {
+        await updateConversation(conversation.id, { stage: 'appointment' });
+        return `${name ? name + ', want' : 'Want'} to book a time to see a few, or would a quick call be easier?`;
+      }
       if (!conversation.vehicle_type) return "Are you looking for a Car, Truck, Van, or SUV?";
       if (!conversation.budget) return `What monthly payment range works for you on a ${conversation.vehicle_type}?`;
       return `${name ? name+', when' : 'When'} works best — would you prefer to schedule a viewing or have someone call you?`;
@@ -1449,12 +1525,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       const vehicleType = detectVehicleType(lowerMsg);
 
       if (vehicleType) {
-        await updateConversation(conversation.id, { vehicle_type: vehicleType, stage: 'budget' });
-        return pick(
-          `${vehicleType} — great choice! Where are you comfortable up to for monthly payments? That helps me find the best match.`,
-          `${vehicleType}s are popular right now! What monthly payment range works for you? Just a rough number is fine.`,
-          `Love it! To narrow things down — where are you at for monthly payments? Like $300, $500, $700 range?`
-        );
+        // Discovery before money. Opening on payments anchors the whole
+        // conversation on cost before there's any interest to protect, and
+        // this reply used to echo the detected type back with a compliment —
+        // "Car — great choice!" when the customer had said nothing of the
+        // kind. Capture the type silently and ask what they're actually
+        // after; the payment question lives in the discovery stage below,
+        // once they're talking.
+        await updateConversation(conversation.id, { vehicle_type: vehicleType, stage: 'discovery' });
+        const phrase = GENERIC_TYPES.has(vehicleType) ? '' : typePhrase(vehicleType);
+        return phrase
+          ? pick(
+              `Got it, ${phrase}. Any particular make or model in mind?`,
+              `${phrase.charAt(0).toUpperCase() + phrase.slice(1)} — what year or model are you after?`,
+              `Got it. Anything it has to have — make, model, must-haves?`
+            )
+          : pick(
+              "Any particular make or model in mind?",
+              "What are you after — anything specific, or still deciding?"
+            );
       }
       // Number without context at greeting — could be a budget
       const greetNumbers = message.match(/\d+/g);
@@ -1474,6 +1563,35 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         "Are you looking for a Car, Truck, Van, or SUV? Just let me know and I'll find you the best options.",
         "What kind of vehicle are you after? Car, Truck, Van, or SUV?",
         "To get you the best match — are you thinking Car, Truck, Van, or SUV?"
+      );
+    }
+
+    // ── STAGE 1.5: DISCOVERY ──────────────────────────────────
+    // One turn, and only one. The customer tells us what they're after in
+    // their own words; we store it verbatim for the closer and move on to
+    // payment. If they give us nothing back, we stop asking and go book —
+    // a customer who won't answer a make/model question is not going to
+    // warm up to a second one.
+    if (conversation.stage === 'discovery') {
+      if (soundsStalled(message)) {
+        await updateConversation(conversation.id, { stage: 'appointment' });
+        return pick(
+          `No problem${name ? ' ' + name : ''} — easiest thing is to see a few in person. Want to book a time, or would a quick call be better?`,
+          `All good — we've got a range in stock. Would you like to come take a look, or have someone call you?`
+        );
+      }
+      // Verbatim capture, no echo and no commentary on their choice.
+      const detail = String(message).trim().slice(0, 255);
+      const updates = { vehicle_detail: detail, stage: 'budget' };
+      // If they named something we recognise, tighten the stored type too —
+      // "looking for a Wrangler" starts as Car/Vehicle and is really an SUV.
+      const sharper = detectVehicleType(lowerMsg);
+      if (sharper && !GENERIC_TYPES.has(sharper)) updates.vehicle_type = sharper;
+      await updateConversation(conversation.id, updates);
+      return pick(
+        "Perfect. Where are you comfortable for monthly payments? Rough number is fine — $300, $500, $700.",
+        "Got it. What monthly payment range works for you? Ballpark is fine.",
+        "Noted. What are you looking to keep payments around each month?"
       );
     }
 
@@ -1665,12 +1783,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         userId
       };
 
+      // What the customer actually said they wanted, in their words. The
+      // type alone ("Truck") tells a closer nothing; "crew cab, needs to tow"
+      // tells them which two units to have pulled up front.
+      const wanted = conversation.vehicle_detail
+        ? `${conversation.vehicle_type || 'Vehicle'} — "${conversation.vehicle_detail}"`
+        : (conversation.vehicle_type || 'Vehicle TBD');
+
       if (conversation.intent === 'test_drive') {
         await saveAppointment(data);
         try {
           await notifyTenantManagers({
             tenantId, fromNumber, twilioClient,
-            body: `APPOINTMENT BOOKED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'} / ${conversation.budget || 'Budget TBD'}\nTime: ${finalDateTime}`,
+            body: `APPOINTMENT BOOKED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${wanted} / ${conversation.budget || 'Budget TBD'}\nTime: ${finalDateTime}`,
           });
         } catch(e) { console.error('❌ manager notify failed:', e.message); }
         // Send customer a confirmation reminder 60s later
@@ -1688,7 +1813,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         try {
           await notifyTenantManagers({
             tenantId, fromNumber, twilioClient,
-            body: `CALLBACK REQUESTED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${conversation.vehicle_type || 'Vehicle TBD'}\nCall them: ${finalDateTime}`,
+            body: `CALLBACK REQUESTED!\n${conversation.customer_name}\n${formatPretty(phone)}\n${wanted}\nCall them: ${finalDateTime}`,
           });
         } catch(e) { console.error('❌ manager notify failed:', e.message); }
         await logAnalytics('callback_requested', phone, data, userId);
@@ -1737,6 +1862,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // ── FALLBACK ──────────────────────────────────────────────
     if (!conversation.vehicle_type || conversation.stage === 'greeting') {
       return pick("What type of vehicle are you looking for? Car, Truck, Van, or SUV?", "To find you the best match — are you thinking Car, Truck, Van, or SUV?");
+    }
+    if (conversation.stage === 'discovery') {
+      return "Any particular make or model in mind? Or anything it has to have?";
     }
     if (!conversation.budget || conversation.stage === 'budget') {
       return `Where are you comfortable for monthly payments on a ${conversation.vehicle_type || 'vehicle'}? Just a rough number.`;
