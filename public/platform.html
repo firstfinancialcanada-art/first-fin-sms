@@ -4036,6 +4036,33 @@ async function startLoginBuy() {
     return 'Sedan';
   }
 
+  // Last line of defence before a description goes to Marketplace. Meta
+  // retunes its moderation constantly and links, phone numbers and email
+  // addresses are the usual triggers — a listing gets throttled or pulled
+  // with no error to see, so a whole day's posting can quietly underperform.
+  // The description template carries none of those itself, but dealerName and
+  // dealerCity are free-text tenant settings that land in every post, so
+  // "Automaxx 403-555-1234" would ride along on all 176 cars. Scrub the
+  // finished text rather than trusting every field that feeds it.
+  // carfax_url is stored on the vehicle and deliberately never rendered;
+  // this makes sure it can't sneak back in either.
+  function fbpScrubContact(text) {
+    return String(text)
+      .replace(/\b(?:https?:\/\/|www\.)\S+/gi, '')
+      // Email before bare domain, or the domain rule eats the tail of an
+      // address and leaves "sales@" sitting in the listing.
+      .replace(/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi, '')
+      .replace(/\b[a-z0-9-]+\.(?:com|ca|net|org|io|co|biz|info)\b(?:\/\S*)?/gi, '')
+      // NANP phone. The lookarounds keep it off VINs and stock numbers,
+      // which are alphanumeric runs, and no price or odometer reading is
+      // ten digits.
+      .replace(/(?<![A-Za-z0-9])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?![A-Za-z0-9])/g, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/ +\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function fbpBuildDesc(v, title, price, mileage) {
     const dealer = settings.dealerName || getVal('dealerName') || '';
     const dealerCity = settings.dealerCity || '';
@@ -4066,7 +4093,7 @@ async function startLoginBuy() {
     if (dealer) lines.push(dealer + (dealerCity ? ' | ' + dealerCity : ''));
     lines.push('Call or text to book a test drive!');
 
-    return lines.join('\n');
+    return fbpScrubContact(lines.join('\n'));
   }
 
   function fbpBuildQueue() {
