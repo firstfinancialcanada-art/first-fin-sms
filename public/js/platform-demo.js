@@ -778,7 +778,7 @@ const TOUR_STEPS = [
     target: '#section-sarah',
     label: '05 — SARAH AI',
     title: 'AI That Follows Up So You Don\'t Have To',
-    body: 'SARAH automatically texts your leads, handles replies intelligently, and books test drive appointments — 24 hours a day. Every conversation is tracked in a unified timeline.',
+    body: 'SARAH automatically texts your leads, handles replies intelligently, and books test drive appointments — 24 hours a day. Every conversation is tracked in a unified timeline. She uses your dealership name, your city and your own opening hours, per day and in your timezone, so callers hear your store — not a generic script.',
     diff: '💡 The average dealer loses 60% of internet leads to slow follow-up. SARAH responds in seconds.',
   },
   {

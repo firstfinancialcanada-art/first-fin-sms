@@ -521,14 +521,39 @@ const SARAH_TOUR_STEPS = [
     body: 'Send to a CSV or straight from your CRM. Use {name}, {dealership} and {city} in the script and each message fills itself in per customer. Opted-out numbers are skipped automatically and nobody gets texted twice in 24 hours.',
     diff: '💡 {name} is required. {dealership} and {city} come from Settings, so they stay right if you ever rename the store.',
   },
+  // Manager-only — see buildSarahTourSteps below. Sarah is only as accurate
+  // as this screen: she says the dealership name and city out loud, answers
+  // live or takes a voicemail based on the hours, and texts bookings to the
+  // notification phone. A dealer who skips it gets a Sarah who sounds like
+  // somebody else's store.
+  {
+    target: '#hdr-settings',
+    label: '06 — What Sarah Needs',
+    title: 'Fill these in or she guesses',
+    body: 'Four things in Settings drive everything Sarah says and does: Dealership Name and City, which she uses by name with customers; Business Hours, which decide whether she offers to connect a caller or takes a voicemail — and which she reads back to them; and Notification Phone, where bookings get texted.',
+    diff: '⚠️ Business Hours are per day and in your own timezone. Set your real Saturday — that is a selling day, not an office week.',
+    managerOnly: true,
+  },
   {
     target: '#sarah-stats-row',
-    label: '06 — That is it',
+    label: '07 — That is it',
     title: 'Conversations, appointments, callbacks',
     body: 'Those three tabs are the whole job. Everything else on this page is optional. You can reopen this walkthrough any time from the Guide button up here.',
     final: true,
   },
 ];
+
+// Reps don't get the Settings step — that button is data-min-role="manager",
+// so pointing at it would spotlight something they cannot see and tell them
+// to do something they cannot do. Renumbers the labels so it still reads
+// "5 of 6" rather than skipping a number.
+function buildSarahTourSteps() {
+  const role = (window.FF && FF.user && FF.user.memberRole) || 'owner';
+  const canSettings = role === 'owner' || role === 'manager';
+  return SARAH_TOUR_STEPS
+    .filter(s => !s.managerOnly || canSettings)
+    .map((s, i) => ({ ...s, label: String(i + 1).padStart(2, '0') + s.label.slice(2) }));
+}
 
 async function markSarahTourDone() {
   if(window.FF && FF.user && FF.user.ui_prefs) FF.user.ui_prefs.sarahTourDone = true;
@@ -557,7 +582,7 @@ function maybeStartSarahTour() {
 
 function startSarahTour() {
   if(typeof startTour !== 'function') return;
-  startTour(SARAH_TOUR_STEPS, markSarahTourDone);
+  startTour(buildSarahTourSteps(), markSarahTourDone);
 }
 
 // ── INVENTORY INIT (Cloud & Database Version) ─────────
