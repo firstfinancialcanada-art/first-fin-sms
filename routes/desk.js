@@ -235,8 +235,27 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     target: 30,
     twilioNumber: '',   // tenant's Twilio phone number (e.g. +14031234567)
     notifyPhone: '',    // owner's cell for Sarah appointment/callback alerts
-    googleReviewUrl: '' // sent to customer after deal funded
+    googleReviewUrl: '', // sent to customer after deal funded
+    // The three editable lines of a Marketplace description. Dealers really
+    // do differ here — "Fully inspected & reconditioned" is not true of a
+    // wholesale lot, and a franchise words financing differently than an
+    // independent. Everything else in the post (the vehicle facts, the CARFAX
+    // line, price formatting, dealer + city) stays fixed, so a tenant can
+    // sound like themselves without being able to break the listing. Empty
+    // string means "use the default", which is what Reset writes.
+    fbInspectionLine: '',
+    fbFinancingLine:  '',
+    fbCtaLine:        ''
   };
+
+  // Shared with the front end via /api/desk/settings — one source of truth for
+  // what Reset restores and what an empty field falls back to.
+  const FB_LINE_DEFAULTS = {
+    fbInspectionLine: 'Fully inspected & reconditioned',
+    fbFinancingLine:  'Financing available - all credit welcome',
+    fbCtaLine:        'Call or text to book a test drive!'
+  };
+  const FB_LINE_MAX = 120;
 
   function normalizeSettings(raw) {
     let s = raw;
@@ -252,6 +271,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     // — the PUT handler below rejects those on write.
     for (const key of ['notifyPhone', 'twilioNumber']) {
       if (merged[key]) merged[key] = normalizePhone(merged[key]) || merged[key];
+    }
+    // Free text that ships to Marketplace on every post — cap it and strip
+    // newlines so one tenant can't reflow or pad out everyone's listings.
+    for (const key of Object.keys(FB_LINE_DEFAULTS)) {
+      merged[key] = String(merged[key] || '').replace(/\s+/g, ' ').trim().slice(0, FB_LINE_MAX);
     }
     return merged;
   }
@@ -824,6 +848,18 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           return res.status(400).json({ success: false, error: `${label} must be a valid 10-digit Canadian or US number.` });
         }
       }
+
+      // Manager+ only. This endpoint was behind requireAuth alone while bulk
+      // inventory replace, bulk CRM replace and inventory sync all checked the
+      // role — so the gating on Settings was client-side JavaScript, which is
+      // a suggestion, not a lock. Any rep who called the API directly could
+      // repoint notifyPhone at their own cell and quietly take every lead
+      // alert in the tenant, or change the Sarah number outright.
+      const scope = await resolveScope(req);
+      if (scope && !roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Only managers can change dealership settings.' });
+      }
+
       const normalized = normalizeSettings(settings || {});
 
       // Ensure twilio_number column exists (safe to run repeatedly)
@@ -850,7 +886,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // ran, leaving teams stuck on stale branding after any owner update.
       // Caught by Franco 2026-04-27 while configuring Mil's account.
       try {
-        const scope = await resolveScope(req);
+        // Reuses the scope resolved for the role check above.
         if (scope?.tenantId) {
           await client.query(
             `UPDATE desk_tenants SET

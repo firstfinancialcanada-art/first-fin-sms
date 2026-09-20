@@ -2198,6 +2198,22 @@ select option{background:#0d1526;color:var(--text);}
         style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-size:12px;">
     </div>
 
+    <!-- Marketplace description lines — the only part of a post a dealer can reword -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07);">
+      <div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Marketplace Description</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Vehicle details, CARFAX and pricing are always included.</div>
+      <div class="fgroup"><label>Condition line</label>
+        <input type="text" id="setFbInspectionLine" maxlength="120" placeholder="Fully inspected &amp; reconditioned"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-size:12px;box-sizing:border-box;"></div>
+      <div class="fgroup" style="margin-top:10px;"><label>Financing line</label>
+        <input type="text" id="setFbFinancingLine" maxlength="120" placeholder="Financing available - all credit welcome"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-size:12px;box-sizing:border-box;"></div>
+      <div class="fgroup" style="margin-top:10px;"><label>Closing line</label>
+        <input type="text" id="setFbCtaLine" maxlength="120" placeholder="Call or text to book a test drive!"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-size:12px;box-sizing:border-box;"></div>
+      <button class="btn btn-sm" onclick="fbpResetLines()" style="margin-top:10px;"><i data-lucide="rotate-ccw" class="ico-sm"></i>Reset to default</button>
+    </div>
+
     <button id="saveSettingsBtn" class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:16px;"><i data-lucide="save" class="ico-sm"></i>Save Settings</button>
     <button class="btn btn-sm btn-full" onclick="closeModal('settingsModal');wizOpen();" style="margin-top:8px;background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;"><i data-lucide="play-circle" class="ico-sm"></i>Re-run Setup Wizard</button>
 
@@ -4036,6 +4052,32 @@ async function startLoginBuy() {
     return 'Sedan';
   }
 
+  // The three lines a dealer may reword. Mirrors FB_LINE_DEFAULTS in
+  // routes/desk.js — an empty setting means "use the default", which is also
+  // what Reset writes, so there is one answer to "what does this say by
+  // default" on both sides.
+  const FB_LINE_DEFAULTS = {
+    fbInspectionLine: 'Fully inspected & reconditioned',
+    fbFinancingLine:  'Financing available - all credit welcome',
+    fbCtaLine:        'Call or text to book a test drive!'
+  };
+  function fbpLine(key) {
+    return String((settings && settings[key]) || '').trim() || FB_LINE_DEFAULTS[key];
+  }
+
+  // Reset clears the fields rather than writing the default text into them.
+  // Empty already means "use the default" everywhere, so a dealer who resets
+  // keeps tracking the default if we ever change it, instead of freezing a
+  // copy of today's wording. Still needs Save — nothing is written behind the
+  // person's back.
+  function fbpResetLines() {
+    Object.keys(FB_LINE_DEFAULTS).forEach(k => {
+      const el = document.getElementById('set' + k.charAt(0).toUpperCase() + k.slice(1));
+      if (el) el.value = '';
+    });
+    if (typeof toast === 'function') toast('Reset — click Save Settings to apply');
+  }
+
   // Last line of defence before a description goes to Marketplace. Meta
   // retunes its moderation constantly and links, phone numbers and email
   // addresses are the usual triggers — a listing gets throttled or pulled
@@ -4058,6 +4100,9 @@ async function startLoginBuy() {
       // ten digits.
       .replace(/(?<![A-Za-z0-9])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?![A-Za-z0-9])/g, '')
       .replace(/[ \t]{2,}/g, ' ')
+      // Removing a number mid-sentence leaves the punctuation stranded —
+      // "Call us or visit !" is what a dealer would see in the preview.
+      .replace(/\s+([!?.,;:])/g, '$1')
       .replace(/ +\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
@@ -4087,11 +4132,11 @@ async function startLoginBuy() {
       lines.push('CARFAX: ' + v.carfax_badges);
     }
     lines.push('');
-    lines.push('Fully inspected & reconditioned');
-    lines.push('Financing available - all credit welcome');
+    lines.push(fbpLine('fbInspectionLine'));
+    lines.push(fbpLine('fbFinancingLine'));
     lines.push('');
     if (dealer) lines.push(dealer + (dealerCity ? ' | ' + dealerCity : ''));
-    lines.push('Call or text to book a test drive!');
+    lines.push(fbpLine('fbCtaLine'));
 
     return fbpScrubContact(lines.join('\n'));
   }

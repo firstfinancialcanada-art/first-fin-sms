@@ -2643,6 +2643,9 @@ function openSettingsModal(){
   setVal('setTwilioNumber',   settings.twilioNumber   || '');
   setVal('setNotifyPhone',    settings.notifyPhone    || '');
   setVal('setGoogleReviewUrl', settings.googleReviewUrl || '');
+  setVal('setFbInspectionLine', settings.fbInspectionLine || '');
+  setVal('setFbFinancingLine',  settings.fbFinancingLine  || '');
+  setVal('setFbCtaLine',        settings.fbCtaLine        || '');
   openModal('settingsModal');
 }
 
@@ -3124,6 +3127,12 @@ async function saveSettings(){
   setVal('setTwilioNumber', twilioNum);
   setVal('setNotifyPhone',  notifyNum);
   settings.googleReviewUrl = (getVal('setGoogleReviewUrl') || '').trim();
+  // Marketplace description lines. Blank means "use the default" — the server
+  // caps length and collapses whitespace, so a pasted paragraph can't reflow
+  // every listing.
+  settings.fbInspectionLine = (getVal('setFbInspectionLine') || '').trim();
+  settings.fbFinancingLine  = (getVal('setFbFinancingLine')  || '').trim();
+  settings.fbCtaLine        = (getVal('setFbCtaLine')        || '').trim();
 
   // 2. Apply locally immediately
   setVal('docFee', settings.docFee);
@@ -5696,6 +5705,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   setVal('setTwilioNumber',   settings.twilioNumber   || '');
   setVal('setNotifyPhone',    settings.notifyPhone    || '');
   setVal('setGoogleReviewUrl', settings.googleReviewUrl || '');
+  setVal('setFbInspectionLine', settings.fbInspectionLine || '');
+  setVal('setFbFinancingLine',  settings.fbFinancingLine  || '');
+  setVal('setFbCtaLine',        settings.fbCtaLine        || '');
   // Update header with dealer name
   if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
   calculate();
