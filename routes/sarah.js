@@ -1444,7 +1444,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           return `${name}, we don't have a ${label} right now but we can source them and get something close. When's a good time for one of our team to reach out with some options?`;
         }
       }
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `Great choice! I'll have one of our team reach out with details on ${label} options. What's your name?`; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `I'll have one of our team reach out with details on ${label} options. What's your name?`; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
       return `${name}, I'll have the team pull up ${label} options for you. When's a good time to reach out?`;
     }
@@ -1486,7 +1486,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           return `Yes! We have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock — ${invReply.examples}. Our team can reach out with photos and full details. What's your name?`;
         }
         await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
-        return `${name}, we have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock right now — ${invReply.examples}. Would you like to book a time to view them, or a quick call to walk through what we have?`;
+        return `${name}, we have ${invReply.count} ${typeLabel}${invReply.count > 1 ? 's' : ''} in stock right now — ${invReply.examples}. Which one do you want to look at, and what day works — today or later this week?`;
       }
 
       // Fallback if no inventory or no match
@@ -1575,9 +1575,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     if (conversation.stage === 'discovery') {
       if (soundsStalled(message)) {
         await updateConversation(conversation.id, { stage: 'appointment' });
+        // Franco's own shape, from his sales texts: name the thing, anchor on
+        // a day, and ask them to choose rather than offering a yes/no with an
+        // easy no in it. "Do you have time today to come test drive?" books;
+        // "would you like to schedule a viewing?" invites a maybe.
+        const what = typePhrase(conversation.vehicle_type) || 'a few';
         return pick(
-          `No problem${name ? ' ' + name : ''} — easiest thing is to see a few in person. Want to book a time, or would a quick call be better?`,
-          `All good — we've got a range in stock. Would you like to come take a look, or have someone call you?`
+          `No problem${name ? ' ' + name : ''} — easiest way is to see ${what} in person. Are you around today or tomorrow? I can also have someone give you a call.`,
+          `All good — quickest thing is to get you behind the wheel. What day works, today or later this week? Or I can set up a call.`
         );
       }
       // Verbatim capture, no echo and no commentary on their choice.
@@ -1609,8 +1614,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         const budgetRange = estTotal < 30000 ? 'Under $30k' : estTotal < 50000 ? '$30k-$50k' : '$50k+';
         await updateConversation(conversation.id, { budget: budgetRange, budget_amount: budgetAmount, stage: 'appointment' });
         return pick(
-          `$${budgetAmount}/month — solid. I have some great ${conversation.vehicle_type} options in that range. Would you like to schedule a viewing — we deliver too — or would a quick call with one of our team work better?`,
-          `Around $${budgetAmount}/month — I have some solid options for you. Would you like to book a time to see one, or would a quick call work first?`
+          `$${budgetAmount}/month works. I've got ${conversation.vehicle_type} options in that range. What day suits you to come take one for a drive — today or later this week? We deliver too.`,
+          `Around $${budgetAmount}/month — I have solid options for you. Are you free today or tomorrow to come see one? I can also have someone call you first.`
         );
       }
       if (budgetAmount >= 2000) {
@@ -1631,7 +1636,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (lowerMsg.includes('high') || lowerMsg.includes('premium') || lowerMsg.includes('luxury')) {
         await updateConversation(conversation.id, { budget: '$50k+', stage: 'appointment' });
-        return "Excellent taste! We have some premium options. Would you like to schedule a viewing, or should our team reach out with details and photos?";
+        return "We have options in that range. What day works to come see one — today or later this week? Or I can have someone call you with details and photos.";
       }
       if (budgetAmount > 0 && budgetAmount < 100) {
         return "Just to make sure I understand — is that $" + budgetAmount + " per month, or total budget? Most people are in the $300-$700/month range.";
@@ -1672,12 +1677,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       if (lowerMsg.includes('maybe') || lowerMsg.includes('not sure') || lowerMsg.includes('think') ||
           lowerMsg.includes('later') || lowerMsg.includes('busy')) {
-        return `No rush at all${name ? ' '+name : ''}! Whenever you're ready — we can arrange a viewing, or start with a phone call. Either works for us.`;
+        // This used to end with "whenever you're ready" and ask for nothing,
+        // which is a dead lead dressed up as politeness. Someone who won't
+        // commit to coming in will often take a call, and a callback is a
+        // real outcome — so fall back to the smaller ask instead of none.
+        await updateConversation(conversation.id, { intent: 'callback', stage: name ? 'datetime' : 'name' });
+        return name
+          ? `No rush ${name} — want me to have someone give you a quick call instead? No obligation.`
+          : "No rush — I can have someone give you a quick call instead, no obligation. What's your name?";
       }
       await updateConversation(conversation.id, { intent: 'test_drive', stage: name ? 'datetime' : 'name' });
       return name
-        ? `${name}, I have some great options lined up for you. When works best to book a time? We're flexible, and we can also deliver to you.`
-        : "I've got some solid options lined up. What's your name? I'll get everything ready for you.";
+        ? `${name}, I've got options lined up for you. What day works to come take one for a drive — today or later this week? We can deliver too.`
+        : "I've got solid options lined up. What's your name? I'll get everything ready for you.";
     }
 
     // ── STAGE 4: NAME ─────────────────────────────────────────
