@@ -18,6 +18,7 @@ const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
 const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
+const hours = require('../lib/hours');
 const crmHistory = require('../lib/crm-history');
 require('../lib/notify'); // triggers idempotent schema migration on boot
 
@@ -254,7 +255,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     // string means "use the default", which is what Reset writes.
     fbInspectionLine: '',
     fbFinancingLine:  '',
-    fbCtaLine:        ''
+    fbCtaLine:        '',
+    // Per-day opening hours + the tenant's own timezone. Sarah decides
+    // whether to answer live or take a voicemail from this, and reads the
+    // same data back to the caller, so the two can't disagree. Previously
+    // these were process-wide env vars, which meant an Ontario store
+    // announced Alberta hours in Alberta time.
+    businessHours: hours.DEALER_DEFAULT
   };
 
   // Shared with the front end via /api/desk/settings — one source of truth for
@@ -286,6 +293,9 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     for (const key of Object.keys(FB_LINE_DEFAULTS)) {
       merged[key] = String(merged[key] || '').replace(/\s+/g, ' ').trim().slice(0, FB_LINE_MAX);
     }
+    // Always hand back a complete, valid hours object — a malformed day
+    // becomes closed rather than something that spans midnight on the phone.
+    merged.businessHours = hours.normalizeHours(merged.businessHours);
     return merged;
   }
 

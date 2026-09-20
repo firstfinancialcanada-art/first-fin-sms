@@ -2214,6 +2214,25 @@ select option{background:#0d1526;color:var(--text);}
       <button class="btn btn-sm" onclick="fbpResetLines()" style="margin-top:10px;"><i data-lucide="rotate-ccw" class="ico-sm"></i>Reset to default</button>
     </div>
 
+    <!-- Business hours — Sarah answers live inside these, voicemail outside -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07);">
+      <div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Business Hours</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Sarah offers to connect callers live during these hours, and takes a voicemail outside them. She reads these hours back to callers.</div>
+      <div class="fgroup" style="margin-bottom:10px;"><label>Timezone</label>
+        <select id="setHoursTz" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;width:100%;font-size:12px;box-sizing:border-box;">
+          <option value="America/St_Johns">Newfoundland</option>
+          <option value="America/Halifax">Atlantic — Halifax</option>
+          <option value="America/Toronto">Eastern — Toronto</option>
+          <option value="America/Winnipeg">Central — Winnipeg</option>
+          <option value="America/Regina">Central — Regina (no DST)</option>
+          <option value="America/Edmonton">Mountain — Edmonton / Calgary</option>
+          <option value="America/Vancouver">Pacific — Vancouver</option>
+        </select>
+      </div>
+      <div id="hoursRows"></div>
+      <button class="btn btn-sm" onclick="hoursCopyMondayToWeekdays()" style="margin-top:10px;"><i data-lucide="copy" class="ico-sm"></i>Copy Monday to Tue–Fri</button>
+    </div>
+
     <button id="saveSettingsBtn" class="btn btn-primary btn-full" onclick="saveSettings()" style="margin-top:16px;"><i data-lucide="save" class="ico-sm"></i>Save Settings</button>
     <button class="btn btn-sm btn-full" onclick="closeModal('settingsModal');wizOpen();" style="margin-top:8px;background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;"><i data-lucide="play-circle" class="ico-sm"></i>Re-run Setup Wizard</button>
 

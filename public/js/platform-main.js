@@ -2731,6 +2731,8 @@ function openSettingsModal(){
   setVal('setFbInspectionLine', settings.fbInspectionLine || '');
   setVal('setFbFinancingLine',  settings.fbFinancingLine  || '');
   setVal('setFbCtaLine',        settings.fbCtaLine        || '');
+  setVal('setHoursTz', (settings.businessHours && settings.businessHours.tz) || HOURS_FALLBACK.tz);
+  renderHoursRows(settings.businessHours);
   openModal('settingsModal');
 }
 
@@ -3173,6 +3175,78 @@ function removeLogo() {
   if (typeof updateHeaderDealer === 'function') updateHeaderDealer();
   toast('Logo removed — click Save Settings to apply');
 }
+// ── BUSINESS HOURS (settings) ─────────────────────────────────────
+// Rows are built here rather than written out seven times in the markup, so
+// the day list exists in one place. Mirrors lib/hours.js on the server, which
+// is what actually decides whether Sarah answers live — this is just the form.
+const HOURS_DAYS = [
+  ['mon','Monday'], ['tue','Tuesday'], ['wed','Wednesday'], ['thu','Thursday'],
+  ['fri','Friday'], ['sat','Saturday'], ['sun','Sunday'],
+];
+const HOURS_FALLBACK = {
+  tz: 'America/Edmonton',
+  days: { mon:{open:'09:00',close:'18:00'}, tue:{open:'09:00',close:'18:00'},
+          wed:{open:'09:00',close:'18:00'}, thu:{open:'09:00',close:'18:00'},
+          fri:{open:'09:00',close:'18:00'}, sat:{open:'09:00',close:'17:00'}, sun:null },
+};
+
+function renderHoursRows(cfg){
+  const box = document.getElementById('hoursRows');
+  if(!box) return;
+  const c = (cfg && cfg.days) ? cfg : HOURS_FALLBACK;
+  box.innerHTML = HOURS_DAYS.map(([k,label])=>{
+    const d = c.days[k];
+    const closed = !d;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="width:84px;font-size:12px;color:var(--muted);">${label}</span>
+      <input type="time" id="hrs-${k}-open"  value="${d?d.open:'09:00'}"  ${closed?'disabled':''}
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;">
+      <span style="color:var(--muted);font-size:11px;">to</span>
+      <input type="time" id="hrs-${k}-close" value="${d?d.close:'17:00'}" ${closed?'disabled':''}
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;">
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;margin-left:auto;">
+        <input type="checkbox" id="hrs-${k}-closed" ${closed?'checked':''} onchange="hoursToggleDay('${k}')"> Closed
+      </label>
+    </div>`;
+  }).join('');
+}
+
+function hoursToggleDay(k){
+  const off = document.getElementById('hrs-'+k+'-closed').checked;
+  ['open','close'].forEach(f=>{
+    const el = document.getElementById('hrs-'+k+'-'+f);
+    if(el){ el.disabled = off; el.style.opacity = off ? .4 : 1; }
+  });
+}
+
+// Most lots run the same hours Mon–Fri, so typing it once is enough.
+function hoursCopyMondayToWeekdays(){
+  const o = document.getElementById('hrs-mon-open')?.value;
+  const c = document.getElementById('hrs-mon-close')?.value;
+  const closed = document.getElementById('hrs-mon-closed')?.checked;
+  ['tue','wed','thu','fri'].forEach(k=>{
+    const ce = document.getElementById('hrs-'+k+'-closed');
+    if(ce){ ce.checked = !!closed; }
+    const oe = document.getElementById('hrs-'+k+'-open');  if(oe && o) oe.value = o;
+    const cl = document.getElementById('hrs-'+k+'-close'); if(cl && c) cl.value = c;
+    hoursToggleDay(k);
+  });
+  if(typeof toast === 'function') toast('Copied — click Save Settings to apply');
+}
+
+function readHoursFromForm(){
+  const tz = getVal('setHoursTz') || HOURS_FALLBACK.tz;
+  const days = {};
+  HOURS_DAYS.forEach(([k])=>{
+    const closed = document.getElementById('hrs-'+k+'-closed')?.checked;
+    if(closed){ days[k] = null; return; }
+    const open  = document.getElementById('hrs-'+k+'-open')?.value;
+    const close = document.getElementById('hrs-'+k+'-close')?.value;
+    days[k] = (open && close) ? { open, close } : null;
+  });
+  return { tz, days };
+}
+
 // Mirrors normalizePhone in lib/helpers.js. Returns E.164 or null, so
 // "(587) 306-6133", "587-306-6133" and "5873066133" all land as
 // "+15873066133" instead of being rejected or — worse, as happened with the
@@ -3218,6 +3292,7 @@ async function saveSettings(){
   settings.fbInspectionLine = (getVal('setFbInspectionLine') || '').trim();
   settings.fbFinancingLine  = (getVal('setFbFinancingLine')  || '').trim();
   settings.fbCtaLine        = (getVal('setFbCtaLine')        || '').trim();
+  settings.businessHours    = readHoursFromForm();
 
   // 2. Apply locally immediately
   setVal('docFee', settings.docFee);
@@ -5798,6 +5873,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   setVal('setFbInspectionLine', settings.fbInspectionLine || '');
   setVal('setFbFinancingLine',  settings.fbFinancingLine  || '');
   setVal('setFbCtaLine',        settings.fbCtaLine        || '');
+  setVal('setHoursTz', (settings.businessHours && settings.businessHours.tz) || HOURS_FALLBACK.tz);
+  renderHoursRows(settings.businessHours);
   // Update header with dealer name
   if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
   calculate();

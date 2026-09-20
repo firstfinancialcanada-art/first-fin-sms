@@ -1,6 +1,7 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
-const { normalizePhone, isBusinessHours, twimlSafe, makeTwilioWebhookValidator, fillTemplate } = require('../lib/helpers');
+const { normalizePhone, twimlSafe, makeTwilioWebhookValidator, fillTemplate } = require('../lib/helpers');
+const hours = require('../lib/hours');
 const { guardedVoiceCall, reconcileSpend } = require('../lib/spend-cap');
 const { notifyTenantManagers } = require('../lib/notify');
 const validateTwilio = makeTwilioWebhookValidator();
@@ -68,7 +69,8 @@ async function getTenantByNumber(toNumber) {
     userId:      null,
     fromNumber:  process.env.TWILIO_PHONE_NUMBER,
     forwardPhone: '',
-    dealerName:  process.env.DEALER_NAME || 'First Financial'
+    dealerName:  process.env.DEALER_NAME || 'First Financial',
+    businessHours: hours.DEALER_DEFAULT
   };
   if (!toNumber) return fallbackSettings;
   try {
@@ -84,7 +86,10 @@ async function getTenantByNumber(toNumber) {
       fromNumber:   s.twilioNumber  || process.env.TWILIO_PHONE_NUMBER,
       // Unparseable → '' → callers skip the dial, same as unconfigured.
       forwardPhone: normalizePhone(s.notifyPhone) || '',
-      dealerName:   s.dealerName    || process.env.DEALER_NAME   || 'First Financial'
+      dealerName:   s.dealerName    || process.env.DEALER_NAME   || 'First Financial',
+      // This tenant's own hours and zone. Reading them off the environment
+      // meant an Ontario dealer's callers heard Alberta hours.
+      businessHours: hours.normalizeHours(s.businessHours)
     };
   } catch(e) {
     console.error('⚠️ getTenantByNumber failed:', e.message);
@@ -136,10 +141,10 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     const tenant   = await getTenantByNumber(req.body.To || process.env.TWILIO_PHONE_NUMBER);
     const dealer   = twimlSafe(tenant.dealerName);
     const baseUrl  = process.env.BASE_URL || '';
-    const hours    = isBusinessHours();
+    const isOpen   = hours.isOpenNow(tenant.businessHours);
     res.type('text/xml');
 
-    if (hours) {
+    if (isOpen) {
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather numDigits="1" action="${baseUrl}/api/voice/inbound-gather" timeout="8" method="POST">
@@ -163,16 +168,17 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   />
 </Response>`);
     } else {
-      const start    = process.env.BUSINESS_HOURS_START || '9';
-      const end      = parseInt(process.env.BUSINESS_HOURS_END || 18);
-      const endFmt   = end > 12 ? (end-12)+'pm' : end+'am';
-      const startFmt = parseInt(start) > 12 ? (parseInt(start)-12)+'pm' : start+'am';
+      // Spoken from the same config that decided we're closed, so Sarah
+      // can't announce hours that contradict how she just behaved. A tenant
+      // with no open days at all simply doesn't get the sentence.
+      const spoken   = hours.describeHours(tenant.businessHours);
+      const hoursLine = spoken ? `Our hours are ${twimlSafe(spoken)}.` : '';
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather numDigits="1" action="${baseUrl}/api/voice/inbound-gather" timeout="8" method="POST">
     <Say voice="Polly.Joanna" language="en-CA">
       Thank you for calling ${dealer}. 
-      Our team is currently unavailable. Our hours are ${startFmt} to ${endFmt}, Monday through Friday.
+      Our team is currently unavailable. ${hoursLine}
       Press 1 to leave a voicemail and we will call you back first thing.
       Or simply hang up and reply to this number by text — we respond quickly.
     </Say>
