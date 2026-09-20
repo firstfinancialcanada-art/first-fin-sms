@@ -472,7 +472,92 @@ function showSection(id, btn){
   if(id==='fbposter') {
     if (typeof window.initFbPoster === 'function') setTimeout(window.initFbPoster, 100);
   }
+  // First visit to Sarah gets the walkthrough. Mil at Hunt Chrysler got lost
+  // in here — the platform does a lot, and doing a lot is the same thing as
+  // being confusing until somebody points at the parts.
+  if(id==='sarah') setTimeout(maybeStartSarahTour, 400);
   setTimeout(() => { try { lucide.createIcons(); } catch(e){} }, 50);
+}
+
+// ── SARAH WALKTHROUGH ─────────────────────────────────
+// Reuses the tour engine in platform-demo.js (spotlight + tooltip + controls)
+// rather than growing a second style of bubble. The demo's own steps are
+// sales copy — "most platforms make you bounce between three tools" is a
+// reason to buy, not an instruction. These are instructions.
+const SARAH_TOUR_STEPS = [
+  {
+    target: '#sarah-stats-row',
+    label: '01 — What Sarah Does',
+    title: 'She books, she does not close',
+    body: "Sarah answers every text in seconds, works out what the customer wants, and books an appointment or a callback. She never quotes a price, works a trade or talks rates — that goes to you. Her job is getting a warm person onto your calendar while you're with another customer.",
+  },
+  {
+    tab: 'conversations',
+    target: '#conversationList',
+    label: '02 — Conversations',
+    title: 'Every text in one timeline',
+    body: 'Each customer thread lives here — what they asked, what Sarah replied, what she captured. Open one before you call so you already know the vehicle, the budget and how they found you. You can jump in and take over a conversation at any point.',
+  },
+  {
+    tab: 'appointments',
+    target: '#appointmentsList',
+    label: '03 — Appointments',
+    title: 'Bookings land here',
+    body: 'When Sarah books someone, it shows up here and a text goes to the notification phone in Settings. If you are a manager or the owner you get every booking in the store, not just your own.',
+    diff: '💡 No alert arriving? Settings → Notification Phone is empty or wrong. That is almost always it.',
+  },
+  {
+    tab: 'callbacks',
+    target: '#callbacksList',
+    label: '04 — Callbacks',
+    title: 'The ones who would not commit',
+    body: "When a customer won't pin down a time, Sarah falls back to asking for a callback instead of letting them go quiet. These are still live — they raised a hand and then hesitated. Work them like appointments.",
+  },
+  {
+    tab: 'launch',
+    target: '#stab-launch',
+    label: '05 — Outreach',
+    title: 'Texting a list',
+    body: 'Send to a CSV or straight from your CRM. Use {name}, {dealership} and {city} in the script and each message fills itself in per customer. Opted-out numbers are skipped automatically and nobody gets texted twice in 24 hours.',
+    diff: '💡 {name} is required. {dealership} and {city} come from Settings, so they stay right if you ever rename the store.',
+  },
+  {
+    target: '#sarah-stats-row',
+    label: '06 — That is it',
+    title: 'Conversations, appointments, callbacks',
+    body: 'Those three tabs are the whole job. Everything else on this page is optional. You can reopen this walkthrough any time from the Guide button up here.',
+    final: true,
+  },
+];
+
+async function markSarahTourDone() {
+  if(window.FF && FF.user && FF.user.ui_prefs) FF.user.ui_prefs.sarahTourDone = true;
+  try {
+    if(window.FF && typeof FF.apiFetch === 'function') {
+      await FF.apiFetch('/api/desk/me/ui-prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sarahTourDone: true }),
+      });
+    }
+  } catch(e) { /* dismissed locally either way — never block the UI on this */ }
+}
+
+// Stored against the USER on the server, not localStorage. A rep who sees it
+// on the showroom PC should not get it again on the back-office machine or
+// their phone, and a shared workstation should not swallow it for whoever
+// logs in next.
+function maybeStartSarahTour() {
+  if(window.DEMO_MODE) return;
+  if(!(window.FF && FF.isLoggedIn)) return;
+  if(FF.user && FF.user.ui_prefs && FF.user.ui_prefs.sarahTourDone) return;
+  if(document.getElementById('tour-tooltip')?.style.display === 'block') return;
+  startSarahTour();
+}
+
+function startSarahTour() {
+  if(typeof startTour !== 'function') return;
+  startTour(SARAH_TOUR_STEPS, markSarahTourDone);
 }
 
 // ── INVENTORY INIT (Cloud & Database Version) ─────────

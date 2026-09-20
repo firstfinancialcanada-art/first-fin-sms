@@ -811,20 +811,36 @@ const TOUR_STEPS = [
 
 let _tourStep = 0;
 
-function startTour() {
-  if(!window.DEMO_MODE) return;
-  _tourStep = 0;
+// The active step set. The demo tour was the only caller for a long time, so
+// the engine read TOUR_STEPS directly — but the spotlight, positioning and
+// controls are generic, and signed-in customers need a walkthrough far more
+// than a prospect kicking the tires does. Callers can now supply their own
+// steps; the demo keeps its DEMO_MODE gate.
+let _tourSteps  = TOUR_STEPS;
+let _tourOnDone = null;
+
+function startTour(steps, onDone) {
+  const custom = Array.isArray(steps) && steps.length;
+  if(!custom && !window.DEMO_MODE) return;
+  _tourSteps  = custom ? steps : TOUR_STEPS;
+  _tourOnDone = typeof onDone === 'function' ? onDone : null;
+  _tourStep   = 0;
   _showTourStep();
 }
 
 function _showTourStep() {
-  const step = TOUR_STEPS[_tourStep];
+  const step = _tourSteps[_tourStep];
   if(!step) { tourSkip(); return; }
 
   // Navigate to section
   if(step.section) {
     const navBtn = document.querySelector(`button[onclick*="'${step.section}'"]`);
     if(navBtn) navBtn.click();
+  }
+  // Sarah's dashboard has its own sub-tabs, which are not nav buttons.
+  if(step.tab && typeof showSarahTab === 'function') {
+    const tabBtn = document.querySelector(`button[onclick*="showSarahTab('${step.tab}'"]`);
+    try { showSarahTab(step.tab, tabBtn); } catch(e) { /* tab not rendered yet */ }
   }
 
   setTimeout(() => {
@@ -854,7 +870,7 @@ function _showTourStep() {
     const spotlight = document.getElementById('tour-spotlight');
 
     document.getElementById('tour-step-label').textContent = step.label;
-    document.getElementById('tour-step-count').textContent = `${_tourStep+1} of ${TOUR_STEPS.length}`;
+    document.getElementById('tour-step-count').textContent = `${_tourStep+1} of ${_tourSteps.length}`;
     document.getElementById('tour-title').textContent = step.title;
     document.getElementById('tour-body').textContent = step.body;
 
@@ -862,8 +878,11 @@ function _showTourStep() {
     if(step.diff) { diffEl.style.display='block'; diffEl.textContent = step.diff; }
     else { diffEl.style.display='none'; }
 
+    // The Gold-tier pitch belongs on the demo tour only. Showing "ask about
+    // Gold" to somebody who already pays for Gold reads as if we don't know
+    // who they are.
     const entEl = document.getElementById('tour-enterprise-note');
-    if(entEl) entEl.style.display = step.final ? 'block' : 'none';
+    if(entEl) entEl.style.display = (step.final && window.DEMO_MODE) ? 'block' : 'none';
 
     const contactEl = document.getElementById('tour-contact');
     if(step.contact) { contactEl.style.display='block'; }
@@ -871,7 +890,7 @@ function _showTourStep() {
 
     document.getElementById('tour-prev').style.visibility = _tourStep === 0 ? 'hidden' : 'visible';
     const nextBtn = document.getElementById('tour-next');
-    nextBtn.textContent = step.final ? '🚀 Get Started' : 'Next →';
+    nextBtn.textContent = step.final ? (window.DEMO_MODE ? '🚀 Get Started' : 'Got it') : 'Next →';
     nextBtn.onclick = step.final ? tourGetStarted : tourNext;
 
     // Position spotlight on target
@@ -926,10 +945,10 @@ function _showTourStep() {
 }
 
 function tourNext() {
-  const step = TOUR_STEPS[_tourStep];
+  const step = _tourSteps[_tourStep];
   if(step && step.final) { tourSkip(); return; }
   _tourStep++;
-  if(_tourStep >= TOUR_STEPS.length) { tourSkip(); return; }
+  if(_tourStep >= _tourSteps.length) { tourSkip(); return; }
   _showTourStep();
 }
 
@@ -944,9 +963,19 @@ function tourSkip() {
   document.getElementById('tour-tooltip').style.display = 'none';
   document.getElementById('tour-spotlight').style.display = 'none';
   document.getElementById('tour-overlay').style.display = 'none';
+  // Fires whether they finished or skipped — either way they've seen it and
+  // should not be interrupted again. Cleared first so a callback that starts
+  // another tour can't re-enter this one.
+  const done = _tourOnDone;
+  _tourOnDone = null;
+  if(done) { try { done(); } catch(e) { console.warn('tour onDone:', e.message); } }
 }
 
 function tourGetStarted() {
+  // A signed-in customer finishing a walkthrough should stay where they are.
+  // Bouncing them to the Deal Desk and telling them nothing is saved is demo
+  // behaviour and would be alarming on a real account.
+  if(!window.DEMO_MODE) { tourSkip(); return; }
   tourSkip();
   // Navigate to Deal Desk and toast a welcome
   const dealBtn = document.querySelector("button[onclick*='deal']");

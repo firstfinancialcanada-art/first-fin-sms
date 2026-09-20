@@ -2347,6 +2347,9 @@ select option{background:#0d1526;color:var(--text);}
       <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">SMS Outreach · Conversations · Voice · Analytics</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <!-- Stays after the walkthrough is dismissed, so help never disappears
+           for good — it just stops interrupting. -->
+      <button class="hbtn" onclick="startSarahTour()" title="Show the Sarah walkthrough"><i data-lucide="help-circle" class="ico-sm"></i>Guide</button>
       <button class="hbtn" onclick="loadSarahDashboard()" style="background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4;"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
       <button class="hbtn" onclick="exportData('appointments')"><i data-lucide="download" class="ico-sm"></i>Export Appts</button>
       <button class="hbtn" onclick="exportData('callbacks')"><i data-lucide="download" class="ico-sm"></i>Export Callbacks</button>

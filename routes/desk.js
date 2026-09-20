@@ -61,6 +61,15 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       `);
       console.log('✅ desk_inventory: source + retail_price + carfax columns ready');
     } catch(e) { console.error('⚠️ inventory wholesale columns migration:', e.message); }
+
+    // Per-user interface state — which one-time walkthroughs this person has
+    // finished. Created at boot rather than lazily because userPayload reads
+    // it on login, and a missing column there would silently restart the
+    // Sarah walkthrough on every sign-in.
+    try {
+      await pool.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS ui_prefs JSONB DEFAULT '{}'`);
+      console.log('✅ desk_users.ui_prefs ready');
+    } catch(e) { console.error('⚠️ ui_prefs migration:', e.message); }
   })();
 
   // ── Phase 6: per-rep FB-posting attribution ──
@@ -306,12 +315,27 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         twilioNumber = r.rows[0]?.twilio_number ?? null;
       } catch { twilioNumber = null; }
     }
+    // Per-user interface state (which walkthroughs they've finished) has to
+    // ride along on login — the client reads FF.user from the login response,
+    // not from /api/desk/me, so leaving it out would restart the Sarah
+    // walkthrough on every single sign-in. Same narrow-SELECT fallback as
+    // twilio_number above.
+    let uiPrefs = row.ui_prefs;
+    if (uiPrefs === undefined) {
+      try {
+        const r = await pool.query('SELECT ui_prefs FROM desk_users WHERE id = $1', [row.id]);
+        uiPrefs = r.rows[0]?.ui_prefs ?? {};
+      } catch { uiPrefs = {}; }
+    }
+    if (typeof uiPrefs === 'string') { try { uiPrefs = JSON.parse(uiPrefs); } catch { uiPrefs = {}; } }
+
     const payload = {
       id: row.id,
       email: row.email,
       name: row.display_name,
       role: row.role,
       hasTwilioNumber: !!twilioNumber,
+      ui_prefs: uiPrefs || {},
       tenantBranding: buildTenantBrandingFromSettings(settings)
     };
     try {
@@ -552,10 +576,16 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     const client = await pool.connect();
     try {
       await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'`).catch(() => {});
+      // Per-USER interface state — which one-time walkthroughs this person has
+      // finished, and anything similar later. Deliberately not settings_json:
+      // that is tenant configuration and manager-gated, so a rep could never
+      // dismiss their own help bubble. This is the individual's own prefs and
+      // any authenticated user may write their own.
+      await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS ui_prefs JSONB DEFAULT '{}'`).catch(() => {});
 
       const result = await client.query(
         `SELECT id, email, display_name, role, created_at, last_login, settings_json,
-                subscription_status, trial_ends_at, features, notify_phone
+                subscription_status, trial_ends_at, features, notify_phone, ui_prefs
          FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -582,6 +612,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
           created_at: row.created_at,
           last_login: row.last_login,
           notify_phone: row.notify_phone || null,
+          ui_prefs: (typeof row.ui_prefs === 'string' ? JSON.parse(row.ui_prefs || '{}') : row.ui_prefs) || {},
           tenantBranding: buildTenantBrandingFromSettings(row.settings_json),
           features
         },
@@ -616,6 +647,39 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       );
       res.json({ success: true, notify_phone: normalized });
     } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── PATCH /api/desk/me/ui-prefs ─────────────────────────────────
+  // A person's own interface state — which walkthroughs they've finished.
+  // requireAuth only, no role check on purpose: this is the individual's
+  // preference, not tenant configuration, and a rep has to be able to dismiss
+  // their own help bubble. Merges rather than replaces so two flags set from
+  // different tabs don't clobber each other, and only accepts known keys so
+  // this can't become a general-purpose store on the user row.
+  const UI_PREF_KEYS = new Set(['sarahTourDone']);
+  app.patch('/api/desk/me/ui-prefs', requireAuth, async (req, res) => {
+    try {
+      const incoming = req.body || {};
+      const patch = {};
+      for (const k of Object.keys(incoming)) {
+        if (UI_PREF_KEYS.has(k)) patch[k] = !!incoming[k];
+      }
+      if (!Object.keys(patch).length) {
+        return res.status(400).json({ success: false, error: 'No recognised preference keys' });
+      }
+      await pool.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS ui_prefs JSONB DEFAULT '{}'`).catch(() => {});
+      const { rows } = await pool.query(
+        `UPDATE desk_users
+            SET ui_prefs = COALESCE(ui_prefs, '{}'::jsonb) || $1::jsonb
+          WHERE id = $2
+        RETURNING ui_prefs`,
+        [JSON.stringify(patch), req.user.userId]
+      );
+      res.json({ success: true, ui_prefs: rows[0]?.ui_prefs || {} });
+    } catch (e) {
+      console.error('❌ ui-prefs update:', e.message);
       res.status(500).json({ success: false, error: sanitizeError(e) });
     }
   });
