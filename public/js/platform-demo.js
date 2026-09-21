@@ -430,6 +430,49 @@ function _doExitDemo() {
   location.replace('/platform');
 }
 
+// Placeholder photos for demo units: a plain drawn car on a coloured
+// backdrop, labelled DEMO PHOTO. Generated here so the demo never ships a
+// real dealer's pictures.
+function _demoPhoto(title, label, hue) {
+  const esc = t => String(t).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue},32%,34%)"/><stop offset="1" stop-color="hsl(${hue},32%,13%)"/></linearGradient></defs>
+<rect width="800" height="600" fill="url(#g)"/><rect y="452" width="800" height="148" fill="rgba(0,0,0,.28)"/>
+<path d="M120 430 L120 385 Q125 360 160 352 L235 340 L300 285 Q322 268 352 268 L505 268 Q540 268 565 290 L625 340 L660 346 Q690 352 692 380 L692 430 Z" fill="rgba(255,255,255,.88)"/>
+<path d="M318 292 Q330 282 350 282 L420 282 L420 336 L262 340 Z M432 282 L500 282 Q528 282 548 300 L585 336 L432 336 Z" fill="hsl(${hue},25%,28%)"/>
+<circle cx="245" cy="432" r="46" fill="#15181d"/><circle cx="572" cy="432" r="46" fill="#15181d"/>
+<circle cx="245" cy="432" r="20" fill="#9aa3ad"/><circle cx="572" cy="432" r="20" fill="#9aa3ad"/>
+<text x="400" y="112" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="42" font-weight="700" fill="#fff">${esc(title)}</text>
+<text x="400" y="158" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="22" fill="rgba(255,255,255,.72)" letter-spacing="3">${esc(label)} · DEMO PHOTO</text>
+</svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+function _demoPosterInventory() {
+  const extra = {
+    'MAG-1001': { color:'Oxford White',     trim:'XLT SuperCrew 4x4', carfax_badges:'One Owner · No Reported Accidents', hue:210 },
+    'MAG-1002': { color:'Magnetic Grey',    trim:'LE AWD',            carfax_badges:'No Reported Accidents',            hue:200 },
+    'MAG-1003': { color:'Aegean Blue',      trim:'EX',                carfax_badges:'',                                 hue:220 },
+    'MAG-1004': { color:'Summit White',     trim:'LT Crew Cab',       carfax_badges:'One Owner',                        hue:190 },
+    'MAG-1005': { color:'Phantom Black',    trim:'Preferred AWD',     carfax_badges:'',                                 hue:230 },
+    'MAG-1006': { color:'Sarge Green',      trim:'Sahara Unlimited',  carfax_badges:'',                                 hue:110 },
+  };
+  const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString();
+  return DEMO_INVENTORY.map((v, i) => {
+    const x = extra[v.stock] || { color:'Silver', trim:'', carfax_badges:'', hue: 210 };
+    const title = `${v.year} ${v.make} ${v.model}`;
+    // One unit posted 9 days ago so the "needs reposting" bar shows.
+    const posted = v.stock === 'MAG-1006';
+    return Object.assign({}, v, {
+      id: 9000 + i, status: 'available',
+      color: x.color, trim: x.trim, carfax_badges: x.carfax_badges,
+      photos: ['Front 3/4', 'Side', 'Rear', 'Interior'].map(l => _demoPhoto(title, l, x.hue)),
+      fb_status: posted ? 'posted' : 'pending',
+      fb_posted_date: posted ? daysAgo(9) : null,
+    });
+  });
+}
+
 // Block writes to Postgres in demo mode — patch apiFetch
 const _origApiFetch = window.FF ? window.FF.apiFetch : null;
 document.addEventListener('DOMContentLoaded', () => {
@@ -569,6 +612,16 @@ document.addEventListener('DOMContentLoaded', () => {
           { label:'750+', approved:8, bestRate:9.99  },
         ];
         return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, rows }) });
+      }
+
+      // ── Demo inventory for the Marketplace poster ─────────────────────────
+      // The poster reads /api/desk/inventory, which a signed-out visitor
+      // can't, so the demo poster used to say "No inventory". Same six demo
+      // units as everywhere else, plus what the poster needs to show off:
+      // colour, trim, generated placeholder photos (never a real dealer's
+      // pictures), a couple of CARFAX badges, and one unit due a repost.
+      if ((!opts || !opts.method || String(opts.method).toUpperCase() === 'GET') && path === '/api/desk/inventory') {
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, inventory: _demoPosterInventory() }) });
       }
 
       // Block all other writes. PATCH was missing from this list, so

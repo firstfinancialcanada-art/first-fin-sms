@@ -3976,6 +3976,8 @@ async function startLoginBuy() {
     return { target, gap };
   }
   function fbpPostLog() {
+    // The log is per browser; the demo must not show a real user's pace.
+    if (window.DEMO_MODE) return [];
     try {
       const all = JSON.parse(localStorage.getItem(FBP_LOG_KEY) || '[]');
       return Array.isArray(all) ? all.filter(e => e && Date.now() - e.t < 48 * 3600e3) : [];
