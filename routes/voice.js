@@ -70,7 +70,8 @@ async function getTenantByNumber(toNumber) {
     fromNumber:  process.env.TWILIO_PHONE_NUMBER,
     forwardPhone: '',
     dealerName:  process.env.DEALER_NAME || 'First Financial',
-    businessHours: hours.DEALER_DEFAULT
+    businessHours: hours.DEALER_DEFAULT,
+    tenantId:    null
   };
   if (!toNumber) return fallbackSettings;
   try {
@@ -81,8 +82,18 @@ async function getTenantByNumber(toNumber) {
     if (!r.rows.length) return fallbackSettings;
     const row = r.rows[0];
     const s = typeof row.settings_json === 'string' ? JSON.parse(row.settings_json) : (row.settings_json || {});
+    // Needed to fan a missed-call alert out to the owner + managers rather
+    // than to one number.
+    let tenantId = null;
+    try {
+      const tr = await pool.query(
+        `SELECT tenant_id FROM desk_members WHERE user_id = $1 AND active = TRUE LIMIT 1`, [row.id]
+      );
+      tenantId = tr.rows[0]?.tenant_id || null;
+    } catch(e) { /* alerting degrades, the call still connects */ }
     return {
       userId:       row.id,
+      tenantId,
       fromNumber:   s.twilioNumber  || process.env.TWILIO_PHONE_NUMBER,
       // Unparseable → '' → callers skip the dial, same as unconfigured.
       forwardPhone: normalizePhone(s.notifyPhone) || '',
@@ -136,6 +147,45 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     });
   });
 
+  // A ringing phone at a car dealership is a lead whether or not anybody
+  // picks it up. Mark Cuevas called STC on a Saturday, heard "our team is
+  // currently unavailable", hung up — and nobody was told. The only alerts
+  // that existed fired on a voicemail transcript or a press-1 with prior SMS
+  // history, so the most common outcome, a hang-up, was silent.
+  //
+  // Alerting on arrival rather than on call completion is deliberate: it
+  // survives the caller hanging up two seconds in, which is exactly the case
+  // that was being lost.
+  const _alertedCalls = new Map();   // CallSid -> ts, so a Twilio retry doesn't double-text
+  function alreadyAlerted(callSid) {
+    const now = Date.now();
+    for (const [sid, ts] of _alertedCalls) if (now - ts > 3600000) _alertedCalls.delete(sid);
+    if (!callSid) return false;
+    if (_alertedCalls.has(callSid)) return true;
+    _alertedCalls.set(callSid, now);
+    return false;
+  }
+
+  async function alertInboundCall(tenant, caller, callSid, isOpen) {
+    if (!tenant.tenantId || alreadyAlerted(callSid)) return;
+    const callerFmt = String(caller || '').replace('+1', '') || 'unknown number';
+    let who = '';
+    try {
+      const h = await getCustomerSMSHistory(caller, tenant.userId, 1);
+      if (h.length && h[0].customer_name) who = ` — ${h[0].customer_name}`;
+    } catch(e) { /* name is a bonus, the number is the point */ }
+    const when = isOpen ? '' : ' (after hours)';
+    try {
+      const r = await notifyTenantManagers({
+        tenantId:   tenant.tenantId,
+        fromNumber: tenant.fromNumber,
+        body: `📞 Incoming call${when}${who}\n${callerFmt}\n\nCall them back — they rang ${tenant.dealerName}.`,
+        twilioClient,
+      });
+      if (r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenant.tenantId} has no notify_phone — inbound call alert skipped`);
+    } catch(e) { console.error('❌ inbound call alert failed:', e.message); }
+  }
+
   // ── 1. INBOUND CALL HANDLER ───────────────────────────────────
   app.post('/api/voice/inbound', validateTwilio, async (req, res) => {
     const tenant   = await getTenantByNumber(req.body.To || process.env.TWILIO_PHONE_NUMBER);
@@ -143,6 +193,10 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     const baseUrl  = process.env.BASE_URL || '';
     const isOpen   = hours.isOpenNow(tenant.businessHours);
     res.type('text/xml');
+
+    // Not awaited — Twilio is holding the line waiting for TwiML, and a slow
+    // SMS must never delay the greeting.
+    alertInboundCall(tenant, req.body.From || req.body.Caller || '', req.body.CallSid || '', isOpen);
 
     if (isOpen) {
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -177,10 +231,14 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
 <Response>
   <Gather numDigits="1" action="${baseUrl}/api/voice/inbound-gather" timeout="8" method="POST">
     <Say voice="Polly.Joanna" language="en-CA">
-      Thank you for calling ${dealer}. 
-      Our team is currently unavailable. ${hoursLine}
-      Press 1 to leave a voicemail and we will call you back first thing.
-      Or simply hang up and reply to this number by text — we respond quickly.
+      Thank you for calling ${dealer}.
+      To reach an advisor right now, press 1.
+    </Say>
+    <Pause length="1"/>
+    <Say voice="Polly.Joanna" language="en-CA">
+      You've reached us outside our regular hours. ${hoursLine}
+      To reach an advisor right now, press 1.
+      To leave a message, press 2. To have us text you back, press 3.
     </Say>
   </Gather>
   <Say voice="Polly.Joanna" language="en-CA">
@@ -240,7 +298,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
   </Dial>
   <Say voice="Polly.Joanna" language="en-CA">
-    We're sorry, no one is available right now. Please leave a message after the tone.
+    Sorry we missed you. Leave your name and number after the tone and we will call you straight back.
   </Say>
   <Record 
     action="${baseUrl}/api/voice/voicemail-done"
