@@ -3710,6 +3710,13 @@ async function startLoginBuy() {
 .fbp-qi-row{display:flex;align-items:center;gap:6px;}
 .fbp-qi-price{font-family:'DM Mono',monospace;font-size:10px;color:var(--green);}
 .fbp-qi-ph{font-size:9px;color:var(--muted);}
+.fbp-pace{margin:6px 9px 2px;border-radius:5px;padding:6px 9px;font-size:10px;line-height:1.45;background:var(--surface2);border:1px solid var(--border);color:var(--muted);}
+.fbp-pace.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.35);color:var(--amber);}
+.fbp-pace b{color:var(--text);}
+.fbp-pace.warn b{color:var(--amber);}
+.fbp-pace-set{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;color:var(--muted);}
+.fbp-pace-set input{width:44px;padding:2px 4px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;}
+.fbp-pace-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:9px;padding:0;margin-left:6px;}
 .fbp-qfoot{padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
 .fbp-qfoot b{color:var(--text);}
 .fbp-right{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
@@ -3824,7 +3831,7 @@ async function startLoginBuy() {
     <div class="fbp-stats">
       <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-total">—</div><div class="fbp-stat-l">Total</div></div>
       <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-posted">—</div><div class="fbp-stat-l">Posted</div></div>
-      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-today" style="color:var(--green)">—</div><div class="fbp-stat-l">Today</div></div>
+      <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-today" style="color:var(--green)">—</div><div class="fbp-stat-l">Last 24h</div></div>
       <div class="fbp-stat"><div class="fbp-stat-v" id="fbp-st-queue" style="color:var(--amber)">—</div><div class="fbp-stat-l">Queue</div></div>
     </div>
   </div>
@@ -3875,10 +3882,11 @@ async function startLoginBuy() {
               </div>
             </div>
           </div>
+          <div class="fbp-pace" id="fbp-pace" style="display:none;"></div>
           <div class="fbp-repost" id="fbp-repost-bar" onclick="fbpShowReposts()"></div>
           <div class="fbp-qlist" id="fbp-qlist"></div>
           <div class="fbp-qfoot">
-            <div>Today: <b id="fbp-ft-today">0</b>/10</div>
+            <div title="Posts from this browser in the last 24 hours, all accounts">24h: <b id="fbp-ft-today">0</b>/<span id="fbp-ft-target">10</span></div>
             <div>Total: <b id="fbp-ft-total">0</b></div>
           </div>
         </div>
@@ -3951,7 +3959,91 @@ async function startLoginBuy() {
 // ── FB POSTER — embedded in platform (reads from platform DB, auto-fills via Chrome extension) ──
 (function() {
   const FB_URL    = 'https://www.facebook.com/marketplace/create/vehicle';
-  const DAILY_LIM = 10;
+  // ── Posting pace ──
+  // Marketplace limits are per Facebook profile, and the throttling people
+  // run into comes from bursts, not a published number. So pace is tracked
+  // per BROWSER (≈ the Facebook profile doing the posting) over a rolling
+  // 24 hours, across every First-Fin account posted from here — South Trail
+  // and Rolling with Franco share one profile. Warnings only: nothing is
+  // ever blocked. Target and gap are this browser's own settings.
+  const FBP_LOG_KEY = 'ffFbPostLog', FBP_PACE_KEY = 'ffFbPace';
+  function fbpPace() {
+    let p = {};
+    try { p = JSON.parse(localStorage.getItem(FBP_PACE_KEY) || '{}') || {}; } catch (e) {}
+    const target = Math.min(100, Math.max(1, parseInt(p.target, 10) || 10));
+    const g      = parseInt(p.gap, 10);
+    const gap    = Math.min(240, Math.max(0, Number.isFinite(g) ? g : 20));   // 0 = no gap warning
+    return { target, gap };
+  }
+  function fbpPostLog() {
+    try {
+      const all = JSON.parse(localStorage.getItem(FBP_LOG_KEY) || '[]');
+      return Array.isArray(all) ? all.filter(e => e && Date.now() - e.t < 48 * 3600e3) : [];
+    } catch (e) { return []; }
+  }
+  function fbpLogPost(stock) {
+    const log = fbpPostLog();
+    log.push({ t: Date.now(), stock, acct: (settings && settings.dealerName) || 'this account' });
+    try { localStorage.setItem(FBP_LOG_KEY, JSON.stringify(log)); } catch (e) {}
+  }
+  function fbpPaceState() {
+    const { target, gap } = fbpPace();
+    const day = fbpPostLog().filter(e => Date.now() - e.t < 24 * 3600e3);
+    const byAcct = {};
+    day.forEach(e => { byAcct[e.acct] = (byAcct[e.acct] || 0) + 1; });
+    const last = day.length ? Math.max(...day.map(e => e.t)) : 0;
+    const minsSince = last ? Math.floor((Date.now() - last) / 60000) : null;
+    return { target, gap, n: day.length, byAcct, minsSince };
+  }
+  function fbpRenderPace() {
+    const el = document.getElementById('fbp-pace');
+    if (!el) return;
+    const st = fbpPaceState();
+    const set = (id, v) => { const x = document.getElementById(id); if (x) x.textContent = v; };
+    set('fbp-ft-today', st.n); set('fbp-ft-target', st.target); set('fbp-st-today', st.n);
+    const accts = Object.keys(st.byAcct);
+    const split = accts.length > 1 ? ' (' + accts.map(a => `${a} ${st.byAcct[a]}`).join(' · ') + ')' : '';
+    const lines = [];
+    let warn = false;
+    if (st.n >= st.target) {
+      warn = true;
+      lines.push(`⚠ <b>${st.n}</b> posts in the last 24h from this browser${split} — your target is ${st.target}. Posting past your usual pace is what gets listings throttled.`);
+    } else if (st.n) {
+      lines.push(`<b>${st.n}</b> of ${st.target} in the last 24h${split}.`);
+    }
+    if (st.minsSince !== null && st.minsSince < st.gap) {
+      warn = true;
+      lines.push(`⏱ Last post ${st.minsSince} min ago — about ${st.gap - st.minsSince} more min between posts looks natural.`);
+    } else if (st.minsSince !== null) {
+      lines.push(`Last post ${st.minsSince < 90 ? st.minsSince + ' min' : Math.round(st.minsSince / 60) + 'h'} ago.`);
+    }
+    if (!lines.length) lines.push(`Target ${st.target} a day, ${st.gap} min apart.`);
+    el.className = 'fbp-pace' + (warn ? ' warn' : '');
+    el.style.display = 'block';
+    el.innerHTML = lines.join('<br>') +
+      `<button class="fbp-pace-link" onclick="fbpTogglePaceSet()">pace</button>` +
+      `<div class="fbp-pace-set" id="fbp-pace-set">Target <input type="number" id="fbp-pace-target" min="1" max="100" value="${st.target}"> a day,
+         <input type="number" id="fbp-pace-gap" min="0" max="240" value="${st.gap}"> min apart
+         <button class="fbp-desc-copy save" onclick="fbpSavePace()">Save</button></div>`;
+  }
+  window.fbpTogglePaceSet = function() {
+    const box = document.getElementById('fbp-pace-set');
+    if (box) box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+  };
+  window.fbpSavePace = function() {
+    const target = parseInt(document.getElementById('fbp-pace-target')?.value, 10);
+    const gap    = parseInt(document.getElementById('fbp-pace-gap')?.value, 10);
+    try { localStorage.setItem(FBP_PACE_KEY, JSON.stringify({ target, gap })); } catch (e) {}
+    fbpRenderPace();
+    fbpBuildQueue();
+    fbpFlash('Pace saved for this browser');
+  };
+  // The gap countdown ages without any click, so refresh it while the
+  // poster is on screen.
+  setInterval(() => {
+    const wrap = document.getElementById('fbp-active-wrap');
+    if (wrap && wrap.offsetParent !== null) fbpRenderPace();
+  }, 30000);
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
@@ -4293,7 +4385,10 @@ async function startLoginBuy() {
   function fbpBuildQueue() {
     const today   = new Date().toISOString().split('T')[0];
     const ptToday = fbpAllV.filter(v => v.is_posted && v.posted_date === today).length;
-    const slots   = Math.max(0, DAILY_LIM - ptToday);
+    // Warnings only — the queue is always a working list the size of the
+    // daily target. It used to shrink by today's posts and go empty at 10,
+    // which was a hard stop (and "today" rolled over at 6pm Calgary, UTC).
+    const slots   = fbpPace().target;
 
     // New / Used narrows every view, the daily queue included — so "post
     // used today" is one click.
@@ -4359,10 +4454,11 @@ async function startLoginBuy() {
     const totalP = fbpAllV.filter(v => v.is_posted).length;
     const ids = {
       'fbp-st-total': fbpAllV.length, 'fbp-st-posted': totalP,
-      'fbp-st-today': ptToday, 'fbp-st-queue': fbpView_ === 'queue' ? fbpQueue.length : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length,
-      'fbp-ft-today': ptToday, 'fbp-ft-total': totalP,
+      'fbp-st-queue': fbpView_ === 'queue' ? fbpQueue.length : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length,
+      'fbp-ft-total': totalP,
     };
     Object.entries(ids).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.textContent=val; });
+    fbpRenderPace();
   }
 
   function fbpUpdateFilterLabels(pool) {
@@ -4391,7 +4487,7 @@ async function startLoginBuy() {
     if (!list) return;
     list.innerHTML = '';
     if (!fbpQueue.length) {
-      const msg = fbpSearch_ ? 'No matches' : fbpView_ === 'posted' ? 'Nothing posted yet' : fbpView_ === 'unposted' ? 'Everything is posted' : fbpView_ === 'all' ? 'No vehicles' : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Daily limit reached';
+      const msg = fbpSearch_ ? 'No matches' : fbpView_ === 'posted' ? 'Nothing posted yet' : fbpView_ === 'unposted' ? 'Everything is posted' : fbpView_ === 'all' ? 'No vehicles' : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Nothing ready — check Not posted for cars missing photos or price';
       list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">${msg}</div>`;
       return;
     }
@@ -4774,11 +4870,15 @@ async function startLoginBuy() {
     const label = action.charAt(0).toUpperCase()+action.slice(1);
     if (!confirm(`Mark as ${label.toUpperCase()}?\n\n${fbpV.title}`)) return;
     try {
-      await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(fbpV.stock) + '/fb-status', {
+      const r = await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(fbpV.stock) + '/fb-status', {
         method: 'PATCH',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, action })
       });
+      // A failed save used to flash success anyway.
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.success === false) throw new Error(d.error || 'save failed');
+      if (status === 'posted') fbpLogPost(fbpV.stock);
       fbpFlash(`${label}: ${fbpV.title}`);
       await fbpLoadInventory();
       if (fbpQueue.length) { const nxt=Math.min(fbpIdx,fbpQueue.length-1); fbpIdx=-1; fbpSelect(Math.max(0,nxt)); }

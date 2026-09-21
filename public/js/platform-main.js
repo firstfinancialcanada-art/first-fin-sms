@@ -3043,27 +3043,53 @@ async function refreshTeamFbStats() {
     const d   = await res.json();
     if (!d.success) throw new Error(d.error || 'Failed');
     if (totals) totals.textContent = `${d.postedTotal || 0} posted of ${d.inventoryTotal || 0} total`;
-    if (!d.members || d.members.length === 0) {
+    const _esc = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+    const ago = (t) => {
+      const m = Math.floor((Date.now() - new Date(t).getTime()) / 60000);
+      return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+    };
+    // Timed rows come from the event log. Posts made before it existed only
+    // have the vehicle's posted date — those reps still show, with their
+    // 30-day count, and fill in as they post.
+    const rows = new Map();
+    (d.members || []).forEach(m => rows.set(String(m.user_id), {
+      name: m.name, legacy30: parseInt(m.posted_30d) || 0, lastDate: m.last_post_date }));
+    (d.activity || []).forEach(a => rows.set(String(a.user_id), Object.assign(rows.get(String(a.user_id)) || {}, a)));
+    if (!rows.size) {
       stats.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;font-family:DM Mono,monospace;">No FB Marketplace posts yet in the last 30 days.</div>';
       return;
     }
-    const _esc = (s) => String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
-    const max = Math.max(...d.members.map(m => parseInt(m.posted_30d) || 0), 1);
-    stats.innerHTML = d.members.map(m => {
-      const count = parseInt(m.posted_30d) || 0;
-      const pct   = Math.round((count / max) * 100);
-      const last  = m.last_post_date ? new Date(m.last_post_date).toLocaleDateString('en-CA') : '—';
+    // Last 14 days, oldest first, in the dealership's timezone.
+    const dayKeys = [];
+    for (let i = 13; i >= 0; i--) {
+      dayKeys.push(new Intl.DateTimeFormat('en-CA', { timeZone: d.tz || 'America/Edmonton' }).format(new Date(Date.now() - i * 864e5)));
+    }
+    const list = [...rows.values()].sort((a, b) => (b.d30 || b.legacy30 || 0) - (a.d30 || a.legacy30 || 0));
+    const peak = Math.max(1, ...list.flatMap(r => dayKeys.map(k => (r.days || {})[k] || 0)));
+    stats.innerHTML = list.map(r => {
+      const d30 = Math.max(r.d30 || 0, r.legacy30 || 0);
+      const burst = (r.busiest_hour || 0) >= 5
+        ? `<span style="color:var(--amber);" title="Most posts inside one hour, last 24h">⚠ ${r.busiest_hour} in one hour</span>` : '';
+      // fb_posted_date is a DATE; parsing it as a Date shifts it to the
+      // previous day west of UTC, so take the calendar date as written.
+      const last = r.last_at ? ago(r.last_at) : (r.lastDate ? String(r.lastDate).slice(0, 10) : '—');
+      const bars = r.days ? `<div style="display:flex;gap:2px;align-items:flex-end;height:22px;margin-top:6px;" title="Posts per day, last 14 days">` +
+        dayKeys.map(k => {
+          const n = r.days[k] || 0;
+          return `<div title="${k}: ${n}" style="flex:1;height:${n ? Math.max(3, Math.round(n / peak * 22)) : 1}px;background:${n ? 'linear-gradient(180deg,#06b6d4,#10b981)' : 'var(--border)'};border-radius:1px;"></div>`;
+        }).join('') + `</div>` : '';
       return `
         <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;">
-            <div style="color:var(--text);font-weight:600;">${_esc(m.name)}</div>
-            <div style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;"><strong style="color:var(--green);">${count}</strong> posted · last ${last}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;">
+            <div style="color:var(--text);font-weight:600;">${_esc(r.name)}</div>
+            <div style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;">
+              <strong style="color:var(--green);">${r.h24 || 0}</strong> 24h · ${r.d7 || 0} 7d · ${d30} 30d · last ${_esc(last)} ${burst}
+            </div>
           </div>
-          <div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#06b6d4,#10b981);transition:width .4s ease;"></div>
-          </div>
+          ${bars}
         </div>`;
-    }).join('');
+    }).join('') + (d.trackingSince && Date.now() - new Date(d.trackingSince).getTime() < 30 * 864e5
+      ? `<div style="padding:8px 14px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">Post times tracked since ${new Date(d.trackingSince).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })} — 24h / 7d fill in from there.</div>` : '');
   } catch (e) {
     stats.innerHTML = `<div style="padding:14px;text-align:center;color:var(--red);font-size:12px;">${e.message}</div>`;
   }

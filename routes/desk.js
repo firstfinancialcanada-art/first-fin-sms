@@ -101,6 +101,22 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_dinv_fb_posted_by ON desk_inventory(fb_posted_by_user_id)`);
       console.log('✅ desk_inventory.fb_posted_by_user_id ready (per-rep FB activity tracking)');
     } catch(e) { console.error('⚠️ fb_posted_by migration:', e.message); }
+    // One row per post or repost, with a time. fb_posted_date on the
+    // vehicle is a date only and a repost overwrites it, so it can't show
+    // pace (posts per hour) or history — this can.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS fb_post_events (
+          id        SERIAL PRIMARY KEY,
+          tenant_id INTEGER,
+          user_id   INTEGER NOT NULL,
+          stock     TEXT,
+          action    TEXT NOT NULL,
+          at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_fb_post_events_tenant_at ON fb_post_events(tenant_id, at DESC);
+      `);
+    } catch(e) { console.error('⚠️ fb_post_events migration:', e.message); }
   })();
 
   // ── Phase 6: tenant-shared branding (logo, dealer name, city, phone)
@@ -1593,6 +1609,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       }
       if (status === 'posted') {
         trackFeature(req.user.userId, 'fb_poster', 'marked_posted', { stock: req.params.stock });
+        const action = req.body.action === 'reposted' ? 'reposted' : 'posted';
+        pool.query(
+          `INSERT INTO fb_post_events (tenant_id, user_id, stock, action) VALUES ($1, $2, $3, $4)`,
+          [scope?.tenantId || null, req.user.userId, req.params.stock, action]
+        ).catch(e => console.warn('fb_post_events insert:', e.message));
       }
       res.json({ success: true, ...result.rows[0] });
     } catch (e) {
@@ -1638,9 +1659,54 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
                COUNT(*) FILTER (WHERE fb_status='posted')::int AS posted_total
         FROM desk_inventory WHERE tenant_id = $1
       `, [scope.tenantId]);
+      // Timed activity from the event log: 24h / 7d / 30d, last post, the
+      // busiest single hour in the last day (a burst is what Marketplace
+      // throttles), and a per-day count for a 14-day chart in the
+      // dealership's own timezone.
+      let activity = [], trackingSince = null, tz = 'America/Edmonton';
+      try {
+        const tzr = await pool.query(
+          `SELECT u.settings_json->'businessHours'->>'tz' AS tz
+             FROM desk_tenants t JOIN desk_users u ON u.id = t.owner_user_id WHERE t.id = $1`, [scope.tenantId]);
+        if (tzr.rows[0]?.tz) tz = tzr.rows[0].tz;
+        const [agg, busy, days, since] = await Promise.all([
+          pool.query(`
+            SELECT e.user_id, COALESCE(u.display_name, '(unknown)') AS name,
+                   COUNT(*) FILTER (WHERE e.at > NOW() - INTERVAL '24 hours')::int AS h24,
+                   COUNT(*) FILTER (WHERE e.at > NOW() - INTERVAL '7 days')::int  AS d7,
+                   COUNT(*)::int AS d30,
+                   COUNT(*) FILTER (WHERE e.action = 'reposted')::int AS reposts30,
+                   MAX(e.at) AS last_at
+              FROM fb_post_events e LEFT JOIN desk_users u ON u.id = e.user_id
+             WHERE e.tenant_id = $1 AND e.at > NOW() - INTERVAL '30 days'
+             GROUP BY e.user_id, u.display_name`, [scope.tenantId]),
+          pool.query(`
+            SELECT a.user_id, MAX((
+                     SELECT COUNT(*) FROM fb_post_events b
+                      WHERE b.tenant_id = a.tenant_id AND b.user_id = a.user_id
+                        AND b.at >= a.at AND b.at < a.at + INTERVAL '60 minutes'))::int AS busiest_hour
+              FROM fb_post_events a
+             WHERE a.tenant_id = $1 AND a.at > NOW() - INTERVAL '24 hours'
+             GROUP BY a.user_id`, [scope.tenantId]),
+          pool.query(`
+            SELECT user_id, to_char(at AT TIME ZONE $2, 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
+              FROM fb_post_events
+             WHERE tenant_id = $1 AND at > NOW() - INTERVAL '14 days'
+             GROUP BY 1, 2`, [scope.tenantId, tz]),
+          pool.query(`SELECT MIN(at) AS first FROM fb_post_events WHERE tenant_id = $1`, [scope.tenantId]),
+        ]);
+        const busyBy = Object.fromEntries(busy.rows.map(x => [x.user_id, x.busiest_hour]));
+        activity = agg.rows.map(x => ({
+          ...x,
+          busiest_hour: busyBy[x.user_id] || 0,
+          days: Object.fromEntries(days.rows.filter(d => d.user_id === x.user_id).map(d => [d.day, d.n])),
+        }));
+        trackingSince = since.rows[0]?.first || null;
+      } catch (e) { console.warn('fb activity:', e.message); }
       res.json({
         success: true,
         members:        r.rows,
+        activity, trackingSince, tz,
         inventoryTotal: totals.rows[0]?.total        || 0,
         postedTotal:    totals.rows[0]?.posted_total || 0,
       });
