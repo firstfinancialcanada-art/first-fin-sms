@@ -288,6 +288,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
   function invalidateTenantCache(userId) { _tenantCache.delete(userId); }
 
+  // When a tenant is out of its monthly allowance Sarah's reply is
+  // blocked. The customer hears nothing, so a person has to — one alert
+  // per customer per 30 minutes, not one per message.
+  const _capAlerted = new Map();
+  function shouldAlertCapBlock(tenantId, phone) {
+    const key = `${tenantId}:${phone}`;
+    const last = _capAlerted.get(key) || 0;
+    if (Date.now() - last < 30 * 60 * 1000) return false;
+    _capAlerted.set(key, Date.now());
+    if (_capAlerted.size > 5000) _capAlerted.clear();
+    return true;
+  }
+
   // Expose cache invalidation for desk.js settings save
   app.locals.invalidateTenantCache = invalidateTenantCache;
 
@@ -826,6 +839,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
               ).catch((e) => console.warn('crm last_contact bump (sarah reply) failed:', e.message));
             } else if (sarahSend.reason === 'SPEND_CAP_EXCEEDED') {
               console.warn(`⚠️ SARAH reply BLOCKED by spend cap for user ${WEBHOOK_USER_ID} → ${phone}`);
+              // Before this, the block only reached analytics: customer got
+              // no answer and nobody was told. Alerts bypass the cap.
+              if (TENANT_ID && shouldAlertCapBlock(TENANT_ID, phone)) {
+                const said = message.length > 100 ? message.substring(0, 100) + '...' : message;
+                notifyTenantManagers({
+                  tenantId: TENANT_ID, fromNumber: TENANT_FROM_NUMBER, twilioClient,
+                  body: `⚠️ Sarah did NOT reply — ${TENANT_DEALER_NAME} is out of its monthly texting allowance.\n📞 ${formatPretty(phone)}\n"${said}"\n\nText or call them yourself.`,
+                }).catch(e => console.error('❌ cap-block alert failed:', e.message));
+              }
               try {
                 await logAnalytics('sms_cap_blocked', phone, {
                   usage: sarahSend.usage, need_cents: sarahSend.needCents,

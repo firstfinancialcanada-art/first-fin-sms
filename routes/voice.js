@@ -297,18 +297,9 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   >
     <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
   </Dial>
-  <Say voice="Polly.Joanna" language="en-CA">
-    Sorry we missed you. Leave your name and number after the tone and we will call you straight back.
-  </Say>
-  <Record 
-    action="${baseUrl}/api/voice/voicemail-done"
-    transcribe="true"
-    transcribeCallback="${baseUrl}/api/voice/transcription"
-    maxLength="120"
-    playBeep="true"
-    trim="trim-silence"
-  />
 </Response>`);
+      // Nothing after </Dial>: with action= set, Twilio never reaches it.
+      // A missed connection is handled in /api/voice/call-complete.
 
     } else if (digit === '2') {
       await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:voicemail_requested | pressed:2`, 'user', tenant.userId);
@@ -562,19 +553,31 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     const statusLabel = dialStatus === 'completed' ? `connected (${callDuration}s)` : dialStatus;
     await saveVoiceEvent(caller, `📞 CALL_COMPLETE | status:${statusLabel}`, 'user', tenant.userId);
 
-    if (dialStatus === 'no-answer' || dialStatus === 'busy' || dialStatus === 'failed') {
+    // Every forwarding <Dial> has action= pointing here, and Twilio runs
+    // this response INSTEAD of anything after the <Dial> — so this is the
+    // only thing a caller hears when nobody picks up. It still said "no one
+    // is available" after the 2026-09-20 greeting rewrite, because that
+    // rewrite edited the unreachable TwiML after <Dial> instead of this.
+    //
+    // DialBridged=false covers the rep's phone answering (their own
+    // voicemail, or a busy line that diverts) without anyone pressing a
+    // key at the whisper: status can read 'completed' there even though
+    // the caller was never connected.
+    const missed = ['no-answer', 'busy', 'failed'].includes(dialStatus) || req.body.DialBridged === 'false';
+    if (missed) {
       res.type('text/xml');
       return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna" language="en-CA">
-    We're sorry, no one is available. Please leave a message after the tone.
+    Sorry we missed you. Leave your name and number after the tone and we will call you straight back.
   </Say>
-  <Record 
+  <Record
     action="${baseUrl}/api/voice/voicemail-done"
     transcribe="true"
     transcribeCallback="${baseUrl}/api/voice/transcription"
     maxLength="120"
     playBeep="true"
+    trim="trim-silence"
   />
 </Response>`);
     }

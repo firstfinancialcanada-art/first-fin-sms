@@ -403,6 +403,38 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   const TOUCH_OUTCOMES   = ['sent', 'talked', 'voicemail', 'no_answer', 'replied', 'booked', 'not_interested'];
   const PROSPECT_TIERS   = ['1', '2', '3', '4'];
 
+  // auditLog() has been writing to this since the admin dashboard shipped,
+  // but only setup-database-v2.js ever created it, so production logged
+  // "relation admin_audit_log does not exist" on every audited action.
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id SERIAL PRIMARY KEY,
+      admin_email VARCHAR(255),
+      action VARCHAR(100) NOT NULL,
+      target_type VARCHAR(50),
+      target_id INTEGER,
+      details JSONB,
+      ip_address VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_time ON admin_audit_log(created_at DESC);
+  `).catch(e => console.error('❌ admin_audit_log:', e.message));
+
+  // ── GET /api/admin/tenant/:userId/notify-targets ──────────
+  // Exactly who gets a tenant's lead / missed-call alerts, resolved the
+  // same way lib/notify.js does at send time. Two fields can hold a
+  // tenant's alert phone (desk_users.notify_phone, per person, and the
+  // older settings notifyPhone); this shows which one actually wins.
+  app.get('/api/admin/tenant/:userId/notify-targets', adminAuth, async (req, res) => {
+    try {
+      const { getNotifyTargets } = require('../lib/notify');
+      const t = await pool.query('SELECT id FROM desk_tenants WHERE owner_user_id = $1 LIMIT 1', [parseInt(req.params.userId, 10)]);
+      if (!t.rows.length) return res.status(404).json({ success: false, error: 'no tenant for that user' });
+      const targets = await getNotifyTargets(t.rows[0].id);
+      res.json({ success: true, tenantId: t.rows[0].id, targets });
+    } catch (e) { res.status(500).json({ success: false, error: sanitizeError(e) }); }
+  });
+
   const trackerReady = (async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS platform_inquiries (
