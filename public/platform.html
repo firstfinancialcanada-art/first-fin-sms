@@ -3710,10 +3710,14 @@ async function startLoginBuy() {
 .fbp-qi-row{display:flex;align-items:center;gap:6px;}
 .fbp-qi-price{font-family:'DM Mono',monospace;font-size:10px;color:var(--green);}
 .fbp-qi-ph{font-size:9px;color:var(--muted);}
-.fbp-pace{margin:6px 9px 2px;border-radius:5px;padding:6px 9px;font-size:10px;line-height:1.45;background:var(--surface2);border:1px solid var(--border);color:var(--muted);}
-.fbp-pace.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.35);color:var(--amber);}
+.fbp-pace{margin:6px 9px 2px;border-radius:5px;padding:6px 9px;font-size:10px;line-height:1.45;background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:background .4s,border-color .4s,color .4s;}
 .fbp-pace b{color:var(--text);}
+.fbp-pace.wait{background:rgba(239,68,68,.09);border-color:rgba(239,68,68,.45);color:#f87171;}
+.fbp-pace.wait b{color:#f87171;}
+.fbp-pace.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.4);color:var(--amber);}
 .fbp-pace.warn b{color:var(--amber);}
+.fbp-pace.go{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.38);color:var(--green);}
+.fbp-pace.go b{color:var(--green);}
 .fbp-pace-set{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;color:var(--muted);}
 .fbp-pace-set input{width:44px;padding:2px 4px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;}
 .fbp-pace-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:9px;padding:0;margin-left:6px;}
@@ -3972,7 +3976,7 @@ async function startLoginBuy() {
     try { p = JSON.parse(localStorage.getItem(FBP_PACE_KEY) || '{}') || {}; } catch (e) {}
     const target = Math.min(100, Math.max(1, parseInt(p.target, 10) || 10));
     const g      = parseInt(p.gap, 10);
-    const gap    = Math.min(240, Math.max(0, Number.isFinite(g) ? g : 20));   // 0 = no gap warning
+    const gap    = Math.min(240, Math.max(0, Number.isFinite(g) ? g : 10));   // 0 = no gap warning
     return { target, gap };
   }
   function fbpPostLog() {
@@ -3995,38 +3999,53 @@ async function startLoginBuy() {
     day.forEach(e => { byAcct[e.acct] = (byAcct[e.acct] || 0) + 1; });
     const last = day.length ? Math.max(...day.map(e => e.t)) : 0;
     const minsSince = last ? Math.floor((Date.now() - last) / 60000) : null;
-    return { target, gap, n: day.length, byAcct, minsSince };
+    return { target, gap, n: day.length, byAcct, minsSince, last };
   }
+  // Traffic light for "should I post now?":
+  //   red    — inside the gap since the last post (countdown shown)
+  //   yellow — gap is clear, but at or past the daily target
+  //   green  — gap clear and under target
+  // Warnings only; nothing is blocked in any colour.
   function fbpRenderPace() {
     const el = document.getElementById('fbp-pace');
     if (!el) return;
     const st = fbpPaceState();
     const set = (id, v) => { const x = document.getElementById(id); if (x) x.textContent = v; };
     set('fbp-ft-today', st.n); set('fbp-ft-target', st.target); set('fbp-st-today', st.n);
+
+    // Build the shell once. Refreshes only touch the message, so the pace
+    // settings box stays open (and keeps what's typed) across the timer.
+    if (!el.querySelector('.fbp-pace-msg')) {
+      el.innerHTML = `<span class="fbp-pace-msg"></span>` +
+        `<button class="fbp-pace-link" onclick="fbpTogglePaceSet()">pace</button>` +
+        `<div class="fbp-pace-set" id="fbp-pace-set">Target <input type="number" id="fbp-pace-target" min="1" max="100"> a day,
+           <input type="number" id="fbp-pace-gap" min="0" max="240"> min apart
+           <button class="fbp-desc-copy save" onclick="fbpSavePace()">Save</button></div>`;
+    }
+    const tIn = document.getElementById('fbp-pace-target'), gIn = document.getElementById('fbp-pace-gap');
+    if (tIn && document.activeElement !== tIn) tIn.value = st.target;
+    if (gIn && document.activeElement !== gIn) gIn.value = st.gap;
+
     const accts = Object.keys(st.byAcct);
     const split = accts.length > 1 ? ' (' + accts.map(a => `${a} ${st.byAcct[a]}`).join(' · ') + ')' : '';
-    const lines = [];
-    let warn = false;
-    if (st.n >= st.target) {
-      warn = true;
-      lines.push(`⚠ <b>${st.n}</b> posts in the last 24h from this browser${split} — your target is ${st.target}. Posting past your usual pace is what gets listings throttled.`);
-    } else if (st.n) {
-      lines.push(`<b>${st.n}</b> of ${st.target} in the last 24h${split}.`);
+    const count = `<b>${st.n}</b> of ${st.target} in the last 24h${split}`;
+    const waitMs = st.last && st.gap ? st.gap * 60000 - (Date.now() - st.last) : 0;
+    let state, msg;
+    if (waitMs > 0) {
+      const m = Math.ceil(waitMs / 60000);
+      state = 'wait';
+      msg = `🔴 Next post in ${waitMs < 60000 ? 'under a minute' : 'about ' + m + ' min'}.<br>${count}.`;
+    } else if (st.n >= st.target) {
+      state = 'warn';
+      msg = `🟡 <b>${st.n}</b> posts in the last 24h${split} — past your target of ${st.target}. You can keep going; this pace is what gets listings throttled.`;
+    } else {
+      state = 'go';
+      const ago = st.minsSince === null ? '' : ` · last post ${st.minsSince < 90 ? st.minsSince + ' min' : Math.round(st.minsSince / 60) + 'h'} ago`;
+      msg = `🟢 Good to post · ${count}${ago}.`;
     }
-    if (st.minsSince !== null && st.minsSince < st.gap) {
-      warn = true;
-      lines.push(`⏱ Last post ${st.minsSince} min ago — about ${st.gap - st.minsSince} more min between posts looks natural.`);
-    } else if (st.minsSince !== null) {
-      lines.push(`Last post ${st.minsSince < 90 ? st.minsSince + ' min' : Math.round(st.minsSince / 60) + 'h'} ago.`);
-    }
-    if (!lines.length) lines.push(`Target ${st.target} a day, ${st.gap} min apart.`);
-    el.className = 'fbp-pace' + (warn ? ' warn' : '');
+    el.className = 'fbp-pace ' + state;
     el.style.display = 'block';
-    el.innerHTML = lines.join('<br>') +
-      `<button class="fbp-pace-link" onclick="fbpTogglePaceSet()">pace</button>` +
-      `<div class="fbp-pace-set" id="fbp-pace-set">Target <input type="number" id="fbp-pace-target" min="1" max="100" value="${st.target}"> a day,
-         <input type="number" id="fbp-pace-gap" min="0" max="240" value="${st.gap}"> min apart
-         <button class="fbp-desc-copy save" onclick="fbpSavePace()">Save</button></div>`;
+    el.querySelector('.fbp-pace-msg').innerHTML = msg;
   }
   window.fbpTogglePaceSet = function() {
     const box = document.getElementById('fbp-pace-set');
@@ -4040,12 +4059,13 @@ async function startLoginBuy() {
     fbpBuildQueue();
     fbpFlash('Pace saved for this browser');
   };
-  // The gap countdown ages without any click, so refresh it while the
-  // poster is on screen.
+  // The countdown ages without any click, so refresh it while the poster is
+  // on screen — often enough that green shows up within seconds of the wait
+  // ending.
   setInterval(() => {
     const wrap = document.getElementById('fbp-active-wrap');
     if (wrap && wrap.offsetParent !== null) fbpRenderPace();
-  }, 30000);
+  }, 15000);
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
