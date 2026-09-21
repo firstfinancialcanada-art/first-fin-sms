@@ -571,8 +571,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true, rows }) });
       }
 
-      // Block all other writes
-      if(opts && ['PUT','POST','DELETE'].includes((opts.method||'').toUpperCase())) {
+      // Block all other writes. PATCH was missing from this list, so
+      // Mark Posted, ui-prefs, notify-phone and inventory edits reached the
+      // real API from demo (harmless without a login, not with one).
+      if(opts && ['PUT','POST','PATCH','DELETE'].includes((opts.method||'').toUpperCase())) {
         console.log('[DEMO] Blocked write to:', path);
         return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true}) });
       }

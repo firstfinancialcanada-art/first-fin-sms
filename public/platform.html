@@ -4835,6 +4835,8 @@ async function startLoginBuy() {
   // Auto-fill Facebook via Chrome extension
   window.fbpAutofill = async function() {
     if (!fbpV) { fbpFlash('Select a vehicle first'); return; }
+    // The extension fills a real Facebook form — never from the demo.
+    if (window.DEMO_MODE) { fbpFlash('Demo — nothing is sent to Facebook'); return; }
     if (fbpV.needs_retail) {
       const ok = await fbpSetRetail('This is a WHOLESALE unit — set the retail price before posting:');
       if (!ok) return;
@@ -4866,6 +4868,7 @@ async function startLoginBuy() {
   // Mark posted/skipped via platform API
   window.fbpMark = async function(action) {
     if (!fbpV) return;
+    if (window.DEMO_MODE) { fbpFlash('Demo — not saved'); return; }
     const status = action === 'skipped' ? 'skipped' : action === 'reposted' ? 'posted' : 'posted';
     const label = action.charAt(0).toUpperCase()+action.slice(1);
     if (!confirm(`Mark as ${label.toUpperCase()}?\n\n${fbpV.title}`)) return;
