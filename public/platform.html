@@ -3855,17 +3855,23 @@ async function startLoginBuy() {
         <!-- Queue panel -->
         <div class="fbp-q">
           <div class="fbp-qhead">
-            <div style="display:flex;gap:4px;margin-bottom:6px;">
+            <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
               <button class="fbp-sort active" id="fbp-view-queue" onclick="fbpSetView('queue')" style="font-size:9px;padding:3px 9px;">Queue (10)</button>
-              <button class="fbp-sort" id="fbp-view-all" onclick="fbpSetView('all')" style="font-size:9px;padding:3px 9px;">All Vehicles</button>
+              <button class="fbp-sort" id="fbp-view-all" onclick="fbpSetView('all')" style="font-size:9px;padding:3px 9px;">All</button>
+              <button class="fbp-sort" id="fbp-view-unposted" onclick="fbpSetView('unposted')" style="font-size:9px;padding:3px 9px;">Not posted</button>
               <button class="fbp-sort" id="fbp-view-posted" onclick="fbpSetView('posted')" style="font-size:9px;padding:3px 9px;">Posted</button>
+            </div>
+            <div id="fbp-nu-row" style="display:none;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+              <button class="fbp-sort active" id="fbp-nu-all" onclick="fbpSetNewUsed('all')" style="font-size:9px;padding:3px 9px;">New + Used</button>
+              <button class="fbp-sort" id="fbp-nu-new" onclick="fbpSetNewUsed('new')" style="font-size:9px;padding:3px 9px;">New</button>
+              <button class="fbp-sort" id="fbp-nu-used" onclick="fbpSetNewUsed('used')" style="font-size:9px;padding:3px 9px;">Used</button>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
               <input type="text" id="fbp-search" placeholder="Search..." oninput="fbpFilter()" style="flex:1;padding:3px 7px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Outfit',sans-serif;font-size:9px;outline:none;">
               <div class="fbp-sorts" style="gap:3px;">
                 <button class="fbp-sort active" onclick="fbpSort('cheapest',this)" style="font-size:8px;padding:2px 6px;">$</button>
                 <button class="fbp-sort" onclick="fbpSort('premium',this)" style="font-size:8px;padding:2px 6px;">$$$</button>
-                <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:8px;padding:2px 6px;">New</button>
+                <button class="fbp-sort" onclick="fbpSort('newest',this)" style="font-size:8px;padding:2px 6px;" title="Newest model year first">Year</button>
               </div>
             </div>
           </div>
@@ -3949,7 +3955,7 @@ async function startLoginBuy() {
 
   let fbpAllV = [], fbpQueue = [],
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
-      fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '',
+      fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '', fbpNewUsed_ = 'all',
       fbpGroupDupes_ = true, fbpNotReady_ = 0;
 
   // ── Identical builds post once ────────────────────────────────────────
@@ -3960,9 +3966,12 @@ async function startLoginBuy() {
   //
   // Colour is required to group: without it, a white SXT and a black SXT
   // would collapse together and you'd advertise a car that isn't there.
+  // New vs used is part of the key too: a new unit and a same-spec demo are
+  // two different listings, and grouping them hid the new one behind the
+  // cheaper demo.
   function fbpGroupKey(v) {
     if (!v.ext_color) return null;                 // never group a colourless unit
-    return [v.year, v.make, v.model, v.trim, v.ext_color]
+    return [v.year, v.make, v.model, v.trim, v.ext_color, v.is_new ? 'new' : 'used']
       .map(x => String(x || '').trim().toLowerCase()).join('|');
   }
 
@@ -4046,6 +4055,18 @@ async function startLoginBuy() {
   // instead and refuses to fill until it's set for that specific unit.
   const FBP_WHOLESALE_SOURCES = ['smartbuyauto.ca'];
 
+  // New vs used. Most importers never recorded it — the South Trail
+  // (Convertus) path writes "Used" on every unit — so infer it from what
+  // every import does carry: a current-model-year unit still on delivery
+  // kilometres is new. An explicit "New" from an importer that reads it
+  // wins. Demo units (a few thousand km) come out as used.
+  function fbpIsNew(v) {
+    if (/^new$/i.test(String(v.condition || '').trim()) || /^new$/i.test(String(v.type || '').trim())) return true;
+    const km = parseInt(v.mileage, 10) || 0;
+    const yr = parseInt(v.year, 10) || 0;
+    return km <= 1000 && yr >= new Date().getFullYear() - 1;
+  }
+
   function fbpNorm(v) {
     const listedPrice = parseFloat(v.price) || 0;
     const retailPrice = parseFloat(v.retail_price) || 0;
@@ -4069,6 +4090,7 @@ async function startLoginBuy() {
       engine:       v.engine       || '',
       description: fbpBuildDesc(v, title, price, mileage),
       _src: v,
+      is_new: fbpIsNew(v),
       stock: v.stock||'', vin: v.vin||'',
       source: v.source || '',
       is_wholesale: isWholesale,
@@ -4273,15 +4295,24 @@ async function startLoginBuy() {
     const ptToday = fbpAllV.filter(v => v.is_posted && v.posted_date === today).length;
     const slots   = Math.max(0, DAILY_LIM - ptToday);
 
+    // New / Used narrows every view, the daily queue included — so "post
+    // used today" is one click.
+    const pool = fbpNewUsed_ === 'all' ? fbpAllV : fbpAllV.filter(v => (fbpNewUsed_ === 'new') === !!v.is_new);
+    fbpUpdateFilterLabels(pool);
+
     // Build the list based on current view
     let list;
     if (fbpView_ === 'all') {
-      list = fbpAllV.filter(v => !v.is_skipped);
+      list = pool.filter(v => !v.is_skipped);
     } else if (fbpView_ === 'posted') {
-      list = fbpAllV.filter(v => v.is_posted);
+      list = pool.filter(v => v.is_posted);
+    } else if (fbpView_ === 'unposted') {
+      // Everything still to post, uncapped — including cars the queue holds
+      // back for missing photos or price, so nothing is out of sight.
+      list = pool.filter(v => !v.is_posted && !v.is_skipped);
     } else {
       // queue view — unposted only, capped at daily limit
-      list = fbpAllV.filter(v => !v.is_posted && !v.is_skipped);
+      list = pool.filter(v => !v.is_posted && !v.is_skipped);
       // A car with no photos or no price can't be listed, and a franchise
       // lot carries plenty of both: 39 of South Trail's units are in transit
       // with neither. Keep them out of the queue instead of making you click
@@ -4334,12 +4365,33 @@ async function startLoginBuy() {
     Object.entries(ids).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.textContent=val; });
   }
 
+  function fbpUpdateFilterLabels(pool) {
+    const live = fbpAllV.filter(v => !v.is_skipped);
+    const nNew = live.filter(v => v.is_new).length, nUsed = live.length - nNew;
+    const row = document.getElementById('fbp-nu-row');
+    // Only worth showing on a lot that has both.
+    if (row) row.style.display = nNew && nUsed ? 'flex' : 'none';
+    if (!(nNew && nUsed) && fbpNewUsed_ !== 'all') fbpNewUsed_ = 'all';
+    const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    set('fbp-nu-new',  `New (${nNew})`);
+    set('fbp-nu-used', `Used (${nUsed})`);
+    const p = pool.filter(v => !v.is_skipped);
+    set('fbp-view-unposted', `Not posted (${p.filter(v => !v.is_posted).length})`);
+    set('fbp-view-posted',   `Posted (${p.filter(v => v.is_posted).length})`);
+  }
+
+  window.fbpSetNewUsed = function(which) {
+    fbpNewUsed_ = which; fbpIdx = -1;
+    ['all', 'new', 'used'].forEach(k => document.getElementById('fbp-nu-' + k)?.classList.toggle('active', k === which));
+    fbpBuildQueue();
+  };
+
   function fbpRenderQueue() {
     const list = document.getElementById('fbp-qlist');
     if (!list) return;
     list.innerHTML = '';
     if (!fbpQueue.length) {
-      const msg = fbpSearch_ ? 'No matches' : fbpView_ === 'posted' ? 'Nothing posted yet' : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Daily limit reached';
+      const msg = fbpSearch_ ? 'No matches' : fbpView_ === 'posted' ? 'Nothing posted yet' : fbpView_ === 'unposted' ? 'Everything is posted' : fbpView_ === 'all' ? 'No vehicles' : fbpAllV.filter(v=>!v.is_posted&&!v.is_skipped).length===0 ? 'All posted!' : 'Daily limit reached';
       list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">${msg}</div>`;
       return;
     }
@@ -4371,6 +4423,7 @@ async function startLoginBuy() {
     fbpView_ = view; fbpIdx = -1;
     document.getElementById('fbp-view-queue')?.classList.toggle('active', view === 'queue');
     document.getElementById('fbp-view-all')?.classList.toggle('active', view === 'all');
+    document.getElementById('fbp-view-unposted')?.classList.toggle('active', view === 'unposted');
     document.getElementById('fbp-view-posted')?.classList.toggle('active', view === 'posted');
     fbpBuildQueue();
   };
@@ -4385,6 +4438,7 @@ async function startLoginBuy() {
     fbpView_ = 'all';
     document.getElementById('fbp-view-queue')?.classList.remove('active');
     document.getElementById('fbp-view-all')?.classList.add('active');
+    document.getElementById('fbp-view-unposted')?.classList.remove('active');
     document.getElementById('fbp-view-posted')?.classList.remove('active');
     fbpSearch_ = '';
     const searchEl = document.getElementById('fbp-search'); if (searchEl) searchEl.value = '';
