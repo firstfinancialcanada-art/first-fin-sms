@@ -120,8 +120,41 @@ module.exports = function (app, { twilioClient } = {}) {
     }
   });
 
+  // META_PAGE_TOKEN now holds a SYSTEM USER token (never expires, created
+  // 2026-09-20 in the First-Fin business portfolio). The token before it was
+  // a short-lived page token that died Saturday 19 Sept 14:00 PDT without
+  // anyone noticing — every lead after that would have been stored as
+  // "(no name)" with no way to call it back.
+  //
+  // Page-scoped endpoints reject a system-user token outright ("Invalid
+  // OAuth 2.0 Access Token" on /{page}/subscribed_apps, verified). The
+  // standard move is to ask the Page for its own access token using the
+  // system-user token; one derived from a never-expiring token doesn't
+  // expire either (debug_token: type PAGE, expires NEVER). Cached per Page so
+  // it's one extra Graph call per process, not per lead. If derivation fails
+  // — e.g. someone puts a plain page token back in the env — fall back to
+  // using the env value as-is, which is what that case needs anyway.
+  const _pageTokens = new Map();
+  async function pageTokenFor(pageId) {
+    const base = process.env.META_PAGE_TOKEN;
+    if (!base || !pageId) return base || null;
+    if (_pageTokens.has(pageId)) return _pageTokens.get(pageId);
+    try {
+      const r = await fetch(`${GRAPH}/${pageId}?fields=access_token&access_token=${encodeURIComponent(base)}`);
+      const j = await r.json();
+      if (j && j.access_token) {
+        _pageTokens.set(pageId, j.access_token);   // only cache a success
+        return j.access_token;
+      }
+      if (j && j.error) console.warn('⚠️ page token derivation:', j.error.message);
+    } catch (e) { console.warn('⚠️ page token derivation:', e.message); }
+    // Not cached: a transient failure shouldn't pin the fallback for the
+    // life of the process. Leads are rare enough that retrying is free.
+    return base;
+  }
+
   async function handleLead(v, twilio) {
-    const token = process.env.META_PAGE_TOKEN;
+    const token = await pageTokenFor(v.page_id);
     let detail = {};
     if (token && v.leadgen_id) {
       try {
