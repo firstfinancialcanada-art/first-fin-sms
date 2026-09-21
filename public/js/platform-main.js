@@ -5242,7 +5242,6 @@ function parseExcelContactFile(file) {
 
 function processContactLines(lines) {
     const contacts=[], errors=[], seen=new Set();
-    const BLACKLIST=['2899688778','12899688778'];
     let start=0;
     if(lines[0]&&String(lines[0]).toLowerCase().includes('name')) start=1;
     for(let i=start;i<lines.length;i++){
@@ -5256,7 +5255,6 @@ function processContactLines(lines) {
       if(d.length===10) phone='+1'+d;
       else if(d.length===11&&d.startsWith('1')) phone='+'+d;
       if(!phone.startsWith('+1')||phone.length!==12){ errors.push('Row '+(i+1)+': Invalid phone'); continue; }
-      if(BLACKLIST.some(b=>phone.includes(b))){ errors.push('Row '+(i+1)+': Blacklisted'); continue; }
       if(seen.has(phone)){ errors.push('Row '+(i+1)+': Duplicate'); continue; }
       seen.add(phone); contacts.push({name,phone});
     }

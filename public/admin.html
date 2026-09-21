@@ -573,7 +573,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
     <div class="modal-title">EDIT SETTINGS</div>
     <div id="set-user-label" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-      <div class="fgroup"><label>Dealer Name</label><input type="text" id="set-dealerName" placeholder="Automaxx Calgary"></div>
+      <div class="fgroup"><label>Dealer Name</label><input type="text" id="set-dealerName" placeholder="e.g. Maple Auto Group"></div>
       <div class="fgroup"><label>City</label><input type="text" id="set-dealerCity" placeholder="Calgary"></div>
       <div class="fgroup"><label>Phone</label><input type="text" id="set-dealerPhone" placeholder="+14035550000"></div>
       <div class="fgroup"><label>Sales Rep Name</label><input type="text" id="set-salesName" placeholder="John Smith"></div>
@@ -620,11 +620,11 @@ tr:hover td{background:rgba(30,90,246,.03);}
     </div>
 
     <div class="fgroup"><label>Customer phone (optional, updates platform_inquiries.phone)</label>
-      <input type="tel" id="repair-phone" placeholder="e.g. 905-208-2825 or +19052082825" style="padding:8px 10px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%;">
+      <input type="tel" id="repair-phone" placeholder="e.g. 403-555-0123 or +14035550123" style="padding:8px 10px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%;">
     </div>
 
     <div class="fgroup"><label>Lead intake email (optional)</label>
-      <input type="email" id="repair-intake" placeholder="e.g. huntchrysler@firstfinancialcanada.com" style="padding:8px 10px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%;">
+      <input type="email" id="repair-intake" placeholder="e.g. mapleauto@firstfinancialcanada.com" style="padding:8px 10px;background:#070d1a;border:1px solid var(--border);border-radius:6px;color:#e2e8f0;font-size:12px;width:100%;">
     </div>
 
     <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:14px;cursor:pointer;">
@@ -674,7 +674,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
         Email address dealer pastes into AutoTrader / Kijiji / CarCostCanada / TAQ as a lead recipient. Mail arriving here auto-creates CRM rows scoped to this tenant + routed by the team's rules.
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <input type="email" id="mem-intake-input" placeholder="e.g. miltonchrysler@firstfinancialcanada.com" style="flex:1;padding:8px 10px;background:#070d1a;border:1px solid rgba(6,182,212,.3);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:'DM Mono',monospace;">
+        <input type="email" id="mem-intake-input" placeholder="e.g. mapleauto@firstfinancialcanada.com" style="flex:1;padding:8px 10px;background:#070d1a;border:1px solid rgba(6,182,212,.3);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:'DM Mono',monospace;">
         <button class="act" id="mem-intake-save" style="background:rgba(6,182,212,.2);color:#06b6d4;border-color:rgba(6,182,212,.4);font-size:11px;padding:7px 14px;" onclick="saveIntakeEmail()">Save</button>
         <button class="act" id="mem-intake-copy" style="font-size:11px;padding:7px 12px;" onclick="copyIntakeEmail()">Copy</button>
       </div>
@@ -1379,7 +1379,7 @@ async function toggleDomainLock(id, email, currentDomain) {
       else toast('Error: ' + d.error);
     } catch(e) {}
   } else {
-    const domain = prompt(`Set scrape domain lock for ${email}:\n\nEnter the allowed domain (e.g., automaxx.com).\nLeave empty to cancel.`);
+    const domain = prompt(`Set scrape domain lock for ${email}:\n\nEnter the allowed domain (e.g., yourdealership.com).\nLeave empty to cancel.`);
     if (!domain) return;
     try {
       const d = await api(`/api/admin/users/${id}/scrape-domain`, { method: 'POST', body: JSON.stringify({ domain }) });

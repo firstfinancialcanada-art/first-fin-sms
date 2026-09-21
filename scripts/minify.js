@@ -56,27 +56,53 @@ async function minifyJs() {
   console.log(`🏁 JS done — ${ok} minified, ${fail} failed`);
 }
 
-function stripHtmlComments() {
-  if (!fs.existsSync(PUBLIC_DIR)) {
+// Inline <script> blocks. Stripping <!-- --> left every // comment inside
+// the pages' own scripts live — ~160 lines on /platform naming client
+// stores, lender sources and file paths (2026-09-21 audit). Comments and
+// whitespace only: no compress, no mangle, so nothing is renamed and the
+// globals that onclick="" handlers call stay intact. A block terser can't
+// parse is left exactly as it was rather than failing the page.
+async function stripInlineScriptComments(html, label) {
+  const re = /<script>([\s\S]*?)<\/script>/g;
+  let out = '', last = 0, m, done = 0, kept = 0;
+  while ((m = re.exec(html))) {
+    out += html.slice(last, m.index);
+    let code = m[1];
+    try {
+      const r = await minify(code, { compress: false, mangle: false, format: { comments: false } });
+      if (r.code != null) { code = r.code; done++; }
+    } catch (err) {
+      kept++;
+      console.warn(`  ⚠️  ${label} inline script left as-is: ${err.message}`);
+    }
+    out += '<script>' + code + '</script>';
+    last = re.lastIndex;
+  }
+  return { html: out + html.slice(last), done, kept };
+}
+
+async function stripHtmlComments(dir = PUBLIC_DIR) {
+  if (!fs.existsSync(dir)) {
     console.log('⚠️  public/ not found — skipping HTML strip');
     return;
   }
 
-  const htmlFiles = fs.readdirSync(PUBLIC_DIR).filter(f => f.endsWith('.html'));
+  const htmlFiles = fs.readdirSync(dir).filter(f => f.endsWith('.html'));
   console.log(`🧹 Stripping comments from ${htmlFiles.length} HTML files...`);
 
   let ok = 0, fail = 0;
   for (const file of htmlFiles) {
-    const filePath = path.join(PUBLIC_DIR, file);
+    const filePath = path.join(dir, file);
     const src = fs.readFileSync(filePath, 'utf8');
     try {
       // Strip HTML comments: <!-- ... -->
       // Does NOT touch <!DOCTYPE html> (starts with <!DOCTYPE, not <!--)
       // No IE conditional comments in this codebase (verified)
-      const stripped = src.replace(/<!--[\s\S]*?-->/g, '');
+      const noHtmlComments = src.replace(/<!--[\s\S]*?-->/g, '');
+      const { html: stripped, done, kept } = await stripInlineScriptComments(noHtmlComments, file);
       const savings = (((src.length - stripped.length) / src.length) * 100).toFixed(1);
       fs.writeFileSync(filePath, stripped, 'utf8');
-      console.log(`  ✅ ${file} — ${savings}% smaller`);
+      console.log(`  ✅ ${file} — ${savings}% smaller (${done} inline script${done === 1 ? '' : 's'}${kept ? `, ${kept} left as-is` : ''})`);
       ok++;
     } catch (err) {
       console.warn(`  ⚠️  ${file} — strip failed: ${err.message}`);
@@ -89,11 +115,15 @@ function stripHtmlComments() {
 
 async function run() {
   await minifyJs();
-  stripHtmlComments();
+  await stripHtmlComments();
 }
 
-run().catch(err => {
-  console.error('Minify script error:', err.message);
-  process.exit(0); // don't block deploy if minify fails
-});
+module.exports = { stripHtmlComments, stripInlineScriptComments };
+
+if (require.main === module) {
+  run().catch(err => {
+    console.error('Minify script error:', err.message);
+    process.exit(0); // don't block deploy if minify fails
+  });
+}
 

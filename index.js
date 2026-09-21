@@ -235,9 +235,13 @@ const notifyOwner         = makeNotifyOwner(twilioClient);
 
 // ── Bulk SMS processor ────────────────────────────────────────────
 const { createBulkMessagesTable, makeBulkProcessor } = require('./lib/bulk');
-const { createOptOutTable } = require('./lib/db');
+const { createOptOutTable, addOptOut } = require('./lib/db');
 createBulkMessagesTable();
-createOptOutTable();
+// This number asked never to be contacted. It used to be a blacklist inside
+// the public platform-main.js, which published a private person's number
+// and only guarded CSV imports. On the global opt-out list it's enforced for
+// bulk, Sarah and everything else that checks isOptedOut().
+createOptOutTable().then(() => addOptOut('+12899688778', 'manual_block'));
 const { startBulkProcessor } = makeBulkProcessor(twilioClient);
 startBulkProcessor();
 
