@@ -323,7 +323,26 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
           created_at TIMESTAMPTZ DEFAULT NOW()
         )
       `);
-      const result = await client.query('SELECT * FROM platform_inquiries ORDER BY created_at DESC');
+      await trackerReady;
+      // Each prospect carries a summary of its touch log so the list can
+      // sort by who's gone longest without contact and show the channel
+      // tally without a second round trip per row.
+      const result = await client.query(`
+        SELECT i.*, t.touch_count, t.last_at, t.last_channel, t.last_outcome,
+               t.calls, t.texts, t.emails, t.messengers
+          FROM platform_inquiries i
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*)::int                                       AS touch_count,
+                   COUNT(*) FILTER (WHERE channel = 'call')::int       AS calls,
+                   COUNT(*) FILTER (WHERE channel = 'text')::int       AS texts,
+                   COUNT(*) FILTER (WHERE channel = 'email')::int      AS emails,
+                   COUNT(*) FILTER (WHERE channel = 'messenger')::int  AS messengers,
+                   MAX(at)                                             AS last_at,
+                   (array_agg(channel ORDER BY at DESC))[1]            AS last_channel,
+                   (array_agg(outcome ORDER BY at DESC))[1]            AS last_outcome
+              FROM platform_touches WHERE inquiry_id = i.id
+          ) t ON TRUE
+         ORDER BY i.created_at DESC`);
       res.json({ success: true, inquiries: result.rows });
     } catch(e) {
       console.error('Admin inquiries error:', e.message);
@@ -336,6 +355,7 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   // ── POST /api/admin/inquiries/:id/status ──────────────────
   app.post('/api/admin/inquiries/:id/status', adminAuth, async (req, res) => {
     const { status } = req.body;
+    if (!INQUIRY_STATUSES.includes(status)) return res.status(400).json({ success: false, error: 'unknown status' });
     const client = await pool.connect();
     try {
       await client.query('UPDATE platform_inquiries SET status = $1 WHERE id = $2', [status, req.params.id]);
@@ -367,6 +387,208 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     } finally {
       client.release();
     }
+  });
+
+  // ── SaaS prospect tracker ─────────────────────────────────
+  // Every call, text, email and Messenger message to a SaaS prospect, logged
+  // against the inquiry so follow-up lives in the dashboard instead of a
+  // spreadsheet. Prospects are platform_inquiries rows — landing form,
+  // Facebook lead ads, and people imported from Messenger and phone
+  // contacts. Car buyers never belong here; they're desk_crm, per tenant.
+  //
+  // 'junk' hides test and spam rows without deleting them.
+  const INQUIRY_STATUSES = ['pending', 'contacted', 'approved', 'rejected', 'junk'];
+  const TOUCH_CHANNELS   = ['call', 'text', 'email', 'messenger'];
+  const TOUCH_OUTCOMES   = ['sent', 'talked', 'voicemail', 'no_answer', 'replied', 'booked', 'not_interested'];
+  const PROSPECT_TIERS   = ['1', '2', '3', '4'];
+
+  const trackerReady = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS platform_inquiries (
+        id SERIAL PRIMARY KEY, name TEXT NOT NULL, dealership TEXT,
+        phone TEXT NOT NULL, email TEXT, status TEXT DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+    await pool.query(`
+      ALTER TABLE platform_inquiries
+        ADD COLUMN IF NOT EXISTS source    TEXT DEFAULT 'landing',
+        ADD COLUMN IF NOT EXISTS tier      TEXT,
+        ADD COLUMN IF NOT EXISTS messenger BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS note      TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS platform_touches (
+        id          SERIAL PRIMARY KEY,
+        inquiry_id  INTEGER NOT NULL REFERENCES platform_inquiries(id) ON DELETE CASCADE,
+        channel     TEXT NOT NULL,
+        outcome     TEXT NOT NULL,
+        note        TEXT,
+        at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_touches_inquiry ON platform_touches(inquiry_id, at DESC)`);
+  })().catch(e => console.error('❌ prospect tracker schema:', e.message));
+
+  // A touch can be backdated (logging yesterday's call, importing April's
+  // texts) but not future-dated. A future date would sit at the top of
+  // "last touch" and hide that the prospect is actually overdue.
+  function touchTime(v) {
+    if (!v) return new Date();
+    const d = new Date(v);
+    if (isNaN(d)) return null;
+    if (d.getTime() > Date.now() + 5 * 60 * 1000) return null;
+    return d;
+  }
+  const clip = (v, n) => (v == null ? null : String(v).trim().slice(0, n) || null);
+
+  async function insertTouch(inquiryId, t) {
+    const at = touchTime(t.at);
+    if (!at) throw Object.assign(new Error('bad touch date'), { status: 400 });
+    if (!TOUCH_CHANNELS.includes(t.channel)) throw Object.assign(new Error('unknown channel'), { status: 400 });
+    if (!TOUCH_OUTCOMES.includes(t.outcome)) throw Object.assign(new Error('unknown outcome'), { status: 400 });
+    // Same prospect, channel and minute = the same touch. Makes a re-run
+    // import, or a double-click on Save, harmless.
+    const r = await pool.query(
+      `INSERT INTO platform_touches (inquiry_id, channel, outcome, note, at)
+       SELECT $1::int, $2::text, $3::text, $4::text, $5::timestamptz
+        WHERE NOT EXISTS (
+          SELECT 1 FROM platform_touches
+           WHERE inquiry_id = $1 AND channel = $2
+             AND date_trunc('minute', at) = date_trunc('minute', $5::timestamptz))
+       RETURNING *`,
+      [inquiryId, t.channel, t.outcome, clip(t.note, 500), at]
+    );
+    return r.rows[0] || null;
+  }
+
+  // ── GET /api/admin/inquiries/:id/touches ──────────────────
+  app.get('/api/admin/inquiries/:id/touches', adminAuth, async (req, res) => {
+    try {
+      await trackerReady;
+      const r = await pool.query(
+        `SELECT id, channel, outcome, note, at FROM platform_touches WHERE inquiry_id = $1 ORDER BY at DESC`,
+        [parseInt(req.params.id, 10)]
+      );
+      res.json({ success: true, touches: r.rows });
+    } catch (e) { res.status(500).json({ success: false, error: sanitizeError(e) }); }
+  });
+
+  // ── POST /api/admin/inquiries/:id/touches ─────────────────
+  // Body: { channel, outcome, note?, at? }. Logging the first touch moves a
+  // pending prospect to contacted, so the status can't lag behind the log.
+  app.post('/api/admin/inquiries/:id/touches', adminAuth, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    try {
+      await trackerReady;
+      const exists = await pool.query('SELECT 1 FROM platform_inquiries WHERE id = $1', [id]);
+      if (!exists.rows.length) return res.status(404).json({ success: false, error: 'prospect not found' });
+      const touch = await insertTouch(id, req.body || {});
+      await pool.query(`UPDATE platform_inquiries SET status = 'contacted' WHERE id = $1 AND status = 'pending'`, [id]);
+      res.json({ success: true, touch, duplicate: !touch });
+    } catch (e) { res.status(e.status || 500).json({ success: false, error: e.status ? e.message : sanitizeError(e) }); }
+  });
+
+  // ── DELETE /api/admin/touches/:id ─────────────────────────
+  // Undo for a touch logged against the wrong person.
+  app.delete('/api/admin/touches/:id', adminAuth, async (req, res) => {
+    try {
+      const r = await pool.query('DELETE FROM platform_touches WHERE id = $1', [parseInt(req.params.id, 10)]);
+      res.json({ success: true, deleted: r.rowCount });
+    } catch (e) { res.status(500).json({ success: false, error: sanitizeError(e) }); }
+  });
+
+  // ── PATCH /api/admin/inquiries/:id ────────────────────────
+  // Edit the prospect itself: tier, notes, contact details, Messenger flag.
+  app.patch('/api/admin/inquiries/:id', adminAuth, async (req, res) => {
+    const b = req.body || {};
+    const sets = [], vals = [];
+    const add = (col, v) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
+    if ('tier' in b) {
+      const tier = b.tier == null || b.tier === '' ? null : String(b.tier);
+      if (tier !== null && !PROSPECT_TIERS.includes(tier)) return res.status(400).json({ success: false, error: 'tier must be 1-4' });
+      add('tier', tier);
+    }
+    if ('messenger' in b)  add('messenger', !!b.messenger);
+    if ('note' in b)       add('note', clip(b.note, 2000));
+    if ('name' in b)       { const n = clip(b.name, 200); if (!n) return res.status(400).json({ success: false, error: 'name required' }); add('name', n); }
+    if ('dealership' in b) add('dealership', clip(b.dealership, 200));
+    if ('email' in b)      add('email', clip(b.email, 200));
+    if ('phone' in b)      add('phone', clip(b.phone, 40) || '—');   // NOT NULL column
+    if ('status' in b) {
+      if (!INQUIRY_STATUSES.includes(b.status)) return res.status(400).json({ success: false, error: 'unknown status' });
+      add('status', b.status);
+    }
+    if (!sets.length) return res.status(400).json({ success: false, error: 'nothing to update' });
+    try {
+      await trackerReady;
+      vals.push(parseInt(req.params.id, 10));
+      const r = await pool.query(`UPDATE platform_inquiries SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING id`, vals);
+      if (!r.rowCount) return res.status(404).json({ success: false, error: 'prospect not found' });
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: sanitizeError(e) }); }
+  });
+
+  // ── POST /api/admin/inquiries/import ──────────────────────
+  // Body: { rows: [{ name, dealership?, phone?, email?, messenger?, tier?,
+  //                  note?, created_at?, touches?: [{channel,outcome,note,at}] }] }
+  // For prospects who never came through the form: Messenger threads,
+  // phone contacts, old CSVs. Matches an existing row on phone (last ten
+  // digits), then email, then (for rows with neither) name. A match only
+  // fills blanks — it never overwrites something already in the dashboard,
+  // and never changes status. Safe to re-run.
+  app.post('/api/admin/inquiries/import', adminAuth, async (req, res) => {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 500) : [];
+    if (!rows.length) return res.status(400).json({ success: false, error: 'rows[] required' });
+    const out = { inserted: 0, matched: 0, touches: 0, errors: [] };
+    try {
+      await trackerReady;
+      for (const row of rows) {
+        const name = clip(row.name, 200);
+        if (!name) { out.errors.push('row without a name skipped'); continue; }
+        const digits = String(row.phone || '').replace(/\D/g, '').slice(-10);
+        const email  = clip(row.email, 200);
+        const tier   = PROSPECT_TIERS.includes(String(row.tier)) ? String(row.tier) : null;
+        let found = null;
+        if (digits.length === 10) {
+          found = (await pool.query(
+            `SELECT id FROM platform_inquiries WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1 ORDER BY id LIMIT 1`, [digits])).rows[0];
+        }
+        if (!found && email) {
+          found = (await pool.query(`SELECT id FROM platform_inquiries WHERE lower(email) = lower($1) ORDER BY id LIMIT 1`, [email])).rows[0];
+        }
+        if (!found && digits.length !== 10 && !email) {
+          found = (await pool.query(`SELECT id FROM platform_inquiries WHERE lower(name) = lower($1) ORDER BY id LIMIT 1`, [name])).rows[0];
+        }
+        let id;
+        if (found) {
+          id = found.id; out.matched++;
+          await pool.query(
+            `UPDATE platform_inquiries
+                SET dealership = COALESCE(dealership, $2), email = COALESCE(email, $3),
+                    tier = COALESCE(tier, $4), note = COALESCE(note, $5),
+                    messenger = COALESCE(messenger, FALSE) OR $6
+              WHERE id = $1`,
+            [id, clip(row.dealership, 200), email, tier, clip(row.note, 2000), !!row.messenger]);
+        } else {
+          const created = row.created_at && !isNaN(new Date(row.created_at)) ? new Date(row.created_at) : new Date();
+          const ins = await pool.query(
+            `INSERT INTO platform_inquiries (name, dealership, phone, email, source, tier, messenger, note, status, created_at)
+             VALUES ($1, $2, $3, $4, 'import', $5, $6, $7, 'pending', $8) RETURNING id`,
+            [name, clip(row.dealership, 200), clip(row.phone, 40) || '—', email, tier, !!row.messenger, clip(row.note, 2000), created]);
+          id = ins.rows[0].id; out.inserted++;
+        }
+        const touches = Array.isArray(row.touches) ? row.touches : [];
+        for (const t of touches) {
+          try { if (await insertTouch(id, t)) out.touches++; }
+          catch (e) { out.errors.push(`${name}: ${e.message}`); }
+        }
+        // Imported history counts as contact, same as logging it by hand.
+        if (touches.length) {
+          await pool.query(`UPDATE platform_inquiries SET status = 'contacted' WHERE id = $1 AND status = 'pending'`, [id]);
+        }
+      }
+      await auditLog('import_prospects', 'platform_inquiries', null, { inserted: out.inserted, matched: out.matched, touches: out.touches }, req);
+      res.json({ success: true, ...out });
+    } catch (e) { res.status(500).json({ success: false, error: sanitizeError(e), ...out }); }
   });
 
   // ── POST /api/admin/users/create ─────────────────────────
