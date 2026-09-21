@@ -370,6 +370,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
                 <option value="t4">Tier 4</option>
                 <option value="replied">Replied / booked</option>
                 <option value="pending">Pending</option>
+                <option value="paid">Paying customers</option>
                 <option value="all">All</option>
                 <option value="junk">Junk</option>
               </select>
@@ -504,7 +505,7 @@ tr:hover td{background:rgba(30,90,246,.03);}
       <div class="fgroup"><label>Tier</label>
         <select id="pe-tier"><option value="">—</option><option value="1">1 · Hot</option><option value="2">2 · Warm</option><option value="3">3 · Form fill</option><option value="4">4 · Cold</option></select></div>
       <div class="fgroup"><label>Status</label>
-        <select id="pe-status"><option value="pending">Pending</option><option value="contacted">Contacted</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="junk">Junk (hide)</option></select></div>
+        <select id="pe-status"><option value="pending">Pending</option><option value="contacted">Contacted</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="paid">Paid customer</option><option value="junk">Junk (hide)</option></select></div>
     </div>
     <div class="fgroup"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);font-family:'Outfit',sans-serif;"><input type="checkbox" id="pe-messenger" style="width:auto;"> Has a Messenger thread on the Page</label></div>
     <div class="fgroup"><label>Notes</label><textarea id="pe-note" maxlength="2000"></textarea></div>
@@ -1149,6 +1150,8 @@ const OUTCOMES_FOR = {
   email:     ['sent', 'replied', 'booked', 'not_interested'],
   messenger: ['sent', 'replied', 'booked', 'not_interested'],
 };
+// Not prospects any more: said no, junk, or already paying (Stripe writes 'paid').
+const CLOSED = ['rejected', 'junk', 'paid'];
 let inqFilter = 'active';
 let inqQuery = '';
 let touchFor = null;
@@ -1159,7 +1162,7 @@ async function loadInquiries() {
     const d = await api('/api/admin/inquiries');
     if (!d.success) return;
     allInquiries = d.inquiries;
-    const live = allInquiries.filter(i => !['rejected', 'junk'].includes(i.status));
+    const live = allInquiries.filter(i => !CLOSED.includes(i.status));
     const fresh = live.filter(i => !i.touch_count).length;
     document.getElementById('inq-count').textContent = `(${live.length} active · ${fresh} not contacted)`;
     renderInq();
@@ -1174,13 +1177,14 @@ function filterInq(filter) {
 }
 
 function inqMatches(i) {
-  const live = !['rejected', 'junk'].includes(i.status);
+  const live = !CLOSED.includes(i.status);
   switch (inqFilter) {
     case 'active':    return live;
     case 'untouched': return live && !i.touch_count;
     case 't1': case 't2': case 't3': case 't4': return live && i.tier === inqFilter.slice(1);
     case 'replied':   return ['replied', 'booked'].includes(i.last_outcome);
     case 'pending':   return i.status === 'pending';
+    case 'paid':      return i.status === 'paid';
     case 'junk':      return i.status === 'junk';
     default:          return i.status !== 'junk';   // 'all'
   }
@@ -1213,7 +1217,7 @@ function renderInq() {
     el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;font-family:DM Mono,monospace;">Nobody here</div>';
     return;
   }
-  const statusColors = { pending: 'amber', approved: 'active', contacted: 'active', rejected: 'cancelled', junk: 'cancelled' };
+  const statusColors = { pending: 'amber', approved: 'active', contacted: 'active', paid: 'active', rejected: 'cancelled', junk: 'cancelled' };
   el.innerHTML = list.map(inq => {
     const t = new Date(inq.created_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
     const sc = statusColors[inq.status] || 'trial';

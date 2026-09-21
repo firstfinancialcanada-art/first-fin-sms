@@ -396,8 +396,9 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
   // Facebook lead ads, and people imported from Messenger and phone
   // contacts. Car buyers never belong here; they're desk_crm, per tenant.
   //
-  // 'junk' hides test and spam rows without deleting them.
-  const INQUIRY_STATUSES = ['pending', 'contacted', 'approved', 'rejected', 'junk'];
+  // 'paid' is written by Stripe checkout (routes/stripe.js) — a customer,
+  // not a prospect. 'junk' hides test and spam rows without deleting them.
+  const INQUIRY_STATUSES = ['pending', 'contacted', 'approved', 'rejected', 'paid', 'junk'];
   const TOUCH_CHANNELS   = ['call', 'text', 'email', 'messenger'];
   const TOUCH_OUTCOMES   = ['sent', 'talked', 'voicemail', 'no_answer', 'replied', 'booked', 'not_interested'];
   const PROSPECT_TIERS   = ['1', '2', '3', '4'];
