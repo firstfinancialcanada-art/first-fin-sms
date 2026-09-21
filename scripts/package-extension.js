@@ -1,12 +1,22 @@
 // scripts/package-extension.js — Build obfuscated extension package for client distribution
 // Usage: node scripts/package-extension.js
 //
-// Creates: ONBOARDING/firstfin-extension.zip
-// - All JS files aggressively minified + mangled (Terser)
-// - Variable/function names replaced with short gibberish
-// - Comments stripped, whitespace removed
-// - Icons, HTML, manifest preserved as-is
+// Creates: ONBOARDING/firstfin-extension.zip, and publishes the same zip to
+// public/downloads/firstfin-extension.zip (the link customers download).
+// - JS: comments + console calls stripped, whitespace removed, local
+//   variable names mangled (Terser)
+// - HTML: <!-- --> comments stripped
+// - Icons, manifest preserved as-is
 // - Source .src.js files excluded
+// - A JS file that won't minify FAILS the build — readable source is never
+//   shipped as a fallback
+//
+// Why not mangle harder: the old settings mangled top-level names and every
+// property starting with "_". content.js, background.js and the platform
+// page pass vehicles around as { _photos, _url, ... }, and each file is
+// minified on its own, so those names came out different in each file and
+// the pieces could no longer read each other's messages. The served zip had
+// in fact been built some other way and shipped readable source from May 2.
 
 'use strict';
 const { minify } = require('terser');
@@ -16,6 +26,7 @@ const path = require('path');
 const EXT_DIR  = path.join(__dirname, '..', 'chrome-extension');
 const OUT_DIR  = path.join(__dirname, '..', 'ONBOARDING', 'firstfin-extension');
 const ZIP_PATH = path.join(__dirname, '..', 'ONBOARDING', 'firstfin-extension.zip');
+const PUBLIC_ZIP = path.join(__dirname, '..', 'public', 'downloads', 'firstfin-extension.zip');
 
 // Files to skip (source maps, readme)
 const SKIP_FILES = [
@@ -28,26 +39,15 @@ const SKIP_FILES = [
 const TERSER_OPTS = {
   compress: {
     dead_code: true,
-    drop_console: true,       // strip all console.log — no debug breadcrumbs
+    drop_console: true,       // no debug breadcrumbs in the customer build
     drop_debugger: true,
-    passes: 3,
-    booleans_as_integers: true,
-    collapse_vars: true,
-    reduce_vars: true,
-    toplevel: true,
-    unsafe_math: true
+    passes: 2
   },
   mangle: {
-    toplevel: true,           // mangle top-level function/var names
-    properties: {
-      regex: /^_/             // mangle properties starting with _ (internal)
-    }
+    toplevel: false,          // top-level names are shared across files
+    keep_fnames: true
   },
-  format: {
-    comments: false,          // strip all comments
-    semicolons: true,
-    wrap_iife: true
-  }
+  format: { comments: false }
 };
 
 async function run() {
@@ -88,31 +88,15 @@ async function run() {
           console.log(`  🔒 ${entry.name} — ${src.length.toLocaleString()} → ${result.code.length.toLocaleString()} bytes (${pct}% smaller)`);
           minified++;
         } else {
-          // Fallback: copy as-is
-          fs.copyFileSync(srcPath, outPath);
-          console.log(`  ⚠️  ${entry.name} — minify returned empty, copied as-is`);
+          throw new Error('minify returned no code');
         }
       } catch (err) {
-        console.warn(`  ⚠️  ${entry.name} — minify failed: ${err.message}`);
-        // Try less aggressive settings
-        try {
-          const fallback = await minify(src, {
-            compress: { drop_console: true, passes: 2 },
-            mangle: { toplevel: false },
-            format: { comments: false }
-          });
-          if (fallback.code) {
-            fs.writeFileSync(outPath, fallback.code, 'utf8');
-            console.log(`  🔒 ${entry.name} — minified with fallback settings`);
-            minified++;
-          } else {
-            fs.copyFileSync(srcPath, outPath);
-          }
-        } catch {
-          fs.copyFileSync(srcPath, outPath);
-          console.log(`  📄 ${entry.name} — copied unminified`);
-        }
+        throw new Error(`${entry.name} would not minify (${err.message}) — nothing packaged`);
       }
+    } else if (entry.name.endsWith('.html')) {
+      const html = fs.readFileSync(srcPath, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+      fs.writeFileSync(outPath, html, 'utf8');
+      console.log(`  📄 ${entry.name} (comments stripped)`);
     } else {
       // Copy non-JS files as-is (HTML, JSON, images, etc.)
       fs.copyFileSync(srcPath, outPath);
@@ -123,6 +107,9 @@ async function run() {
   // Create ZIP
   console.log(`\n🗜  Creating ZIP...`);
   await createZip(OUT_DIR, ZIP_PATH);
+  fs.mkdirSync(path.dirname(PUBLIC_ZIP), { recursive: true });
+  fs.copyFileSync(ZIP_PATH, PUBLIC_ZIP);
+  console.log(`   🌐 Published: ${PUBLIC_ZIP}`);
 
   console.log(`\n✅ Done — ${minified} JS files obfuscated`);
   console.log(`   📁 Folder: ${OUT_DIR}`);
@@ -139,21 +126,26 @@ function copyDirSync(src, dest) {
   }
 }
 
+// PowerShell's Compress-Archive writes entry names with backslashes, which
+// Chrome's "Load unpacked" rejects after extraction on some systems. Build
+// the archive with System.IO.Compression and explicit forward-slash names.
 async function createZip(sourceDir, zipPath) {
-  // Use Node.js built-in or fall back to system zip
-  try {
-    const { execSync } = require('child_process');
-    // Remove old zip if exists
-    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-    // Try PowerShell Compress-Archive (Windows)
-    const absSource = path.resolve(sourceDir) + '\\*';
-    const absZip = path.resolve(zipPath);
-    execSync(`powershell -Command "Compress-Archive -Path '${absSource}' -DestinationPath '${absZip}' -Force"`, { stdio: 'pipe' });
-    console.log(`   ZIP created: ${(fs.statSync(zipPath).size / 1024).toFixed(1)} KB`);
-  } catch (e) {
-    console.log(`   ⚠️  Could not create ZIP automatically: ${e.message}`);
-    console.log(`   📁 Use the folder at: ${sourceDir}`);
-  }
+  const { execFileSync } = require('child_process');
+  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+  const src = path.resolve(sourceDir), dst = path.resolve(zipPath);
+  const ps = [
+    'Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem',
+    `$src = '${src.replace(/'/g, "''")}'`,
+    `$zip = [System.IO.Compression.ZipFile]::Open('${dst.replace(/'/g, "''")}', 'Create')`,
+    'try {',
+    '  Get-ChildItem -LiteralPath $src -Recurse -File | ForEach-Object {',
+    "    $rel = $_.FullName.Substring($src.Length + 1).Replace('\\', '/')",
+    '    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null',
+    '  }',
+    '} finally { $zip.Dispose() }',
+  ].join('\n');
+  execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { stdio: 'pipe' });
+  console.log(`   ZIP created: ${(fs.statSync(zipPath).size / 1024).toFixed(1)} KB`);
 }
 
 run().catch(err => {
