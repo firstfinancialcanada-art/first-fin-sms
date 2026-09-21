@@ -3780,6 +3780,14 @@ async function startLoginBuy() {
 .fbp-desc-copy.ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green);}
 .fbp-desc-body{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);line-height:1.75;white-space:pre-wrap;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;max-height:130px;overflow-y:auto;width:100%;resize:vertical;outline:none;}.fbp-desc-body:focus{border-color:var(--primary);}
 .fbp-desc-body::-webkit-scrollbar{width:3px;}
+.fbp-desc-btns{display:flex;gap:6px;}
+.fbp-lines{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;margin-bottom:8px;}
+.fbp-lines-note{font-size:10px;color:var(--muted);margin-bottom:8px;}
+.fbp-lines label{display:block;font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;}
+.fbp-lines input{display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0;text-transform:none;outline:none;}
+.fbp-lines input:focus{border-color:var(--primary);}
+.fbp-lines-act{display:flex;gap:6px;justify-content:flex-end;margin-top:4px;}
+.fbp-desc-copy.save{background:rgba(30,90,246,.15);border-color:rgba(30,90,246,.45);color:#93c5fd;}
 .fbp-desc-body::-webkit-scrollbar-thumb{background:var(--dim);}
 /* Not-activated state */
 .fbp-inactive{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;text-align:center;}
@@ -3907,7 +3915,21 @@ async function startLoginBuy() {
               <div class="fbp-desc-wrap">
                 <div class="fbp-desc-hd">
                   <div class="fbp-desc-lbl">Listing Description</div>
-                  <button class="fbp-desc-copy" id="fbp-cdesc" onclick="fbpCopyDesc()">Copy All</button>
+                  <div class="fbp-desc-btns">
+                    <button class="fbp-desc-copy" id="fbp-lines-btn" data-min-role="manager" onclick="fbpToggleLines()">✎ Edit lines</button>
+                    <button class="fbp-desc-copy" id="fbp-cdesc" onclick="fbpCopyDesc()">Copy All</button>
+                  </div>
+                </div>
+                <div class="fbp-lines" id="fbp-lines" style="display:none;">
+                  <div class="fbp-lines-note">Used on every listing. Also in Settings.</div>
+                  <label>Condition line<input type="text" id="fbpl-fbInspectionLine" maxlength="120" oninput="fbpLinesPreview()"></label>
+                  <label>Financing line<input type="text" id="fbpl-fbFinancingLine" maxlength="120" oninput="fbpLinesPreview()"></label>
+                  <label>Closing line<input type="text" id="fbpl-fbCtaLine" maxlength="120" oninput="fbpLinesPreview()"></label>
+                  <div class="fbp-lines-act">
+                    <button class="fbp-desc-copy" onclick="fbpLinesReset()">↺ Reset to default</button>
+                    <button class="fbp-desc-copy" onclick="fbpToggleLines(false)">Cancel</button>
+                    <button class="fbp-desc-copy save" onclick="fbpLinesSave()">Save</button>
+                  </div>
                 </div>
                 <textarea class="fbp-desc-body" id="fbp-desc-body" rows="6"></textarea>
               </div>
@@ -4046,6 +4068,7 @@ async function startLoginBuy() {
       drive_train:  v.drive_train  || '',
       engine:       v.engine       || '',
       description: fbpBuildDesc(v, title, price, mileage),
+      _src: v,
       stock: v.stock||'', vin: v.vin||'',
       source: v.source || '',
       is_wholesale: isWholesale,
@@ -4084,9 +4107,90 @@ async function startLoginBuy() {
     fbFinancingLine:  'Financing available - all credit welcome',
     fbCtaLine:        'Call or text to book a test drive!'
   };
+  // While the poster's Edit lines panel is open, descriptions preview the
+  // draft wording instead of the saved setting.
+  let fbpDraftLines = null;
   function fbpLine(key) {
-    return String((settings && settings[key]) || '').trim() || FB_LINE_DEFAULTS[key];
+    const src = fbpDraftLines || settings || {};
+    return String(src[key] || '').trim() || FB_LINE_DEFAULTS[key];
   }
+
+  // Descriptions are built once per vehicle when inventory loads, so a
+  // wording change has to rebuild them — every vehicle, not just the one
+  // on screen, or the next car in the queue would still say the old thing.
+  // Rebuilding replaces any hand edits in the text box for the current car.
+  function fbpRefreshDescriptions() {
+    const seen = new Set();
+    [...fbpAllV, ...fbpQueue, fbpV].forEach(x => {
+      if (!x || !x._src || seen.has(x)) return;
+      seen.add(x);
+      x.description = fbpBuildDesc(x._src, x.title, Number(x.price) || 0, parseInt(x.mileage, 10) || 0);
+    });
+    const db = document.getElementById('fbp-desc-body');
+    if (db && fbpV) db.value = fbpV.description || '';
+  }
+
+  // The same three lines as Settings > Marketplace Description, editable
+  // where they get used. Same permission as Settings (manager+ — the button
+  // is role-gated and the server enforces it); same meaning of blank.
+  function fbpLineInputs() {
+    return Object.keys(FB_LINE_DEFAULTS).map(k => [k, document.getElementById('fbpl-' + k)]);
+  }
+  window.fbpToggleLines = function(open) {
+    const box = document.getElementById('fbp-lines');
+    if (!box) return;
+    const show = open === undefined ? box.style.display === 'none' : !!open;
+    if (show) {
+      fbpLineInputs().forEach(([k, el]) => {
+        if (!el) return;
+        el.value = (settings && settings[k]) || '';
+        el.placeholder = FB_LINE_DEFAULTS[k];
+      });
+      box.style.display = 'block';
+    } else {
+      box.style.display = 'none';
+      if (fbpDraftLines) { fbpDraftLines = null; fbpRefreshDescriptions(); }
+    }
+  };
+  window.fbpLinesPreview = function() {
+    fbpDraftLines = {};
+    fbpLineInputs().forEach(([k, el]) => { fbpDraftLines[k] = el ? el.value : ''; });
+    fbpRefreshDescriptions();
+  };
+  window.fbpLinesReset = function() {
+    fbpLineInputs().forEach(([, el]) => { if (el) el.value = ''; });
+    window.fbpLinesPreview();
+    fbpFlash('Defaults shown — Save to keep');
+  };
+  window.fbpLinesSave = async function() {
+    const next = {};
+    fbpLineInputs().forEach(([k, el]) => {
+      next[k] = String(el ? el.value : '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    });
+    const prev = {};
+    Object.keys(next).forEach(k => { prev[k] = settings[k]; });
+    Object.assign(settings, next);
+    if (!window.DEMO_MODE) {
+      try {
+        const res = await window.FF.apiFetch('/api/desk/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Save failed');
+      } catch (e) {
+        Object.assign(settings, prev);
+        fbpFlash('Not saved — ' + e.message);
+        return;
+      }
+    }
+    // Keep the Settings copy of these fields in step.
+    Object.keys(next).forEach(k => {
+      const el = document.getElementById('set' + k.charAt(0).toUpperCase() + k.slice(1));
+      if (el) el.value = next[k];
+    });
+    fbpDraftLines = null;
+    document.getElementById('fbp-lines').style.display = 'none';
+    fbpRefreshDescriptions();
+    fbpFlash(window.DEMO_MODE ? 'Updated for this demo' : 'Saved — every listing updated');
+  };
 
   // Reset clears the fields rather than writing the default text into them.
   // Empty already means "use the default" everywhere, so a dealer who resets
@@ -4597,7 +4701,10 @@ async function startLoginBuy() {
         price: fbpV.price, mileage: fbpV.mileage,
         body_style: fbpV.body_style, ext_color: fbpV.ext_color, int_color: fbpV.int_color,
         fuel: fbpV.fuel, transmission: fbpV.transmission,
-        description: fbpV.description, condition: fbpV.condition,
+        // What's in the box, so a hand edit to this one listing is what
+        // Facebook gets. Falls back to the built text if the box is empty.
+        description: (document.getElementById('fbp-desc-body')?.value || '').trim() || fbpV.description,
+        condition: fbpV.condition,
         photos: cleanedPhotos,
       }
     }, '*');
