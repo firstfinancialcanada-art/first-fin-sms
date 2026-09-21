@@ -17,16 +17,20 @@ stores no credit-application data, no government IDs, and no payment-card data
 
 The original audit found **1 critical, 1 high, 2 medium, and 3 low** issues.
 As of the 2026-06-18 remediation cycle, **4 of 8 are resolved** (see status
-update). The single **critical** item — default admin token — remains the only
-finding that materially undermines an otherwise solid posture and is a ~60-second
-fix.
+update).
+
+**As of 2026-09-20 every actionable finding is closed.** The one remaining
+entry, L2, was an accepted risk at the time of the audit rather than an
+outstanding defect.
 
 | Severity | Original | Resolved | Still open |
 |---|---|---|---|
-| 🔴 Critical | 1 | 0 | **1 (C1 — admin token)** |
-| 🟠 High | 1 | partial (H1a) | 1 (H1b — IMAP dep chain) |
-| 🟡 Medium | 2 | 1 (M1) | 1 (M2 — CSP) |
+| 🔴 Critical | 1 | **1 (C1)** | 0 |
+| 🟠 High | 1 | **1 (H1a + H1b)** | 0 |
+| 🟡 Medium | 2 | **2 (M1, M2)** | 0 |
 | 🟢 Low | 3 | 2 (L1, L3) | 1 (L2 — accepted) |
+
+`npm audit --omit=dev` reports **0 vulnerabilities** as of 2026-09-20.
 
 ### Status update — 2026-06-18 (commit `f352a14` + `06bbe1f`)
 - ✅ **H1a resolved** — `npm audit fix` cleared the non-breaking advisories (axios, follow-redirects, fast-xml-builder); 6 of 10 gone. Remaining 4 are the IMAP chain (H1b).
@@ -36,6 +40,22 @@ fix.
 - ✅ **Suspension hardening** — login + refresh now reject suspended/soft-deleted accounts (`06bbe1f`).
 - 🔴 **C1 still open** — admin token rotation (Franco, Railway).
 - ⏳ **H1b, M2 deferred** — both require tested branches (see below).
+
+### Status update — 2026-09-20 — remaining items closed
+
+- ✅ **C1 resolved** — `ADMIN_TOKEN` rotated off the shipped default (and again off a weak interim value). Enforced at boot: the process refuses to start without it.
+- ✅ **H1b resolved — without the breaking downgrade.** The 4 remaining high advisories all traced to one root: `utf7` pinned `semver@~5.3.0`, and the ReDoS (CVE-2022-25883) is patched in 5.7.2. `npm audit fix --force` wanted `imap-simple@1.6.3`, a major downgrade that risked `lib/lead-intake.js`. Instead an npm `overrides` entry pins `utf7 → semver ^5.7.2`. `utf7` calls exactly one semver function, `semver.gte()`, whose behaviour is identical across 5.3 → 5.7, and IMAP encode/decode round-trips were verified after the change. The remaining `qs`/`express` advisories were then cleared by a non-breaking `npm audit fix` (express 4.22.2 → 4.22.3). **Production dependency tree is now clean.**
+- ✅ **M2 resolved — CSP enforced.** A strict `script-src` remains impractical: `platform.html` carries 16 inline `<script>` blocks and 354 inline event handlers, and refactoring all of them on a live system is a larger, riskier change than the finding warrants. What is enforced now still removes the worst of the surface:
+  - `object-src 'none'` — no plugin-based execution
+  - `base-uri 'self'` — a `<base>` injection cannot repoint every relative URL
+  - `frame-ancestors 'self'` — clickjacking
+  - `form-action 'self'` — an injected form cannot post credentials off-site
+  - `default-src 'self'` with explicit allowlists (Google Fonts, unpkg/lucide, cdnjs/pdf.js, cdn.sheetjs/xlsx)
+
+  A second policy — the same directives without `'unsafe-inline'` — ships in **`Content-Security-Policy-Report-Only`** with reports posted to `/api/csp-report`, which aggregates by directive and logs a rolling summary. That measures the inline surface instead of estimating it, and gives a defined path to full enforcement.
+
+  Two deliberate exclusions, both documented in `index.js`: `upgrade-insecure-requests` is omitted because the Deal Desk and FB Poster talk to local bridges on `http://localhost:5001` and `:5800`; and `img-src` permits `https:` because vehicle photography is served from whatever CDN each dealer's website uses.
+- ✅ **SSRF guard live** — `lib/url-guard.js` (`safeFetch`) committed as `7e1fab0` and wired into 6 outbound-fetch call sites (scraper, photo OCR, desk scrape routes).
 
 ### Data minimization (bounds the risk surface)
 Verified by codebase-wide search:

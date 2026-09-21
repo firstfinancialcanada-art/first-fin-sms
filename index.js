@@ -56,13 +56,75 @@ const PORT         = process.env.PORT || 3000;
 const HOST         = '0.0.0.0';
 
 // ── Security headers ─────────────────────────────────────────────
+// Audit item M2. CSP was off entirely because platform.html carries 16 inline
+// <script> blocks and 354 inline handlers (onclick/oninput/onchange) — a strict
+// script-src means refactoring every one of those on a live system, which is
+// not a change to make in a hurry.
+//
+// Off entirely was still the wrong answer. The directives that actually stop
+// the ugliest attacks cost nothing here: object-src 'none' kills plugin-based
+// XSS, base-uri 'self' blocks <base> injection redirecting every relative URL,
+// frame-ancestors stops clickjacking, and form-action stops an injected form
+// posting credentials to someone else's server. Those are enforced now, with
+// script-src still permitting inline so nothing breaks.
+//
+// The stricter policy — same thing without 'unsafe-inline' — ships alongside
+// in Report-Only, so the inline handlers get counted rather than guessed at,
+// and there's a measured path to full enforcement.
+//
+// Two things deliberately NOT here:
+//   - upgrade-insecure-requests: the Deal Desk and FB Poster talk to local
+//     bridges on http://localhost:5001 and :5800. Browsers are supposed to
+//     exempt localhost as a trustworthy origin, but "supposed to" is not worth
+//     betting a customer's sync on.
+//   - a tight img-src: vehicle photos come from whatever CDN the dealer's site
+//     uses (homenetiol, cdn-convertus, autoscout24, and more with every new
+//     tenant). https: is the honest bound.
+const CSP_SHARED = {
+  'default-src':     ["'self'"],
+  'base-uri':        ["'self'"],
+  'object-src':      ["'none'"],
+  'frame-ancestors': ["'self'"],
+  'form-action':     ["'self'"],
+  'style-src':       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+  'font-src':        ["'self'", 'data:', 'https://fonts.gstatic.com'],
+  'img-src':         ["'self'", 'data:', 'blob:', 'https:'],
+  // lucide (unpkg), pdf.js (cdnjs), xlsx (sheetjs)
+  'script-src-elem': ["'self'", "'unsafe-inline'", 'https://unpkg.com', 'https://cdnjs.cloudflare.com', 'https://cdn.sheetjs.com'],
+  'worker-src':      ["'self'", 'blob:', 'https://cdnjs.cloudflare.com'],
+  'connect-src':     ["'self'", 'http://localhost:5001', 'http://localhost:5800'],
+  'frame-src':       ["'self'"],
+};
+
+function cspString(directives) {
+  return Object.entries(directives).map(([k, v]) => `${k} ${v.join(' ')}`).join('; ');
+}
+
 try {
   const helmet = require('helmet');
   app.use(helmet({
-    contentSecurityPolicy: false, // CSP would break inline scripts in platform.html
+    contentSecurityPolicy: false,   // set manually below — two policies, one enforced
     crossOriginEmbedderPolicy: false
   }));
-  console.log('✅ Helmet security headers enabled');
+
+  const enforced = cspString({
+    ...CSP_SHARED,
+    'script-src': ["'self'", "'unsafe-inline'", 'https://unpkg.com', 'https://cdnjs.cloudflare.com', 'https://cdn.sheetjs.com'],
+  });
+  // Same policy minus 'unsafe-inline' — what we're working toward.
+  const reportOnly = cspString({
+    ...CSP_SHARED,
+    'script-src':      ["'self'", 'https://unpkg.com', 'https://cdnjs.cloudflare.com', 'https://cdn.sheetjs.com'],
+    'script-src-elem': ["'self'", 'https://unpkg.com', 'https://cdnjs.cloudflare.com', 'https://cdn.sheetjs.com'],
+    'report-uri':      ['/api/csp-report'],
+  });
+
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', enforced);
+    res.setHeader('Content-Security-Policy-Report-Only', reportOnly);
+    next();
+  });
+  console.log('✅ Helmet security headers enabled (CSP enforced + strict policy in report-only)');
 } catch(e) {
   console.warn('⚠️ helmet not installed — run: npm install helmet');
 }
@@ -99,6 +161,31 @@ app.use(express.json({
   verify: (req, _res, buf) => { if (req.originalUrl.startsWith('/api/webhooks/meta-leads')) req.rawBody = buf; },
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ── CSP violation reports (report-only policy above) ──────────────
+// Every inline onclick in platform.html violates the strict policy, so this
+// would happily write thousands of identical lines a day. It aggregates by
+// directive + blocked URI instead and prints a rolling summary at most once a
+// minute — enough to see what still needs refactoring, cheap enough to leave
+// on. Browsers post these as application/csp-report, which express.json does
+// not parse by default.
+const _cspCounts = new Map();
+let _cspLastLog = 0;
+app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/json'], limit: '64kb' }), (req, res) => {
+  res.sendStatus(204);   // fire-and-forget: never make the browser wait
+  try {
+    const r = (req.body && (req.body['csp-report'] || req.body)) || {};
+    const key = `${r['effective-directive'] || r['violated-directive'] || '?'} ← ${String(r['blocked-uri'] || '?').slice(0, 80)}`;
+    _cspCounts.set(key, (_cspCounts.get(key) || 0) + 1);
+    const now = Date.now();
+    if (now - _cspLastLog > 60000) {
+      _cspLastLog = now;
+      const top = [..._cspCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      console.log('🛡️ CSP report-only violations (top ' + top.length + ' of ' + _cspCounts.size + '):');
+      for (const [k, n] of top) console.log(`   ${n}× ${k}`);
+    }
+  } catch (e) { /* a malformed report must never take the process down */ }
+});
 
 // ── Rate limiting ─────────────────────────────────────────────────
 // Login — 10 attempts per 15 min per IP
