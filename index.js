@@ -222,6 +222,9 @@ app.get('/privacy-extension', (req, res) => res.sendFile(path.join(__dirname, 'p
 // Invoices are NOT web-served — they live in invoice-templates/ (outside
 // public/) and render to PDF locally. Serving them as unauthenticated static
 // HTML exposed tenant billing PII + our HST# (security audit 2026-05-29, M1).
+// The operator page is served only through the gated /admin route
+// (routes/admin-dashboard.js) — never straight off disk.
+app.get('/admin.html', (req, res) => res.redirect(301, '/admin'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Auth ──────────────────────────────────────────────────────────

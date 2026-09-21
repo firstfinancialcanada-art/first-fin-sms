@@ -747,6 +747,8 @@ function doLogin() {
 function logout() {
   sessionStorage.removeItem(TOKEN_KEY);
   adminToken = '';
+  // Also end the page session, or /admin would keep serving this page.
+  location.replace('/admin/logout');
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('adminToken').value = '';
@@ -1896,9 +1898,9 @@ function toast(msg, type = '') {
 
 // ── INIT ─────────────────────────────────────────────────────────
 (function init() {
-  // URL token auto-login (e.g. /admin?token=xxx for bookmarking)
-  const urlToken = new URLSearchParams(window.location.search).get('token');
-  const saved = urlToken || sessionStorage.getItem(TOKEN_KEY);
+  // No ?token= login: a token in the URL lands in history and server logs.
+  // The /admin sign-in page stores it here instead.
+  const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) {
     adminToken = saved;
     sessionStorage.setItem(TOKEN_KEY, saved);

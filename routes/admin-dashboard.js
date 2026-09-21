@@ -30,11 +30,115 @@ module.exports = function adminDashboardRoutes(app, { twilioClient } = {}) {
     } catch (e) { console.error('Audit log error:', e.message); }
   }
 
-  // Serve admin.html without server-side guard — browser navigation can't send headers.
-  // All API routes below remain protected by adminAuth.
+  // ── /admin page gate ──────────────────────────────────────
+  // The operator page used to be served to anyone: every API call behind it
+  // needs the admin token, but the page itself listed the whole admin API,
+  // the test account and the internal tooling to whoever opened it (or its
+  // source). Now an unauthenticated visitor gets a bare sign-in box and
+  // nothing else. The real page is sent only with a valid session cookie,
+  // issued after the admin token is checked here.
+  //
+  // The cookie is not the token: it's an expiry signed with a key derived
+  // from JWT_SECRET and a hash of ADMIN_TOKEN, so rotating the token signs
+  // everyone out. httpOnly + SameSite=Strict + Path=/admin — page scripts
+  // can't read it and it never rides along on API calls (those still need
+  // the x-admin-token header, as before).
+  const crypto = require('crypto');
+  const ADMIN_COOKIE = 'ff_admin_page';
+  const ADMIN_PAGE_TTL = 12 * 3600 * 1000;
+  function adminPageKey() {
+    const t = crypto.createHash('sha256').update(String(process.env.ADMIN_TOKEN || '')).digest('hex');
+    return String(process.env.JWT_SECRET || '') + ':' + t;
+  }
+  function signAdminPage(exp) {
+    return crypto.createHmac('sha256', adminPageKey()).update('admin-page:' + exp).digest('hex');
+  }
+  function hasAdminPageSession(req) {
+    const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + ADMIN_COOKIE + '=(\\d+)\\.([a-f0-9]{64})'));
+    if (!m) return false;
+    const exp = parseInt(m[1], 10);
+    if (!exp || exp < Date.now()) return false;
+    const a = Buffer.from(m[2]), b = Buffer.from(signAdminPage(exp));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+  function tokenMatches(given) {
+    const want = String(process.env.ADMIN_TOKEN || '');
+    if (!want || !given) return false;
+    const a = crypto.createHash('sha256').update(String(given)).digest();
+    const b = crypto.createHash('sha256').update(want).digest();
+    return crypto.timingSafeEqual(a, b);
+  }
+  // 10 wrong tries per IP per 15 minutes, then locked out for the rest of it.
+  const _adminTries = new Map();
+  function adminTriesLeft(ip) {
+    const now = Date.now();
+    const rec = _adminTries.get(ip);
+    if (!rec || now - rec.start > 15 * 60 * 1000) return 10;
+    return 10 - rec.n;
+  }
+  function recordAdminMiss(ip) {
+    const now = Date.now();
+    const rec = _adminTries.get(ip);
+    if (!rec || now - rec.start > 15 * 60 * 1000) _adminTries.set(ip, { start: now, n: 1 });
+    else rec.n++;
+    if (_adminTries.size > 10000) _adminTries.clear();
+  }
+
+  const ADMIN_SIGNIN_HTML = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Sign in</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#070d1a;color:#e2e8f0;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+form{width:320px;max-width:calc(100vw - 32px);padding:28px;background:#0d1526;border:1px solid rgba(30,90,246,.3);border-radius:12px}
+h1{font-size:15px;letter-spacing:2px;text-transform:uppercase;margin:0 0 18px;color:#94a3b8}
+input{width:100%;box-sizing:border-box;padding:11px 12px;background:#070d1a;border:1px solid rgba(30,90,246,.3);border-radius:8px;color:#e2e8f0;font-size:14px}
+button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:8px;background:#1e5af6;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+p{min-height:18px;margin:10px 0 0;font-size:12px;color:#f87171}
+</style></head><body>
+<form id="f" autocomplete="off"><h1>Sign in</h1>
+<input type="password" id="t" placeholder="Access key" autofocus>
+<button type="submit">Continue</button><p id="e"></p></form>
+<script>
+document.getElementById('f').addEventListener('submit', async function (ev) {
+  ev.preventDefault();
+  var t = document.getElementById('t').value.trim(), e = document.getElementById('e');
+  if (!t) return;
+  e.textContent = '';
+  try {
+    var r = await fetch('/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }), credentials: 'same-origin' });
+    if (r.ok) { try { sessionStorage.setItem('ff_admin_token', t); } catch (x) {} location.replace('/admin'); return; }
+    e.textContent = r.status === 429 ? 'Too many attempts. Try again later.' : 'Not recognised.';
+  } catch (x) { e.textContent = 'Could not reach the server.'; }
+});
+</script></body></html>`;
+
   app.get('/admin', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    if (!hasAdminPageSession(req)) return res.type('html').send(ADMIN_SIGNIN_HTML);
     const path = require('path');
     res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+  });
+
+  app.post('/admin/login', (req, res) => {
+    const ip = req.ip || 'unknown';
+    if (adminTriesLeft(ip) <= 0) return res.status(429).json({ success: false });
+    if (!tokenMatches(req.body && req.body.token)) {
+      recordAdminMiss(ip);
+      console.warn(`⚠️ admin sign-in failed from ${ip}`);
+      return res.status(403).json({ success: false });
+    }
+    _adminTries.delete(ip);
+    const exp = Date.now() + ADMIN_PAGE_TTL;
+    res.cookie(ADMIN_COOKIE, `${exp}.${signAdminPage(exp)}`, {
+      httpOnly: true, secure: true, sameSite: 'strict', path: '/admin', maxAge: ADMIN_PAGE_TTL,
+    });
+    res.json({ success: true });
+  });
+
+  app.get('/admin/logout', (req, res) => {
+    res.clearCookie(ADMIN_COOKIE, { httpOnly: true, secure: true, sameSite: 'strict', path: '/admin' });
+    res.redirect('/admin');
   });
 
   // ── GET /api/admin/stats ──────────────────────────────────
