@@ -3718,7 +3718,15 @@ async function startLoginBuy() {
 .fbp-pace.warn b{color:var(--amber);}
 .fbp-pace.go{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.38);color:var(--green);}
 .fbp-pace.go b{color:var(--green);}
-.fbp-pace-set{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;color:var(--muted);}
+.fbp-pace-set{display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);color:var(--muted);}
+.fbp-pace-viz{display:flex;gap:10px;align-items:center;margin-bottom:8px;}
+.fbp-pace-donut svg{display:block;}
+.fbp-pace-legend{font-size:10px;line-height:1.65;color:var(--muted);min-width:0;}
+.fbp-pace-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+.fbp-pace .fbp-pace-legend b{color:var(--text);}
+.fbp-pace-legend .gw{color:#f87171;}
+.fbp-pace-legend .gc{color:var(--green);}
+.fbp-pace-inputs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .fbp-pace-set input{width:44px;padding:2px 4px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;}
 .fbp-pace-link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:9px;padding:0;margin-left:6px;}
 .fbp-qfoot{padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
@@ -4018,9 +4026,12 @@ async function startLoginBuy() {
     if (!el.querySelector('.fbp-pace-msg')) {
       el.innerHTML = `<span class="fbp-pace-msg"></span>` +
         `<button class="fbp-pace-link" onclick="fbpTogglePaceSet()">pace</button>` +
-        `<div class="fbp-pace-set" id="fbp-pace-set">Target <input type="number" id="fbp-pace-target" min="1" max="100"> a day,
-           <input type="number" id="fbp-pace-gap" min="0" max="240"> min apart
-           <button class="fbp-desc-copy save" onclick="fbpSavePace()">Save</button></div>`;
+        `<div class="fbp-pace-set" id="fbp-pace-set">
+           <div class="fbp-pace-viz"><div class="fbp-pace-donut"></div><div class="fbp-pace-legend"></div></div>
+           <div class="fbp-pace-inputs">Target <input type="number" id="fbp-pace-target" min="1" max="100"> a day,
+             <input type="number" id="fbp-pace-gap" min="0" max="240"> min apart
+             <button class="fbp-desc-copy save" onclick="fbpSavePace()">Save</button></div>
+         </div>`;
     }
     const tIn = document.getElementById('fbp-pace-target'), gIn = document.getElementById('fbp-pace-gap');
     if (tIn && document.activeElement !== tIn) tIn.value = st.target;
@@ -4046,10 +4057,57 @@ async function startLoginBuy() {
     el.className = 'fbp-pace ' + state;
     el.style.display = 'block';
     el.querySelector('.fbp-pace-msg').innerHTML = msg;
+    fbpDrawPaceChart(st, waitMs);
+  }
+
+  // The pace panel's chart. Outer ring: posts in the last 24h against the
+  // daily target, one colour per account (all accounts posted from this
+  // browser share one Facebook profile, so they share one budget). Inner
+  // ring: the gap timer, filling as the wait since the last post runs out.
+  const FBP_ACCT_COLORS = ['#06b6d4', '#a78bfa', '#f59e0b', '#10b981', '#f472b6'];
+  function fbpDrawPaceChart(st, waitMs) {
+    const donut = document.querySelector('#fbp-pace .fbp-pace-donut');
+    const legend = document.querySelector('#fbp-pace .fbp-pace-legend');
+    if (!donut || !legend) return;
+    const esc = t => String(t).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    const accts = Object.keys(st.byAcct).sort((a, b) => st.byAcct[b] - st.byAcct[a]);
+    const R = 26, r = 18, C = 2 * Math.PI * R, c = 2 * Math.PI * r;
+    const denom = Math.max(st.target, st.n) || 1;           // past target, the ring is full
+    let off = 0;
+    const arcs = accts.map((a, i) => {
+      const len = C * st.byAcct[a] / denom;
+      const arc = `<circle r="${R}" cx="32" cy="32" fill="none" stroke="${FBP_ACCT_COLORS[i % FBP_ACCT_COLORS.length]}" stroke-width="7"
+        stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 32 32)"/>`;
+      off += len;
+      return arc;
+    }).join('');
+    // Gap timer: fraction of the gap that has elapsed (1 = clear).
+    const gapFrac = !st.gap || !st.last ? 1 : Math.min(1, Math.max(0, 1 - waitMs / (st.gap * 60000)));
+    const gapColor = gapFrac < 1 ? '#f87171' : '#10b981';
+    const gapLen = c * gapFrac;
+    const over = st.n > st.target;
+    donut.innerHTML = `<svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="${st.n} of ${st.target} posts in the last 24 hours">
+      <circle r="${R}" cx="32" cy="32" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>
+      ${arcs}
+      <circle r="${r}" cx="32" cy="32" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="3"/>
+      <circle r="${r}" cx="32" cy="32" fill="none" stroke="${gapColor}" stroke-width="3" stroke-linecap="round"
+        stroke-dasharray="${gapLen.toFixed(2)} ${(c - gapLen).toFixed(2)}" transform="rotate(-90 32 32)"/>
+      <text x="32" y="36" text-anchor="middle" font-size="12" font-weight="700" fill="${over ? '#f59e0b' : '#e2e8f0'}" font-family="DM Mono,monospace">${st.n}/${st.target}</text>
+    </svg>`;
+    const rows = accts.length
+      ? accts.map((a, i) => `<div><i style="background:${FBP_ACCT_COLORS[i % FBP_ACCT_COLORS.length]}"></i>${esc(a)} <b>${st.byAcct[a]}</b></div>`).join('')
+      : '<div>No posts in the last 24h</div>';
+    const left = Math.max(0, st.target - st.n);
+    const gapRow = !st.gap ? '<div>No gap set</div>'
+      : waitMs > 0 ? `<div class="gw">⏱ Next post in ${waitMs < 60000 ? 'under a minute' : 'about ' + Math.ceil(waitMs / 60000) + ' min'}</div>`
+      : '<div class="gc">⏱ Gap clear</div>';
+    legend.innerHTML = rows + `<div>${over ? `<b>${st.n - st.target}</b> over target` : `<b>${left}</b> left today`}</div>` + gapRow;
   }
   window.fbpTogglePaceSet = function() {
     const box = document.getElementById('fbp-pace-set');
-    if (box) box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+    if (!box) return;
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    if (box.style.display === 'block') fbpRenderPace();
   };
   window.fbpSavePace = function() {
     const target = parseInt(document.getElementById('fbp-pace-target')?.value, 10);
