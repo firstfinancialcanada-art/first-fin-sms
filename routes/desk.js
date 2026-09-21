@@ -14,7 +14,7 @@ const {
 } = require('../middleware/auth');
 const { safeFetch } = require('../lib/url-guard'); // SSRF-guarded fetch for scrape/photo endpoints
 
-const { EXEMPT_EMAILS, TENANT_CAPS } = require('../lib/constants');
+const { EXEMPT_EMAILS, TENANT_CAPS, WHOLESALE_SOURCES } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
 const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
@@ -1324,7 +1324,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
             'SELECT stock, year, make, model, mileage, price, condition, carfax, type, status, vin, color, trim, cost, book_value, fb_status, fb_posted_date, photos, int_color, transmission, fuel_type, drive_train, engine, source, retail_price, carfax_badges, carfax_url FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL ORDER BY stock',
             [req.user.userId]
           );
-      res.json({ success: true, inventory: result.rows });
+      const inventory = result.rows.map(r => ({
+        ...r, is_wholesale: WHOLESALE_SOURCES.includes(String(r.source || '').toLowerCase()),
+      }));
+      res.json({ success: true, inventory });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {

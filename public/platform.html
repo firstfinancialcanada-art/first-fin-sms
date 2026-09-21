@@ -4144,10 +4144,10 @@ async function startLoginBuy() {
     }
   }
 
-  // Sites whose imported price is dealer-only (AMVIC wholesale). Those units
-  // must never list at the imported number, so the poster uses retail_price
-  // instead and refuses to fill until it's set for that specific unit.
-  const FBP_WHOLESALE_SOURCES = ['smartbuyauto.ca'];
+  // Wholesale units (dealer-only imported price) must never list at the
+  // imported number: the poster uses retail_price and refuses to fill until
+  // it's set for that unit. The server decides which sources are wholesale
+  // (lib/constants.js) and sends is_wholesale per vehicle.
 
   // New vs used. Most importers never recorded it — the South Trail
   // (Convertus) path writes "Used" on every unit — so infer it from what
@@ -4164,7 +4164,7 @@ async function startLoginBuy() {
   function fbpNorm(v) {
     const listedPrice = parseFloat(v.price) || 0;
     const retailPrice = parseFloat(v.retail_price) || 0;
-    const isWholesale = FBP_WHOLESALE_SOURCES.includes(String(v.source || '').toLowerCase());
+    const isWholesale = v.is_wholesale === true;
     const price = isWholesale ? retailPrice : listedPrice;
     const mileage = parseInt(v.mileage) || 0;
     const title = `${v.year||''} ${v.make||''} ${v.model||''}`.replace(/\s+/g,' ').trim() || 'Unknown';
