@@ -6,7 +6,8 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-cap');
-const { notifyTenantManagers } = require('../lib/notify');
+const { notifyTenantManagers, notifyRep } = require('../lib/notify');
+const leadRouting = require('../lib/lead-routing');
 const validateTwilio = makeTwilioWebhookValidator();
 
 // ── Phase 7+ — Centralised vehicle vocabulary ─────────────────────────
@@ -1794,6 +1795,37 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         budget: conversation.budget, budgetAmount: conversation.budget_amount, datetime: finalDateTime,
         userId
       };
+
+      // A booked lead becomes a CRM entry, gets assigned by the round-robin
+      // rules, and the rep who caught it gets told — none of which used to
+      // happen for a Sarah lead. Before this, booking produced an
+      // appointment row and a text to the managers, and the CRM only learned
+      // about the customer if somebody later ran the manual import screen.
+      // Best-effort and never in the way: a routing failure must not stop the
+      // customer getting their confirmation.
+      (async () => {
+        try {
+          const r = await leadRouting.captureAndRouteSarahLead({
+            tenantId, userId,
+            phone,
+            name:        conversation.customer_name,
+            vehicleType: conversation.vehicle_type,
+            budget:      conversation.budget,
+            detail:      conversation.vehicle_detail,
+          });
+          if (r.assigned && r.repId) {
+            const what = conversation.vehicle_detail
+              ? `${conversation.vehicle_type || 'Vehicle'} — "${conversation.vehicle_detail}"`
+              : (conversation.vehicle_type || 'Vehicle TBD');
+            await notifyRep({
+              repUserId:  r.repId,
+              fromNumber,
+              body: `🎯 Lead assigned to you\n${conversation.customer_name || 'New lead'}\n${formatPretty(phone)}\n${what}\n${conversation.intent === 'test_drive' ? 'Appointment' : 'Callback'}: ${finalDateTime}`,
+              twilioClient,
+            });
+          }
+        } catch (e) { console.error('❌ sarah lead capture/route:', e.message); }
+      })();
 
       // What the customer actually said they wanted, in their words. The
       // type alone ("Truck") tells a closer nothing; "crew cab, needs to tow"
