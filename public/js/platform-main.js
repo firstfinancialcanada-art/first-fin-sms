@@ -2750,6 +2750,7 @@ function openSettingsModal(){
   setVal('setTarget',  settings.target);
   if(settings.logoUrl){ previewLogo(settings.logoUrl); }
   setVal('setDealerCity',   settings.dealerCity   || '');
+  setVal('setDeliveryArea', settings.deliveryArea || '');
   setVal('setTwilioNumber',   settings.twilioNumber   || '');
   setVal('setNotifyPhone',    settings.notifyPhone    || '');
   setVal('setGoogleReviewUrl', settings.googleReviewUrl || '');
@@ -3293,6 +3294,7 @@ async function saveSettings(){
   settings.apr       = parseFloat(getVal('setAPR'))     || settings.apr;
   settings.target    = parseInt(getVal('setTarget'))    || settings.target;
   settings.dealerCity   = (getVal('setDealerCity')   || '').trim();
+  settings.deliveryArea = (getVal('setDeliveryArea') || '').trim();
   const rawTwilio = (getVal('setTwilioNumber') || '').trim();
   const rawNotify = (getVal('setNotifyPhone')  || '').trim();
   const twilioNum = rawTwilio ? ffNormalizePhone(rawTwilio) : '';

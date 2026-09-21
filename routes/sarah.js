@@ -279,6 +279,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       notifyPhone:     parsed.notifyPhone   || null,
       dealerName:      parsed.dealerName    || null,
       dealerCity:      parsed.dealerCity    || null,
+      deliveryArea:    parsed.deliveryArea  || '',
       googleReviewUrl: parsed.googleReviewUrl || null,
     };
     _tenantCache.set(userId, { data, ts: Date.now() });
@@ -683,7 +684,11 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // every tenant's lead alerts to the platform operator's phone.
     let TENANT_FROM_NUMBER = process.env.TWILIO_PHONE_NUMBER;
     let TENANT_DEALER_NAME  = process.env.DEALER_NAME  || 'First Financial Auto';
-    let TENANT_DEALER_CITY  = process.env.DEALER_CITY  || 'Calgary, AB';
+    // No city fallback: the env value is "Canada", so a tenant that left
+    // City blank had Sarah announce "We're in Canada". Blank now means the
+    // city is left out of the sentence.
+    let TENANT_DEALER_CITY  = '';
+    let TENANT_DELIVERY     = '';
     let TENANT_INVENTORY    = [];
     let TENANT_ID           = null;
     try {
@@ -706,6 +711,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         if (ts.twilioNumber) TENANT_FROM_NUMBER  = ts.twilioNumber;
         if (ts.dealerName)   TENANT_DEALER_NAME  = ts.dealerName;
         if (ts.dealerCity)   TENANT_DEALER_CITY  = ts.dealerCity;
+        TENANT_DELIVERY = ts.deliveryArea || '';
       }
       TENANT_INVENTORY = invResult.rows;
       TENANT_ID = tenantRow.rows[0]?.tenant_id || null;
@@ -796,7 +802,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           await saveMessage(conversation.id, phone, 'user', message, WEBHOOK_USER_ID);
           try { await logAnalytics('message_received', phone, { message }, WEBHOOK_USER_ID); } catch(e) { console.error('Analytics error:', e.message); }
 
-          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY);
+          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY, TENANT_DELIVERY);
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
           try {
@@ -896,7 +902,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   //   acq_appointment    — appraisal vs callback choice
   //   name / datetime / confirmed — shared with sales mode
   // ────────────────────────────────────────────────────────────────────
-  async function getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = 'our location') {
+  // "We're in Calgary, AB — and we deliver all across Canada!" Built from
+  // the tenant's own City and Delivery Area settings; either can be blank,
+  // and with both blank it's an empty string rather than a guess.
+  function whereWeAre(city, delivery) {
+    if (city && delivery) return `We're in ${city} — and we deliver ${delivery}!`;
+    if (city)             return `We're in ${city}.`;
+    if (delivery)         return `We deliver ${delivery}!`;
+    return '';
+  }
+
+  async function getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = '', deliveryArea = '') {
     const lowerMsg = message.toLowerCase().trim();
     const name = conversation.customer_name || '';
     function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
@@ -1200,7 +1216,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     if (conversation.stage === 'datetime' || conversation.stage === 'confirmed') {
       // Hand off to the buy-side function for datetime parsing + confirmation
       // (it doesn't read mode-specific fields past this point).
-      return await getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, []);
+      return await getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, [], deliveryArea);
     }
 
     // ── Fallback: fail-forward to a human ──────────────────────────
@@ -1213,13 +1229,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       : "Let me have our buyer give you a quick call to sort everything out. What's your name and a good time to reach you?";
   }
 
-  async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = 'our location', inventory = []) {
+  async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = '', inventory = [], deliveryArea = '') {
     // Mode router — acquisition campaigns go to a separate FSM that asks
     // about the seller's vehicle, mileage, condition, asking price, and
     // pivots to "looking to replace it?" before booking. Sales mode (the
     // historical default) continues unchanged below.
     if (conversation.mode === 'acquisition') {
-      return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity);
+      return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, deliveryArea);
     }
 
     const lowerMsg = message.toLowerCase().trim();
@@ -1368,9 +1384,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // ── ODD QUESTIONS → funnel to callback ───────────────────
     if (lowerMsg.includes('location') || lowerMsg.includes('where are you') || lowerMsg.includes('address') || lowerMsg.includes('directions')) {
-      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); return `We're in ${dealerCity} — and we deliver all across Canada! I can have one of our team call you with details and details. What's your name?`; }
+      if (!name) { await updateConversation(conversation.id, { intent: 'callback', stage: 'name' }); const where = whereWeAre(dealerCity, deliveryArea); return `${where ? where + ' ' : ''}I can have one of our team call you with the details. What's your name?`; }
       await updateConversation(conversation.id, { intent: 'callback', stage: 'datetime' });
-      return `We're in ${dealerCity} ${name} — and we deliver all across Canada! When's a good time for one of our team to call you with directions?`;
+      const where = whereWeAre(dealerCity, deliveryArea);
+      return `${where ? where + ' ' : ''}When's a good time for one of our team to call you with directions, ${name}?`;
     }
 
     if (lowerMsg.includes('financ') || lowerMsg.includes('credit') || lowerMsg.includes('loan') ||
@@ -1851,7 +1868,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         }, 60000);
         await logAnalytics('appointment_booked', phone, data, userId);
         const afterHoursNote = isAfterHours ? ` Our team will confirm your time in the morning.` : '';
-        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}.${afterHoursNote} We're at ${dealerName} in ${dealerCity} and we deliver across Canada. Our team will have everything ready for you.\n\nIf anything changes just text me back. See you soon!`;
+        return `Perfect ${conversation.customer_name}! You're all set for ${finalDateTime}.${afterHoursNote} We're at ${dealerName}${dealerCity ? ' in ' + dealerCity : ''}${deliveryArea ? ' and we deliver ' + deliveryArea : ''}. Our team will have everything ready for you.\n\nIf anything changes just text me back. See you soon!`;
       } else {
         await saveCallback(data);
         try {

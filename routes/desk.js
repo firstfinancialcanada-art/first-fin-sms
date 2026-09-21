@@ -71,6 +71,24 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       await pool.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS ui_prefs JSONB DEFAULT '{}'`);
       console.log('✅ desk_users.ui_prefs ready');
     } catch(e) { console.error('⚠️ ui_prefs migration:', e.message); }
+
+    // Sarah used to tell every tenant's customers "we deliver all across
+    // Canada". It's now the deliveryArea setting, blank = never mentioned.
+    // Tenants that were already live keep saying what they said before;
+    // anyone created after the change starts blank. The created_at cutoff
+    // makes this one-shot: a later tenant that gets a Sarah number before
+    // ever saving Settings must not inherit a Canada-wide delivery promise.
+    try {
+      await require('../lib/db').migrationsReady;   // settings_json must be JSONB first
+      const r = await pool.query(`
+        UPDATE desk_users
+           SET settings_json = settings_json || '{"deliveryArea":"all across Canada"}'::jsonb
+         WHERE twilio_number IS NOT NULL
+           AND NOT (settings_json ? 'deliveryArea')
+           AND created_at < '2026-09-22'
+      `);
+      if (r.rowCount) console.log(`🚚 deliveryArea: kept "all across Canada" for ${r.rowCount} existing tenant(s)`);
+    } catch(e) { console.error('⚠️ deliveryArea backfill:', e.message); }
   })();
 
   // ── Phase 6: per-rep FB-posting attribution ──
@@ -238,6 +256,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     salesName: '',
     dealerName: 'My Dealership',
     dealerCity: '',     // shown in SARAH appointment confirmation messages
+    deliveryArea: '',   // Sarah: "we deliver <this>". Blank = she doesn't mention delivery
     logoUrl: '',
     docFee: 998,
     gst: 5,
@@ -296,6 +315,10 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     // Always hand back a complete, valid hours object — a malformed day
     // becomes closed rather than something that spans midnight on the phone.
     merged.businessHours = hours.normalizeHours(merged.businessHours);
+    // Sarah wraps this as "we deliver ___!", so drop a typed "we deliver"
+    // and trailing punctuation rather than send "we deliver we deliver...!."
+    merged.deliveryArea = String(merged.deliveryArea || '').replace(/\s+/g, ' ').trim()
+      .replace(/^we\s+deliver\s+/i, '').replace(/[.!\s]+$/, '').slice(0, 60);
     return merged;
   }
 
