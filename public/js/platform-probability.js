@@ -19,12 +19,11 @@
     if (!beacon || beacon <= 0 || !ltvPct) return {};
     
     try {
-      const res = await fetch('/api/desk/outcomes/all-probabilities', {
+      // Was sending localStorage 'ffToken', which nothing ever writes — the
+      // login token lives in sessionStorage and is attached by FF.apiFetch.
+      // Every call 401'd, so approval probability silently returned nothing.
+      const res = await window.FF.apiFetch('/api/desk/outcomes/all-probabilities', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + localStorage.getItem('ffToken')
-        },
         body: JSON.stringify({ beacon, ltvPct })
       });
       const data = await res.json();

@@ -969,7 +969,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // repoint notifyPhone at their own cell and quietly take every lead
       // alert in the tenant, or change the Sarah number outright.
       const scope = await resolveScope(req);
-      if (scope && !roleAtLeast(scope, 'manager')) {
+      if (!roleAtLeast(scope, 'manager')) {
         return res.status(403).json({ success: false, error: 'Only managers can change dealership settings.' });
       }
 
@@ -1060,7 +1060,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   }
 
-  app.post('/api/desk/upload-logo', requireAuth, requireBilling, (req, res, next) => {
+  app.post('/api/desk/upload-logo', requireAuth, requireBilling, async (req, res, next) => {
+    // Writes the tenant-wide logo — same data PUT /api/desk/team/branding
+    // guards with manager+.
+    const logoScope = await resolveScope(req);
+    if (!roleAtLeast(logoScope, 'manager')) {
+      return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+        error: 'Only managers + owners can change dealership branding' });
+    }
     const upload = getLogoUpload();
     if (!upload) return res.status(503).json({ success: false, error: 'Upload service unavailable' });
     upload.single('logo')(req, res, async (err) => {
@@ -1243,6 +1250,13 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
   // Purchase a number and assign it to this tenant
   app.post('/api/desk/twilio/provision-number', requireAuth, requireBilling, async (req, res) => {
+    // Buys a number on the master Twilio account and repoints the tenant's
+    // Sarah line. The UI only shows this to managers; the server didn't.
+    const provScope = await resolveScope(req);
+    if (!roleAtLeast(provScope, 'manager')) {
+      return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
+        error: 'Only managers + owners can provision a number' });
+    }
     if (!twilioClient) return res.status(503).json({ success: false, error: 'Twilio not configured on server' });
     const { phoneNumber } = req.body;
     if (!phoneNumber || !phoneNumber.startsWith('+1')) {
@@ -1396,7 +1410,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // inventory entirely. Only managers + owners can run this; reps don't
       // get to nuke the lot.
       const scope = await resolveScope(req);
-      if (scope && !roleAtLeast(scope, 'manager')) {
+      if (!roleAtLeast(scope, 'manager')) {
         return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
           error: 'Only managers can bulk-replace inventory. Ask your manager to run the import.' });
       }
@@ -1524,7 +1538,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // Phase 6: only managers + owners can delete from the shared lot.
       // Reps can mark vehicles sold/wholesale, but not destroy data.
       const scope = await resolveScope(req);
-      if (scope && !roleAtLeast(scope, 'manager')) {
+      if (!roleAtLeast(scope, 'manager')) {
         return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
           error: 'Only managers can delete inventory. Ask your manager to remove this vehicle.' });
       }
@@ -1593,9 +1607,14 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         ? 'fb_posted_by_user_id = $4,'
         : (status === 'pending' ? 'fb_posted_by_user_id = NULL,' : '');
       const scope = await resolveScope(req);
-      const params = scope?.tenantId
-        ? [status, req.params.stock, scope.tenantId, postedBy].filter((_, i) => i < 3 || postedByCl)
-        : [status, req.params.stock, req.user.userId, postedBy].filter((_, i) => i < 3 || postedByCl);
+      // Only 'posted' puts a $4 in the SQL. 'pending' writes a literal NULL
+      // and 'skipped' writes nothing, so passing postedBy in those cases sent
+      // 4 params for 3 placeholders and Postgres rejected the whole update —
+      // un-posting a vehicle always 500'd.
+      const owner = scope?.tenantId || req.user.userId;
+      const params = status === 'posted'
+        ? [status, req.params.stock, owner, postedBy]
+        : [status, req.params.stock, owner];
       const result = scope?.tenantId
         ? await client.query(
             `UPDATE desk_inventory SET fb_status = $1, ${dateClause} ${postedByCl} updated_at = NOW()
@@ -1739,7 +1758,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
       // require manager+ since the importer is a manager workflow (reps
       // shouldn't be running scrapes that could overwrite cards in flight).
       const scope = await resolveScope(req);
-      if (scope && !roleAtLeast(scope, 'manager')) {
+      if (!roleAtLeast(scope, 'manager')) {
         return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
           error: 'Only managers can sync inventory from the importer. Ask your manager.' });
       }

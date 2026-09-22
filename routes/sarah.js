@@ -709,8 +709,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         getTenantSettings(WEBHOOK_USER_ID),
         pool.query(
           `SELECT year, make, model, mileage, price, type, condition, stock
-           FROM desk_inventory WHERE user_id = $1 AND status = 'available'
-           ORDER BY year DESC LIMIT 20`,
+             FROM desk_inventory
+            WHERE status = 'available'
+              AND (tenant_id = (SELECT tenant_id FROM desk_members
+                                 WHERE user_id = $1 AND active = TRUE
+                                 ORDER BY id ASC LIMIT 1)
+                   OR (tenant_id IS NULL AND user_id = $1))
+            ORDER BY year DESC LIMIT 20`,
           [WEBHOOK_USER_ID]
         ),
         pool.query(
@@ -1921,7 +1926,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             body: `PHOTOS REQUESTED\n${name}\n${formatPretty(phone)}\n${conversation.vehicle_type || '—'} / ${conversation.budget || '—'}`,
           });
         } catch(e) { console.error('❌ manager notify failed:', e.message); }
-        await saveCallback({ phone, name, vehicleType: conversation.vehicle_type, budget: conversation.budget, budgetAmount: conversation.budget_amount, datetime: 'ASAP - Requested photos' });
+        await saveCallback({ phone, name, vehicleType: conversation.vehicle_type, budget: conversation.budget, budgetAmount: conversation.budget_amount, datetime: 'ASAP - Requested photos', userId });
         return `${name}, I've flagged it — someone will text you photos of what we've got in your range shortly!`;
       }
       if (lowerMsg.includes('warranty') || lowerMsg.includes('protection') || lowerMsg.includes('gap') || lowerMsg.includes('coverage')) {

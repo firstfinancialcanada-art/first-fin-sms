@@ -478,7 +478,12 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       try {
         const vRes = await client.query(
           `SELECT year, make, model, mileage, price, type, condition, stock, carfax,
-                  book_value, vin FROM desk_inventory WHERE stock = $1 AND user_id = $2`,
+                  book_value, vin FROM desk_inventory
+            WHERE stock = $1
+              AND (tenant_id = (SELECT tenant_id FROM desk_members
+                                 WHERE user_id = $2 AND active = TRUE
+                                 ORDER BY id ASC LIMIT 1)
+                   OR (tenant_id IS NULL AND user_id = $2))`,
           [stock, uid]
         );
         if (!vRes.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });
@@ -588,7 +593,12 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       try {
         const vRes = await client.query(
           `SELECT year, make, model, mileage, price, type, condition, stock, carfax,
-                  book_value FROM desk_inventory WHERE stock = $1 AND user_id = $2`,
+                  book_value FROM desk_inventory
+            WHERE stock = $1
+              AND (tenant_id = (SELECT tenant_id FROM desk_members
+                                 WHERE user_id = $2 AND active = TRUE
+                                 ORDER BY id ASC LIMIT 1)
+                   OR (tenant_id IS NULL AND user_id = $2))`,
           [stock, uid]
         );
         if (!vRes.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });
@@ -680,7 +690,12 @@ module.exports = function compareRoutes(app, { requireAuth, requireBilling }) {
       try {
         const vRes = await client.query(
           `SELECT year, make, model, mileage, price, type, condition, stock, carfax,
-                  book_value FROM desk_inventory WHERE stock = $1 AND user_id = $2`,
+                  book_value FROM desk_inventory
+            WHERE stock = $1
+              AND (tenant_id = (SELECT tenant_id FROM desk_members
+                                 WHERE user_id = $2 AND active = TRUE
+                                 ORDER BY id ASC LIMIT 1)
+                   OR (tenant_id IS NULL AND user_id = $2))`,
           [stock, uid]
         );
         if (!vRes.rows.length) return res.status(404).json({ success: false, error: 'Vehicle not found' });

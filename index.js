@@ -9,7 +9,11 @@ require('dotenv').config();
 // `token !== process.env.ADMIN_TOKEN`, which fails OPEN (grants access to a
 // request with no token) if the env var is ever undefined. Requiring it at
 // boot makes that impossible at runtime. Security audit 2026-06-18.
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_TOKEN'];
+// TWILIO_AUTH_TOKEN and BASE_URL are required for the same reason as
+// ADMIN_TOKEN: validateTwilio (lib/helpers.js) skips signature checking when
+// either is missing, so losing one would let anyone POST forged inbound SMS
+// and drive Sarah's replies and bookings.
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_TOKEN', 'TWILIO_AUTH_TOKEN', 'BASE_URL'];
 const WARN_ENV = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'STRIPE_SECRET_KEY'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) { console.error(`❌ FATAL: Missing required env var: ${key}`); process.exit(1); }

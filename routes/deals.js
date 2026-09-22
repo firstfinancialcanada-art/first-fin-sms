@@ -172,19 +172,28 @@ module.exports = function dealsRoutes(app, { requireAuth, requireBilling, twilio
       // Resolve tenant's provisioned Twilio number
       let fromNumber = process.env.TWILIO_PHONE_NUMBER;
       let storeName  = dealership || 'First Financial';
+      let reviewUrl  = '';
       try {
         const ts = await pool.query('SELECT settings_json FROM desk_users WHERE id = $1', [uid]);
         const s  = ts.rows[0]?.settings_json;
         const parsed = typeof s === 'string' ? JSON.parse(s) : (s || {});
         if (parsed.twilioNumber) fromNumber = parsed.twilioNumber;
         if (parsed.dealerName)   storeName  = dealership || parsed.dealerName || storeName;
+        reviewUrl = parsed.googleReviewUrl || '';
       } catch(e) { console.warn('⚠️ deal-funded tenant lookup failed:', e.message); }
 
       const name    = customerName || 'there';
       const vehicle = vehicleDesc  || 'your new vehicle';
+      // This used to hardcode https://g.page/r/review — a dead placeholder
+      // texted to every funded customer while the dealer's own Google link
+      // sat unused in settings. Same rule as the deal-log SMS in desk.js:
+      // no link configured, no review sentence.
+      const reviewLine = reviewUrl
+        ? `We'd love a quick Google review — it means the world to us: ${reviewUrl}\n\n`
+        : '';
       const message =
         `Hi ${name.split(' ')[0]}! 🎉 Congratulations on your ${vehicle} from ${storeName}! ` +
-        `We'd love a quick Google review — it means the world to us: https://g.page/r/review\n\n` +
+        reviewLine +
         `Know anyone looking for a vehicle? Send them our way and we'll take great care of them!`;
 
       const conversation = await getOrCreateConversation(normalized, uid);
