@@ -209,6 +209,15 @@ tr:hover td{background:rgba(30,90,246,.03);}
   .stat-grid{grid-template-columns:repeat(4,1fr);}
   .section-grid{grid-template-columns:1fr;}
 }
+@media(max-width:700px){
+  /* Logging a touch happens on the lot, on a phone: the per-channel
+     buttons were 24px tall. */
+  .act{min-height:32px;padding:6px 12px;}
+  .inq-actions{gap:8px;}
+  .inq-tools{width:100%;}
+  .inq-tools input{flex:1;width:auto;min-width:0;}
+  .card-header{flex-wrap:wrap;gap:8px;}
+}
 @media(max-width:600px){
   .stat-grid{grid-template-columns:repeat(2,1fr);}
   main{padding:16px;}

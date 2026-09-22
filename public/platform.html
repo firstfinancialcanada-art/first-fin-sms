@@ -769,6 +769,31 @@ select option{background:#0d1526;color:var(--text);}
 }
 
 /* ══════════════════════════════════════════════
+   PHONE PASS (≤ 600px) — measured on a 375px screen
+   Franco works the lot with his phone: the payment grid and Sarah are
+   what he opens standing next to a customer.
+══════════════════════════════════════════════ */
+@media(max-width:600px){
+  /* The payment grid carried min-width:420px, so on a 375px screen the
+     84-month column sat off the edge — readable only by swiping inside
+     the table, which nobody does with a customer watching. It fits now. */
+  .payment-table{min-width:0;font-size:11px;}
+  .payment-table th{padding:7px 2px;font-size:9px;letter-spacing:0;}
+  .payment-table td{padding:8px 2px;}
+  .payment-table th:first-child,.payment-table td:first-child{width:74px;}
+  .payment-val{font-size:13px;}
+
+  /* Term / frequency toggles were 19px tall — under a fingertip. */
+  .fi-term-btn,.fi-freq-btn,.freq-btn{min-height:32px;padding:7px 12px;font-size:11px;}
+  .act,.btn-sm,.mgr-tab,.ltab,.hbtn{min-height:32px;}
+
+  /* Tab strips scroll sideways rather than squashing; keep the labels
+     whole and let a thumb flick them. */
+  .mgr-tabs,.lender-tabs{-webkit-overflow-scrolling:touch;}
+  .mgr-tab,.ltab{flex:0 0 auto;white-space:nowrap;}
+}
+
+/* ══════════════════════════════════════════════
    MOBILE HAMBURGER MENU
 ══════════════════════════════════════════════ */
 .hamburger{
@@ -3770,6 +3795,23 @@ async function startLoginBuy() {
 .fbp-flash{margin-left:auto;font-size:11px;font-weight:600;color:var(--green);opacity:0;transition:opacity .3s;white-space:nowrap;}
 .fbp-flash.show{opacity:1;}
 .fbp-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+
+/* Phone: the poster is a two-column desktop layout (queue | vehicle), and
+   at 375px the vehicle side collapsed to zero width — the queue was all
+   you could see. Stack them instead, queue first, and let the page scroll
+   normally instead of trapping scroll inside panels. The row container
+   carries its display:flex inline, so overflow needs !important here. */
+@media(max-width:768px){
+  .fbp-wrap{height:auto;min-height:0;}
+  .fbp-main{flex-direction:column;overflow:visible;}
+  #fbp-active-wrap{overflow:visible !important;}
+  .fbp-cols{flex-direction:column;overflow:visible !important;}
+  .fbp-q{width:100%;border-right:0;border-bottom:1px solid var(--border2);}
+  .fbp-qlist{max-height:34vh;}
+  .fbp-right{min-height:60vh;}
+  .fbp-topbar,.fbp-sorts,.fbp-stats,.fbp-abar{flex-wrap:wrap;}
+  .fbp-btn{min-height:34px;}
+}
 .fbp-body::-webkit-scrollbar{width:4px;}
 .fbp-body::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px;}
 .fbp-steps-wrap{padding:10px 16px;}
@@ -3869,7 +3911,7 @@ async function startLoginBuy() {
 
     <!-- ACTIVE — shown when bridge is online -->
     <div style="display:none;flex:1;flex-direction:column;overflow:hidden;" id="fbp-active-wrap">
-      <div style="display:flex;flex:1;overflow:hidden;">
+      <div class="fbp-cols" style="display:flex;flex:1;overflow:hidden;">
 
         <!-- Queue panel -->
         <div class="fbp-q">
