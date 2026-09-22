@@ -850,6 +850,8 @@ select option{background:#0d1526;color:var(--text);}
 .mobile-nav-btn:hover,.mobile-nav-btn.active{
   background:rgba(30,90,246,.12);color:var(--primary);
 }
+.mobile-signout{color:#f87171;border-color:rgba(239,68,68,.35);}
+.mobile-signout:hover{background:rgba(239,68,68,.12);}
 .mobile-action-btn{
   display:flex;align-items:center;gap:10px;
   padding:11px 14px;border-radius:8px;
@@ -1095,9 +1097,12 @@ select option{background:#0d1526;color:var(--text);}
   <button class="mobile-action-btn" onclick="closeMobileMenu();openPresentation()"><i data-lucide="presentation" class="ico-sm"></i> Customer Presentation</button>
   <button class="mobile-action-btn" onclick="closeMobileMenu();saveDeal()"><i data-lucide="save" class="ico-sm"></i> Save Deal</button>
   <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('emailModal')"><i data-lucide="mail" class="ico-sm"></i> Email Worksheet</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i> Edit Rates</button>
+  <button class="mobile-action-btn" data-min-role="manager" onclick="closeMobileMenu();openModal('lenderRateModal');buildLenderRateEditor()"><i data-lucide="sliders" class="ico-sm"></i> Edit Rates</button>
   <button class="mobile-action-btn" onclick="closeMobileMenu();toggleDarkMode()"><i data-lucide="sun-moon" class="ico-sm"></i> Toggle Theme</button>
-  <button class="mobile-action-btn" onclick="closeMobileMenu();openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i> Settings</button>
+  <button class="mobile-action-btn" data-min-role="manager" onclick="closeMobileMenu();openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i> Settings</button>
+  <button class="mobile-action-btn" data-min-role="manager" onclick="closeMobileMenu();openUsageModal()"><i data-lucide="activity" class="ico-sm"></i> Usage &amp; Billing</button>
+  <div class="mobile-menu-divider"></div>
+  <button class="mobile-action-btn mobile-signout" onclick="closeMobileMenu();if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}"><i data-lucide="log-out" class="ico-sm"></i> Sign Out</button>
 </div>
 
 <!-- ═══ DEAL DESK ═══ -->
