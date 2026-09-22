@@ -1,6 +1,6 @@
 // routes/admin-dashboard.js — FIRST-FIN Admin Panel API
 const { pool } = require('../lib/db');
-const { TENANT_CAPS } = require('../lib/constants');
+const { TENANT_CAPS, TIER_CAPS } = require('../lib/constants');
 const { addOverage } = require('../lib/spend-cap');
 const tenants = require('../lib/tenants');
 
@@ -195,7 +195,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
           COALESCE(tu.voice_spend_cents,     0)            AS voice_spend_cents,
           COALESCE(tu.overage_balance_cents, 0)            AS overage_balance_cents,
           (SELECT COUNT(*)::int FROM desk_inventory WHERE user_id = u.id) AS inventory_count,
-          (SELECT COUNT(*)::int FROM desk_crm      WHERE user_id = u.id) AS crm_count
+          (SELECT COUNT(*)::int FROM desk_crm      WHERE user_id = u.id) AS crm_count,
+          (SELECT t.tier FROM desk_members m JOIN desk_tenants t ON t.id = m.tenant_id
+            WHERE m.user_id = u.id AND m.active = TRUE ORDER BY m.id ASC LIMIT 1) AS tier
         FROM desk_users u
         LEFT JOIN tenant_usage tu ON tu.user_id = u.id
         ORDER BY (COALESCE(tu.sms_spend_cents, 0) + COALESCE(tu.voice_spend_cents, 0)) DESC,
@@ -215,13 +217,14 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
           capCents,
           spendPct:            Math.min(100, Math.round((total / capCents) * 100)),
           overageBalanceCents: r.overage_balance_cents,
+          tier:                r.tier || 'single',
           inventoryCount:      r.inventory_count,
-          inventoryCap:        TENANT_CAPS.inventoryMax,
+          inventoryCap:        (TIER_CAPS[r.tier] || TIER_CAPS.single).inventory,
           crmCount:            r.crm_count,
-          crmCap:              TENANT_CAPS.crmMax,
+          crmCap:              (TIER_CAPS[r.tier] || TIER_CAPS.single).crm,
         };
       });
-      res.json({ success: true, tenants, caps: TENANT_CAPS });
+      res.json({ success: true, tenants, caps: TENANT_CAPS, tierCaps: TIER_CAPS });
     } catch(e) {
       console.error('Admin tenant-usage error:', e.message);
       res.status(500).json({ success: false, error: sanitizeError(e) });

@@ -1,4 +1,9 @@
-# First Fin v16 — TODO Plan
+# First Fin v16 — TODO Plan (SUPERSEDED — reference only)
+
+> ⚠️ **This is the April 2026 roadmap, not current status.** Nothing here was
+> ticked off as it shipped, so items may read as open when they are done (and
+> the reverse). **The live list is [`docs/WORKLIST.md`](docs/WORKLIST.md).**
+> Keep this file for the roadmap thinking; don't quote its status.
 
 Organized by priority. Last updated 2026-04-25 after Phase 6 ship + pricing-model lockdown.
 
