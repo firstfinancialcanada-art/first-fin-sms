@@ -23,6 +23,18 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 | | **STC stock 8689645** has no body style. |
 | | **Indeed ad** (commission-only associate) — LIVE 9/22, free 30 days; decide on sponsoring around **2026-10-22**. |
 
+## Found by audit 2026-09-22 — your call
+
+- **Spend cap is per user, not per dealership.** A 7-seat Gold tenant effectively gets 7 x $18.50 a month.
+- **Lender rate sheets are per user.** A manager's uploaded sheet doesn't reach the reps, who then quote off the built-in defaults.
+- **Some customer texts bypass the usage meter and the opt-out list** (voicemail transcripts, funded-deal congrats, lead alerts).
+- **Two Twilio status callbacks aren't signature-checked** (`/api/sms-status`, `/api/voice-status`). Exploitable only by someone who already knows a message ID.
+- **Compare All mileage mismatch:** the screen says 140,000 km for two iauto tiers; the server allows the lender-wide 180,000.
+- **Bulk send isn't crash-safe:** a redeploy between sending and recording could re-send that message.
+- **No limit on buying Twilio numbers** per account.
+- **Stripe upgrade path may not activate** a logged-in user's subscription (needs a live event to confirm).
+- **`chrome-extension/*.src.js` are stale April copies**, not build inputs — editing them does nothing.
+
 ## Known gaps — deliberately not built
 
 - **Multi-rooftop / parent-child tenants.** Platinum exists in Stripe (50 seats) but there is no store dimension anywhere: a manager at rooftop A is texted for every lead at B and C. Waiting for a real Platinum customer (Terry Robinson / Landry Auto Group is the likely first). Workaround today: one account per rooftop.
@@ -39,6 +51,7 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 - Security: public pages scrubbed of internal comments, real names and dead email links; extension download rebuilt (minified, current); Stellantis audit fully closed.
 - STC exempted from the $18.50 monthly texting allowance 2026-09-22 (Railway `EXEMPT_EMAILS`), so Franco's own store can't be cut off mid-day.
 - Caps by tier (this file's date): Solo 1000, Gold 2500, Platinum 5000 vehicles and CRM contacts, counted per tenant rather than per user.
+- Audit fixes (2026-09-22): importer no longer reads a model year as the price (a "Call for price" card imported at $2,019 and was postable); funded-deal texts use the dealer's own Google review link instead of a dead placeholder; un-posting a vehicle no longer errors; approval probability works again (was silently unauthenticated); Sarah and Compare All see the whole dealership's inventory, not one user's; photo-request callbacks are no longer invisible; four manager checks that could be skipped are now enforced; buying a number and changing branding require manager; email-lead poller reports failures instead of dying quietly; CSP reports are no longer rejected.
 - Phone pass (2026-09-22): payment grid fits a 375px screen (it carried min-width 420 and the 84-month column sat off the edge), FB Poster stacks instead of collapsing its vehicle panel to zero width, tap targets 30-32px across deal desk, Sarah, poster and admin Prospects. Desktop verified unchanged.
 
 ---
