@@ -18,11 +18,10 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 | 🔴 | **Twilio auto-recharge** — balance was $19.73 USD on 9/21. One wallet pays for every Sarah line and alert. |
 | | **STC line test** (5 min, from the 6133 phone) before Wednesday — text 587-210-2129; call it, press 1, don't answer on 6308 (expect "Sorry we missed you" + transcript); call again and answer. |
 | | **DMARC** — add `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:First@FirstFinancialCanada.com`. SPF and DKIM are already in place. |
-| | **STC's $18.50 monthly texting allowance** — keep it, or exempt STC like First-Fin Auto? |
 | | **Rotate `META_APP_SECRET`** — reset in Meta, then paste into Railway immediately; Facebook lead deliveries fail in between. |
 | | **Replace-mode inventory sync** still fails (Merge works). Next re-scrape, hit Replace first so the exact Postgres error lands in the logs. |
 | | **STC stock 8689645** has no body style. |
-| | **Indeed ad** (commission-only associate) — in review 9/22, free 30 days, decide on sponsoring around **2026-10-22**. |
+| | **Indeed ad** (commission-only associate) — LIVE 9/22, free 30 days; decide on sponsoring around **2026-10-22**. |
 
 ## Known gaps — deliberately not built
 
@@ -38,6 +37,7 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 - FB Poster: Not-posted view, New/Used filter, inline editing of the three description lines, contact-scrubbed descriptions, pace warnings (rolling 24h per browser, traffic-light bubble, donut panel), per-post history and a manager activity tracker.
 - Admin: SaaS prospect tracker with per-channel touch logging (41 prospects imported), `/admin` locked behind a sign-in, audit log table created.
 - Security: public pages scrubbed of internal comments, real names and dead email links; extension download rebuilt (minified, current); Stellantis audit fully closed.
+- STC exempted from the $18.50 monthly texting allowance 2026-09-22 (Railway `EXEMPT_EMAILS`), so Franco's own store can't be cut off mid-day.
 - Caps by tier (this file's date): Solo 1000, Gold 2500, Platinum 5000 vehicles and CRM contacts, counted per tenant rather than per user.
 - Phone pass (2026-09-22): payment grid fits a 375px screen (it carried min-width 420 and the 84-month column sat off the edge), FB Poster stacks instead of collapsing its vehicle panel to zero width, tap targets 30-32px across deal desk, Sarah, poster and admin Prospects. Desktop verified unchanged.
 
