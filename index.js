@@ -147,6 +147,13 @@ app.use(cors({
     // Allow missing origin only for webhook/server-to-server requests
     // (Twilio callbacks, Stripe webhooks, curl — these never send Origin)
     if (!origin) return callback(null, true);
+    // Browsers send the literal string "null" as Origin on CSP violation
+    // reports (and from sandboxed/file:// contexts). Rejecting it meant every
+    // report-only violation came back 500 and logged a CORS error — so the
+    // report-only policy added on 2026-09-20 to measure the remaining inline
+    // scripts was collecting nothing. The report route itself reads only the
+    // body and returns 204, and carries no credentials.
+    if (origin === 'null') return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
     // Allow Chrome extension popups — Origin is chrome-extension://<id>
     if (origin.startsWith('chrome-extension://')) return callback(null, true);
