@@ -29,7 +29,6 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 - **Multi-rooftop / parent-child tenants.** Platinum exists in Stripe (50 seats) but there is no store dimension anywhere: a manager at rooftop A is texted for every lead at B and C. Waiting for a real Platinum customer (Terry Robinson / Landry Auto Group is the likely first). Workaround today: one account per rooftop.
 - **US dealers.** Mileage is km everywhere; timezone defaults to America/Edmonton; US texting needs A2P 10DLC registration per number and TCPA rules are stricter than CASL.
 - **Sarah's script and persona are the same for every dealer.** Per-dealer city, delivery area, hours and {dealership}/{city} fill-ins are done; the wording is not per-tenant.
-- **Mobile.** The deal desk has 8 responsive rules but has never had a full phone pass.
 - **Full CSP enforcement** — inline scripts still need `'unsafe-inline'`; report-only policy runs alongside, 6 inline blocks to hash.
 
 ## Recently shipped (Sept 20–22)
@@ -40,6 +39,7 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 - Admin: SaaS prospect tracker with per-channel touch logging (41 prospects imported), `/admin` locked behind a sign-in, audit log table created.
 - Security: public pages scrubbed of internal comments, real names and dead email links; extension download rebuilt (minified, current); Stellantis audit fully closed.
 - Caps by tier (this file's date): Solo 1000, Gold 2500, Platinum 5000 vehicles and CRM contacts, counted per tenant rather than per user.
+- Phone pass (2026-09-22): payment grid fits a 375px screen (it carried min-width 420 and the 84-month column sat off the edge), FB Poster stacks instead of collapsing its vehicle panel to zero width, tap targets 30-32px across deal desk, Sarah, poster and admin Prospects. Desktop verified unchanged.
 
 ---
 
