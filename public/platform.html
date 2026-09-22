@@ -3811,6 +3811,10 @@ async function startLoginBuy() {
   .fbp-right{min-height:60vh;}
   .fbp-topbar,.fbp-sorts,.fbp-stats,.fbp-abar{flex-wrap:wrap;}
   .fbp-btn{min-height:34px;}
+  /* Queue/view chips, the step-by-step Done/Copy buttons and the
+     description controls were 24-26px — too small to hit on a phone. */
+  .fbp-sort,.fbp-desc-copy,.fbp-sbtn,.fbp-pace-link{min-height:30px;}
+  .fbp-sort,.fbp-desc-copy,.fbp-sbtn{padding-left:10px;padding-right:10px;}
 }
 .fbp-body::-webkit-scrollbar{width:4px;}
 .fbp-body::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px;}
