@@ -4819,6 +4819,11 @@ async function startLoginBuy() {
   async function fbpCleanPhotos(v) {
     if (!v || !v.photos || v.photos.length === 0) return;
     if (v._ocrDone) return;  // already processed this vehicle
+    // Only wholesale galleries carry another dealer's signage, and the scan
+    // is slow (it walks each photo in tiles), so don't spend it on the
+    // dealer's own photos.
+    if (!v.is_wholesale) { v._ocrDone = true; return; }
+    v._ocrRunning = true;
     const vref = v;
     try {
       const r = await FF.apiFetch('/api/desk/ocr-photos', {
@@ -4831,13 +4836,14 @@ async function startLoginBuy() {
       const { kept, rejected } = d.result;
       // Guard: only apply if still the currently-selected vehicle
       vref._ocrDone = true;
+      vref._ocrRunning = false;
       vref._rejectedUrls = new Set((rejected || []).map(x => x.url));
       vref._includedUrls = new Set(kept || vref.photos);
       if (fbpV === vref) fbpRenderPhotoStrip(vref);
       if (rejected && rejected.length && fbpV === vref) {
         fbpFlash(`Hid ${rejected.length} photo${rejected.length===1?'':'s'} with dealer sign`);
       }
-    } catch (e) { /* fail-open: keep all photos */ }
+    } catch (e) { vref._ocrRunning = false; /* fail-open: keep all photos */ }
   }
 
   function fbpBuildSteps(v) {
@@ -4968,6 +4974,13 @@ async function startLoginBuy() {
     if (!fbpV) { fbpFlash('Select a vehicle first'); return; }
     // The extension fills a real Facebook form — never from the demo.
     if (window.DEMO_MODE) { fbpFlash('Demo — nothing is sent to Facebook'); return; }
+    // Wholesale photos can show the supplier's sign, and a retail buyer who
+    // spots it phones them instead of you. Don't send until it's checked.
+    if (fbpV.is_wholesale && !fbpV._ocrDone) {
+      fbpFlash('Checking photos for supplier signage — one moment');
+      if (!fbpV._ocrRunning) fbpCleanPhotos(fbpV);
+      return;
+    }
     if (fbpV.needs_retail) {
       const ok = await fbpSetRetail('This is a WHOLESALE unit — set the retail price before posting:');
       if (!ok) return;
