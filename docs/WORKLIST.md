@@ -27,11 +27,11 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 
 ## Found by audit 2026-09-22 — your call
 
-- **Spend cap is per user, not per dealership.** A 7-seat Gold tenant effectively gets 7 x $18.50 a month.
-- **Lender rate sheets are per user.** A manager's uploaded sheet doesn't reach the reps, who then quote off the built-in defaults.
-- **Some customer texts bypass the usage meter and the opt-out list** (voicemail transcripts, funded-deal congrats, lead alerts).
+- ✅ ~~Spend cap per user~~ — FIXED 2026-09-25 (109cb1b). One allowance per dealership; reconcileSpend was correcting the sender's row too.
+- ✅ ~~Lender rate sheets per user~~ — FIXED 2026-09-25 (4e2de6a). Tenant-scoped + manager-gated. Also fixed: the reset route threw ReferenceError, and rate history archived the wrong rows.
+- ✅ ~~Customer texts bypassing the opt-out list~~ — FIXED 2026-09-25 (3a499a9). Four paths could text someone who replied STOP; all now go through lib/customer-sms.js, which fails closed. Staff alerts deliberately still uncapped.
 - **Two Twilio status callbacks aren't signature-checked** (`/api/sms-status`, `/api/voice-status`). Exploitable only by someone who already knows a message ID.
-- **Compare All mileage mismatch:** the screen says 140,000 km for two iauto tiers; the server allows the lender-wide 180,000.
+- ⚠ **Compare All mileage mismatch — WAITING ON FRANCO.** Screen shows 140,000 km on iA 1st/2nd Gear; the engine applies the lender-wide 180,000 to all six tiers. **Neither number changed** — which is correct is iA's policy, not a guess. If 140k is right the engine is passing deals iA will decline; if 180k is right the screen is talking him out of fundable subprime high-km deals. `npm run check-lenders` (13d3297) reports it and exits non-zero; it found these 2 and nothing else across 12 lenders.
 - **Bulk send isn't crash-safe:** a redeploy between sending and recording could re-send that message.
 - **No limit on buying Twilio numbers** per account.
 - **Stripe upgrade path may not activate** a logged-in user's subscription (needs a live event to confirm).
