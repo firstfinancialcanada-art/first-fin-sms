@@ -770,6 +770,97 @@ async function editBookValue(stock, currentVal, event) {
 // Asking prices move weekly at a franchise store (floorplan steps at 30/60/90
 // days), so re-scraping for one number is silly. Unlike book value, price is
 // what customers see on Marketplace, so a change always confirms first.
+// Wholesale units carry the supplier's dealer-only price in `price`, which is
+// the one number we must never advertise. `retail_price` is what Franco marks
+// it up to, and until now it could only be set from a prompt in the FB Poster
+// and never seen or changed again. Same inline edit as the price cell.
+async function editRetailPrice(stock, currentVal, event) {
+  event.stopPropagation();
+  const cell = event.currentTarget;
+  const oldText = cell.innerHTML;
+  const oldVal = Number(currentVal) || 0;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = oldVal || '';
+  input.placeholder = 'retail';
+  input.style.cssText = 'width:100px;background:var(--surface);border:1px solid var(--amber);border-radius:4px;color:var(--text);padding:4px 6px;font-size:11px;font-family:Outfit,sans-serif;';
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  let saving = false;
+  async function save() {
+    if (saving) return;
+    saving = true;
+    const raw = String(input.value).trim();
+    const newVal = raw === '' ? 0 : parseFloat(raw);
+    if (isNaN(newVal) || newVal < 0) { cell.innerHTML = oldText; return; }
+    if (newVal === oldVal) { cell.innerHTML = oldText; return; }
+
+    const v = (window.ffInventory || window.inventory || []).find(x => x.stock === stock);
+    const label = v ? `${v.year} ${v.make} ${v.model}` : stock;
+    const cost  = v ? Number(v.price) || 0 : 0;
+    const nl = String.fromCharCode(10);
+    let msg = label + ' (' + stock + ')' + nl + nl
+            + 'Retail  $' + oldVal.toLocaleString() + '  →  '
+            + (newVal ? '$' + newVal.toLocaleString() : '—');
+    if (cost) msg += nl + 'Wholesale cost: $' + cost.toLocaleString();
+    if (newVal && cost && newVal < cost) {
+      msg += nl + nl + '⚠ That is BELOW what the unit cost.';
+    }
+    if (!newVal) {
+      msg += nl + nl + 'Clearing it means the poster will ask again before this one can be listed.';
+    }
+    msg += nl + nl + 'Update the retail price?';
+    if (!confirm(msg)) { cell.innerHTML = oldText; return; }
+
+    try {
+      const res = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(stock)}/retail-price`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retail_price: newVal || null })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'failed');
+      if (v) v.retail_price = newVal || null;
+      cell.innerHTML = invRetailCell(v || { stock, price: cost, retail_price: newVal });
+      toast(newVal ? `${stock} retail: $${newVal.toLocaleString()}` : `${stock}: retail cleared`);
+      // The poster keeps its own copy — refresh so nothing lists at the old number.
+      if (typeof window.initFbPoster === 'function') { try { window.initFbPoster(); } catch(_) {} }
+    } catch (e) {
+      cell.innerHTML = oldText;
+      toast('Retail update failed — ' + e.message);
+    }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { saving = true; cell.innerHTML = oldText; }
+  });
+}
+
+// The price cell for a wholesale unit: what we advertise on top, what it cost
+// underneath. An unset retail is called out in amber, because that unit cannot
+// be posted until it has one.
+function invRetailCell(v) {
+  const cost   = Number(v.price) || 0;
+  const retail = Number(v.retail_price) || 0;
+  // Plenty of wholesale units come across as "Call for price", so there is no
+  // cost to show — say so rather than printing $0.
+  const costLine = `<div style="font-size:9px;color:var(--muted);">${
+    cost ? 'cost $' + cost.toLocaleString() : 'cost n/a'}</div>`;
+  if (!retail) {
+    return `<span style="color:var(--amber);font-weight:700;">Set retail</span>` +
+           `<span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>` + costLine;
+  }
+  return `<strong style="color:var(--green);">$${retail.toLocaleString()}</strong>` +
+         `<span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>` + costLine;
+}
+window.editRetailPrice = editRetailPrice;
+
 async function editPrice(stock, currentVal, event) {
   event.stopPropagation();
   const cell = event.currentTarget;
@@ -904,10 +995,14 @@ function renderInventory(list){
       <td>${v.model}</td>
       <td style="color:var(--muted);">${v.type || ''}</td>
       <td>${Number(v.mileage).toLocaleString()} km</td>
-      <td style="cursor:pointer;" onclick="editPrice('${v.stock}',${Number(v.price)||0},event)" title="Click to edit price">
+      ${v.is_wholesale
+        ? `<td style="cursor:pointer;" onclick="editRetailPrice('${v.stock}',${Number(v.retail_price)||0},event)" title="Wholesale unit — click to edit the RETAIL price you advertise">
+        ${invRetailCell(v)}
+      </td>`
+        : `<td style="cursor:pointer;" onclick="editPrice('${v.stock}',${Number(v.price)||0},event)" title="Click to edit price">
         <strong style="color:var(--green);">$${Number(v.price).toLocaleString()}</strong>
         <span style="font-size:9px;color:var(--muted);margin-left:3px;">✏</span>
-      </td>
+      </td>`}
       <td style="cursor:pointer;font-size:11px;" onclick="editBookValue('${v.stock}',${v.book_value||0},event)" title="Click to edit book value">
         ${v.book_value&&v.book_value>0
           ? `<span style="color:var(--green);">$${Number(v.book_value).toLocaleString()}</span>`
