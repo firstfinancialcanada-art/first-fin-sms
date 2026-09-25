@@ -15,12 +15,14 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 | | Item |
 |---|---|
 | ✅ | ~~**Domain auto-renew**~~ — firstfinancialcanada.com (expires 2026-10-24). Franco set auto-renew ON 2026-09-25. |
-| 🔴 | **Twilio auto-recharge** — balance was $19.73 USD on 9/21. One wallet pays for every Sarah line and alert. |
-| | **STC line test** (5 min, from the 6133 phone) before Wednesday — text 587-210-2129; call it, press 1, don't answer on 6308 (expect "Sorry we missed you" + transcript); call again and answer. |
+| ✅ | ~~**Twilio auto-recharge**~~ — card + auto-recharge set by Franco 2026-09-25. Dead numbers released; bill $4.20 → ~$1.15/mo. |
+| ➖ | ~~STC line test~~ — moot, Franco is out at STC and the number is released. |
 | | **DMARC** — add `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:First@FirstFinancialCanada.com`. SPF and DKIM are already in place. |
 | | **Rotate `META_APP_SECRET`** — reset in Meta, then paste into Railway immediately; Facebook lead deliveries fail in between. |
 | | **Replace-mode inventory sync** still fails (Merge works). Next re-scrape, hit Replace first so the exact Postgres error lands in the logs. |
-| | **STC stock 8689645** has no body style. |
+| ➖ | ~~STC stock 8689645 body style~~ — moot, STC tenant is gone. |
+| | **fintest@fintest.com password reset** (admin PW button) — needed to drive the new billing overlay end-to-end on a real login. |
+| | **Wholesale signage — option A**: swap text OCR for an image-understanding model to catch small signs (~$3–4 one-time, needs an API key). Hides are already remembered either way. |
 | | **Indeed ad** (commission-only associate) — LIVE 9/22, free 30 days; decide on sponsoring around **2026-10-22**. |
 
 ## Found by audit 2026-09-22 — your call
