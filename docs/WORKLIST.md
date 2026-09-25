@@ -14,7 +14,7 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 
 | | Item |
 |---|---|
-| 🔴 | **Domain auto-renew** — firstfinancialcanada.com expires **2026-10-24**. Confirm auto-renew and the card at the registrar. |
+| ✅ | ~~**Domain auto-renew**~~ — firstfinancialcanada.com (expires 2026-10-24). Franco set auto-renew ON 2026-09-25. |
 | 🔴 | **Twilio auto-recharge** — balance was $19.73 USD on 9/21. One wallet pays for every Sarah line and alert. |
 | | **STC line test** (5 min, from the 6133 phone) before Wednesday — text 587-210-2129; call it, press 1, don't answer on 6308 (expect "Sorry we missed you" + transcript); call again and answer. |
 | | **DMARC** — add `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:First@FirstFinancialCanada.com`. SPF and DKIM are already in place. |
