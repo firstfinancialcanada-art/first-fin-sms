@@ -1,6 +1,7 @@
 // routes/deals.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
 const { normalizePhone } = require('../lib/helpers');
+const { sendCustomerSms } = require('../lib/customer-sms');
 const { saveBulkCampaign } = require('../lib/bulk');
 
 async function createDealsTable() {
@@ -198,7 +199,14 @@ module.exports = function dealsRoutes(app, { requireAuth, requireBilling, twilio
 
       const conversation = await getOrCreateConversation(normalized, uid);
       await saveMessage(conversation.id, normalized, 'assistant', message, uid);
-      await twilioClient.messages.create({ body: message, from: fromNumber, to: normalized });
+      const sent = await sendCustomerSms(twilioClient, uid,
+        { body: message, from: fromNumber, to: normalized }, 'deal_funded');
+      if (!sent.ok) {
+        return res.json({ success: false, skipped: sent.reason,
+          message: sent.reason === 'OPTED_OUT'
+            ? 'Not sent — this customer has opted out of texts.'
+            : 'Not sent — ' + sent.reason });
+      }
 
       if (dealId) {
         const client = await pool.connect();

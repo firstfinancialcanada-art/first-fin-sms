@@ -1,5 +1,6 @@
 // routes/voice.js
 const { pool, getOrCreateConversation, saveMessage, logAnalytics } = require('../lib/db');
+const { sendCustomerSms } = require('../lib/customer-sms');
 const { normalizePhone, twimlSafe, makeTwilioWebhookValidator, fillTemplate } = require('../lib/helpers');
 const hours = require('../lib/hours');
 const { guardedVoiceCall, reconcileSpend } = require('../lib/spend-cap');
@@ -323,12 +324,20 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
       try {
         if (caller && caller.startsWith('+')) {
           const msg = `Hi! You just called ${tenant.dealerName}. We'll get right back to you! If you can share what vehicle you're looking for, we'll have info ready when we connect. 🚗`;
-          await twilioClient.messages.create({ body: msg, from: fromNum, to: caller });
-          const conv = await getOrCreateConversation(caller, tenant.userId);
-          await saveMessage(conv.id, caller, 'assistant', msg, tenant.userId);
-          await logAnalytics('inbound_call_sms_requested', caller, { callSid });
-          await saveVoiceEvent(caller, '📞 CALL_INBOUND | status:text_back_requested | pressed:3', 'user', tenant.userId);
-          console.log('📱 Text-back sent to:', caller);
+          const tb = await sendCustomerSms(twilioClient, tenant.userId,
+            { body: msg, from: fromNum, to: caller }, 'call_text_back');
+          if (tb.ok) {
+            // Only record the conversation if the text actually went — logging
+            // a message we suppressed would put words in Sarah's mouth.
+            const conv = await getOrCreateConversation(caller, tenant.userId);
+            await saveMessage(conv.id, caller, 'assistant', msg, tenant.userId);
+            await logAnalytics('inbound_call_sms_requested', caller, { callSid });
+            await saveVoiceEvent(caller, '📞 CALL_INBOUND | status:text_back_requested | pressed:3', 'user', tenant.userId);
+            console.log('📱 Text-back sent to:', caller);
+          } else {
+            await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:text_back_suppressed:${tb.reason} | pressed:3`, 'user', tenant.userId);
+            console.log('🔇 Text-back not sent:', tb.reason);
+          }
         }
       } catch(e) { console.error('❌ Text-back failed:', e.message); }
       res.send(`<?xml version="1.0" encoding="UTF-8"?>

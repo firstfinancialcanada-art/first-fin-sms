@@ -3,6 +3,7 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveMessage, hasActiveConversation, deleteConversation,
         saveAppointment, saveCallback, logAnalytics,
         addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
+const { sendCustomerSms } = require('../lib/customer-sms');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-cap');
@@ -1890,7 +1891,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         setTimeout(async () => {
           try {
             const confirmMsg = `Hi ${conversation.customer_name.split(' ')[0]}! Just confirming your appointment at ${dealerName} for ${finalDateTime}. We're looking forward to seeing you! Reply anytime if anything changes.`;
-            await twilioClient.messages.create({ body: confirmMsg, from: fromNumber, to: phone });
+            // A minute is long enough for someone to reply STOP in between.
+            const cs = await sendCustomerSms(twilioClient, userId,
+              { body: confirmMsg, from: fromNumber, to: phone }, 'appt_confirm');
+            if (!cs.ok) console.log('🔇 Appt confirmation not sent:', cs.reason);
           } catch(e) { console.warn('⚠️ Appt confirmation SMS failed:', e.message); }
         }, 60000);
         await logAnalytics('appointment_booked', phone, data, userId);

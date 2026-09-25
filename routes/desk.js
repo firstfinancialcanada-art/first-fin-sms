@@ -80,6 +80,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     // ever saving Settings must not inherit a Canada-wide delivery promise.
     try {
       await require('../lib/db').migrationsReady;   // settings_json must be JSONB first
+const { sendCustomerSms } = require('../lib/customer-sms');
       const r = await pool.query(`
         UPDATE desk_users
            SET settings_json = settings_json || '{"deliveryArea":"all across Canada"}'::jsonb
@@ -2639,12 +2640,11 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
             : '';
           const smsBody = `Congrats ${custName} on your ${vehicleDesc}! 🎉 It was a pleasure working with you at ${dealerName}. Enjoy the ride!${reviewLine}`;
 
-          await twilioClient.messages.create({
-            body: smsBody,
-            from: fromNumber,
-            to: custPhone.replace(/\D/g, '').replace(/^(\d{10})$/, '+1$1').replace(/^1(\d{10})$/, '+1$1')
-          });
-          console.log('✅ Deal-funded SMS sent to', custPhone);
+          const dealTo = custPhone.replace(/\D/g, '').replace(/^(\d{10})$/, '+1$1').replace(/^1(\d{10})$/, '+1$1');
+          const dealSent = await sendCustomerSms(twilioClient, req.user.userId,
+            { body: smsBody, from: fromNumber, to: dealTo }, 'deal_funded');
+          if (dealSent.ok) console.log('✅ Deal-funded SMS sent to', custPhone);
+          else console.log('🔇 Deal-funded SMS not sent:', dealSent.reason);
         } catch(e) {
           console.error('⚠️ Deal-funded SMS failed:', e.message);
         }
