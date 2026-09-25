@@ -3206,16 +3206,42 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
 
   app.post('/api/desk/ocr-photos', requireAuth, requireBilling, async (req, res) => {
     try {
-      const { urls } = req.body;
+      const { urls, scan } = req.body;
       if (!Array.isArray(urls)) return res.status(400).json({ ok: false, error: 'urls array required' });
       if (urls.length === 0) return res.json({ ok: true, result: { kept: [], rejected: [] } });
+      const scope = await resolveScope(req);
       // Cap at 30 photos per request — protects against runaway OCR batches
       const capped = urls.slice(0, 30);
-      const result = await photoOcr.classifyVehiclePhotos(capped);
+      // scan=false means "only apply saved decisions" — the dealer's own
+      // photos have no supplier signage to find, but a hand-hidden photo
+      // still has to come back hidden.
+      const result = await photoOcr.classifyVehiclePhotos(capped, {
+        tenantId: scope?.tenantId || null,
+        scan: scan !== false,
+      });
       res.json({ ok: true, result });
     } catch (e) {
       console.error('❌ /api/desk/ocr-photos error:', e.message);
       res.status(500).json({ ok: false, error: 'OCR failed' });
+    }
+  });
+
+  // ── Remember a photo the operator hid (or un-hid) ──────────────────
+  // The signage scan catches large signs and misses small ones, so the
+  // hide button is the reliable half of the feature. Persisting it means a
+  // wholesale gallery is reviewed once and never again.
+  app.post('/api/desk/photo-hide', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { url, hidden } = req.body || {};
+      if (!url || typeof url !== 'string') return res.status(400).json({ ok: false, error: 'url required' });
+      if (typeof hidden !== 'boolean')     return res.status(400).json({ ok: false, error: 'hidden must be true or false' });
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ ok: false, error: 'Tenant not found for this user' });
+      await photoOcr.setHide(scope.tenantId, url, hidden, req.user.userId);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('❌ /api/desk/photo-hide error:', e.message);
+      res.status(500).json({ ok: false, error: 'Could not save photo choice' });
     }
   });
 

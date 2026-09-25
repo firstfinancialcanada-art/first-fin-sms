@@ -7,3 +7,6 @@ chrome-extension/.claude/
 
 # Extension source backups (readable versions — keep minified in repo)
 chrome-extension/*.src.js
+
+# tesseract.js downloads its language model into the cwd at first OCR run
+*.traineddata

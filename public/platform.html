@@ -4701,9 +4701,12 @@ async function startLoginBuy() {
       (v.stock?`<span class="fbp-chip stk">Stock #${v.stock}</span>`:'') +
       (v.photos.length?`<span class="fbp-chip ph">${v.photos.length} photos</span>`:'');
 
-    // Initialize inclusion set (all photos in by default until OCR classifies)
-    v._includedUrls = new Set(v.photos || []);
+    // Inclusion set: all photos in by default until the server answers with
+    // the saved decisions + OCR verdicts. Don't reset it once that has come
+    // back, or re-selecting the vehicle would un-hide everything.
+    if (!v._ocrDone) v._includedUrls = new Set(v.photos || []);
     v._rejectedUrls = v._rejectedUrls || new Set();  // persists across re-selects
+    v._manualUrls   = v._manualUrls   || new Set();  // hidden by a person, not the scan
 
     // Render photo strip
     fbpRenderPhotoStrip(v);
@@ -4737,11 +4740,13 @@ async function startLoginBuy() {
 
     const included = v._includedUrls || new Set(v.photos);
     const rejected = v._rejectedUrls || new Set();
+    const manual   = v._manualUrls   || new Set();
     const showRej  = !!v._showRejected;
 
     v.photos.forEach((url, i) => {
       const isRejected = rejected.has(url);
       const isIncluded = included.has(url);
+      const byHand     = manual.has(url);
       // Hide rejected photos unless user toggled show-rejected
       if (isRejected && !isIncluded && !showRej) return;
 
@@ -4749,17 +4754,24 @@ async function startLoginBuy() {
       img.className = 'fbp-thumb';
       img.src = url;
       img.title = isRejected
-        ? (isIncluded ? 'Dealer sign detected — click to re-exclude' : 'Dealer sign detected — click to include anyway')
-        : `Photo ${i+1} — click to toggle, drag to FB`;
+        ? (byHand
+            ? (isIncluded ? 'You hid this photo — click to bring it back' : 'Hidden by you — click to bring it back')
+            : (isIncluded ? 'Dealer sign detected — click to re-exclude' : 'Dealer sign detected — click to include anyway'))
+        : `Photo ${i+1} — click to hide, drag to FB`;
       const borderColor = isRejected ? (isIncluded ? '#f59e0b' : '#ef4444') : 'var(--border)';
       const opacity     = (isRejected && !isIncluded) ? '0.45' : '1';
       img.style.cssText = `width:70px;height:52px;object-fit:cover;border-radius:4px;border:2px solid ${borderColor};opacity:${opacity};cursor:pointer;flex-shrink:0;transition:all .13s;`;
       img.onmouseover = () => { img.style.transform = 'scale(1.08)'; };
       img.onmouseout  = () => { img.style.transform = 'scale(1)'; };
       img.onclick     = () => {
-        if (isIncluded) included.delete(url); else included.add(url);
+        const nowHidden = isIncluded;          // clicking an included photo hides it
+        if (nowHidden) { included.delete(url); rejected.add(url); manual.add(url); }
+        else           { included.add(url); }
         v._includedUrls = included;
+        v._rejectedUrls = rejected;
+        v._manualUrls   = manual;
         fbpRenderPhotoStrip(v);
+        fbpSavePhotoChoice(url, nowHidden);
       };
       img.onerror = () => img.style.display = 'none';
       strip.appendChild(img);
@@ -4773,10 +4785,11 @@ async function startLoginBuy() {
     if (hiddenCount > 0 || showRej) {
       const togl = document.createElement('button');
       togl.style.cssText = 'flex-shrink:0;padding:6px 10px;border-radius:5px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#fca5a5;font-family:Outfit,sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;';
+      const anyScan = [...rejected].some(u => !included.has(u) && !manual.has(u));
       togl.textContent = showRej
-        ? `Hide ${hiddenCount} flagged`
-        : `🚫 ${hiddenCount} hidden (dealer sign)`;
-      togl.title = 'Photos where dealer signage was detected';
+        ? `Hide ${hiddenCount} again`
+        : `🚫 ${hiddenCount} hidden${anyScan ? ' (dealer sign)' : ''}`;
+      togl.title = 'Photos hidden by you, or where dealer signage was detected';
       togl.onclick = () => { v._showRejected = !showRej; fbpRenderPhotoStrip(v); };
       actionsSlot.appendChild(togl);
     }
@@ -4821,29 +4834,51 @@ async function startLoginBuy() {
     if (v._ocrDone) return;  // already processed this vehicle
     // Only wholesale galleries carry another dealer's signage, and the scan
     // is slow (it walks each photo in tiles), so don't spend it on the
-    // dealer's own photos.
-    if (!v.is_wholesale) { v._ocrDone = true; return; }
-    v._ocrRunning = true;
+    // dealer's own photos. The call still goes out either way: photos hidden
+    // by hand are remembered for every vehicle, and that lookup is instant.
+    // Demo photos are generated placeholders and the demo blocks writes, so
+    // the call would only ever come back empty.
+    if (window.DEMO_MODE) { v._ocrDone = true; return; }
+    const scan = !!v.is_wholesale;
+    if (scan) v._ocrRunning = true;
     const vref = v;
     try {
       const r = await FF.apiFetch('/api/desk/ocr-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: v.photos })
+        body: JSON.stringify({ urls: v.photos, scan })
       });
       const d = await r.json();
-      if (!d.ok || !d.result) return;
+      if (!d.ok || !d.result) { vref._ocrRunning = false; return; }
       const { kept, rejected } = d.result;
       // Guard: only apply if still the currently-selected vehicle
       vref._ocrDone = true;
       vref._ocrRunning = false;
       vref._rejectedUrls = new Set((rejected || []).map(x => x.url));
+      vref._manualUrls   = new Set((rejected || []).filter(x => x.manual).map(x => x.url));
       vref._includedUrls = new Set(kept || vref.photos);
       if (fbpV === vref) fbpRenderPhotoStrip(vref);
-      if (rejected && rejected.length && fbpV === vref) {
-        fbpFlash(`Hid ${rejected.length} photo${rejected.length===1?'':'s'} with dealer sign`);
+      const found = (rejected || []).filter(x => !x.manual).length;
+      if (found && fbpV === vref) {
+        fbpFlash(`Hid ${found} photo${found===1?'':'s'} with dealer sign`);
       }
     } catch (e) { vref._ocrRunning = false; /* fail-open: keep all photos */ }
+  }
+
+  // ── Remember a hidden photo ────────────────────────────────────────
+  // Fire and forget: the strip has already redrawn, so a failed save must
+  // not block the operator — it just means they hide it again next time.
+  async function fbpSavePhotoChoice(url, hidden) {
+    if (window.DEMO_MODE) return;   // demo blocks writes; the flash would lie
+    try {
+      const r = await FF.apiFetch('/api/desk/photo-hide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, hidden })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) fbpFlash('Photo hidden for now — could not save the choice');
+    } catch (e) { fbpFlash('Photo hidden for now — could not save the choice'); }
   }
 
   function fbpBuildSteps(v) {
