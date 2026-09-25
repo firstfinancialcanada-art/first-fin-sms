@@ -13,11 +13,11 @@ function makeBillingGuard(pool) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
 
-    // Exempt accounts always pass
-    if (req.user.email && EXEMPT_EMAILS.includes(req.user.email.toLowerCase())) {
-      return next();
-    }
-
+    // Exemption is handled below, AFTER the suspend check. It used to short
+    // circuit here on the email in the JWT, which meant an exempt account
+    // could not be suspended or cancelled by any means — the guard returned
+    // before it ever read the row. Exempt means "don't charge them", never
+    // "can't be shut off". Costs one indexed lookup on a handful of accounts.
     try {
       const result = await pool.query(
         'SELECT email, subscription_status, trial_ends_at, suspended FROM desk_users WHERE id = $1',
