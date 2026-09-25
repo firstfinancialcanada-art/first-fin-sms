@@ -989,7 +989,9 @@ function renderInventory(list){
   tbody.innerHTML = list.map(v => `
     <tr onclick="sendToDeal('${v.stock}')">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="inv-cb" data-stock="${v.stock}" onchange="invOnCheck(this)"></td>
-      <td><strong style="color:var(--amber);">${v.stock}</strong></td>
+      <td><strong style="color:var(--amber);">${v.stock}</strong>${v.is_wholesale
+        ? `<span class="whs-chip" title="Supplier unit — the Price column shows YOUR retail, not what it cost">WHOLESALE</span>`
+        : ''}</td>
       <td>${v.year}</td>
       <td>${v.make}</td>
       <td>${v.model}</td>
@@ -1296,11 +1298,57 @@ function updateWizBanners(otd, down, finance, pay72) {
   if (w8) w8.textContent = $f(pay72);
 }
 
-function sendToDeal(stock){
+// A wholesale unit's `price` is the supplier's dealer-only number. Loading it
+// into Selling Price put it one click from Present, in front of a customer,
+// on a payment built from what we paid. The FB Poster refused to list at that
+// number; the Deal Desk happily quoted it. Ask for the retail price once, save
+// it on the vehicle, then carry on — same number the poster uses.
+async function ensureRetailPrice(v){
+  const retail = Number(v.retail_price) || 0;
+  if (retail) return retail;
+  const cost = Number(v.price) || 0;
+  const answer = prompt(
+    `${v.year} ${v.make} ${v.model} (${v.stock})\n` +
+    `This is a wholesale unit.` +
+    (cost ? `  Cost: $${cost.toLocaleString()}` : '') + `\n\n` +
+    `Enter YOUR retail price before it goes on a deal:`, '');
+  if (answer === null) return 0;
+  const val = Number(String(answer).replace(/[^0-9.]/g, ''));
+  if (!val || val <= 0) { toast('No retail price set — nothing loaded'); return 0; }
+  if (cost && val < cost) {
+    if (!confirm(`$${val.toLocaleString()} is below the $${cost.toLocaleString()} it cost.\n\nUse it anyway?`)) return 0;
+  }
+  try {
+    const r = await FF.apiFetch(`/api/desk/inventory/${encodeURIComponent(v.stock)}/retail-price`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ retail_price: val })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'save failed');
+    v.retail_price = val;
+    if (typeof renderInventory === 'function') { try { renderInventory(); } catch(_) {} }
+    if (typeof window.initFbPoster === 'function') { try { window.initFbPoster(); } catch(_) {} }
+    toast(`${v.stock} retail set: $${val.toLocaleString()}`);
+  } catch (e) {
+    toast('Could not save retail price — ' + e.message);
+    return 0;                       // don't quote a number we failed to record
+  }
+  return val;
+}
+
+async function sendToDeal(stock){
   const data = window.ffInventory || window.inventory || [];
   const v = data.find(x => x.stock === stock);
-  
+
   if(!v) return;
+
+  // Never let the supplier's cost become the selling price.
+  let sellingPrice = Number(v.price) || 0;
+  if (v.is_wholesale) {
+    sellingPrice = await ensureRetailPrice(v);
+    if (!sellingPrice) return;      // no retail, no deal — nothing is loaded
+  }
 
   // Sync DB values to Deal Desk inputs
   document.getElementById('stockNum').value = stock;
@@ -1309,7 +1357,7 @@ function sendToDeal(stock){
   document.getElementById('odometer').value = v.mileage;
   document.getElementById('condition').value = v.condition || 'Average';
   document.getElementById('vin').value = v.vin || '';
-  document.getElementById('sellingPrice').value = v.price;
+  document.getElementById('sellingPrice').value = sellingPrice;
   document.getElementById('docFee').value = settings.docFee;
   
   calculate();
