@@ -431,6 +431,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         ALTER TABLE desk_users
           ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial',
           ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS billing_grace_until TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
       `).catch(() => {});
 
@@ -1589,7 +1590,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
-  app.patch('/api/desk/inventory/:stock/fb-status', requireAuth, async (req, res) => {
+  app.patch('/api/desk/inventory/:stock/fb-status', requireAuth, requireBilling, async (req, res) => {
     const client = await pool.connect();
     try {
       const VALID = ['pending', 'posted', 'skipped'];
@@ -2839,7 +2840,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
-  app.post('/api/desk/routing-rules', requireAuth, async (req, res) => {
+  app.post('/api/desk/routing-rules', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
@@ -2864,7 +2865,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
-  app.patch('/api/desk/routing-rules/:id', requireAuth, async (req, res) => {
+  app.patch('/api/desk/routing-rules/:id', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
@@ -2883,7 +2884,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
     }
   });
 
-  app.delete('/api/desk/routing-rules/:id', requireAuth, async (req, res) => {
+  app.delete('/api/desk/routing-rules/:id', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
@@ -3327,7 +3328,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // ═══════════════════════════════════════════════════════════
   const finance = require('../lib/finance');
 
-  app.post('/api/desk/calculate', requireAuth, (req, res) => {
+  app.post('/api/desk/calculate', requireAuth, requireBilling, (req, res) => {
     try {
       const { action } = req.body;
 
@@ -3369,6 +3370,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         ALTER TABLE desk_users
           ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial',
           ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS billing_grace_until TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
       `).catch(() => {});
 
@@ -3439,7 +3441,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // Body: { email, name, role: 'rep' | 'manager', crmMode? }
   // Returns: { setupUrl } — manager forwards this to the new hire's email
   // so they can set their password (24h expiry).
-  app.post('/api/desk/team/members', requireAuth, async (req, res) => {
+  app.post('/api/desk/team/members', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
@@ -3540,7 +3542,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── Remove (deactivate) a member from MY tenant ───────────────
-  app.delete('/api/desk/team/members/:memberId', requireAuth, async (req, res) => {
+  app.delete('/api/desk/team/members/:memberId', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
@@ -3603,7 +3605,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   // Logo + dealer name + city + phone for the WHOLE dealership. Manager
   // saves it once, all 10 reps see it everywhere (header, FB poster,
   // PDF exports, Sarah signature where wired, etc.).
-  app.put('/api/desk/team/branding', requireAuth, async (req, res) => {
+  app.put('/api/desk/team/branding', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });
@@ -3631,7 +3633,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
   });
 
   // ── Set MY tenant's lead intake email ─────────────────────────
-  app.post('/api/desk/team/intake-email', requireAuth, async (req, res) => {
+  app.post('/api/desk/team/intake-email', requireAuth, requireBilling, async (req, res) => {
     try {
       const scope = await resolveScope(req);
       if (!scope?.tenantId) return res.status(404).json({ success: false, error: 'No tenant' });

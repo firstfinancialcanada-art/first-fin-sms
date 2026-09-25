@@ -100,12 +100,22 @@
         res = await fetch(API_BASE + path, { ...opts, headers });
       }
     }
+    if (res.status === 403 && window.FFBilling) {
+      try {
+        const c = await res.clone().json();
+        if (c && c.code === 'SUSPENDED') window.FFBilling.lock('suspended');
+      } catch {}
+    }
     if (res.status === 402) {
       try {
         const cloned = res.clone();
         const data   = await cloned.json();
         if (data && (data.code === 'SPEND_CAP_EXCEEDED' || data.code === 'CAPACITY_EXCEEDED')) {
           _showCapModal(data);
+        } else if (data && data.code === 'BILLING_REQUIRED' && window.FFBilling) {
+          // Used to fall through silently, so a lapsed account just found that
+          // buttons did nothing at all.
+          window.FFBilling.lock(data.reason);
         }
       } catch {}
     }

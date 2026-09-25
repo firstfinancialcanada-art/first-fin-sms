@@ -2,9 +2,13 @@
 // middleware/billing.js — Subscription enforcement for write routes
 // Usage: const { makeBillingGuard } = require('./billing');
 //        const requireBilling = makeBillingGuard(pool);
+//
+// The rules live in lib/billing-state.js, shared with /api/billing/status so
+// that what the client is told and what the server enforces cannot drift.
 // ============================================================
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
+const { decide } = require('../lib/billing-state');
 
 function makeBillingGuard(pool) {
   return async function requireBilling(req, res, next) {
@@ -13,14 +17,15 @@ function makeBillingGuard(pool) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
 
-    // Exemption is handled below, AFTER the suspend check. It used to short
-    // circuit here on the email in the JWT, which meant an exempt account
-    // could not be suspended or cancelled by any means — the guard returned
-    // before it ever read the row. Exempt means "don't charge them", never
-    // "can't be shut off". Costs one indexed lookup on a handful of accounts.
+    // Exemption is applied inside decide(), AFTER the suspend check. It used
+    // to short-circuit here on the email in the JWT, which meant an exempt
+    // account could not be suspended or cancelled by any means — this guard
+    // returned before it ever read the row. Exempt means "don't charge them",
+    // never "can't be shut off".
     try {
       const result = await pool.query(
-        'SELECT email, subscription_status, trial_ends_at, suspended FROM desk_users WHERE id = $1',
+        `SELECT email, subscription_status, trial_ends_at, suspended, billing_grace_until
+           FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
 
@@ -29,35 +34,31 @@ function makeBillingGuard(pool) {
       }
 
       const user   = result.rows[0];
+      const exempt = EXEMPT_EMAILS.includes((user.email || '').toLowerCase());
+      const v      = decide(user, { exempt });
 
-      // Suspended accounts are fully blocked
-      if (user.suspended) {
-        return res.status(403).json({ success: false, error: 'Account suspended — contact support', code: 'SUSPENDED' });
+      // First request after a payment started failing: record when the grace
+      // window began, or it would restart on every request and never expire.
+      if (v.needsGraceStamp && v.lockAt) {
+        pool.query(
+          'UPDATE desk_users SET billing_grace_until = $1 WHERE id = $2 AND billing_grace_until IS NULL',
+          [v.lockAt, req.user.userId]
+        ).catch(e => console.warn('⚠️ grace stamp failed:', e.message));
       }
 
-      const exempt = EXEMPT_EMAILS.includes((user.email || '').toLowerCase());
-      if (exempt) return next();
+      if (v.state === 'suspended') {
+        return res.status(403).json({
+          success: false, error: 'Account suspended — contact support', code: 'SUSPENDED',
+        });
+      }
 
-      const status   = user.subscription_status;
-      const trialEnd = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
-      const now      = new Date();
-
-      // Active subscription — allow
-      if (status === 'active') return next();
-
-      // Valid trial — allow
-      if ((!status || status === 'trial') && trialEnd && now < trialEnd) return next();
-
-      // Everything else — readonly, block writes
-      const reason = status === 'lapsed' ? 'lapsed'
-        : (!status || status === 'trial') ? 'trial_expired'
-        : status;
+      if (v.canWrite) return next();
 
       return res.status(402).json({
         success: false,
         error: 'Subscription required to perform this action',
         code: 'BILLING_REQUIRED',
-        reason
+        reason: v.reason,
       });
 
     } catch (e) {

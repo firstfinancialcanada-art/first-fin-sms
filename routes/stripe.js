@@ -2,6 +2,7 @@
 const { pool } = require('../lib/db');
 
 const { EXEMPT_EMAILS } = require('../lib/constants');
+const { decide } = require('../lib/billing-state');
 const tenants = require('../lib/tenants');
 
 // ── Input validation helpers ──────────────────────────────────────
@@ -298,7 +299,8 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT email, subscription_status, trial_ends_at, stripe_customer_id FROM desk_users WHERE id = $1',
+        `SELECT email, subscription_status, trial_ends_at, stripe_customer_id, suspended, billing_grace_until
+           FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
       const user = result.rows[0];
@@ -395,7 +397,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
             // ── Authenticated flow: update existing user ───────────
             await client.query(
               `UPDATE desk_users
-               SET subscription_status = 'active', stripe_customer_id = $1
+               SET subscription_status = 'active', billing_grace_until = NULL, stripe_customer_id = $1
                WHERE id = $2`,
               [session.customer, userId]
             );
@@ -413,7 +415,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               // Email exists — activate their account + link Stripe customer
               await client.query(
                 `UPDATE desk_users
-                 SET subscription_status = 'active', stripe_customer_id = $1
+                 SET subscription_status = 'active', billing_grace_until = NULL, stripe_customer_id = $1
                  WHERE email = $2`,
                 [session.customer, buyerEmail]
               );
@@ -448,6 +450,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                  VALUES ($1, $2, $3, 'owner', $4, 'active', $5)
                  ON CONFLICT (email) DO UPDATE
                    SET subscription_status = 'active',
+                       billing_grace_until = NULL,
                        stripe_customer_id = EXCLUDED.stripe_customer_id,
                        settings_json = desk_users.settings_json || $4::jsonb
                  RETURNING id`,
@@ -564,13 +567,17 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
           if (userId) {
             // Authenticated user — update by userId
             await client.query(
-              'UPDATE desk_users SET subscription_status = $1 WHERE id = $2',
+              `UPDATE desk_users SET subscription_status = $1,
+                      billing_grace_until = CASE WHEN $1 = 'active' THEN NULL ELSE billing_grace_until END
+                WHERE id = $2`,
               [status, userId]
             );
           } else if (customerId) {
             // Public buyer — look up by stripe_customer_id
             await client.query(
-              'UPDATE desk_users SET subscription_status = $1 WHERE stripe_customer_id = $2',
+              `UPDATE desk_users SET subscription_status = $1,
+                      billing_grace_until = CASE WHEN $1 = 'active' THEN NULL ELSE billing_grace_until END
+                WHERE stripe_customer_id = $2`,
               [status, customerId]
             );
           }
@@ -666,24 +673,18 @@ Follow up — they have been set to past_due.`,
 
 // ── Helpers ───────────────────────────────────────────────────────
 function getBillingStatus(user, exempt) {
-  if (exempt) return { access: 'full', reason: 'exempt' };
-
-  const status   = user.subscription_status;
-  const trialEnd = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
-  const now      = new Date();
-
-  if (status === 'active')  return { access: 'full',     reason: 'active' };
-  if (status === 'lapsed')  return { access: 'readonly', reason: 'lapsed' };
-
-  if (!status || status === 'trial') {
-    if (trialEnd && now < trialEnd) {
-      const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-      return { access: 'full', reason: 'trial', daysLeft, trialEnd };
-    }
-    return { access: 'readonly', reason: 'trial_expired' };
-  }
-
-  return { access: 'readonly', reason: status };
+  // Delegates to the shared state machine so the client is told exactly what
+  // middleware/billing.js will enforce. `access` is kept for older callers.
+  const v = decide(user, { exempt });
+  return {
+    access:   v.canWrite ? 'full' : (v.state === 'suspended' ? 'suspended' : 'readonly'),
+    state:    v.state,
+    canWrite: v.canWrite,
+    reason:   v.reason,
+    lockAt:   v.lockAt ? v.lockAt.toISOString() : null,
+    daysLeft: v.daysLeft,
+    warn:     v.warn,
+  };
 }
 
 module.exports.getBillingStatus = getBillingStatus;

@@ -18,7 +18,7 @@ module.exports = function(app, pool, requireAuth, requireBilling) {
   // GET ALL PROBABILITIES FOR A DEAL PROFILE
   // Called by the comparison engine
   // ─────────────────────────────────────────────────────────────
-  app.post('/api/desk/outcomes/all-probabilities', requireAuth, async (req, res) => {
+  app.post('/api/desk/outcomes/all-probabilities', requireAuth, requireBilling, async (req, res) => {
     try {
       const { beacon, ltvPct } = req.body;
       
@@ -66,7 +66,7 @@ module.exports = function(app, pool, requireAuth, requireBilling) {
   // GET DETAILED PROBABILITY FOR SINGLE LENDER
   // For "Why?" explanations
   // ─────────────────────────────────────────────────────────────
-  app.post('/api/desk/outcomes/probability', requireAuth, async (req, res) => {
+  app.post('/api/desk/outcomes/probability', requireAuth, requireBilling, async (req, res) => {
     try {
       const { lenderKey, beacon, ltvPct } = req.body;
 
