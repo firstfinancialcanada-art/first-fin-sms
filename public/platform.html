@@ -80,6 +80,23 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
    was invisible. Light text, like every other control on that bar. */
 body.light-mode .hbtn.theme-toggle{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.5);color:#fff;}
 body.light-mode .hbtn.theme-toggle:hover{background:#fff;color:#1a3a8f;border-color:#fff;}
+/* Same trap, the rest of the bar. The nav sits directly on that dark blue
+   header with no background of its own, so in light mode it inherited the
+   light-page palette and went to ~2:1 — Deal Desk, the ACTIVE tab, was worst
+   at 1.7:1. Measured on the live page, not guessed. The action buttons next
+   to it were always fine: they carry their own pale background. */
+body.light-mode .logo-sub{color:rgba(255,255,255,.75);}
+body.light-mode .nav-btn{color:rgba(255,255,255,.82);}
+body.light-mode .nav-btn:hover{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.4);}
+body.light-mode .nav-btn.active{background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.65);box-shadow:none;}
+body.light-mode .nav-btn.compare-btn{background:rgba(255,255,255,.12);color:#ffd166;border-color:rgba(255,209,102,.5);}
+body.light-mode .nav-btn.compare-btn:hover,body.light-mode .nav-btn.compare-btn.active{background:rgba(255,255,255,.22);color:#ffd166;border-color:rgba(255,209,102,.75);}
+/* FB Poster and DT Sync carry their brand colour as an INLINE style, which no
+   stylesheet can reach without !important. Both were picked against the
+   near-black dark header; on light mode's blue one FB Poster measured 2.8:1.
+   Lightened for light mode only — dark mode keeps the original blues/greens. */
+body.light-mode #nav-fbposter,body.light-mode #nav-fbposter span{color:#bfdbfe !important;border-color:rgba(191,219,254,.45) !important;}
+body.light-mode #nav-dtsync,body.light-mode #nav-dtsync span{color:#a7f3d0 !important;border-color:rgba(167,243,208,.45) !important;}
 
 /* ── SECTIONS ── */
 .section{display:none;padding:20px;min-height:calc(100vh - 60px);}
