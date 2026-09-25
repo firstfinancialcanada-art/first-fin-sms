@@ -2,15 +2,24 @@
 // scripts/check-lender-tables.js — do the screen and the engine agree?
 //
 // The lender criteria exist twice: routes/compare.js holds the table the
-// approval engine actually enforces, and public/js/platform-main.js holds the
-// one drawn on screen. Nothing kept them in step, and they drifted: iA Auto
-// Finance's bottom two tiers were shown with a 140,000 km cap while the engine
-// applied the lender-wide 180,000 to every tier.
+// approval engine enforces, and public/js/platform-main.js holds the one drawn
+// on screen. Nothing keeps them in step, and a silent disagreement between them
+// is the worst shape a bug can take here — it does not throw, it does not log,
+// and it gives a confident wrong answer about a real customer's deal.
 //
-// That is the worst kind of bug in this product. It does not throw, it does not
-// log, and it gives a confident wrong answer about a real customer's deal —
-// either scaring off business that would have funded, or sending in a deal the
-// lender will decline.
+// Only fields that BOTH sides actually consume are compared. Per-tier maxMile
+// and maxCfx are deliberately excluded: the server reads them (buildProgResult
+// falls back to the lender-wide cap when a tier omits them) but nothing on the
+// client ever renders them — the lender table draws l.maxMileage, and the tier
+// cards draw only tier/rate/fico/maxLtv. Comparing them reported iA's bottom
+// two tiers as a 140,000-vs-180,000 conflict that no user could ever see.
+//
+// Franco, 2026-09-25: lender criteria "constantly change... as new and updated
+// lender rate sheets are provided by the lenders." So these hardcoded tables
+// are only a fallback. A dealer's uploaded sheet overrides both the engine
+// (getQualifyingProgram tries tenant rates first) and the display (the ★ badge
+// in the lender table). This check is about the fallback not lying, not about
+// keeping up with the lenders — that is what the upload is for.
 //
 // Run it:  node scripts/check-lender-tables.js
 // Exits 1 on any disagreement, so it can gate a deploy.
@@ -76,16 +85,14 @@ function main() {
     }
     for (let i = 0; i < sp.length; i++) {
       const tier = cp[i].tier || `tier ${i + 1}`;
-      for (const f of ['minYear', 'maxLtv', 'maxMile', 'maxCfx']) {
+      if ((sp[i].tier || '') !== (cp[i].tier || '')) {
+        problems.push(`${k} tier ${i + 1}: engine calls it "${sp[i].tier}", screen calls it "${cp[i].tier}"`);
+      }
+      // Rate and FICO band are shown on the tier card AND drive the engine's
+      // tier selection, so a disagreement here is a real wrong answer.
+      for (const f of ['rate', 'fico', 'maxLtv', 'minYear']) {
         const sv = num(sp[i][f]), cv = num(cp[i][f]);
-        if (sv === null && cv !== null) {
-          // No per-tier value server-side means the engine applies the
-          // lender-wide limit. Only a problem if the screen disagrees with it.
-          const wide = num(s[FALLBACK[f]]);
-          if (wide !== cv) {
-            problems.push(`${k} [${tier}] ${f}: screen says ${cp[i][f]}, engine has no tier value so applies lender-wide ${wide}`);
-          }
-        } else if (sv !== null && cv !== null && sv !== cv) {
+        if (sv !== null && cv !== null && sv !== cv) {
           problems.push(`${k} [${tier}] ${f}: engine=${sp[i][f]} screen=${cp[i][f]}`);
         }
       }
