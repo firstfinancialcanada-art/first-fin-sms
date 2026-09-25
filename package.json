@@ -10,6 +10,7 @@
     "start": "node scripts/minify.js && node index.js",
     "dev": "nodemon index.js",
     "build": "node scripts/minify.js",
+    "check-lenders": "node scripts/check-lender-tables.js",
     "postinstall": "node scripts/minify.js",
     "migrate": "node setup-database.js && node setup-database-v2.js",
     "seed": "node seed-inventory.js"
