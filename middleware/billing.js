@@ -24,7 +24,7 @@ function makeBillingGuard(pool) {
     // never "can't be shut off".
     try {
       const result = await pool.query(
-        `SELECT email, subscription_status, trial_ends_at, suspended, billing_grace_until
+        `SELECT email, subscription_status, trial_ends_at, suspended, current_period_end
            FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -36,15 +36,6 @@ function makeBillingGuard(pool) {
       const user   = result.rows[0];
       const exempt = EXEMPT_EMAILS.includes((user.email || '').toLowerCase());
       const v      = decide(user, { exempt });
-
-      // First request after a payment started failing: record when the grace
-      // window began, or it would restart on every request and never expire.
-      if (v.needsGraceStamp && v.lockAt) {
-        pool.query(
-          'UPDATE desk_users SET billing_grace_until = $1 WHERE id = $2 AND billing_grace_until IS NULL',
-          [v.lockAt, req.user.userId]
-        ).catch(e => console.warn('⚠️ grace stamp failed:', e.message));
-      }
 
       if (v.state === 'suspended') {
         return res.status(403).json({

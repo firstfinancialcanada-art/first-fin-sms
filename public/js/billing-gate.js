@@ -9,8 +9,10 @@
 // Two surfaces, driven by GET /api/billing/status (same rules the server
 // enforces, from lib/billing-state.js):
 //
-//   banner   shown while `warn` is set — a trial or a failing card inside its
-//            grace window. Counts down to the day it locks.
+//   banner   shown while `warn` is set — the last week before money is due,
+//            either a renewal or the end of a trial. It counts down to the
+//            charge, NOT to a lockout: the point is to stop the payment
+//            failing, not to soften the landing afterwards.
 //   overlay  shown when the account can no longer write. Deliberately
 //            dismissable to a read-only view: Franco's ask was "accessible
 //            but not usable", so they can still look up a customer or read
@@ -30,7 +32,7 @@
     var r = (state && state.reason) || '';
     if (r === 'payment_failed') return {
       title: 'Your last payment didn’t go through',
-      body:  'Update your card and everything switches straight back on.',
+      body:  'Update your card and everything switches straight back on — nothing has been lost.',
       cta:   'Update payment method',
       portal: true,
     };
@@ -82,18 +84,20 @@
       el.id = 'ff-bill-banner';
       document.body.appendChild(el);
     }
-    var failing = state.reason === 'payment_failed';
+    var trial = state.kind === 'trial_end';
     var d = state.daysLeft;
     var when = d === 0 ? 'today' : d === 1 ? 'tomorrow' : 'in ' + d + ' days';
-    var msg = failing
-      ? 'Payment failed — your account locks ' + when + '.'
-      : 'Your trial ends ' + when + '.';
+    var msg = trial
+      ? 'Your trial ends ' + when + '. Add a payment method to keep going.'
+      : 'Your subscription renews ' + when + '.';
+    // Only the last couple of days go red; a week out is information, not alarm.
+    var urgent = d <= 2;
 
     el.style.cssText =
       'position:fixed;top:0;left:0;right:0;z-index:99998;display:flex;gap:12px;' +
       'align-items:center;justify-content:center;flex-wrap:wrap;padding:9px 16px;' +
       'font-family:Outfit,system-ui,sans-serif;font-size:13px;font-weight:600;' +
-      'color:#111;background:' + (failing ? '#fca5a5' : '#fcd34d') + ';' +
+      'color:#111;background:' + (urgent ? '#fca5a5' : '#fcd34d') + ';' +
       'box-shadow:0 1px 6px rgba(0,0,0,.25);';
     el.innerHTML = '';
 
@@ -102,11 +106,11 @@
     el.appendChild(t);
 
     var b = document.createElement('button');
-    b.textContent = failing ? 'Update card' : 'Choose a plan';
+    b.textContent = trial ? 'Choose a plan' : 'Manage billing';
     b.style.cssText =
       'padding:5px 12px;border-radius:5px;border:0;cursor:pointer;' +
       'font-family:inherit;font-size:12px;font-weight:700;color:#fff;background:#111;';
-    b.onclick = function () { openBilling(failing); };
+    b.onclick = function () { openBilling(!trial); };
     el.appendChild(b);
   }
 

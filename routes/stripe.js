@@ -299,7 +299,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `SELECT email, subscription_status, trial_ends_at, stripe_customer_id, suspended, billing_grace_until
+        `SELECT email, subscription_status, trial_ends_at, stripe_customer_id, suspended, current_period_end
            FROM desk_users WHERE id = $1`,
         [req.user.userId]
       );
@@ -397,7 +397,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
             // ── Authenticated flow: update existing user ───────────
             await client.query(
               `UPDATE desk_users
-               SET subscription_status = 'active', billing_grace_until = NULL, stripe_customer_id = $1
+               SET subscription_status = 'active', stripe_customer_id = $1
                WHERE id = $2`,
               [session.customer, userId]
             );
@@ -415,7 +415,7 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
               // Email exists — activate their account + link Stripe customer
               await client.query(
                 `UPDATE desk_users
-                 SET subscription_status = 'active', billing_grace_until = NULL, stripe_customer_id = $1
+                 SET subscription_status = 'active', stripe_customer_id = $1
                  WHERE email = $2`,
                 [session.customer, buyerEmail]
               );
@@ -450,7 +450,6 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
                  VALUES ($1, $2, $3, 'owner', $4, 'active', $5)
                  ON CONFLICT (email) DO UPDATE
                    SET subscription_status = 'active',
-                       billing_grace_until = NULL,
                        stripe_customer_id = EXCLUDED.stripe_customer_id,
                        settings_json = desk_users.settings_json || $4::jsonb
                  RETURNING id`,
@@ -564,21 +563,26 @@ module.exports = function stripeRoutes(app, { requireAuth }) {
             ? 'active'
             : sub.status;
 
+          // current_period_end is what the renewal reminder counts down to.
+          // Stripe fires this event on every renewal, so it stays current.
+          const periodEnd = sub.current_period_end
+            ? new Date(sub.current_period_end * 1000) : null;
+
           if (userId) {
             // Authenticated user — update by userId
             await client.query(
               `UPDATE desk_users SET subscription_status = $1,
-                      billing_grace_until = CASE WHEN $1 = 'active' THEN NULL ELSE billing_grace_until END
-                WHERE id = $2`,
-              [status, userId]
+                      current_period_end = COALESCE($2, current_period_end)
+                WHERE id = $3`,
+              [status, periodEnd, userId]
             );
           } else if (customerId) {
             // Public buyer — look up by stripe_customer_id
             await client.query(
               `UPDATE desk_users SET subscription_status = $1,
-                      billing_grace_until = CASE WHEN $1 = 'active' THEN NULL ELSE billing_grace_until END
-                WHERE stripe_customer_id = $2`,
-              [status, customerId]
+                      current_period_end = COALESCE($2, current_period_end)
+                WHERE stripe_customer_id = $3`,
+              [status, periodEnd, customerId]
             );
           }
           break;
@@ -646,6 +650,18 @@ Follow up — they have been set to past_due.`,
           // Payment recovered — restore active status
           const invoice    = event.data.object;
           const customerId = invoice.customer;
+          const line      = (invoice.lines && invoice.lines.data && invoice.lines.data[0]) || null;
+          const periodEnd = line && line.period && line.period.end
+            ? new Date(line.period.end * 1000) : null;
+
+          if (customerId && periodEnd) {
+            // Runs for the first invoice too — this is the earliest we learn
+            // when the next payment is due.
+            await client.query(
+              'UPDATE desk_users SET current_period_end = $1 WHERE stripe_customer_id = $2',
+              [periodEnd, customerId]
+            );
+          }
           if (customerId && invoice.billing_reason !== 'subscription_create') {
             await client.query(
               `UPDATE desk_users SET subscription_status = 'active' WHERE stripe_customer_id = $1 AND subscription_status = 'past_due'`,
@@ -681,7 +697,8 @@ function getBillingStatus(user, exempt) {
     state:    v.state,
     canWrite: v.canWrite,
     reason:   v.reason,
-    lockAt:   v.lockAt ? v.lockAt.toISOString() : null,
+    kind:     v.kind,
+    dueAt:    v.dueAt ? v.dueAt.toISOString() : null,
     daysLeft: v.daysLeft,
     warn:     v.warn,
   };

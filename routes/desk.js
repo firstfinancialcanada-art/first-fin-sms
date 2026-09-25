@@ -431,7 +431,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         ALTER TABLE desk_users
           ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial',
           ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
-          ADD COLUMN IF NOT EXISTS billing_grace_until TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
       `).catch(() => {});
 
@@ -3370,7 +3370,7 @@ module.exports = function (app, pool, twilioClient, requireBilling) {
         ALTER TABLE desk_users
           ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial',
           ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
-          ADD COLUMN IF NOT EXISTS billing_grace_until TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
       `).catch(() => {});
 
