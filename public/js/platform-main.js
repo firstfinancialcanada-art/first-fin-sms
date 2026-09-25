@@ -4847,10 +4847,27 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 function closeModalOutside(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 
 // ── DARK / LIGHT MODE ─────────────────────────────────
+// Writing textContent straight onto the button used to delete the icon Lucide
+// had rendered inside it, so the sun vanished on the first click and never
+// came back until a reload. Only the label is written now, and the icon is
+// swapped to match where the button takes you.
+function setThemeButton(isLight){
+  const label = document.getElementById('darkModeLabel');
+  if (label) label.textContent = isLight ? 'Dark' : 'Light';
+  const btn = document.getElementById('darkModeBtn');
+  const icon = btn && btn.querySelector('[data-lucide],svg');
+  if (icon) {
+    const fresh = document.createElement('i');
+    fresh.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
+    fresh.className = 'ico-sm';
+    icon.replaceWith(fresh);
+    try { lucide.createIcons(); } catch(e) {}
+  }
+}
+
 function toggleDarkMode(){
   const isLight = document.body.classList.toggle('light-mode');
-  const btn = document.getElementById('darkModeBtn');
-  btn.textContent = isLight ? 'Dark' : 'Light';
+  setThemeButton(isLight);
   localStorage.setItem('ffTheme', isLight ? 'light' : 'dark');
   toast(isLight ? 'Switched to Light Mode' : 'Switched to Dark Mode');
   // Rebuild watermark so ink colour matches new background
@@ -5997,7 +6014,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Restore theme
   if(localStorage.getItem('ffTheme')==='light'){
     document.body.classList.add('light-mode');
-    document.getElementById('darkModeBtn').textContent = 'Dark';
+    setThemeButton(true);
   }
   // Apply settings defaults
   setVal('docFee',settings.docFee);
