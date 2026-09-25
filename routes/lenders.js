@@ -4,6 +4,7 @@
 // Mounts: /api/lenders/*
 // ============================================================
 const { requireAuth } = require('../middleware/auth');
+const { resolveScope, roleAtLeast } = require('../lib/tenant-scope');
 const { LENDER_FEES } = require('../lib/constants');
 
 // multer is lazy-loaded inside the upload route — missing dep won't crash the server
@@ -457,6 +458,16 @@ module.exports = function (app, pool, requireBilling) {
         lender_fee   DECIMAL(10,2) DEFAULT 0,
         created_at   TIMESTAMPTZ DEFAULT NOW()
       );
+      -- Rate sheets were per USER, so a manager's uploaded sheet never
+      -- reached the reps, who then quoted customers off the built-in
+      -- defaults while the manager believed their own buy rates were live.
+      ALTER TABLE lender_rate_sheets ADD COLUMN IF NOT EXISTS tenant_id INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_lender_sheets_tenant ON lender_rate_sheets(tenant_id);
+      -- Backfill: attach every existing sheet to its uploader's tenant.
+      UPDATE lender_rate_sheets s
+         SET tenant_id = m.tenant_id
+        FROM desk_members m
+       WHERE m.user_id = s.user_id AND m.active = TRUE AND s.tenant_id IS NULL;
       CREATE INDEX IF NOT EXISTS idx_lrs_user_lender
         ON lender_rate_sheets(user_id, lender_name);
     `);
@@ -467,14 +478,24 @@ module.exports = function (app, pool, requireBilling) {
   // Returns tenant's custom rate sheets + extraLenders (DB lenders not in hardcoded list)
   app.get('/api/lenders/rates', requireAuth, async (req, res) => {
     try {
-      const { rows } = await pool.query(
-        `SELECT lender_name, tier_name, min_fico, max_fico, min_year,
-                max_mileage, max_carfax, max_ltv, buy_rate, lender_fee
-         FROM lender_rate_sheets
-         WHERE user_id = $1
-         ORDER BY lender_name, min_fico DESC`,
-        [req.user.userId]
-      );
+      // Tenant-wide when the caller belongs to one, so a rep sees the rates
+      // their manager uploaded. Solo accounts keep their own legacy rows.
+      const scope = await resolveScope(req);
+      const { rows } = scope?.tenantId
+        ? await pool.query(
+            `SELECT lender_name, tier_name, min_fico, max_fico, min_year,
+                    max_mileage, max_carfax, max_ltv, buy_rate, lender_fee
+             FROM lender_rate_sheets
+             WHERE tenant_id = $1
+             ORDER BY lender_name, min_fico DESC`,
+            [scope.tenantId])
+        : await pool.query(
+            `SELECT lender_name, tier_name, min_fico, max_fico, min_year,
+                    max_mileage, max_carfax, max_ltv, buy_rate, lender_fee
+             FROM lender_rate_sheets
+             WHERE user_id = $1 AND tenant_id IS NULL
+             ORDER BY lender_name, min_fico DESC`,
+            [req.user.userId]);
 
       // Known lender keys — these are handled by hardcoded lender objects in frontend
       const KNOWN_KEYS = ['sda','autocapital','northlake','prefera','edenpark','iceberg',
@@ -536,6 +557,15 @@ module.exports = function (app, pool, requireBilling) {
     }).catch(err => { return res.status(400).json({ success: false, error: sanitizeError(err) }); });
     if (res.headersSent) return;
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
+    // A rate sheet is now the whole dealership's, so a rep can no longer
+    // rewrite everyone's buy rates. Solo accounts have no tenant and are
+    // unaffected.
+    const scope = await resolveScope(req);
+    if (scope && scope.tenantId && !roleAtLeast(scope, 'manager')) {
+      return res.status(403).json({ success: false, error: 'Only managers can change lender rate sheets.' });
+    }
+    const tenantId = scope?.tenantId || null;
+
     let pdf;
     try { pdf = require('pdf-parse'); } catch (e) {
       return res.status(500).json({
@@ -574,18 +604,21 @@ module.exports = function (app, pool, requireBilling) {
       try {
         await client.query('BEGIN');
         await client.query(
-          'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2',
-          [userId, lenderName]
+          tenantId
+            ? 'DELETE FROM lender_rate_sheets WHERE tenant_id = $1 AND lender_name = $2'
+            : 'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND tenant_id IS NULL AND lender_name = $2',
+          [tenantId || userId, lenderName]
         );
         for (const item of extracted) {
           await client.query(
             `INSERT INTO lender_rate_sheets
-             (user_id, lender_name, tier_name, min_fico, max_fico, buy_rate,
+             (user_id, tenant_id, lender_name, tier_name, min_fico, max_fico, buy_rate,
               max_ltv, min_year, max_mileage, max_carfax, lender_fee)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+             VALUES ($1,$12,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
             [userId, lenderName, item.tier, item.minFico, item.maxFico,
              item.rate||0, item.maxLTV, item.minYear, item.maxMileage,
-             item.maxCarfax, item.fee || LENDER_FEES[lenderName] || 0]
+             item.maxCarfax, item.fee || LENDER_FEES[lenderName] || 0,
+             tenantId]
           );
         }
         await client.query('COMMIT');
@@ -616,6 +649,14 @@ module.exports = function (app, pool, requireBilling) {
     if (!lenderName || !Array.isArray(tiers) || !tiers.length) {
       return res.status(400).json({ success: false, error: 'lenderName and tiers[] required' });
     }
+    // A rate sheet is now the whole dealership's, so a rep can no longer
+    // rewrite everyone's buy rates. Solo accounts have no tenant and are
+    // unaffected.
+    const scope = await resolveScope(req);
+    if (scope && scope.tenantId && !roleAtLeast(scope, 'manager')) {
+      return res.status(403).json({ success: false, error: 'Only managers can change lender rate sheets.' });
+    }
+    const tenantId = scope?.tenantId || null;
     const userId = req.user.userId;
     const lid    = lenderName.toLowerCase();
     // Validate each tier
@@ -643,7 +684,11 @@ module.exports = function (app, pool, requireBilling) {
     try {
       await client.query('BEGIN');
       // Snapshot current rates before overwriting (rate sheet versioning)
-      const oldRates = await client.query('SELECT * FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2', [userId, lid]);
+      const oldRates = await client.query(
+        tenantId
+          ? 'SELECT * FROM lender_rate_sheets WHERE tenant_id = $1 AND lender_name = $2'
+          : 'SELECT * FROM lender_rate_sheets WHERE user_id = $1 AND tenant_id IS NULL AND lender_name = $2',
+        [tenantId || userId, lid]);
       if (oldRates.rows.length) {
         await client.query(
           `INSERT INTO lender_rate_history (user_id, lender_name, rates_json) VALUES ($1, $2, $3)`,
@@ -651,21 +696,24 @@ module.exports = function (app, pool, requireBilling) {
         );
       }
       await client.query(
-        'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2',
-        [userId, lid]
+        tenantId
+          ? 'DELETE FROM lender_rate_sheets WHERE tenant_id = $1 AND lender_name = $2'
+          : 'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND tenant_id IS NULL AND lender_name = $2',
+        [tenantId || userId, lid]
       );
       for (const t of tiers) {
         await client.query(
           `INSERT INTO lender_rate_sheets
-           (user_id, lender_name, tier_name, min_fico, max_fico, buy_rate,
+           (user_id, tenant_id, lender_name, tier_name, min_fico, max_fico, buy_rate,
             max_ltv, min_year, max_mileage, max_carfax, lender_fee)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+           VALUES ($1,$12,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [userId, lid, t.tier || `Tier ${tiers.indexOf(t)+1}`,
            parseInt(t.minFico)||0, parseInt(t.maxFico)||9999,
            parseFloat(t.rate)||0, parseInt(t.maxLTV)||140,
            parseInt(t.minYear)||2015, parseInt(t.maxMileage)||200000,
            parseInt(t.maxCarfax)||9999,
-           parseFloat(t.fee) || LENDER_FEES[lid] || 0]
+           parseFloat(t.fee) || LENDER_FEES[lid] || 0,
+           tenantId]
         );
       }
       await client.query('COMMIT');
@@ -682,9 +730,15 @@ module.exports = function (app, pool, requireBilling) {
   // Reset lender to hardcoded defaults by removing custom rates
   app.delete('/api/lenders/rates/:lenderName', requireAuth, requireBilling, async (req, res) => {
     try {
+      const scope = await resolveScope(req);
+      if (scope && scope.tenantId && !roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Only managers can reset lender rate sheets.' });
+      }
       await pool.query(
-        'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND lender_name = $2',
-        [req.user.userId, req.params.lenderName.toLowerCase()]
+        scope?.tenantId
+          ? 'DELETE FROM lender_rate_sheets WHERE tenant_id = $1 AND lender_name = $2'
+          : 'DELETE FROM lender_rate_sheets WHERE user_id = $1 AND tenant_id IS NULL AND lender_name = $2',
+        [scope?.tenantId || req.user.userId, req.params.lenderName.toLowerCase()]
       );
       res.json({ success: true, message: `${req.params.lenderName} reset to platform defaults` });
     } catch (e) {
