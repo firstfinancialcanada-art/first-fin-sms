@@ -1,5 +1,5 @@
 ======================================================================
-           FIRST-FIN — YOUR DEALER PLATFORM IS READY
+           FIRST-FIN — YOUR DEALER SYSTEM IS READY
                    READ THIS FIRST — ALL STEPS
 ======================================================================
 

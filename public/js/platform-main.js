@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// FIRST-FIN DEALER PLATFORM v1.0
+// FIRST-FIN DEALER SYSTEM v1.0
 // Unified: Dealer Desk + AutoLend + CRM + Analytics
 // ═══════════════════════════════════════════════════════
 window.inventory = []; 
@@ -6092,7 +6092,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   loadDealLog();
   // wizCheckAndShow is called by api-client.js _triggerRenders after server
   // settings are fully loaded — no need to poll or guess timing here
-console.log('%cFIRST-FIN DEALER PLATFORM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
+console.log('%cFIRST-FIN DEALER SYSTEM v1.0 LOADED','background:#1e5af6;color:white;padding:10px 20px;font-size:14px;font-weight:bold;border-radius:5px;');
 
 // Initialize Lucide icons on page load and provide refresh function for dynamic content
 if (typeof lucide !== 'undefined') {
