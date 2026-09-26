@@ -37,6 +37,18 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 - ⚠ **Stripe upgrade path** — still open, and not fixable from code: needs a live checkout event to confirm whether `session.subscription_data` exists on `checkout.session.completed`.
 - ✅ ~~Stale chrome-extension/*.src.js~~ — HANDLED 2026-09-25 (4f406c6). The build now reports how many days behind each one is (155–159). **Memory had this backwards:** the tracked .js files ARE the readable source, not minified builds. Verified no function in any .src.js is missing from its .js, so they're disposable — deleting them is Franco's call, they're untracked local files.
 
+## Shipped Fri 2026-09-25
+
+- **Wholesale sign: covered, not hidden.** Hiding whole photos cost the best angles (the sign sits at the edge of the rear 3/4 and side shots). Click a photo, drag a box over the sign, done — remembered per car forever. Runs in the browser, no API key needed.
+- **Billing enforcement**: exempt accounts could not be shut off at all; 11 write routes had no guard; a lapsed account got no overlay and no warning. All closed, plus a reminder in the 7 days *before* payment is due.
+- **Four customer texts could reach someone who replied STOP.** All now go through one guard that fails closed.
+- **Spend cap** is one allowance per dealership, not per seat. **Lender rate sheets** reach the whole dealership and are manager-gated.
+- **Bulk send** can no longer double-text: rows are claimed atomically, and overlapping ticks were the real cause, not crashes.
+- **Twilio status callbacks signed**; **number purchases capped** per tier.
+- **Wholesale cost could be quoted to a customer** — clicking an inventory row loaded the supplier's price into Selling Price, one click from Present. Fixed, plus a WHOLESALE chip and retail editing in the list.
+- **"Dealer Platform" → "Dealer System"** everywhere it is the product's name, including the Terms of Service defined term.
+- **Extension download rebuilt** — the served zip was the 09-21 build and was missing the price-parsing fix. Anyone who downloaded it since then should re-download and reload it; Chrome does not auto-update a manually-loaded extension.
+
 ## Known gaps — deliberately not built
 
 - **Multi-rooftop / parent-child tenants.** Platinum exists in Stripe (50 seats) but there is no store dimension anywhere: a manager at rooftop A is texted for every lead at B and C. Waiting for a real Platinum customer (Terry Robinson / Landry Auto Group is the likely first). Workaround today: one account per rooftop.
