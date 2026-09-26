@@ -2981,6 +2981,7 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
 
 <script src="/js/api-client.js"></script>
 <script src="/js/billing-gate.js"></script>
+<script src="/js/photo-cleaner.js"></script>
 <script>
 // ── FEATURE GATING ────────────────────────────────────────────────
 // Called by api-client._triggerRenders() after every login/session restore.
@@ -4734,6 +4735,7 @@ async function startLoginBuy() {
     if (!v._ocrDone) v._includedUrls = new Set(v.photos || []);
     v._rejectedUrls = v._rejectedUrls || new Set();  // persists across re-selects
     v._manualUrls   = v._manualUrls   || new Set();  // hidden by a person, not the scan
+    v._edits        = v._edits        || {};        // url -> cover boxes
 
     // Render photo strip
     fbpRenderPhotoStrip(v);
@@ -4780,6 +4782,12 @@ async function startLoginBuy() {
       const img = document.createElement('img');
       img.className = 'fbp-thumb';
       img.src = url;
+      // Show the covered version in the strip as well, so what you see here is
+      // what goes out.
+      const _boxes = (v._edits || {})[url];
+      if (_boxes && _boxes.length && window.FFPhotoCleaner) {
+        window.FFPhotoCleaner.render(url, _boxes).then(clean => { img.src = clean; });
+      }
       img.title = isRejected
         ? (byHand
             ? (isIncluded ? 'You hid this photo — click to bring it back' : 'Hidden by you — click to bring it back')
@@ -4790,15 +4798,39 @@ async function startLoginBuy() {
       img.style.cssText = `width:70px;height:52px;object-fit:cover;border-radius:4px;border:2px solid ${borderColor};opacity:${opacity};cursor:pointer;flex-shrink:0;transition:all .13s;`;
       img.onmouseover = () => { img.style.transform = 'scale(1.08)'; };
       img.onmouseout  = () => { img.style.transform = 'scale(1)'; };
+      // Opens the photo big enough to actually see the sign, where it can be
+      // covered or hidden. Hiding a whole photo used to be the only option and
+      // it cost the good angles — the supplier's sign sits at the edge of the
+      // rear 3/4 and side shots, which are the ones that sell the car.
       img.onclick     = () => {
-        const nowHidden = isIncluded;          // clicking an included photo hides it
-        if (nowHidden) { included.delete(url); rejected.add(url); manual.add(url); }
-        else           { included.add(url); }
-        v._includedUrls = included;
-        v._rejectedUrls = rejected;
-        v._manualUrls   = manual;
-        fbpRenderPhotoStrip(v);
-        fbpSavePhotoChoice(url, nowHidden);
+        if (!window.FFPhotoCleaner) {       // module missing — fall back to the old toggle
+          const nowHidden = isIncluded;
+          if (nowHidden) { included.delete(url); rejected.add(url); manual.add(url); }
+          else           { included.add(url); }
+          v._includedUrls = included; v._rejectedUrls = rejected; v._manualUrls = manual;
+          fbpRenderPhotoStrip(v);
+          fbpSavePhotoChoice(url, nowHidden);
+          return;
+        }
+        const edits = v._edits || (v._edits = {});
+        window.FFPhotoCleaner.open(url, edits[url] || [], (boxes) => {
+          edits[url] = boxes;
+          // A covered photo is safe to use, so bring it back in.
+          if (boxes.length) { included.add(url); rejected.delete(url); manual.delete(url); }
+          v._includedUrls = included; v._rejectedUrls = rejected; v._manualUrls = manual;
+          fbpRenderPhotoStrip(v);
+          fbpSavePhotoEdits(url, boxes);
+          if (boxes.length) fbpSavePhotoChoice(url, false);
+        }, {
+          hidden: !isIncluded,
+          onHide: (wantHidden) => {
+            if (wantHidden) { included.delete(url); rejected.add(url); manual.add(url); }
+            else            { included.add(url); rejected.delete(url); manual.delete(url); }
+            v._includedUrls = included; v._rejectedUrls = rejected; v._manualUrls = manual;
+            fbpRenderPhotoStrip(v);
+            fbpSavePhotoChoice(url, wantHidden);
+          }
+        });
       };
       img.onerror = () => img.style.display = 'none';
       strip.appendChild(img);
@@ -4834,6 +4866,10 @@ async function startLoginBuy() {
       if (!w) { fbpFlash('Popup blocked — allow popups for this site'); return; }
       w.document.title = v.title + ' — Photos';
       w.document.body.style.cssText = 'margin:0;padding:20px;background:#111;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;';
+      // Render the covered versions here, not the originals — a box drawn in
+      // the editor is worthless if the photo that reaches Marketplace is the
+      // untouched one. Anything without a cover passes straight through.
+      const edits = v._edits || {};
       urls.forEach(url => {
         const im = w.document.createElement('img');
         im.src = url;
@@ -4841,8 +4877,15 @@ async function startLoginBuy() {
         im.title = 'Drag to Facebook';
         im.draggable = true;
         w.document.body.appendChild(im);
+        const boxes = edits[url];
+        if (boxes && boxes.length && window.FFPhotoCleaner) {
+          window.FFPhotoCleaner.render(url, boxes).then(clean => { im.src = clean; });
+        }
       });
-      fbpFlash(`Opened ${urls.length} photos`);
+      const covered = urls.filter(u => (edits[u] || []).length).length;
+      fbpFlash(covered
+        ? `Opened ${urls.length} photos — ${covered} with the sign covered`
+        : `Opened ${urls.length} photos`);
     };
     actionsSlot.appendChild(openBtn);
 
@@ -4884,6 +4927,7 @@ async function startLoginBuy() {
       vref._rejectedUrls = new Set((rejected || []).map(x => x.url));
       vref._manualUrls   = new Set((rejected || []).filter(x => x.manual).map(x => x.url));
       vref._includedUrls = new Set(kept || vref.photos);
+      vref._edits        = d.edits || {};
       if (fbpV === vref) fbpRenderPhotoStrip(vref);
       const found = (rejected || []).filter(x => !x.manual).length;
       if (found && fbpV === vref) {
@@ -4895,6 +4939,20 @@ async function startLoginBuy() {
   // ── Remember a hidden photo ────────────────────────────────────────
   // Fire and forget: the strip has already redrawn, so a failed save must
   // not block the operator — it just means they hide it again next time.
+  // Fire and forget, same as the hide saver: the strip has already redrawn.
+  async function fbpSavePhotoEdits(url, boxes) {
+    if (window.DEMO_MODE) return;
+    try {
+      const r = await FF.apiFetch('/api/desk/photo-edits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, boxes })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) fbpFlash('Sign covered for now — could not save it');
+    } catch (e) { fbpFlash('Sign covered for now — could not save it'); }
+  }
+
   async function fbpSavePhotoChoice(url, hidden) {
     if (window.DEMO_MODE) return;   // demo blocks writes; the flash would lie
     try {

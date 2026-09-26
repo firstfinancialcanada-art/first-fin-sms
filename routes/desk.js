@@ -3243,14 +3243,40 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // scan=false means "only apply saved decisions" — the dealer's own
       // photos have no supplier signage to find, but a hand-hidden photo
       // still has to come back hidden.
+      const tenantId = scope?.tenantId || null;
       const result = await photoOcr.classifyVehiclePhotos(capped, {
-        tenantId: scope?.tenantId || null,
+        tenantId,
         scan: scan !== false,
       });
-      res.json({ ok: true, result });
+      // Cover-up boxes ride along so the poster can paint them without a
+      // second round trip.
+      const edits = await photoOcr.getEdits(tenantId, capped);
+      res.json({ ok: true, result, edits: Object.fromEntries(edits) });
     } catch (e) {
       console.error('❌ /api/desk/ocr-photos error:', e.message);
       res.status(500).json({ ok: false, error: 'OCR failed' });
+    }
+  });
+
+  // ── Cover-up boxes on a photo ──────────────────────────────────────
+  // Hiding a whole photo because the supplier's sign is in the corner throws
+  // away the shot, and on SmartBuy's galleries the sign lands in the rear 3/4
+  // and side angles — the ones that sell the car. A box over the sign keeps
+  // the photo. Saved per tenant per URL, so a gallery is fixed once, ever.
+  app.post('/api/desk/photo-edits', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { url, boxes } = req.body || {};
+      if (!url || typeof url !== 'string') return res.status(400).json({ ok: false, error: 'url required' });
+      if (boxes !== null && !Array.isArray(boxes)) {
+        return res.status(400).json({ ok: false, error: 'boxes must be an array (or null to clear)' });
+      }
+      const scope = await resolveScope(req);
+      if (!scope?.tenantId) return res.status(404).json({ ok: false, error: 'Tenant not found for this user' });
+      const saved = await photoOcr.setEdits(scope.tenantId, url, boxes || [], req.user.userId);
+      res.json({ ok: true, boxes: saved });
+    } catch (e) {
+      console.error('❌ /api/desk/photo-edits error:', e.message);
+      res.status(500).json({ ok: false, error: 'Could not save photo edit' });
     }
   });
 
