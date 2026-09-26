@@ -935,6 +935,40 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
   // ── GET /api/admin/system-status ──────────────────────────
   // ── TENANT HEALTH DASHBOARD ──────────────────────────────────────
   // Returns per-tenant usage stats, churn risk, feature adoption
+  // ── GET /api/admin/inventory-sources ──────────────────────────
+  // What `source` is actually stored on inventory rows, per tenant. The
+  // wholesale treatment in the poster and the inventory list keys off an
+  // EXACT match against WHOLESALE_SOURCES, so a row imported before the
+  // extension started sending _source (a905270) reads as the dealer's own
+  // car: no WHOLESALE chip, no retail-price cell, and the supplier's cost
+  // shown in green. This is the only way to see that from outside the app.
+  app.get('/api/admin/inventory-sources', adminAuth, async (req, res) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT u.id AS user_id, u.email,
+               COALESCE(i.source, '(null)') AS source,
+               COUNT(*)::int AS units,
+               COUNT(i.retail_price)::int AS with_retail
+          FROM desk_inventory i
+          JOIN desk_users u ON u.id = i.user_id
+         GROUP BY u.id, u.email, COALESCE(i.source, '(null)')
+         ORDER BY u.id, units DESC
+      `);
+      const { WHOLESALE_SOURCES } = require('../lib/constants');
+      res.json({
+        success: true,
+        wholesaleSources: WHOLESALE_SOURCES,
+        rows: rows.map(r => ({
+          ...r,
+          countsAsWholesale: WHOLESALE_SOURCES.includes(String(r.source || '').toLowerCase()),
+        })),
+      });
+    } catch (e) {
+      console.error('❌ /api/admin/inventory-sources error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
   app.get('/api/admin/tenant-health', adminAuth, async (req, res) => {
     const client = await pool.connect();
     try {
