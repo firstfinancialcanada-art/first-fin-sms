@@ -36,6 +36,32 @@ const SKIP_FILES = [
   'README - INSTALL EXTENSION.txt'
 ];
 
+// The .src.js files are NOT build inputs and never were. They are gitignored
+// April backups from before the tracked .js files became the readable source
+// — content.js today is 1443 commented lines and carries fixes the 1034-line
+// content.src.js has never seen. Editing a .src.js changes nothing and the
+// silence is the problem: you get no error, just a fix that does not exist.
+// Verified 2026-09-25: no function in any .src.js is absent from its .js, so
+// they hold nothing worth keeping.
+function warnAboutStaleSources() {
+  const stale = [];
+  for (const name of SKIP_FILES.filter(f => f.endsWith('.src.js'))) {
+    const src  = path.join(EXT_DIR, name);
+    const real = path.join(EXT_DIR, name.replace('.src.js', '.js'));
+    if (!fs.existsSync(src) || !fs.existsSync(real)) continue;
+    const sm = fs.statSync(src).mtime, rm = fs.statSync(real).mtime;
+    const days = Math.round((rm - sm) / 86400000);
+    if (days > 0) stale.push(`${name} is ${days} day(s) behind ${path.basename(real)}`);
+  }
+  if (stale.length) {
+    console.warn('');
+    console.warn('⚠️  Stale .src.js files present — they are NOT build inputs:');
+    for (const line of stale) console.warn('     ' + line);
+    console.warn('   Edit the tracked .js files. Deleting the .src.js copies is safe.');
+    console.warn('');
+  }
+}
+
 const TERSER_OPTS = {
   compress: {
     dead_code: true,
@@ -52,6 +78,7 @@ const TERSER_OPTS = {
 
 async function run() {
   console.log('📦 Packaging FIRST-FIN extension for distribution...\n');
+  warnAboutStaleSources();
 
   // Clean output directory
   if (fs.existsSync(OUT_DIR)) fs.rmSync(OUT_DIR, { recursive: true });
