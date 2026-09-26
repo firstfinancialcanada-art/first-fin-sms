@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "First-Fin Extension",
   "version": "2.1.0",
-  "description": "Auto-fills Facebook Marketplace vehicle listings using inventory from your First-Fin dealer platform.",
+  "description": "Auto-fills Facebook Marketplace vehicle listings using inventory from your First-Fin Dealer System.",
   "permissions": [
     "activeTab",
     "tabs",
