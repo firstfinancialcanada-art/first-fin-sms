@@ -624,7 +624,11 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   // account currency), which we reconcile against the at-send-time estimate
   // stored in tenant_spend_events so tenant_usage.sms_spend_cents reflects
   // actual Twilio billing rather than our 1¢/segment approximation.
-  app.post('/api/sms-status', async (req, res) => {
+  // Signed like every other Twilio callback. This one moves money: it feeds
+  // reconcileSpend, so an unsigned POST with a large Price could inflate a
+  // dealer's usage until the cap silences Sarah on their real leads. Needs a
+  // message SID to aim at, which is not a reason to leave it open.
+  app.post('/api/sms-status', validateTwilio, async (req, res) => {
     try {
       const { MessageSid, MessageStatus, Price } = req.body;
       if (MessageSid && MessageStatus) {

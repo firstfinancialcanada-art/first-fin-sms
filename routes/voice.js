@@ -865,7 +865,9 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
   // minimize noise). Completed events carry Price (negative decimal string,
   // account currency) — we reconcile it against the at-send-time 2¢/min
   // estimate so tenant_usage.voice_spend_cents reflects actual Twilio cost.
-  app.post('/api/voice-status', async (req, res) => {
+  // Same as /api/sms-status — it reconciles call cost against the tenant's
+  // spend cap, so it gets the same signature check as every other Twilio hook.
+  app.post('/api/voice-status', validateTwilio, async (req, res) => {
     try {
       const { CallSid, Price } = req.body;
       if (CallSid && Price) {
