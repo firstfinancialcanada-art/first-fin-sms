@@ -3036,8 +3036,8 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // Phase 6: tenant-shared inventory in deal desk bootstrap.
       const scope = await resolveScope(req);
       const invQuery = scope?.tenantId
-        ? { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE tenant_id = $1 AND status IN ('available', 'wholesale') ORDER BY stock", arg: scope.tenantId }
-        : { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL AND status IN ('available', 'wholesale') ORDER BY stock", arg: req.user.userId };
+        ? { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost, source, retail_price FROM desk_inventory WHERE tenant_id = $1 AND status IN ('available', 'wholesale') ORDER BY stock", arg: scope.tenantId }
+        : { sql: "SELECT stock, year, make, model, mileage, price, book_value, condition, carfax, type, status, vin, color, trim, cost, source, retail_price FROM desk_inventory WHERE user_id = $1 AND tenant_id IS NULL AND status IN ('available', 'wholesale') ORDER BY stock", arg: req.user.userId };
       const [
         settingsR,
         inventoryR,
@@ -3107,7 +3107,15 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         success: true,
         user,
         settings,
-        inventory: inventoryR.rows,
+        // is_wholesale is DERIVED, not stored, and this endpoint is what the
+        // Inventory page and Deal Desk read — /api/desk/inventory (the FB
+        // Poster's) had it, this one did not, so the WHOLESALE chip and the
+        // retail-price cell never appeared in the list no matter how the rows
+        // were tagged.
+        inventory: inventoryR.rows.map(r => ({
+          ...r,
+          is_wholesale: WHOLESALE_SOURCES.includes(String(r.source || '').toLowerCase()),
+        })),
         crm: crmR.rows,
         dealLog: dealLogR.rows.map(r => ({ ...r.deal_data, _dbId: r.id })),
         lenderRates: lenderR.rows[0]?.overrides_json || {},
