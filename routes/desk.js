@@ -14,8 +14,8 @@ const {
 } = require('../middleware/auth');
 const { safeFetch } = require('../lib/url-guard'); // SSRF-guarded fetch for scrape/photo endpoints
 
-const { EXEMPT_EMAILS, TENANT_CAPS, WHOLESALE_SOURCES } = require('../lib/constants');
-const { checkInventoryCap, checkCrmCap } = require('../lib/spend-cap');
+const { EXEMPT_EMAILS, TENANT_CAPS, TIER_NUMBER_CAPS, WHOLESALE_SOURCES } = require('../lib/constants');
+const { checkInventoryCap, checkCrmCap, tenantCaps } = require('../lib/spend-cap');
 const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = require('../lib/tenant-scope');
 const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
 const hours = require('../lib/hours');
@@ -1263,6 +1263,33 @@ const { sendCustomerSms } = require('../lib/customer-sms');
     const { phoneNumber } = req.body;
     if (!phoneNumber || !phoneNumber.startsWith('+1')) {
       return res.status(400).json({ success: false, error: 'Valid +1 Canadian/US number required' });
+    }
+
+    // Numbers are bought on OUR Twilio account and billed to us forever, and
+    // this route only rewrites desk_users.twilio_number — the number being
+    // replaced is never released. Without a ceiling, repeated provisioning
+    // quietly stacks up numbers nobody uses and we keep paying for.
+    try {
+      const { tier } = await tenantCaps(req.user.userId);
+      const cap  = TIER_NUMBER_CAPS[tier] || TIER_NUMBER_CAPS.single;
+      const tag  = `FIRST-FIN tenant:${req.user.userId}`;
+      const held = await twilioClient.incomingPhoneNumbers.list({ friendlyName: tag, limit: 50 });
+      // Re-provisioning a number already held is a reconfigure, not a purchase.
+      const alreadyMine = held.some(n => n.phoneNumber === phoneNumber);
+      if (!alreadyMine && held.length >= cap) {
+        console.warn(`⚠️ number cap reached: tenant ${req.user.userId} holds ${held.length}/${cap}`);
+        return res.status(409).json({
+          success: false, code: 'NUMBER_CAP_REACHED',
+          error: `This account already holds ${held.length} phone number${held.length===1?'':'s'} (limit ${cap} on the ${tier} plan). `
+               + `Release one you no longer use before buying another.`,
+          held: held.map(n => n.phoneNumber),
+          cap,
+        });
+      }
+    } catch (e) {
+      // Never block a legitimate purchase because the count failed; log it so
+      // a runaway would still be visible.
+      console.warn('⚠️ number-cap check failed, allowing purchase:', e.message);
     }
     const client = await pool.connect();
     try {
