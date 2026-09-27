@@ -86,6 +86,28 @@
     }).catch(function () { return url; });
   }
 
+  // Same as render(), but returns a data: URL rather than a blob: URL.
+  //
+  // This is what Auto-Fill has to send. The extension's background worker
+  // fetches each photo itself and base64s it, and a blob: URL created in this
+  // page does not exist in that worker's context — it would simply fail and
+  // the ORIGINAL would be posted. fetch() handles data: URLs, so a covered
+  // photo passes straight through the existing path.
+  //
+  // Quality 0.88 keeps a 2560px photo near the original size; only covered
+  // photos become data URLs, so the postMessage payload stays small.
+  function renderDataUrl(url, boxes) {
+    if (!boxes || !boxes.length) return Promise.resolve(url);
+    return loadImage(url).then(function (img) {
+      var c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      var ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      paintBoxes(ctx, img, boxes);
+      return c.toDataURL('image/jpeg', 0.88);
+    }).catch(function () { return url; });   // never post a broken image
+  }
+
   // ── The editor ──────────────────────────────────────────────────────
   // Drag a box over the sign. Click an existing box to drop it.
   // opts: { hidden, onHide }  — hiding lives here too, because this is the
@@ -102,7 +124,7 @@
       'font-family:Outfit,system-ui,sans-serif;';
 
     var hint = document.createElement('div');
-    hint.textContent = 'Drag a box over the sign. Click a box to remove it.';
+    hint.textContent = 'Drag a box over the sign — use two or three if a car overlaps it. Click a box to remove it.';
     hint.style.cssText = 'color:#cbd5e1;font-size:13px;font-weight:600;';
     wrap.appendChild(hint);
 
@@ -121,14 +143,24 @@
     overlay.style.cssText = 'position:absolute;inset:0;';
     stage.appendChild(overlay);
 
+    // Show what the photo ACTUALLY looks like with the covers applied, not the
+    // original with red rectangles over it. Franco: "hit save and the sign does
+    // not go away on the large image" — it had gone, the editor was just still
+    // drawing the untouched photo underneath. Outlines mark where the boxes are.
+    function refreshBase() {
+      if (!working.length) { im.src = url; return; }
+      render(url, working).then(function (clean) { im.src = clean; });
+    }
+
     function redraw() {
       overlay.innerHTML = '';
+      refreshBase();
       working.forEach(function (b, idx) {
         var d = document.createElement('div');
         d.style.cssText =
           'position:absolute;left:' + (b.x * 100) + '%;top:' + (b.y * 100) + '%;' +
           'width:' + (b.w * 100) + '%;height:' + (b.h * 100) + '%;' +
-          'background:rgba(239,68,68,.35);border:2px solid #ef4444;cursor:pointer;';
+          'background:transparent;border:2px dashed rgba(239,68,68,.85);cursor:pointer;';
         d.title = 'Click to remove';
         d.onclick = function (ev) { ev.stopPropagation(); working.splice(idx, 1); redraw(); };
         overlay.appendChild(d);
@@ -201,5 +233,5 @@
     document.body.appendChild(wrap);
   }
 
-  window.FFPhotoCleaner = { open: open, render: render };
+  window.FFPhotoCleaner = { open: open, render: render, renderDataUrl: renderDataUrl };
 })();

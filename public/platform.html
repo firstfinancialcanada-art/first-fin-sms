@@ -5110,6 +5110,34 @@ async function startLoginBuy() {
     const cleanedPhotos = fbpV._includedUrls
       ? [...fbpV._includedUrls]
       : (fbpV.photos || []);
+
+    // A covered photo has to be sent as image DATA, not as its URL. The
+    // extension's background worker fetches each URL itself, so sending the
+    // supplier's URL means Facebook gets the ORIGINAL with the sign on it —
+    // which is exactly what happened: the strip and Open All Photos showed
+    // the cover, and the listing went up uncovered. fetch() handles data:
+    // URLs, so these pass through the extension untouched. Only covered
+    // photos are converted; the rest stay as URLs and cost nothing.
+    const _edits = fbpV._edits || {};
+    const _covered = cleanedPhotos.filter(u => (_edits[u] || []).length).length;
+    if (_covered) fbpFlash(`Covering ${_covered} photo${_covered===1?'':'s'} before sending…`);
+    let photosForFb = cleanedPhotos;
+    try {
+      photosForFb = await Promise.all(cleanedPhotos.map(u => {
+        const boxes = _edits[u];
+        return (boxes && boxes.length && window.FFPhotoCleaner)
+          ? window.FFPhotoCleaner.renderDataUrl(u, boxes)
+          : u;
+      }));
+    } catch (e) {
+      // Rendering failed — refuse rather than post the supplier's sign.
+      if (_covered) { fbpFlash('Could not cover the sign — nothing sent'); return; }
+    }
+    // Belt and braces: if any covered photo came back as its original URL,
+    // the cover did not take and the sign would go live.
+    const _failed = cleanedPhotos.filter((u, i) => (_edits[u] || []).length && photosForFb[i] === u);
+    if (_failed.length) { fbpFlash(`${_failed.length} photo(s) failed to cover — nothing sent`); return; }
+
     window.postMessage({
       type: 'FIRSTFIN_FB_AUTOFILL',
       vehicle: {
@@ -5121,7 +5149,7 @@ async function startLoginBuy() {
         // Facebook gets. Falls back to the built text if the box is empty.
         description: (document.getElementById('fbp-desc-body')?.value || '').trim() || fbpV.description,
         condition: fbpV.condition,
-        photos: cleanedPhotos,
+        photos: photosForFb,
       }
     }, '*');
     fbpFlash('Auto-fill sent — opening/reusing Facebook tab');
