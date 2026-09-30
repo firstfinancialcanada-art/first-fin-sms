@@ -1140,9 +1140,46 @@ function scrapeCurrentPage() {
           }
         }
       }
+      // ── Fill in a truncated pagination widget ──────────────────────────
+      // Most dealer sites render "1 2 3 4 5 6 ... 32" and only link the few
+      // they show. Collecting just those means collecting just those pages:
+      // House of Cars has 1267 vehicles over 32 pages and links 2-6 and 32
+      // from page one, so a scan finished at ~260 cars and looked throttled.
+      // It was not — the scanner took every page the site offered.
+      //
+      // The last number IS the page count, so the gap can be filled from the
+      // links already found: group the ones that differ only by a number and
+      // generate the missing values between min and max.
+      const filledPages = (() => {
+        if (pageLinks.length < 2) return pageLinks;
+        const groups = new Map();
+        for (const href of pageLinks) {
+          const m = String(href).match(/^(.*?)(\d+)([^\d]*)$/);
+          if (!m) continue;
+          const key = m[1] + ' ' + m[3];
+          if (!groups.has(key)) groups.set(key, { prefix: m[1], suffix: m[3], nums: [] });
+          groups.get(key).nums.push(parseInt(m[2], 10));
+        }
+        let best = null;
+        for (const g of groups.values()) {
+          if (g.nums.length < 2) continue;
+          if (!best || g.nums.length > best.nums.length) best = g;
+        }
+        if (!best) return pageLinks;
+        const max = Math.max(...best.nums), min = Math.min(...best.nums);
+        if (!(max > min) || max > 200) return pageLinks;   // guard a stray number
+        const out = pageLinks.slice(), seen = new Set(pageLinks);
+        for (let n = min; n <= max; n++) {
+          const href = best.prefix + n + best.suffix;
+          if (!seen.has(href)) { seen.add(href); out.push(href); }
+        }
+        console.log('[FF] pagination: ' + pageLinks.length + ' linked pages -> ' + out.length + ' total');
+        return out;
+      })();
+
       // Detect "load more" / infinite scroll buttons (Algolia, etc.)
       const hasLoadMore = !!document.querySelector('.ais-InfiniteHits-loadMore, [class*="load-more"], [class*="loadmore"]');
-      return { type: 'listing', links, pageLinks, vehicaPagination, hasLoadMore, url };
+      return { type: 'listing', links, pageLinks: filledPages, vehicaPagination, hasLoadMore, url };
     }
   }
 
