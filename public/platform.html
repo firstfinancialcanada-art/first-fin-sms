@@ -4486,19 +4486,19 @@ async function startLoginBuy() {
     return `$${p.biweekly.toLocaleString()} bi-weekly · ${p.term} months · ${p.apr}% APR OAC`;
   }
 
-  // Marketplace builds the listing title from year/make/model + trim, and
-  // trim is free text. This is the only way to reach the search grid, where
-  // a scroller sees the title and the price and nothing else.
-  function fbpTitleTrim(v) {
-    const base = String((v && v.trim) || '').trim();
+  // Marketplace builds the vehicle title from Year + Make + MODEL. Trim is a
+  // separate field that does NOT appear in the title — the first attempt put
+  // the payment there and it never showed, because Year and Make are
+  // dropdowns, Model is free text, and the headline is those three.
+  //
+  // This is the only way to reach the search grid, where a scroller sees the
+  // title and the price and nothing else. ASCII separator: a middle dot in a
+  // React-validated input is asking to be stripped.
+  function fbpTitleModel(v) {
+    const base = String((v && v.model) || '').trim();
     const p = fbpPayment(v);
-    if (!p) return base;
-    // Plain ASCII only. The middle dot went in first and the Trim field came
-    // back empty — a non-ASCII character in a React-validated form input is
-    // the obvious suspect, so the separator is a hyphen until proven
-    // otherwise.
-    const tag = `$${p.biweekly.toLocaleString()} b/w`;
-    return base ? `${base} - ${tag}` : tag;
+    if (!p || !base) return base;
+    return `${base} - $${p.biweekly.toLocaleString()} b/w`;
   }
 
   // One true sentence about THIS car, so no two descriptions read alike.
@@ -5329,7 +5329,7 @@ async function startLoginBuy() {
     window.postMessage({
       type: 'FIRSTFIN_FB_AUTOFILL',
       vehicle: {
-        year: fbpV.year, make: fbpV.make, model: fbpV.model, trim: fbpTitleTrim(fbpV),
+        year: fbpV.year, make: fbpV.make, model: fbpTitleModel(fbpV), trim: fbpV.trim,
         price: fbpV.price, mileage: fbpV.mileage,
         body_style: fbpV.body_style, ext_color: fbpV.ext_color, int_color: fbpV.int_color,
         fuel: fbpV.fuel, transmission: fbpV.transmission,
