@@ -4385,9 +4385,113 @@ async function startLoginBuy() {
   // While the poster's Edit lines panel is open, descriptions preview the
   // draft wording instead of the saved setting.
   let fbpDraftLines = null;
-  function fbpLine(key) {
+
+  // Alternate wordings for the boilerplate. Franco, after Muse blamed his
+  // reach on copy-pasted descriptions: nobody outside Meta can confirm that,
+  // and the same assistant posted Canadian cars in US dollars, so it is not a
+  // reliable narrator. But three sentences repeating verbatim across a
+  // thousand listings costs nothing to remove, so the variable goes away.
+  //
+  // A line Franco has written himself is used EXACTLY as written — he chose
+  // those words, and silently swapping them would be worse than the problem.
+  // Rotation applies only to the built-in defaults.
+  const FB_LINE_VARIANTS = {
+    fbInspectionLine: [
+      'Fully inspected & reconditioned',
+      'Safety inspected and reconditioned',
+      'Shop inspected, serviced and ready to go',
+      'Inspected and detailed, ready for the road',
+    ],
+    fbFinancingLine: [
+      'Financing available - all credit welcome',
+      'Financing available on approved credit - every credit situation considered',
+      'We arrange financing - good credit, bruised credit, no credit',
+      'On-site financing available, all credit types welcome',
+    ],
+    fbCtaLine: [
+      'Call or text to book a test drive!',
+      'Message me to set up a test drive.',
+      'Send me a message and we will get you behind the wheel.',
+      'Happy to answer questions or line up a test drive - just message.',
+    ],
+  };
+
+  // Stable per vehicle: the same car always gets the same wording, so a
+  // repost is not mistaken for a different listing.
+  function fbpSeed(str) {
+    let h = 0;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+    return Math.abs(h);
+  }
+
+  function fbpLine(key, v) {
     const src = fbpDraftLines || settings || {};
-    return String(src[key] || '').trim() || FB_LINE_DEFAULTS[key];
+    const custom = String(src[key] || '').trim();
+    if (custom) return custom;                       // his words win, untouched
+    const bank = FB_LINE_VARIANTS[key];
+    if (!bank || !bank.length) return FB_LINE_DEFAULTS[key];
+    const seedSrc = (v && (v.stock || v.vin)) || '';
+    if (!seedSrc) return bank[0];
+    return bank[fbpSeed(key + seedSrc) % bank.length];
+  }
+
+  // One true sentence about THIS car, so no two descriptions read alike.
+  // Everything here is derived from fields we actually hold — nothing is
+  // invented, nothing is claimed about warranty, history or mechanical
+  // condition beyond what the dealer already published.
+  function fbpVehicleNote(v) {
+    if (!v) return '';
+    const yr   = parseInt(v.year) || 0;
+    const km   = parseInt(v.mileage) || 0;
+    const now  = new Date().getFullYear();
+    const age  = yr ? Math.max(1, now - yr + 1) : 0;
+    const perYr = (km && age) ? km / age : 0;
+    const body = String(v.body_style || v.type || '').toLowerCase();
+    const dt   = String(v.drive_train || '').toLowerCase();
+    const fuel = String(v.fuel || '').toLowerCase();
+    const pick = arr => arr[fbpSeed('note' + (v.stock || v.vin || '')) % arr.length];
+
+    // Strongest true thing first.
+    if (km && perYr && perYr < 12000 && km < 120000) {
+      return pick([
+        `Lower kilometres than usual for the year at ${km.toLocaleString()} km.`,
+        `Only ${km.toLocaleString()} km - well under average for a ${yr}.`,
+        `${km.toLocaleString()} km, which is light for its age.`,
+      ]);
+    }
+    if (/4x4|4wd|awd|all.?wheel|four.?wheel/.test(dt)) {
+      return pick([
+        'All-wheel traction, which counts for a lot through an Alberta winter.',
+        'Set up for our winters with power to all four corners.',
+        'Four-wheel traction - a sensible thing to have here.',
+      ]);
+    }
+    if (/electric|ev/.test(fuel)) {
+      return pick(['Fully electric - no fuel bill.', 'Electric, so running costs are a fraction of a gas car.']);
+    }
+    if (/hybrid/.test(fuel)) {
+      return pick(['Hybrid, so it is noticeably easier on fuel.', 'Hybrid drivetrain - better on fuel around town.']);
+    }
+    if (/diesel/.test(fuel)) {
+      return pick(['Diesel - torque for towing and better range.', 'Diesel, which means pulling power and fuel economy.']);
+    }
+    if (/convertible|roadster|cabrio/.test(body)) {
+      return pick(['Drop the top for the summer.', 'A convertible, for the four good months we get.']);
+    }
+    if (yr && yr >= now - 2) {
+      return pick([`A ${yr} - still the current shape.`, `Late-model ${yr}, barely run in.`]);
+    }
+    if (/truck|pickup/.test(body)) {
+      return pick(['A working truck that has been looked after.', 'Set up to work for a living.']);
+    }
+    if (/suv|crossover/.test(body)) {
+      return pick(['Room for the family and the gear.', 'Practical size - fits a family without driving like a bus.']);
+    }
+    if (/van|minivan/.test(body)) {
+      return pick(['Proper family hauler.', 'Doors that slide and room for everyone.']);
+    }
+    return '';
   }
 
   // Descriptions are built once per vehicle when inventory loads, so a
@@ -4533,12 +4637,17 @@ async function startLoginBuy() {
       lines.push('');
       lines.push('CARFAX: ' + v.carfax_badges);
     }
+    // One true sentence about this particular car, above the boilerplate —
+    // it reads like a person wrote it and makes every description differ by
+    // more than the spec list.
+    const note = fbpVehicleNote(v);
+    if (note) { lines.push(''); lines.push(note); }
     lines.push('');
-    lines.push(fbpLine('fbInspectionLine'));
-    lines.push(fbpLine('fbFinancingLine'));
+    lines.push(fbpLine('fbInspectionLine', v));
+    lines.push(fbpLine('fbFinancingLine', v));
     lines.push('');
     if (dealer) lines.push(dealer + (dealerCity ? ' | ' + dealerCity : ''));
-    lines.push(fbpLine('fbCtaLine'));
+    lines.push(fbpLine('fbCtaLine', v));
 
     return fbpScrubContact(lines.join('\n'));
   }
