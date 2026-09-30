@@ -4436,6 +4436,66 @@ async function startLoginBuy() {
     return bank[fbpSeed(key + seedSrc) % bank.length];
   }
 
+  // ── Advertised bi-weekly payment ───────────────────────────────────
+  // Franco: buyers think in payments. "I can afford $400 a month" and "I
+  // can't afford $50,000" are the same person looking at the same car, and
+  // payment-forward ads demonstrably pull more clicks.
+  //
+  // The payment goes in the TITLE and the description, never in Marketplace's
+  // price field. Putting it there misstates the price — against Meta's
+  // listing policy, against AMVIC's all-in pricing rule, and it hides the car
+  // from anyone filtering by price range, which is the buyer actually
+  // shopping that segment.
+  //
+  // Term is capped to what a lender will really approve for the age and
+  // kilometres. Franco named this risk himself — "if it's an older vehicle I
+  // can just tell them the term has to be shorter" — and advertising 84
+  // months on a car no bank will term that far is the definition of a
+  // payment you cannot deliver. Over 200,000 km, no payment is advertised at
+  // all, because nothing is going to finance it.
+  const FB_PAYMENT = {
+    apr: 6.99,
+    ladder: [ { maxAge: 5, term: 84 }, { maxAge: 7, term: 72 }, { maxAge: 9, term: 60 } ],
+    floorTerm: 48,
+    maxKm: 200000,
+    minPrice: 3000,          // below this a payment reads as noise
+  };
+
+  function fbpPayment(v) {
+    const price = parseInt(v && (v.retail_price || v.price)) || 0;
+    const year  = parseInt(v && v.year) || 0;
+    const km    = parseInt(v && v.mileage) || 0;
+    if (!price || price < FB_PAYMENT.minPrice) return null;
+    if (km && km > FB_PAYMENT.maxKm) return null;
+    const age = year ? (new Date().getFullYear() - year) : 99;
+    let term = FB_PAYMENT.floorTerm;
+    for (const step of FB_PAYMENT.ladder) { if (age <= step.maxAge) { term = step.term; break; } }
+    const n = Math.round(term / 12 * 26);
+    const r = (FB_PAYMENT.apr / 100) / 26;
+    const pmt = Math.round(price * r / (1 - Math.pow(1 + r, -n)));
+    if (!Number.isFinite(pmt) || pmt <= 0) return null;
+    return { biweekly: pmt, term, apr: FB_PAYMENT.apr };
+  }
+
+  // Goes in the description, under the sale price, carrying the term, rate
+  // and OAC alongside the figure rather than the figure on its own.
+  function fbpPaymentLine(v) {
+    const p = fbpPayment(v);
+    if (!p) return '';
+    return `$${p.biweekly.toLocaleString()} bi-weekly · ${p.term} months · ${p.apr}% APR OAC`;
+  }
+
+  // Marketplace builds the listing title from year/make/model + trim, and
+  // trim is free text. This is the only way to reach the search grid, where
+  // a scroller sees the title and the price and nothing else.
+  function fbpTitleTrim(v) {
+    const base = String((v && v.trim) || '').trim();
+    const p = fbpPayment(v);
+    if (!p) return base;
+    const tag = `$${p.biweekly.toLocaleString()} b/w`;
+    return base ? `${base} · ${tag}` : tag;
+  }
+
   // One true sentence about THIS car, so no two descriptions read alike.
   // Everything here is derived from fields we actually hold — nothing is
   // invented, nothing is claimed about warranty, history or mechanical
@@ -4622,6 +4682,8 @@ async function startLoginBuy() {
     lines.push(title);
     lines.push('');
     if (price) lines.push('Sale Price: $' + price.toLocaleString() + ' + taxes & fees');
+    const payLine = fbpPaymentLine(v);
+    if (payLine) lines.push(payLine);
     lines.push('');
     if (mileage) lines.push('Mileage: ' + mileage.toLocaleString() + ' km');
     if (v.trim) lines.push('Trim: ' + v.trim);
@@ -5262,7 +5324,7 @@ async function startLoginBuy() {
     window.postMessage({
       type: 'FIRSTFIN_FB_AUTOFILL',
       vehicle: {
-        year: fbpV.year, make: fbpV.make, model: fbpV.model, trim: fbpV.trim,
+        year: fbpV.year, make: fbpV.make, model: fbpV.model, trim: fbpTitleTrim(fbpV),
         price: fbpV.price, mileage: fbpV.mileage,
         body_style: fbpV.body_style, ext_color: fbpV.ext_color, int_color: fbpV.int_color,
         fuel: fbpV.fuel, transmission: fbpV.transmission,
