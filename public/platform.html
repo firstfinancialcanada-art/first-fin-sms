@@ -4457,14 +4457,20 @@ async function startLoginBuy() {
   // instruction. If that ever needs to come back, it is one array here.
   const FB_PAYMENT = {
     apr: 6.99,
-    term: 84,
+    term: 84,                // the FLOOR — an older unit is never shortened below this
+    longTerm: 96,            // newer units stretch, for a lower headline number
+    longTermMaxAge: 2,       // current model year and the two behind it
     minPrice: 1000,          // matches the queue's floor; below it a payment is noise
   };
 
   function fbpPayment(v) {
     const price = parseInt(v && (v.retail_price || v.price)) || 0;
     if (!price || price < FB_PAYMENT.minPrice) return null;
-    const term = FB_PAYMENT.term;
+    // Longer on a newer unit, never shorter on an older one. Franco: "it can
+    // pass 84 months if it's a newer vehicle, just not the other way around."
+    const year = parseInt(v && v.year) || 0;
+    const age  = year ? (new Date().getFullYear() - year) : 99;
+    const term = (age <= FB_PAYMENT.longTermMaxAge) ? FB_PAYMENT.longTerm : FB_PAYMENT.term;
     const n = Math.round(term / 12 * 26);
     const r = (FB_PAYMENT.apr / 100) / 26;
     const pmt = Math.round(price * r / (1 - Math.pow(1 + r, -n)));
