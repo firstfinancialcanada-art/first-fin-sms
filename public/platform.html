@@ -4447,29 +4447,24 @@ async function startLoginBuy() {
   // from anyone filtering by price range, which is the buyer actually
   // shopping that segment.
   //
-  // Term is capped to what a lender will really approve for the age and
-  // kilometres. Franco named this risk himself — "if it's an older vehicle I
-  // can just tell them the term has to be shorter" — and advertising 84
-  // months on a car no bank will term that far is the definition of a
-  // payment you cannot deliver. Over 200,000 km, no payment is advertised at
-  // all, because nothing is going to finance it.
+  // Franco's call, stated twice: ONE advertised term, 84 months, on every
+  // vehicle regardless of what a lender will actually approve for its age,
+  // because the point is a low headline payment. He handles the real term on
+  // the phone — "if it's an older vehicle I can just tell them the term has
+  // to be shorter".
+  //
+  // A ladder capping the term by age was built first and removed at his
+  // instruction. If that ever needs to come back, it is one array here.
   const FB_PAYMENT = {
     apr: 6.99,
-    ladder: [ { maxAge: 5, term: 84 }, { maxAge: 7, term: 72 }, { maxAge: 9, term: 60 } ],
-    floorTerm: 48,
-    maxKm: 200000,
-    minPrice: 3000,          // below this a payment reads as noise
+    term: 84,
+    minPrice: 1000,          // matches the queue's floor; below it a payment is noise
   };
 
   function fbpPayment(v) {
     const price = parseInt(v && (v.retail_price || v.price)) || 0;
-    const year  = parseInt(v && v.year) || 0;
-    const km    = parseInt(v && v.mileage) || 0;
     if (!price || price < FB_PAYMENT.minPrice) return null;
-    if (km && km > FB_PAYMENT.maxKm) return null;
-    const age = year ? (new Date().getFullYear() - year) : 99;
-    let term = FB_PAYMENT.floorTerm;
-    for (const step of FB_PAYMENT.ladder) { if (age <= step.maxAge) { term = step.term; break; } }
+    const term = FB_PAYMENT.term;
     const n = Math.round(term / 12 * 26);
     const r = (FB_PAYMENT.apr / 100) / 26;
     const pmt = Math.round(price * r / (1 - Math.pow(1 + r, -n)));
