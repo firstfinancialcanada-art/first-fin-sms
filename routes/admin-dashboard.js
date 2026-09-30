@@ -950,14 +950,20 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
   // — if one host maps to exactly one lot, a retro-tag is safe.
   app.get('/api/admin/inventory-photo-hosts', adminAuth, async (req, res) => {
     try {
+      // Photo host turned out to be useless for telling lots apart — HomeNet
+      // serves several dealers — so the created date is here too. A scan of
+      // one site on one day leaves a clean date boundary, and the merge SKIPS
+      // existing rows rather than updating them, so an older lot's created_at
+      // is untouched by today's import.
       const { rows } = await pool.query(`
         SELECT COALESCE(i.source, '(null)') AS source,
                COALESCE(substring(i.photos::text from 'https?://([^/"]+)'), '(none)') AS photo_host,
+               i.created_at::date AS created_on,
                COUNT(*)::int AS units
           FROM desk_inventory i
          WHERE i.user_id = $1
-         GROUP BY 1, 2
-         ORDER BY units DESC
+         GROUP BY 1, 2, 3
+         ORDER BY created_on DESC, units DESC
       `, [parseInt(req.query.userId || '1', 10)]);
       res.json({ success: true, rows });
     } catch (e) {
