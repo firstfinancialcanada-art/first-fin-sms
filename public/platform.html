@@ -4493,8 +4493,12 @@ async function startLoginBuy() {
     const base = String((v && v.trim) || '').trim();
     const p = fbpPayment(v);
     if (!p) return base;
+    // Plain ASCII only. The middle dot went in first and the Trim field came
+    // back empty — a non-ASCII character in a React-validated form input is
+    // the obvious suspect, so the separator is a hyphen until proven
+    // otherwise.
     const tag = `$${p.biweekly.toLocaleString()} b/w`;
-    return base ? `${base} · ${tag}` : tag;
+    return base ? `${base} - ${tag}` : tag;
   }
 
   // One true sentence about THIS car, so no two descriptions read alike.
