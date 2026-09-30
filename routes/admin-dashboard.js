@@ -948,7 +948,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         SELECT u.id AS user_id, u.email,
                COALESCE(i.source, '(null)') AS source,
                COUNT(*)::int AS units,
-               COUNT(i.retail_price)::int AS with_retail
+               COUNT(i.retail_price)::int AS with_retail,
+               -- Price sanity. A car priced under $1000 is almost always a
+               -- parse artefact: a down payment, a deposit, or a "call for
+               -- price" placeholder that got read as the asking price.
+               COUNT(*) FILTER (WHERE i.price > 0 AND i.price < 1000)::int AS under_1000,
+               COUNT(*) FILTER (WHERE i.price = 500)::int AS exactly_500,
+               COUNT(*) FILTER (WHERE COALESCE(i.price,0) = 0)::int AS no_price,
+               COUNT(*) FILTER (WHERE i.photos IS NULL OR i.photos = '[]')::int AS no_photos,
+               MIN(i.price)::int AS min_price,
+               MAX(i.price)::int AS max_price
           FROM desk_inventory i
           JOIN desk_users u ON u.id = i.user_id
          GROUP BY u.id, u.email, COALESCE(i.source, '(null)')
