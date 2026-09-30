@@ -4498,7 +4498,9 @@ async function startLoginBuy() {
     const base = String((v && v.model) || '').trim();
     const p = fbpPayment(v);
     if (!p || !base) return base;
-    return `${base} - $${p.biweekly.toLocaleString()} b/w`;
+    // Franco's own format, copied from what he was typing by hand into the
+    // Model field: "S-Class  $695 biweekly". Spelled out, no hyphen.
+    return `${base}  $${p.biweekly.toLocaleString()} biweekly`;
   }
 
   // One true sentence about THIS car, so no two descriptions read alike.
