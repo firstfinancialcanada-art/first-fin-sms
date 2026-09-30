@@ -4208,6 +4208,8 @@ async function startLoginBuy() {
       fbpIdx = -1, fbpV = null, fbpSort_ = 'cheapest',
       fbpDone = {}, fbpView_ = 'queue', fbpSearch_ = '', fbpNewUsed_ = 'all',
       fbpGroupDupes_ = true, fbpNotReady_ = 0;
+  // Below this, treat the price as a parse artefact rather than an asking price.
+  const FBP_MIN_PRICE = 1000;
 
   // ── Identical builds post once ────────────────────────────────────────
   // A new-car lot stocks the same build repeatedly: four white Durango SXTs
@@ -4573,8 +4575,13 @@ async function startLoginBuy() {
       // through them, and say how many are waiting on the dealer.
       // Wholesale units are exempt from the price test — theirs is 0 until
       // you set a retail number, which is the whole point of the gate.
+      // A dealer does not advertise a Corvette at $500. A price that low is a
+      // down payment, a deposit, or a "call for price" placeholder that got
+      // read as the asking price — five arrived in the House of Cars import
+      // and the old test let them through, because it only rejected ZERO.
+      // They stay in All, they just don't queue up to be posted.
       const notReady = v => !(v.photos || []).length ||
-        (!v.is_wholesale && !(parseInt(v.price) || 0));
+        (!v.is_wholesale && (parseInt(v.price) || 0) < FBP_MIN_PRICE);
       fbpNotReady_ = list.filter(notReady).length;
       list = list.filter(v => !notReady(v));
       // Collapse before the daily cap, so the limit counts listings rather
@@ -5099,6 +5106,11 @@ async function startLoginBuy() {
     if (fbpV.is_wholesale && !fbpV._ocrDone) {
       fbpFlash('Checking photos for supplier signage — one moment');
       if (!fbpV._ocrRunning) fbpCleanPhotos(fbpV);
+      return;
+    }
+    // Reachable from the All view even though it never queues.
+    if (!fbpV.is_wholesale && (parseInt(fbpV.price) || 0) < FBP_MIN_PRICE) {
+      fbpFlash(`$${fbpV.price || 0} isn't a real asking price — fix it in Inventory before posting`);
       return;
     }
     if (fbpV.needs_retail) {
