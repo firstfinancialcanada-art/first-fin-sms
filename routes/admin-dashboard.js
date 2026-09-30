@@ -942,6 +942,30 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
   // extension started sending _source (a905270) reads as the dealer's own
   // car: no WHOLESALE chip, no retail-price cell, and the supplier's cost
   // shown in green. This is the only way to see that from outside the app.
+  // ── GET /api/admin/inventory-photo-hosts ──────────────────────
+  // Which CDN the photos sit on, per source. The merge SKIPS a vehicle whose
+  // VIN or stock already exists rather than updating it, so units imported
+  // before source tagging existed keep no source forever. This says whether
+  // the photo host can tell those apart from another dealer's untagged units
+  // — if one host maps to exactly one lot, a retro-tag is safe.
+  app.get('/api/admin/inventory-photo-hosts', adminAuth, async (req, res) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT COALESCE(i.source, '(null)') AS source,
+               COALESCE(substring(i.photos::text from 'https?://([^/"]+)'), '(none)') AS photo_host,
+               COUNT(*)::int AS units
+          FROM desk_inventory i
+         WHERE i.user_id = $1
+         GROUP BY 1, 2
+         ORDER BY units DESC
+      `, [parseInt(req.query.userId || '1', 10)]);
+      res.json({ success: true, rows });
+    } catch (e) {
+      console.error('❌ /api/admin/inventory-photo-hosts error:', e.message);
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
   app.get('/api/admin/inventory-sources', adminAuth, async (req, res) => {
     try {
       const { rows } = await pool.query(`
