@@ -4483,7 +4483,12 @@ async function startLoginBuy() {
   function fbpPaymentLine(v) {
     const p = fbpPayment(v);
     if (!p) return '';
-    return `$${p.biweekly.toLocaleString()} bi-weekly · ${p.term} months · ${p.apr}% APR OAC`;
+    // No rate in the ad. Franco, 2026-10-06: stop putting the % in the
+    // description. Quoting 6.99% to everyone advertises a rate most buyers
+    // will not actually be approved at, which is a worse promise than not
+    // naming one — the rate is still used to CALCULATE the payment, it just
+    // is not published.
+    return `$${p.biweekly.toLocaleString()} bi-weekly · ${p.term} months OAC`;
   }
 
   // Marketplace builds the vehicle title from Year + Make + MODEL. Trim is a
