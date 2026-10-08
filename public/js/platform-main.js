@@ -3733,6 +3733,84 @@ async function moveCrmLead(id, dir, swapWith){
   }catch(e){ toast('Could not move that lead'); }
 }
 
+// ── Dragging rows ─────────────────────────────────────────────────
+// Franco, 2026-10-08: "can i actually drag up and down or do i have to click
+// up or down each time". Clicking an arrow six times to move one lead six
+// places is not what he does in the sheet, so: grab the row and drop it.
+//
+// Ranks are never invented. The rows already hold a set of board_rank values;
+// a drop re-deals that same set down the new visual order. Two rows can
+// therefore never collide, and nothing in the list jumps past rows that were
+// not part of the drag. The arrows stay for touch and for one-place nudges.
+let _crmDragId = null;
+
+function crmDragStart(ev, id){
+  _crmDragId = id;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(id)); } catch(e){}
+  const tr = ev.currentTarget;
+  tr.style.opacity = '.4';
+}
+function crmDragEnd(ev){
+  ev.currentTarget.style.opacity = '';
+  document.querySelectorAll('tr[data-crm-row]').forEach(r => { r.style.boxShadow = ''; });
+}
+function crmDragOver(ev){
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  const tr = ev.currentTarget;
+  if (String(tr.dataset.crmRow) === String(_crmDragId)) return;
+  // A line on the edge you would land against, so the drop is predictable.
+  const r = tr.getBoundingClientRect();
+  const above = (ev.clientY - r.top) < r.height / 2;
+  tr.style.boxShadow = above ? 'inset 0 3px 0 0 var(--primary)' : 'inset 0 -3px 0 0 var(--primary)';
+}
+function crmDragLeave(ev){ ev.currentTarget.style.boxShadow = ''; }
+
+async function crmDrop(ev, targetId, scope){
+  ev.preventDefault();
+  document.querySelectorAll('tr[data-crm-row]').forEach(r => { r.style.boxShadow = ''; });
+  const dragId = _crmDragId; _crmDragId = null;
+  if (!dragId || dragId === targetId) return;
+
+  const r = ev.currentTarget.getBoundingClientRect();
+  const dropAbove = (ev.clientY - r.top) < r.height / 2;
+
+  // The rows in play are exactly the ones on screen in this block.
+  // Only the rows actually on screen take part. With a temperature chip
+  // active the Master CRM is showing a subset, and re-dealing ranks across
+  // rows he cannot see would shuffle the hidden ones behind his back.
+  const rows = scope === 'all'
+    ? (_crmTempFilter ? crmData.filter(c => crmTempOf(c) === _crmTempFilter) : crmData.slice())
+    : crmData.filter(c => crmMonthKey(c).key === scope);
+  rows.sort((a,b) => (b.board_rank||0) - (a.board_rank||0));
+
+  const from = rows.findIndex(c => c.id === dragId);
+  if (from < 0) return;
+  const moved = rows.splice(from, 1)[0];
+  let to = rows.findIndex(c => c.id === targetId);
+  if (to < 0) { rows.splice(from, 0, moved); return; }
+  rows.splice(dropAbove ? to : to + 1, 0, moved);
+
+  await crmWriteOrder(rows);
+}
+
+// Re-deal the existing ranks down the given order, writing only what changed.
+async function crmWriteOrder(rows){
+  const slots = rows.map(c => c.board_rank || c.id).sort((a,b) => b - a);
+  const writes = [];
+  rows.forEach((c, i) => {
+    if (c.board_rank === slots[i]) return;
+    c.board_rank = slots[i];
+    writes.push(FF.apiFetch('/api/desk/crm/'+c.id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ board_rank: slots[i] })}));
+  });
+  if (!writes.length) return;
+  try { await Promise.all(writes); } catch(e){ toast('Some rows did not save — refresh'); }
+  renderCRM();
+  if (document.getElementById('atab-crmmonth')?.classList.contains('active')) renderCrmMonthly();
+}
+
 // ── Monthly Tracker ───────────────────────────────────────────────
 // The sheet had a tab per month (APRIL 2023 … JULY 2024) plus a DEAD tab,
 // and that is how Franco reads his own performance: this month's book,
@@ -3818,8 +3896,12 @@ function renderCrmMonthly(){
       <div class="table-wrap"><table class="data-table crm-table"><thead><tr>
         <th style="width:52px"></th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Source</th><th>Status</th><th>Temp</th>
       </tr></thead><tbody>
-      ${rows.map((c, i) => `<tr style="${crmRowTint(c)}">
-        <td><span style="display:flex;flex-direction:column;line-height:.7">
+      ${rows.map((c, i) => `<tr data-crm-row="${c.id}" draggable="true"
+        ondragstart="crmDragStart(event,${c.id})" ondragend="crmDragEnd(event)"
+        ondragover="crmDragOver(event)" ondragleave="crmDragLeave(event)"
+        ondrop="crmDrop(event,${c.id},'${k}')"
+        style="${crmRowTint(c)}cursor:grab;">
+        <td><span style="display:flex;flex-direction:column;line-height:.7" title="Drag the row, or nudge it one place">
           <button ${i===0?'disabled':''} onclick="moveCrmLead(${c.id},'up',${i>0?rows[i-1].id:0})" title="Move up" style="background:none;border:none;cursor:${i===0?'default':'pointer'};color:var(--${i===0?'border':'muted'});font-size:11px;padding:0">&#9650;</button>
           <button ${i===rows.length-1?'disabled':''} onclick="moveCrmLead(${c.id},'down',${i<rows.length-1?rows[i+1].id:0})" title="Move down" style="background:none;border:none;cursor:${i===rows.length-1?'default':'pointer'};color:var(--${i===rows.length-1?'border':'muted'});font-size:11px;padding:0">&#9660;</button>
         </span></td>
@@ -3835,6 +3917,23 @@ function renderCrmMonthly(){
   }).join('');
 
   if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
+// The notes drawer is written as part of the Master CRM's innerHTML, so it is
+// a child of that tab's pane. Fixed positioning does not save a node whose
+// ancestor is display:none, which is why clicking a name in the Monthly
+// Tracker opened nothing at all. Move it to <body> after every render so it
+// belongs to the page rather than to one tab. The old one is dropped first -
+// two elements sharing an id is how you get a drawer that updates the copy
+// nobody is looking at.
+function _liftCrmNotesPanel(){
+  const container = document.getElementById('crmContainer');
+  if (!container) return;
+  const fresh = container.querySelector('#crmNotesPanel');
+  if (!fresh) return;
+  const stale = document.body.querySelector(':scope > #crmNotesPanel');
+  if (stale) stale.remove();
+  document.body.appendChild(fresh);
 }
 
 function renderCRM(){
@@ -3854,7 +3953,11 @@ function renderCRM(){
     const notesPreview = previewSrc ? previewSrc.substring(0,25)+(previewSrc.length>25?'...':'') : '';
     const noteCount = c.note_count != null ? c.note_count : (c.notes ? 1 : 0);
     const undoable = !!c.previous_state_at;
-    return `<tr class="${fuClass}" style="${crmRowTint(c)}">
+    return `<tr class="${fuClass}" data-crm-row="${c.id}" draggable="true"
+    ondragstart="crmDragStart(event,${c.id})" ondragend="crmDragEnd(event)"
+    ondragover="crmDragOver(event)" ondragleave="crmDragLeave(event)"
+    ondrop="crmDrop(event,${c.id},'all')"
+    style="${crmRowTint(c)}cursor:grab;">
     <td class="crm-sub" style="color:var(--muted)">${c.date||''}</td>
     <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span class="crm-sub" style="color:var(--dim)" title="Latest note">'+_esc(notesPreview)+'</span>':''}</td>
     <td>${c.phone||'—'}</td>
@@ -3936,6 +4039,7 @@ function renderCRM(){
 
     <button onclick="closeCrmNotes()" style="width:100%;padding:8px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:5px;font-weight:600;cursor:pointer;margin-top:14px;font-size:10px">Close</button>
   </div>`;
+  _liftCrmNotesPanel();
 }
 
 // Tiny HTML-escape — used everywhere we render user-supplied note text or
