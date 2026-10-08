@@ -3586,7 +3586,11 @@ async function addToCRM(){
     const res=await FF.apiFetch('/api/desk/crm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       name:c.name,phone:c.phone||'',email:c.email||'',
       beacon:c.beacon||'',status:'Lead',
-      source:`${v.desc}`.trim()||'Not specified',notes:v.stock||''
+      // The vehicle belongs in vehicle_interest — that is the column the
+      // CRM list renders. It used to go into source, which nothing shows,
+      // so the car vanished from the row on the next page load.
+      vehicle_interest:`${v.desc}`.trim()||'',
+      source:'Deal Desk',notes:v.stock||''
     })}).then(r=>r.json());
     if(res.success){
       crmData.unshift({id:res.entry.id,date:new Date().toLocaleDateString('en-CA'),name:c.name,phone:c.phone||'',email:c.email||'',vehicle:`${v.desc}`.trim()||'Not specified',stock:v.stock||'',beacon:c.beacon||'',status:'Lead'});

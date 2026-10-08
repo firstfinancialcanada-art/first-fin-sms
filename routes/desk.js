@@ -2113,11 +2113,17 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // Auto-assign to creator: a rep adding a lead "owns" it. Manager
       // can reassign later. Owner adds also default to assigned-to-self
       // — they can re-route via PATCH /assigned_rep_id if needed.
+      // vehicle_interest + budget_range are what the CRM list actually
+      // renders in its Vehicle column, and PATCH has always accepted them.
+      // POST did not, so a lead created WITH a vehicle lost it the moment
+      // the page reloaded — the row came back with vehicle_interest NULL
+      // and the Vehicle column showed a dash.
       const result = await client.query(
-        `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes, vehicle_interest, budget_range)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
         [req.user.userId, scope.tenantId, req.user.userId,
-         c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
+         c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes,
+         c.vehicle_interest || null, c.budget_range || null]
       );
       res.json({ success: true, entry: result.rows[0] });
     } catch (e) {
