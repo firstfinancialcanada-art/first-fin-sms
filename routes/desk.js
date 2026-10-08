@@ -2532,9 +2532,17 @@ const { sendCustomerSms } = require('../lib/customer-sms');
   // is done server-side against the neighbour inside the same tenant AND
   // the same temperature, in one transaction, so two reps dragging at once
   // can't end up with both rows holding the same rank.
+  //
+  // The Monthly Tracker orders by month, so its neighbour is rarely the same
+  // row the Master CRM would pick. Rather than teach the server about every
+  // view, the client may name the row to trade places with via swapWith; the
+  // server still checks both rows belong to this tenant and that the caller
+  // may move them. Without swapWith it falls back to the temperature
+  // neighbour, which is what the Master CRM wants.
   app.post('/api/desk/crm/:id/move', requireAuth, requireBilling, async (req, res) => {
     const dir = String(req.body && req.body.direction || '').toLowerCase();
-    if (dir !== 'up' && dir !== 'down') {
+    const swapWith = req.body && req.body.swapWith;
+    if (!swapWith && dir !== 'up' && dir !== 'down') {
       return res.status(400).json({ success: false, error: "direction must be 'up' or 'down'" });
     }
     const client = await pool.connect();
@@ -2556,16 +2564,29 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // "Up" means a HIGHER rank, because the board renders rank descending
       // (newest/hottest first). The neighbour is the nearest row on that
       // side; if there isn't one the lead is already at the end.
-      const cmp = dir === 'up' ? '>' : '<';
-      const ord = dir === 'up' ? 'ASC' : 'DESC';
-      const nb = await client.query(
-        `SELECT id, board_rank FROM desk_crm
-          WHERE tenant_id = $1 AND deleted_at IS NULL
-            AND temperature IS NOT DISTINCT FROM $2
-            AND board_rank ${cmp} $3
-          ORDER BY board_rank ${ord} LIMIT 1 FOR UPDATE`,
-        [scope.tenantId, row.temperature, row.board_rank]
-      );
+      let nb;
+      if (swapWith) {
+        nb = await client.query(
+          `SELECT id, tenant_id, assigned_rep_id, board_rank FROM desk_crm
+            WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE`,
+          [swapWith, scope.tenantId]
+        );
+        if (nb.rows.length && !canMutateCrmRow(scope, nb.rows[0])) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({ success: false, error: 'You cannot move that lead' });
+        }
+      } else {
+        const cmp = dir === 'up' ? '>' : '<';
+        const ord = dir === 'up' ? 'ASC' : 'DESC';
+        nb = await client.query(
+          `SELECT id, board_rank FROM desk_crm
+            WHERE tenant_id = $1 AND deleted_at IS NULL
+              AND temperature IS NOT DISTINCT FROM $2
+              AND board_rank ${cmp} $3
+            ORDER BY board_rank ${ord} LIMIT 1 FOR UPDATE`,
+          [scope.tenantId, row.temperature, row.board_rank]
+        );
+      }
       if (!nb.rows.length) {
         await client.query('COMMIT');
         return res.json({ success: true, moved: false, reason: dir === 'up' ? 'already at top' : 'already at bottom' });

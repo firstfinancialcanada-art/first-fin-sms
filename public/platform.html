@@ -202,6 +202,18 @@ select option{background:#0d1526;color:var(--text);}
 .whs-chip{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:800;letter-spacing:.5px;color:#fca5a5;background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.4);vertical-align:middle;}
 body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.45);}
 .crm-overdue td{border-left:3px solid #ef4444!important;background:rgba(239,68,68,.05)!important;}
+/* The CRM and the Monthly Tracker are read at arm's length off a desk, not
+   studied. Franco, 2026-10-08: "the master crm and monthly tracker font
+   should be little bigger and bold". These override .data-table for those
+   two tables only — the inventory and deal-log tables are dense on purpose
+   and stay as they are. */
+.crm-table{font-size:14px;}
+.crm-table th{font-size:12px;font-weight:800;letter-spacing:.6px;padding:11px 9px;}
+.crm-table td{font-size:14px;font-weight:600;padding:11px 9px;}
+.crm-table td strong{font-size:15px;font-weight:800;letter-spacing:-.1px;}
+.crm-table .crm-sub{font-size:11px!important;font-weight:500;}
+.crm-table select{font-size:11px!important;font-weight:700;}
+.crm-month-title{font-size:17px;font-weight:800;letter-spacing:.4px;}
 .crm-due-today td{border-left:3px solid #f59e0b!important;background:rgba(245,158,11,.05)!important;}
 .crm-upcoming td{border-left:3px solid #10b981!important;}
 .badge-clean{background:rgba(16,185,129,.15);color:var(--green);}
