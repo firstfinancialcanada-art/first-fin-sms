@@ -779,7 +779,57 @@ document.addEventListener('DOMContentLoaded', () => {
         return Promise.resolve({ ok:true, json: () => Promise.resolve({success:true, data:[], leads:[], deals:[]}) });
       }
 
-      return _real(path, opts);
+      // ── Demo mock: Team dashboard ─────────────────────────────────────
+      // Unmocked GETs used to fall straight through to the server, which in
+      // demo has no token and answers {error:'No token provided'} - and this
+      // panel prints d.error verbatim. So a visitor evaluating the product
+      // got a raw auth error where the pitch should be. Franco spotted it on
+      // mobile; it was never mobile-specific, just a tab he happened to open.
+      if (path === '/api/desk/team-stats') {
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true,
+          totals: { crm_total: 248, crm_pool: 12, inventory_total: 176 },
+          members: [
+            { user_id:1, display_name:'You (Owner)',  email:'owner@demo',  role:'owner',   crm_count:96, inventory_count:176, last_active:new Date().toISOString() },
+            { user_id:2, display_name:'Sales Rep 1',  email:'rep1@demo',   role:'rep',     crm_count:84, inventory_count:0,   last_active:new Date(Date.now()-36e5).toISOString() },
+            { user_id:3, display_name:'Sales Manager',email:'mgr@demo',    role:'manager', crm_count:56, inventory_count:0,   last_active:new Date(Date.now()-72e5).toISOString() },
+          ],
+        }) });
+      }
+
+      // ── Demo mock: lead routing ───────────────────────────────────────
+      if (path === '/api/desk/routing-rules') {
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true,
+          leadIntakeEmail: 'leads@your-dealership.firstfin.ca',
+          reps: [
+            { user_id:2, display_name:'Sales Rep 1',   role:'rep' },
+            { user_id:3, display_name:'Sales Manager', role:'manager' },
+          ],
+          rules: [],
+        }) });
+      }
+
+      // ── Demo mock: Twilio number search ───────────────────────────────
+      if (path.indexOf('/api/desk/twilio/available-numbers') === 0) {
+        return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true,
+          numbers: [
+            { phoneNumber:'+15875550144', friendlyName:'(587) 555-0144', locality:'Calgary' },
+            { phoneNumber:'+14035550177', friendlyName:'(403) 555-0177', locality:'Calgary' },
+          ],
+        }) });
+      }
+
+      // Anything still unmocked must NOT reach the server. There is no token
+      // in demo, so it would come back 401 'No token provided' and whichever
+      // panel asked would print that at a prospective customer. An empty
+      // success renders the panel's own empty state instead, which is at
+      // worst uninformative rather than broken-looking.
+      console.log('[DEMO] unmocked GET, returning empty:', path);
+      return Promise.resolve({ ok:true, json: () => Promise.resolve({
+        success:true, demo:true,
+        data:[], rows:[], leads:[], deals:[], members:[], reps:[], rules:[],
+        numbers:[], crm:[], inventory:[], conversations:[], notes:[], audit:[],
+        totals:{},
+      }) });
     };
   }
 });
