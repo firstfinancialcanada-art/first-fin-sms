@@ -11,8 +11,18 @@
   let _user = null;
   let _syncTimers = {};
 
-  // If the login overlay is visible on load, session is stale — clear it
+  // This used to read "overlay visible at DOMContentLoaded means the session
+  // is stale" and wipe the tokens. But the overlay is visible BY DEFAULT in
+  // the markup - _init() hides it once it sees a token - so the two were
+  // racing, and whenever DOMContentLoaded won it signed out a perfectly
+  // valid session. That is the intermittent "reload and you are logged out"
+  // Franco kept hitting on 2026-10-08.
+  //
+  // With a token in hand there is nothing stale to clear: _init() either
+  // resumes the session or shows the login itself. So it only acts when
+  // there is no token, where it is a no-op that cannot do harm.
   document.addEventListener('DOMContentLoaded', () => {
+    if (_accessToken) return;
     const overlay = document.getElementById('ff-login-overlay');
     if (overlay && overlay.style.display !== 'none') {
       sessionStorage.removeItem('ff_access');
