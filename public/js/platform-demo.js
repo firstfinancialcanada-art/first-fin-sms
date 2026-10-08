@@ -788,10 +788,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (path === '/api/desk/team-stats') {
         return Promise.resolve({ ok:true, json: () => Promise.resolve({ success:true,
           totals: { crm_total: 248, crm_pool: 12, inventory_total: 176 },
+          // Field names must match what the table reads - assigned_leads,
+          // created_leads, deals_30d, deals_total, last_login, crm_mode.
+          // Guessing them produced a tidy grid of zeros, which looks as
+          // broken as the auth error it replaced.
           members: [
-            { user_id:1, display_name:'You (Owner)',  email:'owner@demo',  role:'owner',   crm_count:96, inventory_count:176, last_active:new Date().toISOString() },
-            { user_id:2, display_name:'Sales Rep 1',  email:'rep1@demo',   role:'rep',     crm_count:84, inventory_count:0,   last_active:new Date(Date.now()-36e5).toISOString() },
-            { user_id:3, display_name:'Sales Manager',email:'mgr@demo',    role:'manager', crm_count:56, inventory_count:0,   last_active:new Date(Date.now()-72e5).toISOString() },
+            { user_id:1, display_name:'You (Owner)',   email:'owner@demo', role:'owner',   crm_mode:'team_read',
+              assigned_leads:96, created_leads:112, deals_30d:7, deals_total:41, last_login:new Date().toISOString() },
+            { user_id:2, display_name:'Sales Rep 1',   email:'rep1@demo',  role:'rep',     crm_mode:'own_and_pool',
+              assigned_leads:84, created_leads:77,  deals_30d:5, deals_total:23, last_login:new Date(Date.now()-36e5).toISOString() },
+            { user_id:3, display_name:'Sales Manager', email:'mgr@demo',   role:'manager', crm_mode:'team_read',
+              assigned_leads:56, created_leads:59,  deals_30d:4, deals_total:31, last_login:new Date(Date.now()-72e5).toISOString() },
           ],
         }) });
       }
