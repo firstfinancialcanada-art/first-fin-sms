@@ -137,7 +137,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: _refreshToken })
       });
-      if (!res.ok) { _logout(); _refreshQueue.forEach(r => r(false)); _refreshQueue = []; return false; }
+      // Only a REFUSAL means the token is no good. A 502/503/504 means the
+      // server is restarting - which happens on every deploy - and throwing
+      // the session away over that signs the user out mid-sentence for no
+      // reason. It bit three times on 2026-10-08, each one right after a
+      // deploy. Keep the tokens and let the caller see the failure; the next
+      // request refreshes cleanly once the server is back.
+      if (!res.ok) {
+        const refused = res.status === 400 || res.status === 401 || res.status === 403;
+        if (refused) _logout();
+        _refreshQueue.forEach(r => r(false)); _refreshQueue = [];
+        return false;
+      }
       const data = await res.json();
       _accessToken = data.accessToken;
       _refreshToken = data.refreshToken;
@@ -147,7 +158,8 @@
       _refreshQueue = [];
       return true;
     } catch {
-      _logout();
+      // Network error, not a refusal - same reasoning as above, keep the
+      // session. Offline for a moment is not the same as logged out.
       _refreshQueue.forEach(r => r(false));
       _refreshQueue = [];
       return false;
