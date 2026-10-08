@@ -128,7 +128,7 @@ function startDemo() {
   window.DEMO_MODE = true;
 
   // Wipe any real user data from localStorage first
-  ['ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates'].forEach(k => localStorage.removeItem(k));
+  ['ffDemoSeeded','ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates'].forEach(k => localStorage.removeItem(k));
 
   // Inject demo data — mutate window.settings IN-PLACE so the `settings` alias in platform-main.js stays in sync
   window.ffInventory = DEMO_INVENTORY;
@@ -151,6 +151,16 @@ function startDemo() {
   Object.assign(window.settings, {salesName:'Demo User', dealerName:'Maple Auto Group', docFee:998, gst:5, apr:8.99, target:30, logoUrl:''});
   if(typeof updateHeaderDealer === 'function') updateHeaderDealer();
 
+  // Everything below lands in localStorage, which is per-ORIGIN - the demo
+  // and the real app share it. Two code paths treat leftover localStorage as
+  // "legacy data to migrate": loadCRM() uploads ffCRM into the signed-in
+  // tenant, and the register flow pushes inventory, CRM, deal log AND
+  // settings into a brand-new account. So trying the demo and then signing
+  // in injected 12 fake leads - and on signup would have renamed the
+  // dealership to Maple Auto Group. That is how 236 demo contacts ended up
+  // in a live tenant. This flag marks the data as the demo's; both migration
+  // paths refuse anything carrying it and bin the keys instead.
+  localStorage.setItem('ffDemoSeeded',  '1');
   localStorage.setItem('ffInventory',   JSON.stringify(DEMO_INVENTORY));
   localStorage.setItem('ffCRM',         JSON.stringify(DEMO_CRM));
   localStorage.setItem('ffDealLog',     JSON.stringify(DEMO_DEAL_LOG));
@@ -425,7 +435,7 @@ function _doExitDemo() {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
-  ['ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates','ffCompareSession']
+  ['ffDemoSeeded','ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates','ffCompareSession']
     .forEach(k => localStorage.removeItem(k));
   location.replace('/platform');
 }

@@ -3549,11 +3549,39 @@ function downloadCsvTemplate() {
 }
 
 // ── CRM ───────────────────────────────────────────────
+// Is this localStorage payload the demo's, rather than a real user's old
+// offline data? The demo and the live app share an origin, so its seed data
+// sits in the same keys the migration paths read. The flag covers anything
+// seeded from today on; the content sniff covers browsers that already had
+// it sitting there before the flag existed.
+function _isDemoLocalData(rows){
+  try { if (localStorage.getItem('ffDemoSeeded')) return true; } catch(e){}
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const demoish = rows.filter(c => {
+    const ph = String(c && c.phone || '').replace(/[^\d]/g,'');
+    return /^1?403555\d{4}$/.test(ph)
+        || /@example\.(com|org|net)$/i.test(String(c && c.email || ''))
+        || /^MAG-/i.test(String(c && c.stock || ''))
+        || /^d\d+$/.test(String(c && c.id || ''));
+  });
+  return demoish.length >= rows.length / 2;
+}
+function _dropDemoLocalData(){
+  ['ffDemoSeeded','ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates','ffCompareSession']
+    .forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+}
+
 async function loadCRM(){
   if(!window.FF||!FF.isLoggedIn)return;
   // One-time migration: push any localStorage CRM data to DB then clear it
   const local=JSON.parse(localStorage.getItem('ffCRM')||'[]');
-  if(local.length){
+  // ...unless it is the demo's seed data. Uploading that put 12 fake leads
+  // into a live tenant every time someone looked at the demo and then
+  // signed in on the same browser.
+  if(local.length && _isDemoLocalData(local)){
+    console.warn('[CRM] localStorage holds demo seed data - discarding instead of migrating');
+    _dropDemoLocalData();
+  } else if(local.length){
     try{
       for(const c of local){
         await FF.apiFetch('/api/desk/crm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -3781,8 +3809,8 @@ async function crmDrop(ev, targetId, scope){
   // active the Master CRM is showing a subset, and re-dealing ranks across
   // rows he cannot see would shuffle the hidden ones behind his back.
   const rows = scope === 'all'
-    ? (_crmTempFilter ? crmData.filter(c => crmTempOf(c) === _crmTempFilter) : crmData.slice())
-    : crmData.filter(c => crmMonthKey(c).key === scope);
+    ? crmData.filter(c => (!_crmTempFilter || crmTempOf(c) === _crmTempFilter) && crmMatchesSearch(c, _crmQuery('crmSearch')))
+    : crmData.filter(c => crmMonthKey(c).key === scope && crmMatchesSearch(c, _crmQuery('crmMonthSearch')));
   rows.sort((a,b) => (b.board_rank||0) - (a.board_rank||0));
 
   const from = rows.findIndex(c => c.id === dragId);
@@ -3859,8 +3887,14 @@ function renderCrmMonthly(){
     return;
   }
 
+  const mq = _crmQuery('crmMonthSearch');
+  const pool = crmData.filter(c => crmMatchesSearch(c, mq));
+  if (!pool.length){
+    host.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">No lead matches “'+_esc(mq)+'”.</div>';
+    return;
+  }
   const months = new Map();
-  crmData.forEach(c => {
+  pool.forEach(c => {
     const m = crmMonthKey(c);
     if (!months.has(m.key)) months.set(m.key, { label:m.label, rows:[] });
     months.get(m.key).rows.push(c);
@@ -3936,13 +3970,34 @@ function _liftCrmNotesPanel(){
   document.body.appendChild(fresh);
 }
 
+// Search across everything a lead actually carries, so looking up "beetle"
+// or "taber" or a half-remembered phone number all land. Terms are ANDed:
+// "hot jetta" finds the hot one. Notes are included because by now that is
+// where the real detail lives.
+function crmMatchesSearch(c, q){
+  if (!q) return true;
+  const hay = [
+    c.name, c.phone, c.email, c.vehicle_interest, c.vehicle, c.source,
+    c.status, c.temperature, c.notes, c.latest_note, c.follow_up_note, c.beacon
+  ].filter(Boolean).join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(t => hay.indexOf(t) !== -1);
+}
+function _crmQuery(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
 function renderCRM(){
   if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   const container=document.getElementById('crmContainer');
   renderCrmTempBar();
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  const rows = _crmTempFilter ? crmData.filter(c=>crmTempOf(c)===_crmTempFilter) : crmData;
-  if(!rows.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">Nothing is '+_crmTempFilter+' right now.</div>';return;}
+  const q = _crmQuery('crmSearch');
+  const rows = crmData.filter(c =>
+    (!_crmTempFilter || crmTempOf(c) === _crmTempFilter) && crmMatchesSearch(c, q));
+  if(!rows.length){
+    const why = q ? 'No lead matches “'+_esc(q)+'”' + (_crmTempFilter ? ' in '+_crmTempFilter : '')
+                  : 'Nothing is '+_crmTempFilter+' right now.';
+    container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">'+why+'</div>';
+    return;
+  }
   container.innerHTML=`<table class="data-table crm-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th title="How live this lead feels today — separate from where the deal is at">Temp</th><th style="width:170px">Actions</th></tr></thead><tbody>
   ${rows.map(c=>{
     const fuClass = crmFollowUpClass(c);

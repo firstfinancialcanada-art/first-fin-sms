@@ -1983,7 +1983,12 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
       <button class="btn btn-ghost" onclick="openRecentlyDeleted()" title="View leads deleted in the last 30 days — restorable"><i data-lucide="trash-2" class="ico-sm"></i>Recently Deleted</button>
     </div>
     <!-- Temperature filter. Counts fill in from renderCRM. -->
-    <div id="crmTempBar" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;"></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <input id="crmSearch" type="search" placeholder="Search name, phone, email, vehicle, source, notes&hellip;"
+             oninput="renderCRM()" autocomplete="off"
+             style="flex:1;min-width:240px;max-width:420px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 11px;font-size:13px;font-family:'Outfit',sans-serif;">
+      <div id="crmTempBar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
     <div class="table-wrap"><div id="crmContainer"></div></div>
   </div>
 
@@ -1991,7 +1996,10 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
   <div id="atab-crmmonth" class="mgr-content">
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-ghost" onclick="renderCrmMonthly()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
-      <span style="font-size:11px;color:var(--muted);">Grouped by the month the lead came in. Click any name to open its notes.</span>
+      <input id="crmMonthSearch" type="search" placeholder="Search this tracker&hellip;"
+             oninput="renderCrmMonthly()" autocomplete="off"
+             style="flex:1;min-width:220px;max-width:380px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 11px;font-size:13px;font-family:'Outfit',sans-serif;">
+      <span style="font-size:12px;color:var(--muted);">Drag a row to reorder. Click a name for its notes.</span>
     </div>
     <div id="crmMonthlyContainer"></div>
   </div>

@@ -605,6 +605,16 @@
         await register(email, password, name);
         _hideLogin();
 
+        // A browser that has looked at the demo has the demo's seed sitting in
+        // these exact keys - same origin, same storage. Migrating it into a
+        // brand-new account would hand the customer 12 fake leads, six fake
+        // cars and a dealership called Maple Auto Group on day one. Bin it
+        // and migrate nothing.
+        if (localStorage.getItem('ffDemoSeeded')) {
+          console.warn('[REGISTER] demo seed data in localStorage - discarding, not migrating');
+          ['ffDemoSeeded','ffInventory','ffCRM','ffDealLog','ffSettings','ffScenarios','ffCurrentDeal','ffLenderRates','ffCompareSession']
+            .forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+        }
         // Snapshot existing localStorage data BEFORE loadAllData overwrites it
         const existingInventory  = JSON.parse(localStorage.getItem('ffInventory')  || 'null');
         const existingCRM        = JSON.parse(localStorage.getItem('ffCRM')        || 'null');
