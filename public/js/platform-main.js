@@ -3662,12 +3662,158 @@ function _crmRelativeTime(iso) {
   return `<span style="color:${color}">${label}</span>`;
 }
 
+// ── Lead temperature ──────────────────────────────────────────────
+// Franco has run his book on colour for years: FRANK'S K.M SUBPRIME SHEET
+// fills every row green/orange/white/cyan/red and that fill, not the text,
+// is what he reads down the page. These five are the same ladder in
+// First-Fin's palette. Temperature is deliberately SEPARATE from status —
+// status is where the deal is, temperature is how live it feels today.
+const CRM_TEMPS = [
+  { key:'Dead', c:'#ef4444', label:'Dead' },
+  { key:'Cold', c:'#38bdf8', label:'Cold' },
+  { key:'Warm', c:'#fbbf24', label:'Warm' },
+  { key:'Hot',  c:'#f97316', label:'Hot'  },
+  { key:'Sold', c:'#22c55e', label:'Sold' },
+];
+const CRM_TEMP_C = Object.fromEntries(CRM_TEMPS.map(t => [t.key, t.c]));
+let _crmTempFilter = null;   // null = show everything
+
+function crmTempOf(c){ return CRM_TEMP_C[c && c.temperature] ? c.temperature : 'Cold'; }
+
+// The whole line carries the colour, like the sheet. A flat fill at full
+// strength makes the text unreadable on dark, so it fades left-to-right
+// off a solid edge — same signal, still legible.
+function crmRowTint(c){
+  const col = CRM_TEMP_C[crmTempOf(c)];
+  return `border-left:3px solid ${col};background:linear-gradient(90deg,${col}26 0%,${col}0d 45%,transparent 100%);`;
+}
+
+function renderCrmTempBar(){
+  const bar = document.getElementById('crmTempBar');
+  if (!bar) return;
+  const counts = {};
+  crmData.forEach(c => { const t = crmTempOf(c); counts[t] = (counts[t]||0)+1; });
+  const chip = (key, label, col, n, active) =>
+    `<button onclick="filterCrmTemp(${key===null?'null':"'"+key+"'"})" style="
+       padding:4px 10px;border-radius:12px;cursor:pointer;font-size:10px;font-weight:700;font-family:'Outfit',sans-serif;
+       border:1px solid ${col};background:${active?col:'transparent'};color:${active?'#0b0f1a':col};">
+       ${label} ${n}</button>`;
+  bar.innerHTML =
+    chip(null, 'All', '#94a3b8', crmData.length, _crmTempFilter === null) +
+    CRM_TEMPS.map(t => chip(t.key, t.label, t.c, counts[t.key]||0, _crmTempFilter === t.key)).join('');
+}
+
+function filterCrmTemp(t){ _crmTempFilter = t; renderCRM(); }
+
+async function setCrmTemp(id, temp){
+  const row = crmData.find(c => c.id === id);
+  const was = row ? row.temperature : null;
+  if (row) row.temperature = temp;            // optimistic — the page stays responsive
+  renderCRM();
+  try{
+    const r = await FF.apiFetch('/api/desk/crm/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ temperature: temp })}).then(x=>x.json());
+    if(!r.success) throw new Error(r.error||'save failed');
+    toast(temp === 'Dead' ? 'Marked dead' : 'Moved to '+temp);
+  }catch(e){
+    if (row) row.temperature = was;           // put it back rather than lie about it
+    renderCRM();
+    toast('Could not change temperature');
+  }
+}
+
+async function moveCrmLead(id, dir){
+  try{
+    const r = await FF.apiFetch('/api/desk/crm/'+id+'/move', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ direction: dir })}).then(x=>x.json());
+    if(!r.success) throw new Error(r.error||'move failed');
+    if(!r.moved){ toast(r.reason||'Already at the end'); return; }
+    await loadCRM();                          // re-read so the order is the server's, not a guess
+  }catch(e){ toast('Could not move that lead'); }
+}
+
+// ── Monthly Tracker ───────────────────────────────────────────────
+// The sheet had a tab per month (APRIL 2023 … JULY 2024) plus a DEAD tab,
+// and that is how Franco reads his own performance: this month's book,
+// last month's book. Same idea without the tab-per-month maintenance —
+// one block per month, newest first, each with its own temperature count.
+// Dead leads are pushed to the bottom of their month rather than given a
+// separate tab; they still belong to the month they came in.
+function crmMonthKey(c){
+  const raw = c.created_at || c.date;
+  const d = raw ? new Date(raw) : null;
+  if (!d || isNaN(d)) return { key:'0000-00', label:'No date' };
+  return {
+    key: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'),
+    label: d.toLocaleDateString('en-CA', { month:'long', year:'numeric' }).toUpperCase()
+  };
+}
+
+function renderCrmMonthly(){
+  const host = document.getElementById('crmMonthlyContainer');
+  if (!host) return;
+  if (!crmData.length){
+    host.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">No leads yet.</div>';
+    return;
+  }
+
+  const months = new Map();
+  crmData.forEach(c => {
+    const m = crmMonthKey(c);
+    if (!months.has(m.key)) months.set(m.key, { label:m.label, rows:[] });
+    months.get(m.key).rows.push(c);
+  });
+
+  // NOT the ladder order. Inside a month this is a work list: what to
+  // call sits at the top, and the month's wins are already counted in the
+  // pills on the header, so Sold drops below the live ones. Dead last.
+  const MONTH_ORDER = ['Hot','Warm','Cold','Sold','Dead'];
+  const order = Object.fromEntries(MONTH_ORDER.map((k,i) => [k, MONTH_ORDER.length - i]));
+  const keys = [...months.keys()].sort().reverse();
+
+  host.innerHTML = keys.map(k => {
+    const m = months.get(k);
+    // Hottest first within the month, dead last — the call list reads top-down.
+    const rows = m.rows.slice().sort((a,b) => (order[crmTempOf(b)] - order[crmTempOf(a)]) || ((b.board_rank||0) - (a.board_rank||0)));
+    const counts = {};
+    rows.forEach(c => { const t = crmTempOf(c); counts[t] = (counts[t]||0)+1; });
+    const pills = CRM_TEMPS.filter(t => counts[t.key]).map(t =>
+      `<span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;background:${t.c}22;color:${t.c};border:1px solid ${t.c}66">${t.label} ${counts[t.key]}</span>`).join(' ');
+
+    return `<div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div class="card-title" style="margin:0;"><i data-lucide="calendar" class="ico"></i>${m.label}
+          <span style="color:var(--muted);font-weight:500;font-size:11px;margin-left:6px;">${rows.length} lead${rows.length===1?'':'s'}</span>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">${pills}</div>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr>
+        <th>Name</th><th>Phone</th><th>Vehicle</th><th>Source</th><th>Status</th><th>Temp</th>
+      </tr></thead><tbody>
+      ${rows.map(c => `<tr style="${crmRowTint(c)}">
+        <td><strong style="cursor:pointer" onclick="openCrmNotes(${c.id})" title="Open notes">${_esc(c.name||'—')}</strong></td>
+        <td>${_esc(c.phone||'—')}</td>
+        <td>${_esc(c.vehicle_interest||c.vehicle||'—')}</td>
+        <td style="font-size:9px;color:var(--muted)">${_esc(c.source||'—')}</td>
+        <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
+        <td><span style="color:${CRM_TEMP_C[crmTempOf(c)]};font-weight:700;font-size:10px">${crmTempOf(c)}</span></td>
+      </tr>`).join('')}
+      </tbody></table></div>
+    </div>`;
+  }).join('');
+
+  if (window.lucide && lucide.createIcons) lucide.createIcons();
+}
+
 function renderCRM(){
   if(window.DEMO_MODE && window.crmData?.length && !crmData.length) crmData = window.crmData;
   const container=document.getElementById('crmContainer');
+  renderCrmTempBar();
   if(!crmData.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No customers in CRM yet.</div>';return;}
-  container.innerHTML=`<table class="data-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th style="width:140px">Actions</th></tr></thead><tbody>
-  ${crmData.map(c=>{
+  const rows = _crmTempFilter ? crmData.filter(c=>crmTempOf(c)===_crmTempFilter) : crmData;
+  if(!rows.length){container.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">Nothing is '+_crmTempFilter+' right now.</div>';return;}
+  container.innerHTML=`<table class="data-table"><thead><tr><th title="When this lead was first added">Date</th><th>Name</th><th>Phone</th><th>Vehicle</th><th title="Time since last touch — Sarah reply, customer reply, status change, notes edit, etc.">Last Activity</th><th>Score</th><th>Follow-up</th><th>Status</th><th title="How live this lead feels today — separate from where the deal is at">Temp</th><th style="width:170px">Actions</th></tr></thead><tbody>
+  ${rows.map(c=>{
     const fuClass = crmFollowUpClass(c);
     const fuDisplay = c.follow_up_date ? new Date(c.follow_up_date+'T12:00:00').toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : '—';
     // Preview latest_note (new history table) → fallback to legacy c.notes
@@ -3676,7 +3822,7 @@ function renderCRM(){
     const notesPreview = previewSrc ? previewSrc.substring(0,25)+(previewSrc.length>25?'...':'') : '';
     const noteCount = c.note_count != null ? c.note_count : (c.notes ? 1 : 0);
     const undoable = !!c.previous_state_at;
-    return `<tr class="${fuClass}">
+    return `<tr class="${fuClass}" style="${crmRowTint(c)}">
     <td style="font-size:9px;color:var(--muted)">${c.date||''}</td>
     <td><strong>${c.name||'—'}</strong>${notesPreview?'<br><span style="font-size:8px;color:var(--dim)" title="Latest note">'+_esc(notesPreview)+'</span>':''}</td>
     <td>${c.phone||'—'}</td>
@@ -3685,7 +3831,14 @@ function renderCRM(){
     <td>${leadScoreBadge(calcLeadScore(c))}</td>
     <td style="font-size:9px">${fuDisplay}${c.follow_up_note?'<br><span style="color:var(--dim);font-size:8px">'+_esc(c.follow_up_note.substring(0,20))+'</span>':''}</td>
     <td><span style="padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
+    <td><select onchange="setCrmTemp(${c.id},this.value);this.blur()" style="background:var(--surface2);border:1px solid ${CRM_TEMP_C[crmTempOf(c)]};border-radius:4px;color:${CRM_TEMP_C[crmTempOf(c)]};padding:2px 4px;font-size:9px;font-weight:700;font-family:'Outfit',sans-serif;width:68px">
+      ${CRM_TEMPS.map(t=>`<option value="${t.key}" ${crmTempOf(c)===t.key?'selected':''}>${t.label}</option>`).join('')}
+    </select></td>
     <td style="display:flex;gap:4px;align-items:center">
+      <span style="display:flex;flex-direction:column;line-height:.7">
+        <button onclick="moveCrmLead(${c.id},'up')" title="Move up" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:10px;padding:0">&#9650;</button>
+        <button onclick="moveCrmLead(${c.id},'down')" title="Move down" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:10px;padding:0">&#9660;</button>
+      </span>
       <button onclick="openCrmNotes(${c.id})" title="Notes & contact info${noteCount?' ('+noteCount+')':''}" style="background:none;border:none;cursor:pointer;font-size:14px;position:relative">&#128221;${noteCount>0?'<span style="position:absolute;top:-4px;right:-6px;background:var(--primary);color:white;border-radius:8px;font-size:8px;padding:1px 4px;font-weight:700">'+noteCount+'</span>':''}</button>
       ${undoable?`<button onclick="undoCrmChange(${c.id})" title="Undo last change" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--amber)">&#8630;</button>`:''}
       <select onchange="updateCRM(${c.id},this.value);this.blur()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 4px;font-size:8px;font-family:'Outfit',sans-serif;width:70px">

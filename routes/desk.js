@@ -20,6 +20,7 @@ const { resolveScope, buildCrmReadFilter, canMutateCrmRow, roleAtLeast } = requi
 const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
 const hours = require('../lib/hours');
 const crmHistory = require('../lib/crm-history');
+const crmBoard   = require('../lib/crm-board');
 require('../lib/notify'); // triggers idempotent schema migration on boot
 
 // ── Error sanitizer — never leak DB internals to client ──────────
@@ -2035,7 +2036,10 @@ const { sendCustomerSms } = require('../lib/customer-sms');
            ) n ON TRUE
            LEFT JOIN desk_users ua ON ua.id = n.author_id
           WHERE ${where} AND c.deleted_at IS NULL
-          ORDER BY c.updated_at DESC`,
+          -- board_rank is Franco's own ordering (the up/down arrows). It
+          -- seeds to the row id, so an untouched list still reads
+          -- newest-first; updated_at only breaks ties.
+          ORDER BY c.board_rank DESC NULLS LAST, c.updated_at DESC`,
         params
       );
       res.json({ success: true, crm: result.rows });
@@ -2119,11 +2123,12 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // the page reloaded — the row came back with vehicle_interest NULL
       // and the Vehicle column showed a dash.
       const result = await client.query(
-        `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes, vehicle_interest, budget_range)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+        `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes, vehicle_interest, budget_range, temperature)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
         [req.user.userId, scope.tenantId, req.user.userId,
          c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes,
-         c.vehicle_interest || null, c.budget_range || null]
+         c.vehicle_interest || null, c.budget_range || null,
+         crmBoard.normalize(c.temperature) || crmBoard.FROM_STATUS[c.status || 'Lead'] || 'Cold']
       );
       res.json({ success: true, entry: result.rows[0] });
     } catch (e) {
@@ -2163,7 +2168,19 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // happens automatically when an unassigned row is touched).
       const ALLOWED = ['status','phone','email','source','notes','name','beacon',
                         'income','obligations','vehicle_interest','budget_range',
-                        'follow_up_date','follow_up_note','last_contact'];
+                        'follow_up_date','follow_up_note','last_contact',
+                        'temperature','board_rank'];
+
+      // A temperature outside the ladder would colour the row as nothing
+      // and quietly drop it off the board, so refuse it rather than store it.
+      if (req.body.temperature !== undefined && req.body.temperature !== null && req.body.temperature !== '') {
+        const t = crmBoard.normalize(req.body.temperature);
+        if (!t) {
+          return res.status(400).json({ success: false,
+            error: `temperature must be one of ${crmBoard.TEMPERATURES.join(', ')}` });
+        }
+        req.body.temperature = t;
+      }
       if (roleAtLeast(scope, 'manager')) ALLOWED.push('assigned_rep_id');
 
       const sets = ['updated_at = NOW()'];
@@ -2506,6 +2523,64 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       res.json({ success: true, audit });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
+    }
+  });
+
+  // ── Move a lead up or down its column ─────────────────────
+  // Franco orders by hand — the hottest lead he wants to call next sits at
+  // the top, not whatever the database happened to return first. The swap
+  // is done server-side against the neighbour inside the same tenant AND
+  // the same temperature, in one transaction, so two reps dragging at once
+  // can't end up with both rows holding the same rank.
+  app.post('/api/desk/crm/:id/move', requireAuth, requireBilling, async (req, res) => {
+    const dir = String(req.body && req.body.direction || '').toLowerCase();
+    if (dir !== 'up' && dir !== 'down') {
+      return res.status(400).json({ success: false, error: "direction must be 'up' or 'down'" });
+    }
+    const client = await pool.connect();
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+
+      await client.query('BEGIN');
+      const me = await client.query(
+        `SELECT id, tenant_id, assigned_rep_id, deleted_at, temperature, board_rank
+           FROM desk_crm WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [req.params.id, scope.tenantId]
+      );
+      if (!me.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Lead not found' }); }
+      const row = me.rows[0];
+      if (row.deleted_at) { await client.query('ROLLBACK'); return res.status(410).json({ success: false, error: 'Lead is deleted' }); }
+      if (!canMutateCrmRow(scope, row)) { await client.query('ROLLBACK'); return res.status(403).json({ success: false, error: 'You cannot modify this lead' }); }
+
+      // "Up" means a HIGHER rank, because the board renders rank descending
+      // (newest/hottest first). The neighbour is the nearest row on that
+      // side; if there isn't one the lead is already at the end.
+      const cmp = dir === 'up' ? '>' : '<';
+      const ord = dir === 'up' ? 'ASC' : 'DESC';
+      const nb = await client.query(
+        `SELECT id, board_rank FROM desk_crm
+          WHERE tenant_id = $1 AND deleted_at IS NULL
+            AND temperature IS NOT DISTINCT FROM $2
+            AND board_rank ${cmp} $3
+          ORDER BY board_rank ${ord} LIMIT 1 FOR UPDATE`,
+        [scope.tenantId, row.temperature, row.board_rank]
+      );
+      if (!nb.rows.length) {
+        await client.query('COMMIT');
+        return res.json({ success: true, moved: false, reason: dir === 'up' ? 'already at top' : 'already at bottom' });
+      }
+
+      const other = nb.rows[0];
+      await client.query('UPDATE desk_crm SET board_rank = $1 WHERE id = $2', [other.board_rank, row.id]);
+      await client.query('UPDATE desk_crm SET board_rank = $1 WHERE id = $2', [row.board_rank, other.id]);
+      await client.query('COMMIT');
+      res.json({ success: true, moved: true, id: row.id, board_rank: other.board_rank, swappedWith: other.id });
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
     }
   });
 

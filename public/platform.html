@@ -1922,7 +1922,8 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
   <div class="mgr-tabs" style="margin-bottom:20px;">
     <button class="mgr-tab active" onclick="showAnalyticsTab('deals',this)"><i data-lucide="list" class="ico-sm"></i>Deal Log</button>
     <button class="mgr-tab" onclick="showAnalyticsTab('stats',this)"><i data-lucide="trending-up" class="ico-sm"></i>Stats</button>
-    <button class="mgr-tab" onclick="showAnalyticsTab('crm',this)"><i data-lucide="users" class="ico-sm"></i>CRM</button>
+    <button class="mgr-tab" onclick="showAnalyticsTab('crm',this)"><i data-lucide="users" class="ico-sm"></i>Master CRM</button>
+    <button class="mgr-tab" onclick="showAnalyticsTab('crmmonth',this);renderCrmMonthly();"><i data-lucide="calendar-days" class="ico-sm"></i>Monthly Tracker</button>
     <button class="mgr-tab" onclick="showAnalyticsTab('target',this)"><i data-lucide="target" class="ico-sm"></i>Monthly Target</button>
     <!-- Team tab — manager+ only (data-min-role hides for reps automatically) -->
     <button class="mgr-tab" data-min-role="manager" onclick="showAnalyticsTab('team',this);loadTeamStats();"><i data-lucide="users-2" class="ico-sm"></i>Team</button>
@@ -1969,7 +1970,18 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
       <button class="btn btn-ghost" onclick="exportJSON('crm')"><i data-lucide="download" class="ico-sm"></i>Export CRM</button>
       <button class="btn btn-ghost" onclick="openRecentlyDeleted()" title="View leads deleted in the last 30 days — restorable"><i data-lucide="trash-2" class="ico-sm"></i>Recently Deleted</button>
     </div>
+    <!-- Temperature filter. Counts fill in from renderCRM. -->
+    <div id="crmTempBar" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;"></div>
     <div class="table-wrap"><div id="crmContainer"></div></div>
+  </div>
+
+  <!-- Monthly Tracker — one block per month, the way the sheet had one tab per month -->
+  <div id="atab-crmmonth" class="mgr-content">
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-ghost" onclick="renderCrmMonthly()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
+      <span style="font-size:11px;color:var(--muted);">Grouped by the month the lead came in. Click any name to open its notes.</span>
+    </div>
+    <div id="crmMonthlyContainer"></div>
   </div>
 
   <!-- Monthly Target -->
