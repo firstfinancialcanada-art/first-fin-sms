@@ -1,14 +1,29 @@
 # First-Fin — current worklist
 
-**Updated 2026-09-22.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-08.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
 
 ---
 
-## This week
+## Right now
 
-Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS prospect **calls are held until Friday 25 Sept**; Monday to Thursday is written outreach only (text / Messenger / email), every message asking for a Friday time. Per-person drafts: `Desktop\FIRST-FIN SaaS Prospects\THIS-WEEK-2026-09-21.md`. Every touch gets logged in **/admin → Prospects**; the prospect CSV is retired.
+Franco is out at South Trail Chrysler (ended 2026-09-25 — see the STC note below). The car side is **House of Cars** + **Automaxx** + **SmartBuy**, all posted to Marketplace from the **kevlarkarz** account (tenant 1, Rolling With Franco). SaaS prospects are still waiting; his order is sales calls first, then the 40 prospects in /admin → Prospects. CASL on the April inquiries has now aged out — those 40 need re-checking before any cold outreach.
 
-**Wednesday 23rd:** 40+ STC car-sales calls.
+**Next up, both raised by Franco and not withdrawn:**
+
+- **Lead board** — monthly columns, temperature stages (he said Dead · Cold · Warm · Hot · Hottest · Sold), drag to move, built over the existing `desk_crm`. Waiting only on him confirming those six words so it matches the spreadsheet he already runs.
+- **Two remaining Tekion leads** to hand-enter (Brett Jepson identified, third not found).
+
+## Shipped 2026-09-26 → 10-08
+
+**House of Cars imported (kevlarkarz / tenant 1).** All stores, 1,048 units merged in. The first three scans only found 7 pages / ~240 vehicles: House of Cars' pagination truncates the page list, so page discovery in `chrome-extension/content.js` (~line 1153, after the slug block at 1086) now **fills the gaps** between the highest visible page and the real last page — 32 pages after that. **Reloading the extension does not refresh an already-open tab** — that cost two round trips; tell Franco to reload the page too. A `$500` floor guard was added after some cards imported at a model-year-ish junk price. ~465 of the House of Cars units are still **untagged for wholesale** — photo host can't tell them apart (everything is HomeNet), so they were deliberately left alone rather than mis-tagged.
+
+**Bi-weekly payments advertised in the listing title.** Franco's call, after seeing better click-through on payment-led posts: `FB_PAYMENT` in `public/platform.html` — **6.99%, 84 months as the FLOOR** (an older unit is never shortened below it), **96 months** for units ≤2 years old so the headline number drops, `minPrice 1000`. The payment goes in the **Model** field, not Trim — Franco's screenshot settled that; I had it in Trim first and he was re-typing it by hand. `fbpTitleModel()` builds it; `fbpPaymentLine()` writes `$X bi-weekly · N months OAC` into the description. **No interest rate is published anywhere** (1ccec72) — "OAC" carries it, and a published rate is the thing AMVIC would bite on. Open question nobody can answer yet: putting text in the Model field means it no longer matches Facebook's own dictionary, which **may** cost structured-filter visibility. It survives publishing; whether it hurts reach is unknown.
+
+**Listing descriptions individualised.** `FB_LINE_VARIANTS` rotates four wordings for each of the three lines, and `fbpVehicleNote()` adds one sentence specific to the vehicle. A line Franco wrote himself is used exactly as typed. Franco: *"gives each add a little bit of indivuality with out over stating anything."*
+
+**Lead-intake mailbox moved to `rollingwithfranco@gmail.com`** — the old `firstfinancialcanada` mailbox was mixing car leads into the SaaS inbox. 2FA + Gmail app password set by Franco, pasted into Railway by him. Verified live: `✅ lead-intake polling every 120s`, zero errors.
+
+**Tekion — dead end, don't rebuild it.** The House of Cars Tekion instance is **theirs**, not ours (1,281 leads, their salespeople), so dealership-wide lead routing isn't Franco's to change. Leads reach him at `ffannin@houseofcars.com` through Outlook and the notification email contains **only a client name and the assigned rep** — nothing to parse, so the ADF/IMAP pipe can't work on it. I proposed an extension capture button; Franco: *"thats to convoluted."* Leads get hand-entered. A reply email to the first lead (Elizabeth Remmers — her 2017 Beetle was already sold) was written and sent 2026-10-07.
 
 ## Open — Franco only
 
@@ -17,12 +32,12 @@ Franco is selling cars at South Trail Chrysler to get sharp on the phone. SaaS p
 | ✅ | ~~**Domain auto-renew**~~ — firstfinancialcanada.com (expires 2026-10-24). Franco set auto-renew ON 2026-09-25. |
 | ✅ | ~~**Twilio auto-recharge**~~ — card + auto-recharge set by Franco 2026-09-25. Dead numbers released; bill $4.20 → ~$1.15/mo. |
 | ➖ | ~~STC line test~~ — moot, Franco is out at STC and the number is released. |
-| | **DMARC** — add `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:First@FirstFinancialCanada.com`. SPF and DKIM are already in place. |
-| | **Rotate `META_APP_SECRET`** — reset in Meta, then paste into Railway immediately; Facebook lead deliveries fail in between. |
+| 🔴 | **DMARC** — add `_dmarc` TXT `v=DMARC1; p=none; rua=mailto:First@FirstFinancialCanada.com`. SPF and DKIM are already in place. |
+| 🔴 | **Rotate `META_APP_SECRET`** — reset in Meta, then paste into Railway immediately; Facebook lead deliveries fail in between. |
 | | **Replace-mode inventory sync** still fails (Merge works). Next re-scrape, hit Replace first so the exact Postgres error lands in the logs. |
 | ➖ | ~~STC stock 8689645 body style~~ — moot, STC tenant is gone. |
-| | **fintest@fintest.com password reset** (admin PW button) — needed to drive the new billing overlay end-to-end on a real login. |
-| | **Wholesale signage — option A**: swap text OCR for an image-understanding model to catch small signs (~$3–4 one-time, needs an API key). Hides are already remembered either way. |
+| ✅ | ~~**fintest@fintest.com password reset**~~ — done 2026-09-25; billing overlay driven end-to-end on a real login. |
+| ➖ | ~~**Wholesale signage — option A** (paid vision model)~~ — **killed 2026-09-25.** Superseded by the cover-the-sign editor (`public/js/photo-cleaner.js`): drag a box over the sign, box stored as fractions of the image in `photo_edits`, filled with the surrounding colour. Runs in the browser, no API key, no per-photo cost. **Do not re-pitch the vision model.** |
 | | **Indeed ad** (commission-only associate) — LIVE 9/22, free 30 days; decide on sponsoring around **2026-10-22**. |
 
 ## Found by audit 2026-09-22 — your call
