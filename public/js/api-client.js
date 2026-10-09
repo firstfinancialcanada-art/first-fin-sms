@@ -425,8 +425,16 @@
         try { checkBillingBanner(getBilling()); } catch(e) {}
       }
       // Apply feature gating to nav tabs (run now + delayed to override any late UI resets)
-      if (typeof applyFeatureGating === 'function') {
-        const _feats = _user ? (_user.features || {}) : {};
+      //
+      // Only gate when we actually KNOW the entitlements. _user is null on a
+      // resumed session until /api/desk/me comes back, and the old code read
+      // that as "no features", locking SARAH, DT Sync and FB Poster on every
+      // page reload for an account that owns all three. Not knowing who
+      // someone is is not grounds for taking their paid features away - and
+      // the server enforces entitlements regardless, so the UI failing open
+      // costs nothing.
+      if (typeof applyFeatureGating === 'function' && _user) {
+        const _feats = _user.features || {};
         try { applyFeatureGating(_feats); } catch(e) {}
         setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 500);
         setTimeout(() => { try { applyFeatureGating(_feats); } catch(e) {} }, 2000);
@@ -547,6 +555,13 @@
     if (_accessToken) {
       _hideLogin(); // always let user in if token exists
       try {
+        // _user is only set by login() and register(), so a resumed session
+        // had no user object at all - no email, no role, no features. Fetch
+        // it before anything renders off it.
+        try {
+          const me = await apiFetch('/api/desk/me').then(r => r.ok ? r.json() : null);
+          if (me && me.success && me.user) _user = me.user;
+        } catch (e) { /* offline — _triggerRenders now fails open without it */ }
         await loadAllData();
         setTimeout(_triggerRenders, 300);
         console.log('✅ Cloud data loaded (resumed session)');
