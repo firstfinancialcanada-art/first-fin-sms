@@ -1,17 +1,50 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-08.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-09.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
 
 ---
 
 ## Right now
 
-Franco is out at South Trail Chrysler (ended 2026-09-25 — see the STC note below). The car side is **House of Cars** + **Automaxx** + **SmartBuy**, all posted to Marketplace from the **kevlarkarz** account (tenant 1, Rolling With Franco). SaaS prospects are still waiting; his order is sales calls first, then the 40 prospects in /admin → Prospects. CASL on the April inquiries has now aged out — those 40 need re-checking before any cold outreach.
+Car side is **House of Cars + Automaxx + SmartBuy**, posted from the **kevlarkarz** account. STC is history. The CRM is now the real book: 23 live leads, every one with notes, and the fake seed data is gone.
 
-**Next up, both raised by Franco and not withdrawn:**
+**The only thing with a clock on it — SaaS prospects.** CASL implied consent runs six months from the enquiry, and the April batch is expiring now:
 
-- **Lead board** — monthly columns, temperature stages (he said Dead · Cold · Warm · Hot · Hottest · Sold), drag to move, built over the existing `desk_crm`. Waiting only on him confirming those six words so it matches the spreadsheet he already runs.
-- **Two remaining Tekion leads** to hand-enter (Brett Jepson identified, third not found).
+| Lapses | |
+|---|---|
+| **Oct 11** | 1 — contacted |
+| **Oct 14** | 4 — **1 never contacted** |
+| **Oct 15** | 2 — **both never contacted** |
+| **Oct 27** | 3 — 2 never contacted |
+
+Five have never been contacted at all; three go dark inside a week. 33 of 46 inquiries still sit `pending`. Untouched since Sept 21.
+
+**Live deals**
+- **Saurabh Joshi** (CRM 891, Hot) — Bromwich & Smith referral from Paddy. Consumer proposal; Franco is their car broker. Draft proposal documents came from Paddy Oct 8, approval being sought off them. OPEN: the trustee says he is keeping the Ford, Franco thinks that is stale — settle it first. RISK: two scheduled calls have already failed on Franco's Freedom line and the client has chased once.
+- **Michael Vance** (859, Hot) — Tekion deal 5140, pending finance.
+- **Herman Mann** (867) — sitting Warm, should be Hot: said he would call the night of Oct 5 and did not, $40K across cards and a line of credit.
+- **Lisa Laskowski** (857) — emailed Oct 8. Her Jetta is SOLD; the email deliberately does not say so.
+- **F-150 A05848** — in inventory with 10 photos, Marketplace ad written and Auto-Fill verified.
+
+## Shipped 2026-10-08 → 10-09
+
+**The CRM became the book.** Temperature ladder (Dead · Cold · Warm · Hot · Sold) tinting whole rows, a **Master CRM** and a **Monthly Tracker**, drag-to-reorder in both, search across every field including notes, "Sort by heat" per month, bigger bold type. Temperature is a SEPARATE axis from status, so nothing was lost. (f265182, 0390b24, 54c80e2, f1d046e)
+
+**Leads in.** 9 from Tekion, 12 that only existed on the Google Sheet, Saurabh Joshi, Michael Walkey — all with real notes, not just provenance. The sheet got the 7 it was missing. **236 fake seed contacts deleted**, 258 → 22.
+
+**Tekion.** Walkey never reached it from Canada Drives so he was created by hand; Rob Robinson DID arrive 12 minutes after assignment — so that feed drops some and carries others, which is their integration problem, not hand-entry forever.
+
+**Vehicle photos you took yourself** (b341a16, 9910b4f). Until now every photo came from a scrape. Bytes live in `desk_vehicle_photos` (BYTEA, mirroring the tenant logo), only URLs on the vehicle, public GET with CORS so the poster and the photo editor can both fetch. Camera button on every inventory row. **37 MB per truck at full phone resolution — Franco's call to leave it; downscale-in-browser is the lever if it ever bites.**
+
+**Bugs found and fixed, all of them customer-facing:**
+- **The demo was seeding itself into real accounts.** It writes its data into localStorage, which is per-ORIGIN, and two paths migrated that as "legacy data": loadCRM uploaded 12 fake leads into the signed-in tenant, and REGISTER would have given a brand-new customer fake leads, fake cars and a dealership called Maple Auto Group. That is where the 236 came from, and where MAG came from. (f1d046e)
+- **A page reload took away paid features.** `_user` is only set by login(), so on resume feature gating read "entitled to nothing" and locked SARAH, DT Sync and FB Poster behind the add-on modal. (99e2a59)
+- **Billing check threw for every signed-in user** — `FF.isLoggedIn` is a getter, called as a method. The renewal countdown and the arrival overlay have never run for anyone. (a2e49ad)
+- **Two sign-out bugs:** a DOMContentLoaded handler raced _init and binned valid tokens, and _tryRefresh logged out on any non-OK response including a 502 mid-deploy. (2b8b515, 89a5a4b)
+- **The demo showed prospects a raw auth error** where the pitch belongs. (64580f2, a708e06)
+- **New leads sorted to the BOTTOM** — board_rank was only filled at boot. Now a BEFORE INSERT trigger, because five paths create leads and patching five leaves the sixth. (64f2a6c)
+- `POST /api/desk/inventory` never wrote colour, trim, cost or the five spec columns a VIN decode fills. (ae83802)
+- **`desk_inventory.photos` is TEXT, not JSONB** — the schema file says JSONB but the column pre-existed so `IF NOT EXISTS` skipped it. Cost three attempts. **Cleanup: the file and the live table still disagree.** (2ce3beb)
 
 ## Shipped 2026-09-26 → 10-08
 
@@ -39,6 +72,11 @@ Franco is out at South Trail Chrysler (ended 2026-09-25 — see the STC note bel
 | ✅ | ~~**fintest@fintest.com password reset**~~ — done 2026-09-25; billing overlay driven end-to-end on a real login. |
 | ➖ | ~~**Wholesale signage — option A** (paid vision model)~~ — **killed 2026-09-25.** Superseded by the cover-the-sign editor (`public/js/photo-cleaner.js`): drag a box over the sign, box stored as fractions of the image in `photo_edits`, filled with the surrounding colour. Runs in the browser, no API key, no per-photo cost. **Do not re-pitch the vision model.** |
 | | **Indeed ad** (commission-only associate) — LIVE 9/22, free 30 days; decide on sponsoring around **2026-10-22**. |
+| 🔴 | **Five April SaaS prospects never contacted** — three lapse Oct 14–15 on CASL. The only dated item on this list. |
+| | **Stock A05848** — the F-150's stock number is the VIN's last six, invented because none was given. Swap for House of Cars' real one when it is stocked in; photos travel with the vehicle row, not the stock string, so a rename is free. |
+| | **Michael Walkey** — his note says 10 years at address, the Canada Drives form says 5. Settle before it goes on an application. |
+| | **Nakan** (858) — Franco texting and calling; Tekion holds no vehicle, so it is cold discovery. |
+| | **Pick the day the Google Sheet stops being updated.** Leads now live in both; the sheet is only right while someone remembers to type twice. |
 
 ## Found by audit 2026-09-22 — your call
 
@@ -63,6 +101,14 @@ Franco is out at South Trail Chrysler (ended 2026-09-25 — see the STC note bel
 - **Wholesale cost could be quoted to a customer** — clicking an inventory row loaded the supplier's price into Selling Price, one click from Present. Fixed, plus a WHOLESALE chip and retail editing in the list.
 - **"Dealer Platform" → "Dealer System"** everywhere it is the product's name, including the Terms of Service defined term.
 - **Extension download rebuilt** — the served zip was the 09-21 build and was missing the price-parsing fix. Anyone who downloaded it since then should re-download and reload it; Chrome does not auto-update a manually-loaded extension.
+
+## Cleanups from 2026-10-09 — none blocking
+
+- **`desk_inventory.photos` is TEXT while the schema file declares JSONB.** Converting is a migration across 1,389 rows with the poster reading it live — not a mid-session job.
+- **37 MB of photos per vehicle** at full phone resolution. Downscaling in the browser before upload is ~400KB a photo with no visible loss at Marketplace sizes. Franco's call to leave it.
+- **~465 House of Cars units still untagged** for wholesale — photo host cannot tell them apart.
+- **Replace-mode inventory sync still fails.** Next re-scrape, hit Replace FIRST so the Postgres error lands in the logs.
+- **Canada Drives → Tekion drops some leads.** Carried Robinson, dropped Walkey. If it recurs, that is their integration ticket.
 
 ## Known gaps — deliberately not built
 
