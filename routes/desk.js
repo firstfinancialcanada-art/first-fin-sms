@@ -1409,17 +1409,21 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         // five spec fields a VIN decode fills in. A hand-entered unit came
         // out missing exactly the details a listing is built from.
         //
-        // COALESCE, not CASE: a bare $17 in `CASE WHEN $17 IS NULL` has no
-        // inferable type, so Postgres read it as text against a jsonb branch
-        // and threw "CASE types jsonb and text cannot be matched".
+        // photos is TEXT holding a JSON string, NOT jsonb. setup-database-v2
+        // declares `ADD COLUMN IF NOT EXISTS photos JSONB`, but the column
+        // already existed as text so that was skipped and never applied -
+        // the schema file and the live table disagree. The bulk sync has
+        // always written JSON.stringify() into it with no cast, so this does
+        // the same. Casting to ::jsonb here is what threw first "CASE types
+        // jsonb and text cannot be matched", then the COALESCE version of it.
         `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value,
            color, trim, cost, photos, int_color, transmission, fuel_type, drive_train, engine)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17::jsonb,'[]'::jsonb),$18,$19,$20,$21,$22)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17,'[]'),$18,$19,$20,$21,$22)
          ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13,
            color        = COALESCE($14, desk_inventory.color),
            trim         = COALESCE($15, desk_inventory.trim),
            cost         = COALESCE($16, desk_inventory.cost),
-           photos       = COALESCE($17::jsonb, desk_inventory.photos),
+           photos       = COALESCE($17, desk_inventory.photos),
            int_color    = COALESCE($18, desk_inventory.int_color),
            transmission = COALESCE($19, desk_inventory.transmission),
            fuel_type    = COALESCE($20, desk_inventory.fuel_type),
@@ -1504,10 +1508,21 @@ const { sendCustomerSms } = require('../lib/customer-sms');
           added.push(vehiclePhotos.publicUrl(ins.rows[0].id));
         }
 
-        const existing = replace ? [] : (Array.isArray(veh.rows[0].photos) ? veh.rows[0].photos : []);
+        // photos is TEXT holding JSON (see the upsert above), so it has to be
+        // parsed on the way in and stringified on the way out. A row that
+        // somehow holds something else must not take the existing gallery
+        // down with it, hence the try.
+        let existing = [];
+        if (!replace) {
+          const raw = veh.rows[0].photos;
+          try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (Array.isArray(parsed)) existing = parsed;
+          } catch (e) { /* unparseable - start the gallery from this upload */ }
+        }
         const photos = existing.concat(added);
         await client.query(
-          'UPDATE desk_inventory SET photos = $1::jsonb, updated_at = NOW() WHERE tenant_id = $2 AND stock = $3',
+          'UPDATE desk_inventory SET photos = $1, updated_at = NOW() WHERE tenant_id = $2 AND stock = $3',
           [JSON.stringify(photos), scope.tenantId, stock]
         );
         console.log(`📸 ${added.length} photo(s) stored for ${stock} (tenant ${scope.tenantId})`);
