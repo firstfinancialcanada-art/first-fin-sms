@@ -21,6 +21,7 @@ const { toE164NorthAmerica, normalizePhone } = require('../lib/helpers');
 const hours = require('../lib/hours');
 const crmHistory = require('../lib/crm-history');
 const crmBoard   = require('../lib/crm-board');
+const vehiclePhotos = require('../lib/vehicle-photos');
 require('../lib/notify'); // triggers idempotent schema migration on boot
 
 // ── Error sanitizer — never leak DB internals to client ──────────
@@ -1403,17 +1404,133 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       }
       const conflictTarget = tenantId ? '(tenant_id, stock)' : '(user_id, stock)';
       const result = await client.query(
-        `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-         ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13, updated_at=NOW()
+        // colour, trim and cost are columns the table has always had and this
+        // route never wrote, so a hand-entered unit came out missing exactly
+        // the details a listing needs. photos too, for units with no scrape
+        // behind them.
+        `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, color, trim, cost, photos)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17::jsonb,'[]'::jsonb))
+         ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13,
+           color=COALESCE($14, desk_inventory.color), trim=COALESCE($15, desk_inventory.trim), cost=COALESCE($16, desk_inventory.cost),
+           photos=CASE WHEN $17 IS NULL THEN desk_inventory.photos ELSE $17::jsonb END,
+           updated_at=NOW()
          RETURNING *`,
-        [req.user.userId, tenantId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0]
+        [req.user.userId, tenantId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0,
+         v.color || null, v.trim || null, v.cost != null ? v.cost : null,
+         Array.isArray(v.photos) ? JSON.stringify(v.photos) : null]
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
+    }
+  });
+
+  // ── Vehicle photos you took yourself ──────────────────────
+  // POST /api/desk/inventory/:stock/photos   (multipart, field "photos")
+  // Bytes go to desk_vehicle_photos; only the URLs land on the vehicle. By
+  // default they are APPENDED, so a second walkaround adds to the first;
+  // ?replace=1 starts the gallery over.
+  app.post('/api/desk/inventory/:stock/photos', requireAuth, requireBilling, (req, res) => {
+    let upload;
+    try {
+      const multer = require('multer');
+      upload = multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: vehiclePhotos.MAX_BYTES, files: vehiclePhotos.MAX_FILES },
+        fileFilter: (rq, file, cb) => {
+          if (!vehiclePhotos.ALLOWED.includes(file.mimetype)) {
+            return cb(new Error('Only JPEG, PNG or WebP photos'));
+          }
+          cb(null, true);
+        },
+      }).array('photos', vehiclePhotos.MAX_FILES);
+    } catch (e) {
+      return res.status(503).json({ success: false, error: 'Photo upload unavailable — multer not installed' });
+    }
+
+    upload(req, res, async (err) => {
+      if (err) return res.status(400).json({ success: false, error: err.message });
+      if (!req.files || !req.files.length) {
+        return res.status(400).json({ success: false, error: 'No photos uploaded (field name must be "photos")' });
+      }
+      const client = await pool.connect();
+      try {
+        const scope = await resolveScope(req);
+        if (!scope?.tenantId) return res.status(401).json({ success: false, error: 'No tenant membership' });
+        const stock = String(req.params.stock);
+
+        // The vehicle has to exist first, otherwise a typo in the stock number
+        // silently parks several megabytes against nothing.
+        const veh = await client.query(
+          'SELECT stock, photos FROM desk_inventory WHERE tenant_id = $1 AND stock = $2',
+          [scope.tenantId, stock]
+        );
+        if (!veh.rows.length) {
+          return res.status(404).json({ success: false, error: `No vehicle with stock ${stock} in this inventory` });
+        }
+
+        const replace = String(req.query.replace || '') === '1';
+        if (replace) {
+          await client.query('DELETE FROM desk_vehicle_photos WHERE tenant_id = $1 AND stock = $2', [scope.tenantId, stock]);
+        }
+        const posRes = await client.query(
+          'SELECT COALESCE(MAX(position), -1) AS p FROM desk_vehicle_photos WHERE tenant_id = $1 AND stock = $2',
+          [scope.tenantId, stock]
+        );
+        let pos = Number(posRes.rows[0].p) + 1;
+
+        const added = [];
+        for (const f of req.files) {
+          const ins = await client.query(
+            `INSERT INTO desk_vehicle_photos (tenant_id, user_id, stock, position, data, mime, bytes)
+             VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+            [scope.tenantId, req.user.userId, stock, pos++, f.buffer, f.mimetype, f.size]
+          );
+          added.push(vehiclePhotos.publicUrl(ins.rows[0].id));
+        }
+
+        const existing = replace ? [] : (Array.isArray(veh.rows[0].photos) ? veh.rows[0].photos : []);
+        const photos = existing.concat(added);
+        await client.query(
+          'UPDATE desk_inventory SET photos = $1::jsonb, updated_at = NOW() WHERE tenant_id = $2 AND stock = $3',
+          [JSON.stringify(photos), scope.tenantId, stock]
+        );
+        console.log(`📸 ${added.length} photo(s) stored for ${stock} (tenant ${scope.tenantId})`);
+        res.json({ success: true, added: added.length, total: photos.length, photos });
+      } catch (e) {
+        console.error('vehicle photo upload:', e.message);
+        res.status(500).json({ success: false, error: sanitizeError(e) });
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  // GET /api/vehicle-photo/:id — public, same reasoning as the tenant logo:
+  // the poster's worker and the canvas editor both fetch without a session.
+  app.get('/api/vehicle-photo/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).send('Invalid photo id');
+      const r = await pool.query(
+        'SELECT data, mime, created_at FROM desk_vehicle_photos WHERE id = $1', [id]
+      );
+      const row = r.rows[0];
+      if (!row || !row.data) return res.status(404).send('No photo');
+      const etag = '"' + new Date(row.created_at).getTime().toString(36) + '"';
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      res.set({
+        'Content-Type': row.mime || 'image/jpeg',
+        'Cache-Control': 'public, max-age=31536000, immutable',  // bytes never change; a new photo is a new id
+        'ETag': etag,
+        'X-Content-Type-Options': 'nosniff',
+        'Access-Control-Allow-Origin': '*',   // the photo editor draws these to a canvas
+      });
+      res.send(row.data);
+    } catch (e) {
+      res.status(500).send('Photo error');
     }
   });
 
