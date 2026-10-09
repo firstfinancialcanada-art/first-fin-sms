@@ -1404,20 +1404,33 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       }
       const conflictTarget = tenantId ? '(tenant_id, stock)' : '(user_id, stock)';
       const result = await client.query(
-        // colour, trim and cost are columns the table has always had and this
-        // route never wrote, so a hand-entered unit came out missing exactly
-        // the details a listing needs. photos too, for units with no scrape
-        // behind them.
-        `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value, color, trim, cost, photos)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17::jsonb,'[]'::jsonb))
+        // Everything after book_value is a column the table has always had
+        // and this route never wrote: colour, trim, cost, photos, and the
+        // five spec fields a VIN decode fills in. A hand-entered unit came
+        // out missing exactly the details a listing is built from.
+        //
+        // COALESCE, not CASE: a bare $17 in `CASE WHEN $17 IS NULL` has no
+        // inferable type, so Postgres read it as text against a jsonb branch
+        // and threw "CASE types jsonb and text cannot be matched".
+        `INSERT INTO desk_inventory (user_id, tenant_id, stock, year, make, model, mileage, price, condition, carfax, type, vin, book_value,
+           color, trim, cost, photos, int_color, transmission, fuel_type, drive_train, engine)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17::jsonb,'[]'::jsonb),$18,$19,$20,$21,$22)
          ON CONFLICT ${conflictTarget} DO UPDATE SET year=$4, make=$5, model=$6, mileage=$7, price=$8, condition=$9, carfax=$10, type=$11, vin=$12, book_value=$13,
-           color=COALESCE($14, desk_inventory.color), trim=COALESCE($15, desk_inventory.trim), cost=COALESCE($16, desk_inventory.cost),
-           photos=CASE WHEN $17 IS NULL THEN desk_inventory.photos ELSE $17::jsonb END,
-           updated_at=NOW()
+           color        = COALESCE($14, desk_inventory.color),
+           trim         = COALESCE($15, desk_inventory.trim),
+           cost         = COALESCE($16, desk_inventory.cost),
+           photos       = COALESCE($17::jsonb, desk_inventory.photos),
+           int_color    = COALESCE($18, desk_inventory.int_color),
+           transmission = COALESCE($19, desk_inventory.transmission),
+           fuel_type    = COALESCE($20, desk_inventory.fuel_type),
+           drive_train  = COALESCE($21, desk_inventory.drive_train),
+           engine       = COALESCE($22, desk_inventory.engine),
+           updated_at   = NOW()
          RETURNING *`,
         [req.user.userId, tenantId, v.stock, v.year, v.make, v.model, v.mileage, v.price, v.condition || 'Average', v.carfax || 0, v.type, v.vin || null, v.book_value || 0,
          v.color || null, v.trim || null, v.cost != null ? v.cost : null,
-         Array.isArray(v.photos) ? JSON.stringify(v.photos) : null]
+         Array.isArray(v.photos) ? JSON.stringify(v.photos) : null,
+         v.int_color || null, v.transmission || null, v.fuel_type || null, v.drive_train || null, v.engine || null]
       );
       res.json({ success: true, vehicle: result.rows[0] });
     } catch (e) {
