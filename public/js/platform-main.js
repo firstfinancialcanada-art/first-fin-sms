@@ -972,6 +972,53 @@ function invPaintSortHeaders() {
   });
 }
 
+// ── Photos for a unit no scraper feeds ────────────────────────────
+// Scraped units arrive with a gallery already. A truck that just landed is
+// photographed on a phone, and without this there was no way to get those
+// pictures onto the vehicle - so it could sit in inventory but never be
+// posted, which is the only reason to put it there.
+//
+// The browser does the upload so the photos ride the signed-in session;
+// nothing has to handle a token. Files are appended, so a second walkaround
+// adds to the first rather than wiping it.
+function pickVehiclePhotos(stock){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png,image/webp';
+  input.multiple = true;
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.onchange = async () => {
+    const files = [...(input.files || [])];
+    input.remove();
+    if (!files.length) return;
+    const tooBig = files.filter(f => f.size > 12 * 1024 * 1024);
+    if (tooBig.length) { toast(tooBig.length + ' photo(s) over 12MB — skipped'); }
+    const ok = files.filter(f => f.size <= 12 * 1024 * 1024);
+    if (!ok.length) return;
+
+    // Name order is the gallery order: 01-front.jpg leads, 10-vin.jpg trails.
+    ok.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const fd = new FormData();
+    ok.forEach(f => fd.append('photos', f, f.name));
+    toast('Uploading ' + ok.length + ' photo' + (ok.length === 1 ? '' : 's') + '…');
+    try {
+      // No Content-Type header: the browser must set the multipart boundary.
+      const r = await FF.apiFetch('/api/desk/inventory/' + encodeURIComponent(stock) + '/photos',
+        { method: 'POST', body: fd }).then(x => x.json());
+      if (!r.success) throw new Error(r.error || 'upload failed');
+      toast(r.added + ' photo' + (r.added === 1 ? '' : 's') + ' added — ' + r.total + ' on ' + stock);
+      // Re-read so the camera button shows the new count. initInventory() is
+      // what the rest of the page uses after a sync; there is no loadInventory.
+      if (window.FF && typeof FF.loadAllData === 'function') await FF.loadAllData();
+      if (typeof initInventory === 'function') initInventory();
+    } catch (e) {
+      toast('Photo upload failed: ' + (e.message || 'unknown'));
+    }
+  };
+  input.click();
+}
+
 function renderInventory(list){
   const countEl = document.getElementById('invCount');
   const tbody = document.getElementById('inventoryBody');
@@ -1017,6 +1064,7 @@ function renderInventory(list){
       </td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendToDeal('${v.stock}')"><i data-lucide="arrow-right" class="ico-sm"></i>Use in Deal</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();pickVehiclePhotos('${v.stock}')" title="${(v.photos&&v.photos.length)?v.photos.length+' photo(s) — add more from this device':'No photos — add some from this device'}" style="background:rgba(30,90,246,.1);border-color:rgba(30,90,246,.3);color:#93c5fd;"><i data-lucide="camera" class="ico-sm"></i>${(v.photos&&v.photos.length)||''}</button>
         ${(function(){
           // Phase 6: reps can't delete inventory — render the button greyed
           // out with a tooltip explaining why. Managers + owners + solo
