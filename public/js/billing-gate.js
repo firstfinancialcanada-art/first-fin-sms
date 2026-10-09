@@ -184,7 +184,16 @@
 
   async function check() {
     if (window.DEMO_MODE) return;
-    if (!window.FF || !FF.isLoggedIn || !FF.isLoggedIn()) return;
+    // isLoggedIn is a GETTER on FF, not a method. The old guard read
+    // `!FF.isLoggedIn || !FF.isLoggedIn()`: signed out that short-circuits
+    // on the first half and returns harmlessly, but signed IN the getter is
+    // true and the second half calls true(), which throws. So check() threw
+    // for every logged-in user - the only case it exists for - and the
+    // renewal countdown and the load-time lock have never run. The 402/403
+    // lock from apiFetch still worked, which is why this stayed hidden: a
+    // lapsed account got stopped the moment it tried something, just with
+    // no warning beforehand and no overlay on arrival.
+    if (!window.FF || !FF.isLoggedIn) return;
     try {
       var r = await FF.apiFetch('/api/billing/status');
       if (!r.ok) return;
