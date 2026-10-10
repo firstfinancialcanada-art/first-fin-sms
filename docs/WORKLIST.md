@@ -27,11 +27,12 @@ House of Cars does not do AMVIC safety work until a deal is done, so a signed ca
 - **Micheal Vance** (CRM 859) — **$500 deposit taken**, 2019 Trax, walk-in Oct 6. Deal written. **Held on AMVIC.** Status set to Sold on the tracker 2026-10-10.
 - **Alain Robichaud** — **SOLD Oct 5**, 2024 VW Tiguan, docs signed. **Held on AMVIC** plus a letter of employment. (Originally enquired on the Taos, stock 3598-10; Tekion deal 5132.) DL, pay stubs, insurance quote and the $2K Fast Auto loan are all done.
 - **Linda Page** — **SOLD**, cold call. Took the **GMC Canyon** home and loves it. Worked at $200/week, $2,500 down, 2 years. Tracker status and vehicle both corrected 2026-10-10.
-- **Jeff Snow** — Yukon Denali, **cash deal**, referral, Oct 6. Strongest thing still open.
+- **Maya Haveny** (CRM 898) — **SOLD Oct 10, closed in under an hour.** Walk-in, 2018 Hyundai Tucson, stock 0669-10, no trade. Follow-up Oct 12. Not in Tekion. Her phone had been mistyped on the tracker as Rob Robinson's and is now (403) 970-0808.
+- **Jeff Snow** (CRM 897, Hot) — Yukon Denali, **cash deal**, referral, Oct 6. Strongest thing still open.
 - **Saurabh Joshi** (CRM 891, Hot) — Bromwich & Smith referral from Paddy. Consumer proposal; Franco is their car broker. Draft proposal documents came from Paddy Oct 8, approval being sought off them. OPEN: the trustee says he is keeping the Ford, Franco thinks that is stale — settle it first. RISK: two scheduled calls have already failed on Franco's Freedom line and the client has chased once.
 - **Owen Evans** — cold call, **Bromwich/DL/pay stubs all done**. Northlake wants significant cash down.
 - **Herman Mann** (867) — sitting Warm, should be Hot: said he would call the night of Oct 5 and did not, $40K across cards and a line of credit.
-- **Niraj Makwana** — **vehicle acquisition, not a retail sale.** Booked for inspection 10/08. His First-Fin note still wrongly describes a retail walk-in and he is wrongly Hot — NOT yet corrected.
+- **Niraj Makwana** (CRM 896) — **vehicle acquisition, not a retail sale.** Booked for inspection 10/08. First-Fin note and temperature corrected 2026-10-10.
 - **Lisa Laskowski** (857) — emailed Oct 8. Her Jetta is SOLD; the email deliberately does not say so.
 - **F-150 A05848** — in inventory with 10 photos, Marketplace ad written and Auto-Fill verified.
 
@@ -49,6 +50,8 @@ House of Cars does not do AMVIC safety work until a deal is done, so a signed ca
 **AD tracker** — the 13 credit applications Adil sent as screenshots are in, rows 24–36, with phone, email, city, lender and deal number. SINs and DOBs deliberately left out. One name (**Jerive Realin**) was cut off at the edge of the screenshot and is flagged in its Notes cell to verify.
 
 **AM tracker — new sheet, 436 Automaxx contacts.** Built from the two DealerTrack dumps in `keep/`: a 459-row CSV (Feb 27–28) and a 427-row xlsx that was itself a merge of nine scrapes (Feb 21–28). 345 people appear in both; 886 input rows collapse to **436 unique**, matched on phone, then deal number, then name+postal. **One source row was scrambled** — columns shifted so the address sat in the name fields — and it was the only copy of that contact, so it was rebuilt by value shape; everything recovered except the name. 15 have no phone, 46 no email. Gregory Kjos and Ahmed Hussen each have two genuine applications and were left as two rows. Styled to match the AD tracker exactly (colours sampled from its canvas, not guessed): navy `#1f2a44` header in white bold, filters, row 1 + columns A–B frozen, Status and Method dropdown chips in the same palette, **and no alternating row colours**. Local copy at `keep/AM-tracker-consolidated.csv`.
+
+**First-Fin brought level with the tracker.** Niraj Makwana (896) corrected to a buy-in and taken off Hot; Jeff Snow added (897, Hot, cash); Maya Haveny added (898, Sold, follow-up Oct 12); Michael Vance (859) moved Negotiating→Sold with the deposit and the AMVIC block written into the note, and his real phone replacing the 111-111-1111 placeholder Tekion was holding; Alain Robichaud (866) given the note he never had. **Four on the Sold board** — Haveny, Vance, Robichaud, Page. CRM is 28 contacts.
 
 **Franco Fannin tracker** — Micheal Vance's blank Status set to **Sold**, Linda Page flipped Contacted → **Sold**, and her Vehicle corrected from the "Blue GMC / Chevy" she was hunting to the **GMC Canyon** she actually took.
 
@@ -105,8 +108,8 @@ House of Cars does not do AMVIC safety work until a deal is done, so a signed ca
 | | **Michael Walkey** — his note says 10 years at address, the Canada Drives form says 5. Settle before it goes on an application. |
 | | **Nakan** (858) — Franco texting and calling; Tekion holds no vehicle, so it is cold discovery. |
 | | **Pick the day the Google Sheet stops being updated.** Leads now live in both; the sheet is only right while someone remembers to type twice. |
-| 🔴 | **Niraj Makwana's First-Fin note is wrong** — he is a **buy-in booked for inspection 10/08**, not a retail walk-in, and he is marked Hot. Fix before he is worked as a sale. |
-| | **Jeff Snow is not in First-Fin** — Oct 6 referral, Yukon Denali, **cash deal**. Tracker only. |
+| ✅ | ~~**Niraj Makwana's First-Fin note is wrong**~~ — fixed 2026-10-10. CRM 896 now reads "BUY-IN / vehicle acquisition — NOT a retail shopper", and he is off Hot (Warm). |
+| ✅ | ~~**Jeff Snow is not in First-Fin**~~ — added 2026-10-10 as CRM 897, Hot. |
 | | **AM tracker data is from February** — roughly 7½ months old. Fine to call; past CASL's six-month implied-consent window for texts and emails off a credit application. |
 | | **AM tracker row 64** — the recovered scrambled record. Phone, email, Red Deer, NFY and the rep survived; the **name did not**. The email suggests a J. Thompson. |
 | | **AM tracker column widths** — Email truncates. Fitting to data would blow the Notes column out, so it was left alone. |
