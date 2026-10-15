@@ -61,7 +61,7 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       // 'sales' (existing default) or 'acquisition' (new — Sarah asks
       // about the customer's vehicle, mileage, condition, asking price,
       // and pivots to "looking to replace it?" before booking).
-      const campaignMode = (mode === 'acquisition') ? 'acquisition' : 'sales';
+      const campaignMode = (mode === 'acquisition' || mode === 'reengage') ? mode : 'sales';
       if (!messageTemplate.includes('{name}')) {
         return res.status(400).json({ error: 'Message must include {name}' });
       }

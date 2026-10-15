@@ -280,6 +280,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       notifyPhone:     parsed.notifyPhone   || null,
       dealerName:      parsed.dealerName    || null,
       dealerCity:      parsed.dealerCity    || null,
+      salesName:       parsed.salesName     || null,
       deliveryArea:    parsed.deliveryArea  || '',
       googleReviewUrl: parsed.googleReviewUrl || null,
     };
@@ -549,7 +550,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // is reaching out to a prospective seller — qualifies the customer's
       // vehicle, mileage, condition, asking price, then pivots to "looking
       // to replace it?" before booking). Same modes as the bulk launcher.
-      const launchMode = (mode === 'acquisition') ? 'acquisition' : 'sales';
+      const launchMode = (mode === 'acquisition' || mode === 'reengage') ? mode : 'sales';
       if (!phone) return res.json({ success: false, error: 'Phone number required' });
       const normalizedPhone = toE164NorthAmerica(phone);
       if (!normalizedPhone) return res.json({ success: false, error: 'Invalid phone number format' });
@@ -590,6 +591,12 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // acquisition mode (don't downgrade an existing acq thread).
       if (launchMode === 'acquisition' && conversation.mode !== 'acquisition') {
         await updateConversation(conversation.id, { mode: 'acquisition', stage: 'acq_confirm' });
+      }
+      // Reengage is an explicit, operator-chosen campaign on an aged list,
+      // so it does set mode even over an existing sales thread — but it
+      // never overwrites a live acquisition thread.
+      if (launchMode === 'reengage' && conversation.mode !== 'acquisition') {
+        await updateConversation(conversation.id, { mode: 'reengage', stage: 'reengage_confirm' });
       }
       await saveMessage(conversation.id, normalizedPhone, 'assistant', messageBody, uid);
       await logAnalytics('sms_sent', normalizedPhone, { messageBody, mode: launchMode }, uid);
@@ -706,6 +713,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // City blank had Sarah announce "We're in Canada". Blank now means the
     // city is left out of the sentence.
     let TENANT_DEALER_CITY  = '';
+    // Who reengage-mode callbacks are announced as. Blank is fine —
+    // Sarah falls back to "our sales manager" rather than a stray name.
+    let TENANT_SALES_NAME   = '';
     let TENANT_DELIVERY     = '';
     let TENANT_INVENTORY    = [];
     let TENANT_ID           = null;
@@ -734,6 +744,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         if (ts.twilioNumber) TENANT_FROM_NUMBER  = ts.twilioNumber;
         if (ts.dealerName)   TENANT_DEALER_NAME  = ts.dealerName;
         if (ts.dealerCity)   TENANT_DEALER_CITY  = ts.dealerCity;
+        if (ts.salesName)    TENANT_SALES_NAME   = ts.salesName;
         TENANT_DELIVERY = ts.deliveryArea || '';
       }
       TENANT_INVENTORY = invResult.rows;
@@ -825,7 +836,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           await saveMessage(conversation.id, phone, 'user', message, WEBHOOK_USER_ID);
           try { await logAnalytics('message_received', phone, { message }, WEBHOOK_USER_ID); } catch(e) { console.error('Analytics error:', e.message); }
 
-          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY, TENANT_DELIVERY);
+          const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY, TENANT_DELIVERY, TENANT_SALES_NAME);
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
           try {
@@ -1261,13 +1272,155 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       : "Let me have our buyer give you a quick call to sort everything out. What's your name and a good time to reach you?";
   }
 
-  async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = '', inventory = [], deliveryArea = '') {
+  // ── REENGAGE MODE (Phase 8) ──────────────────────────────────────
+  // A third FSM, for waking up aged leads. Deliberately far smaller than
+  // sales and acquisition: the only question it asks is whether they're
+  // still looking, and the only thing it books is a callback. It never
+  // quotes a price, discusses trim or financing, or offers to book them
+  // in — these are people who already didn't buy once, so the ask has to
+  // be smaller than the one they walked away from.
+  //
+  // It also gives "I already bought something" somewhere to land. In
+  // sales mode that answer falls through to a pitch; here it closes the
+  // lead cleanly, which is half the reason to run a list like this at
+  // all. Note it closes the STAGE, not the status — they didn't withdraw
+  // consent, they just aren't buying today, and marking them 'stopped'
+  // would wrongly block legitimate contact later.
+  async function getReengageResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', managerName = '') {
+    const lowerMsg = message.toLowerCase().trim();
+    const name  = conversation.customer_name || '';
+    const first = name ? name.split(' ')[0] : '';
+    function pick(...opts) { return opts[Math.floor(Math.random() * opts.length)]; }
+
+    // Settings store the name however the dealer typed it ("FRANCO"), and
+    // Sarah is not shouting it at a customer. First name, title case.
+    const _raw = String(managerName || '').trim().split(/\s+/)[0] || '';
+    const _mgrFirst = _raw ? _raw.charAt(0).toUpperCase() + _raw.slice(1).toLowerCase() : '';
+    const mgr = _mgrFirst ? `our sales manager ${_mgrFirst}` : 'our sales manager';
+    const Mgr = _mgrFirst ? `Our sales manager ${_mgrFirst}` : 'Our sales manager';
+
+    // ── STOP / START ───────────────────────────────────────────────
+    if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
+        lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
+      await updateConversation(conversation.id, { status: 'stopped' });
+      await addOptOut(phone, 'sms_stop');
+      await logAnalytics('conversation_stopped', phone, { mode: 'reengage' }, userId);
+      return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
+    }
+    if (lowerMsg === 'start' || lowerMsg.includes('resubscribe') || lowerMsg.includes('opt in')) {
+      await updateConversation(conversation.id, { status: 'active', stage: 'reengage_confirm' });
+      await removeOptOut(phone);
+      // Deliberately doesn't name the store. A reengage campaign is often
+      // run under a different banner than the account's own dealerName
+      // (Franco's account is "Rolling with Franco" but the House of Cars
+      // list goes out as House of Cars), and a mismatch here reads as a
+      // different company texting you.
+      return 'Welcome back! Sarah here. Are you still looking for a vehicle?';
+    }
+    if (conversation.status === 'stopped') return "You're currently unsubscribed. Reply START to receive messages again.";
+
+    // Hard "leave me alone". Kept separate from the plain "no" handled at
+    // reengage_confirm below — on this list a bare "no" is an answer to
+    // the question we asked, not a request to be removed. Conflating the
+    // two is the 2026-05-08 acquisition bug all over again.
+    if (lowerMsg.includes('not interested') || lowerMsg.includes('wrong number') ||
+        lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
+        lowerMsg.includes('do not contact') || lowerMsg.includes("don't text") ||
+        lowerMsg.includes('stop texting') || lowerMsg.includes('please stop') ||
+        lowerMsg.includes('take me off')) {
+      await updateConversation(conversation.id, { status: 'stopped' });
+      await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'reengage' }, userId);
+      return "No problem — I've taken you off the list. All the best.";
+    }
+
+    // ── STAGE: reengage_time — they said yes, we asked when ────────
+    // Their words go through verbatim. Sarah isn't parsing "Tuesday
+    // afternoon" into a timestamp and risking getting it wrong; the
+    // manager reads what the customer actually wrote.
+    if (conversation.stage === 'reengage_time') {
+      const when = message.trim().slice(0, 120);
+      await saveCallback({
+        phone, name: name || 'Reengage lead',
+        vehicleType: conversation.vehicle_type || null,
+        budget: null, budgetAmount: null, datetime: when, userId,
+      });
+      await updateConversation(conversation.id, {
+        status: 'converted', stage: 'reengage_done', intent: 'callback', datetime: when,
+      });
+      try {
+        await notifyTenantManagers({
+          tenantId, fromNumber, twilioClient,
+          body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(phone)}\nStill looking. Call them: ${when}`,
+        });
+      } catch(e) { console.error('❌ manager notify failed:', e.message); }
+      await logAnalytics('reengage_callback', phone, { when }, userId);
+      return first
+        ? `Perfect ${first} — ${mgr} will call you ${when}.`
+        : `Perfect — ${mgr} will call you ${when}.`;
+    }
+
+    // ── STAGE: reengage_done — callback already booked ─────────────
+    if (conversation.stage === 'reengage_done') {
+      return first
+        ? `Thanks ${first} — ${mgr} has your details and will call you.`
+        : `Thanks — ${mgr} has your details and will call you.`;
+    }
+
+    // ── STAGE: reengage_closed — they told us they're done ─────────
+    if (conversation.stage === 'reengage_closed') {
+      return 'Thanks for letting me know. If anything changes down the road, just text me here.';
+    }
+
+    // ── STAGE: reengage_confirm — the one question ─────────────────
+    // Already bought / sorted. The most valuable answer on the list:
+    // it's the one that tells the desk to stop chasing.
+    if (/\b(already (bought|got|found|purchased|sorted)|bought (one|a car|a truck|something|elsewhere)|got (one|something) already|found (one|something)|no longer looking|not looking( anymore)?|all set|sorted now|purchased already)\b/.test(lowerMsg)) {
+      await updateConversation(conversation.id, { stage: 'reengage_closed' });
+      await logAnalytics('reengage_not_looking', phone, { reason: 'already_bought', reply: message.slice(0, 200) }, userId);
+      return first
+        ? `Congrats ${first}! Thanks for letting me know — I'll close it off. If anything changes down the road, just text me here.`
+        : "Congrats! Thanks for letting me know — I'll close it off. If anything changes down the road, just text me here.";
+    }
+
+    // Plain "no" / "nope" / "not right now" — an answer, not an opt-out.
+    if (/^(n|no|nope|nah|naw|no thanks|no thank you|not right now|not now|not at the moment|not anymore|not any more)\b/.test(lowerMsg)) {
+      await updateConversation(conversation.id, { stage: 'reengage_closed' });
+      await logAnalytics('reengage_not_looking', phone, { reason: 'declined', reply: message.slice(0, 200) }, userId);
+      return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
+    }
+
+    // Still looking → ask for a time. The only booking this FSM makes.
+    if (/^(y|ya|yah|yes|yeah|yep|yup|sure|ok|okay|correct|still (looking|am|interested)|i am|we are|absolutely|definitely|kind of|kinda|maybe|possibly|sort of)\b/.test(lowerMsg) ||
+        lowerMsg.includes('still looking') || lowerMsg.includes('still interested') ||
+        lowerMsg.includes('yes please')) {
+      await updateConversation(conversation.id, { stage: 'reengage_time', intent: 'callback' });
+      return pick(
+        `Good to hear. ${Mgr} will call you back — what time works today or tomorrow?`,
+        `Great. ${Mgr} will call you back — what time suits you today or tomorrow?`
+      );
+    }
+
+    // Anything else — a question, a price ask, a specific unit, a story.
+    // Sarah does not field it. She routes it to a human, which is the
+    // whole point of the mode.
+    await updateConversation(conversation.id, { stage: 'reengage_time', intent: 'callback' });
+    return first
+      ? `Let me get ${mgr} to call you on that, ${first} — what time works today or tomorrow?`
+      : `Let me get ${mgr} to call you on that — what time works today or tomorrow?`;
+  }
+
+  async function getJerryResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName = 'the dealership', dealerCity = '', inventory = [], deliveryArea = '', managerName = '') {
     // Mode router — acquisition campaigns go to a separate FSM that asks
     // about the seller's vehicle, mileage, condition, asking price, and
     // pivots to "looking to replace it?" before booking. Sales mode (the
     // historical default) continues unchanged below.
     if (conversation.mode === 'acquisition') {
       return getAcquisitionResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, dealerCity, deliveryArea);
+    }
+    // Reengage campaigns (aged leads) run a third, much smaller FSM:
+    // one question, callbacks only, no appointments and no numbers.
+    if (conversation.mode === 'reengage') {
+      return getReengageResponse(phone, message, conversation, userId, fromNumber, tenantId, dealerName, managerName);
     }
 
     const lowerMsg = message.toLowerCase().trim();
