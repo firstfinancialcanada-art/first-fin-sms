@@ -841,6 +841,18 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           await saveMessage(conversation.id, phone, 'user', message, WEBHOOK_USER_ID);
           try { await logAnalytics('message_received', phone, { message }, WEBHOOK_USER_ID); } catch(e) { console.error('Analytics error:', e.message); }
 
+          // An inbound with no text is not an answer. Tapback reactions, a
+          // bare MMS attachment and some carrier receipts all arrive with an
+          // empty Body, and every FSM here ends in a catch-all that treats
+          // whatever it got as a reply — so an empty one silently advanced
+          // the stage. Caught live on the first reengage pilot: Gabriel's
+          // empty inbound moved him to the time step, so his NEXT message
+          // was read as the callback time. Record it, answer nothing.
+          if (!message || !String(message).trim()) {
+            console.log('📭 Empty inbound body from', phone, '— logged, no FSM, no reply');
+            return;
+          }
+
           const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY, TENANT_DELIVERY, TENANT_SALES_NAME);
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
@@ -1342,7 +1354,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // Their words go through verbatim. Sarah isn't parsing "Tuesday
     // afternoon" into a timestamp and risking getting it wrong; the
     // manager reads what the customer actually wrote.
-    if (conversation.stage === 'reengage_time') {
+    if (conversation.stage === 'reengage_time' || conversation.stage === 'reengage_time_q') {
       // A withdrawal here is not a time. Without this, "no actually never
       // mind" becomes a callback booked for "no actually never mind" and
       // the manager rings someone who just backed out. Closes instead —
@@ -1353,6 +1365,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
       }
       const when = message.trim().slice(0, 120);
+      // Only read it back if it actually looks like a time. Verbatim is right
+      // for the MANAGER — he needs their words — but echoing it into a
+      // sentence assumes it is one. Gabriel answered the time question with
+      // "Should of been negociable when I wanted to buy" and got back
+      // "Franco will call you Should of been negociable when I wanted to
+      // buy." A neutral confirmation cannot embarrass anyone.
+      const looksLikeTime = /\d|am\b|pm\b|noon|tonight|today|tomorrow|morning|afternoon|evening|anytime|any time|asap|after|before|weekend|mon|tue|wed|thur|thu|fri|sat|sun/i.test(when);
+      // Did they actually say yes, or did we route them here from the
+      // catch-all? The manager plans a call differently for each, so the
+      // alert must not claim "still looking" on his behalf.
+      const saidYes = conversation.stage === 'reengage_time';
       await saveCallback({
         phone, name: name || 'Reengage lead',
         vehicleType: conversation.vehicle_type || null,
@@ -1364,13 +1387,18 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       try {
         await notifyTenantManagers({
           tenantId, fromNumber, twilioClient,
-          body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(phone)}\nStill looking. Call them: ${when}`,
+          body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
+                (saidYes ? 'Still looking.' : 'Not a clear yes — read it.') +
+                ` They said: "${when}"`,
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
-      await logAnalytics('reengage_callback', phone, { when }, userId);
-      return first
-        ? `Perfect ${first} — ${mgr} will call you ${when}.`
-        : `Perfect — ${mgr} will call you ${when}.`;
+      await logAnalytics('reengage_callback', phone, { when, saidYes }, userId);
+      if (looksLikeTime) {
+        return first ? `Perfect ${first} — ${mgr} will call you ${when}.`
+                     : `Perfect — ${mgr} will call you ${when}.`;
+      }
+      return first ? `Thanks ${first} — I've passed that to ${mgr} and he'll give you a call.`
+                   : `Thanks — I've passed that to ${mgr} and he'll give you a call.`;
     }
 
     // ── TERMINAL STAGES — the funnel is over ───────────────────────
@@ -1436,8 +1464,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
     // Anything else — a question, a price ask, a specific unit, a story.
     // Sarah does not field it. She routes it to a human, which is the
-    // whole point of the mode.
-    await updateConversation(conversation.id, { stage: 'reengage_time', intent: 'callback' });
+    // whole point of the mode. Marked _q rather than reengage_time so the
+    // callback alert doesn't tell the manager they said they're still
+    // looking when all they did was fail to match a yes.
+    await updateConversation(conversation.id, { stage: 'reengage_time_q', intent: 'callback' });
     return first
       ? `Let me get ${mgr} to call you on that, ${first} — what time works today or tomorrow?`
       : `Let me get ${mgr} to call you on that — what time works today or tomorrow?`;
