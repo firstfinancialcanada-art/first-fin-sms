@@ -662,21 +662,23 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const toNumber = req.body.To || process.env.TWILIO_PHONE_NUMBER;
     let WEBHOOK_USER_ID;
 
-    // Helper: fall back to the tenant whose twilio_number matches the master env number.
-    // This covers: unprovisioned tenants, demo mode texts, and mis-routed messages.
-    // Never falls back to "first in DB" which is order-dependent and fragile.
-    async function resolveFallbackTenant() {
+    // Tenant is resolved from the number the customer texted, and ONLY from
+    // that. The fallback here used to end at "whatever account OWNER_EMAIL
+    // points at", which meant any message to a number not present in
+    // desk_users.twilio_number was attributed to the platform owner: their
+    // Sarah replied, their notify phone rang, their CRM took the lead. A
+    // tenant could set their own notify number correctly and still never see
+    // their leads, because the message was never theirs to begin with.
+    //
+    // The master-number fallback is kept, but only for the master number
+    // itself — demo traffic and an unprovisioned tenant texting the shared
+    // line. Anything else is refused loudly. Silence that shows up in the log
+    // is recoverable; quietly handing one dealer's customer to another is not.
+    async function resolveMasterTenant() {
       const masterNumber = process.env.TWILIO_PHONE_NUMBER;
-      if (masterNumber) {
-        const r = await pool.query(
-          `SELECT id FROM desk_users WHERE twilio_number = $1 LIMIT 1`, [masterNumber]
-        );
-        if (r.rows.length) return r.rows[0].id;
-      }
-      // Last resort: owner account (exempt email) — predictable, not order-dependent
-      const ownerEmail = process.env.OWNER_EMAIL || 'kevlarkarz@gmail.com';
+      if (!masterNumber) return null;
       const r = await pool.query(
-        `SELECT id FROM desk_users WHERE email = $1 LIMIT 1`, [ownerEmail]
+        `SELECT id FROM desk_users WHERE twilio_number = $1 LIMIT 1`, [masterNumber]
       );
       return r.rows[0]?.id || null;
     }
@@ -688,13 +690,16 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       );
       if (tenantResult.rows.length > 0) {
         WEBHOOK_USER_ID = tenantResult.rows[0].id;
+      } else if (toNumber && toNumber === process.env.TWILIO_PHONE_NUMBER) {
+        WEBHOOK_USER_ID = await resolveMasterTenant();
       } else {
-        console.log(`⚠️ No tenant for number ${toNumber} — using fallback`);
-        WEBHOOK_USER_ID = await resolveFallbackTenant();
+        console.error(`❌ Inbound to ${toNumber} matches no tenant's twilio_number — REFUSED, not reassigned. ` +
+                      `If this is a real tenant, set their twilio_number in Settings.`);
+        return res.type('text/xml').send('<Response></Response>');
       }
     } catch(e) {
       console.error('⚠️ Tenant lookup failed:', e.message);
-      try { WEBHOOK_USER_ID = await resolveFallbackTenant(); } catch(e2) {}
+      return res.type('text/xml').send('<Response></Response>');
     }
     if (!WEBHOOK_USER_ID) {
       console.error('❌ No tenant found for webhook');
