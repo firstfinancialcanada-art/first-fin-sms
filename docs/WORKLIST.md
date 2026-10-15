@@ -1,6 +1,24 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-10.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-15.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+
+---
+
+## ⏸ WAITING ON FRANCO — re-engage pilot, morning of 2026-10-16
+
+**25 of 287 sent Oct 15. The other 262 are on hold until he decides.** He agreed to hold overnight and reevaluate.
+
+First 24 hours, 24 delivered, 9 replies — a **37% reply rate but a 21% opt-out rate**, and **nobody said "yes, still looking"**: 5 STOP, 2 bought elsewhere, 2 not looking, 1 dead handset, 15 silent.
+
+**The opt-out rate is the number the decision rests on**, not the reply rate. A STOP is permanent for that number across every future Sarah campaign on the line, so the full run burns roughly 55 numbers. So far that spend has bought referral conversations, not buyers.
+
+**Gabriel is the case for running it anyway.** He replied that the desk should have been negotiable when he wanted to buy — a park & sell BMW M2, no room to move, so he bought elsewhere. Franco called, offered $500/referral, and said it was worth the call. Lesson recorded: **do not teach Sarah to classify brush-offs as declines**, or she bins the best lead in the batch.
+
+The funnel itself is new — a third Sarah mode, `reengage`, that asks one question and books callbacks only. Tracker: **HoC Re-engage Tracker — Aug/Sep 2026** (Google Sheets), 287 rows with outcomes filled for the 25.
+
+**Before any further send, know two things.** Every contact on the list belongs to another rep — Frank owns exactly one Aug/Sep lead and it already sold; Franco chose to run it as sales manager. And the notify number moved to **+1 825 747 4442**; the old 587-834-6308 is retired.
+
+**Tenant isolation was leaking and is now fixed.** An inbound to a number matching no tenant used to fall back to the `OWNER_EMAIL` account — Franco's — so another dealer's customer would get his Sarah, his alerts and his CRM. That is the Hunt Chrysler symptom. Unknown numbers are refused now, but **only Franco's account has a `twilio_number` set**: the moment Hunt or anyone else is provisioned, fill that column or their leads go silent.
 
 ---
 
