@@ -1434,14 +1434,27 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     }
 
     // ── STAGE: reengage_confirm — the one question ─────────────────
-    // Already bought / sorted. The most valuable answer on the list:
-    // it's the one that tells the desk to stop chasing.
-    if (/\b(already (bought|got|found|purchased|sorted)|bought (one|a car|a truck|something|elsewhere)|got (one|something) already|found (one|something)|no longer looking|not looking( anymore)?|all set|sorted now|purchased already)\b/.test(lowerMsg)) {
+    // Bought something. Worth congratulating, and the most valuable answer
+    // on the list: it tells the desk to stop chasing.
+    //
+    // ONLY an actual purchase belongs here. "not looking" and "all set"
+    // used to match this branch, so Danny's "Sorry, not looking." came back
+    // "Congrats Danny!" on the live pilot. Someone declining is not someone
+    // celebrating, and congratulating them reads as not listening.
+    if (/\b(already (bought|got|found|purchased)|bought (one|a car|a truck|something|elsewhere)|got (one|something) already|found (one|something)|purchased already|sorted now|already sorted)\b/.test(lowerMsg)) {
       await updateConversation(conversation.id, { stage: 'reengage_closed' });
       await logAnalytics('reengage_not_looking', phone, { reason: 'already_bought', reply: message.slice(0, 200) }, userId);
       return first
         ? `Congrats ${first}! Thanks for letting me know — I'll close it off. If anything changes down the road, just text me here.`
         : "Congrats! Thanks for letting me know — I'll close it off. If anything changes down the road, just text me here.";
+    }
+
+    // Not looking — said anywhere in the sentence, because "Sorry, not
+    // looking." does not start with "no". Same close, neutral wording.
+    if (/\b(no longer looking|not looking|not searching|stopped looking|all set|gave up|decided against|changed my mind|not buying)\b/.test(lowerMsg)) {
+      await updateConversation(conversation.id, { stage: 'reengage_closed' });
+      await logAnalytics('reengage_not_looking', phone, { reason: 'declined', reply: message.slice(0, 200) }, userId);
+      return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
     }
 
     // Plain "no" / "nope" / "not right now" — an answer, not an opt-out.
