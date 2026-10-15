@@ -1441,7 +1441,16 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // used to match this branch, so Danny's "Sorry, not looking." came back
     // "Congrats Danny!" on the live pilot. Someone declining is not someone
     // celebrating, and congratulating them reads as not listening.
-    if (/\b(already (bought|got|found|purchased)|bought (one|a car|a truck|something|elsewhere)|got (one|something) already|found (one|something)|purchased already|sorted now|already sorted)\b/.test(lowerMsg)) {
+    // Match the verb, not a list of objects. Enumerating "bought one / a car
+    // / a truck / elsewhere" missed Monica's "Nope, bought a vehicle
+    // elsewhere. Thanks" on the live pilot — she fell through to the plain
+    // decline and the fact she'd BOUGHT, which is what makes her a referral
+    // conversation, was lost. Nobody says "bought" in answer to "are you
+    // still looking?" unless they did, so the verb alone carries it, minus
+    // the explicit negations.
+    const boughtRe    = /\b(bought|purchased|already (got|found)|found (one|something|another)|went with (another|someone|somewhere|a)|got (one|something) already|sorted now|already sorted)\b/;
+    const notBoughtRe = /\b(haven'?t|have not|has not|hasn'?t|didn'?t|did not|never|not)\s+(yet\s+)?(bought|purchased|found)\b/;
+    if (boughtRe.test(lowerMsg) && !notBoughtRe.test(lowerMsg)) {
       await updateConversation(conversation.id, { stage: 'reengage_closed' });
       await logAnalytics('reengage_not_looking', phone, { reason: 'already_bought', reply: message.slice(0, 200) }, userId);
       return first
