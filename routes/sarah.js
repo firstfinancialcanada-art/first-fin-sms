@@ -1338,6 +1338,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // afternoon" into a timestamp and risking getting it wrong; the
     // manager reads what the customer actually wrote.
     if (conversation.stage === 'reengage_time') {
+      // A withdrawal here is not a time. Without this, "no actually never
+      // mind" becomes a callback booked for "no actually never mind" and
+      // the manager rings someone who just backed out. Closes instead —
+      // still no second question asked.
+      if (/^(no|nope|nah|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|dont worry|don't worry|no thanks|no thank you|im good|i'm good|all good)\b/i.test(message.trim())) {
+        await updateConversation(conversation.id, { stage: 'reengage_closed' });
+        await logAnalytics('reengage_not_looking', phone, { reason: 'withdrew_at_time', reply: message.slice(0, 200) }, userId);
+        return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
+      }
       const when = message.trim().slice(0, 120);
       await saveCallback({
         phone, name: name || 'Reengage lead',
@@ -1359,16 +1368,36 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         : `Perfect — ${mgr} will call you ${when}.`;
     }
 
-    // ── STAGE: reengage_done — callback already booked ─────────────
-    if (conversation.stage === 'reengage_done') {
-      return first
-        ? `Thanks ${first} — ${mgr} has your details and will call you.`
-        : `Thanks — ${mgr} has your details and will call you.`;
-    }
-
-    // ── STAGE: reengage_closed — they told us they're done ─────────
-    if (conversation.stage === 'reengage_closed') {
-      return 'Thanks for letting me know. If anything changes down the road, just text me here.';
+    // ── TERMINAL STAGES — the funnel is over ───────────────────────
+    // reengage_done = callback booked. reengage_closed = they told us
+    // they're done. Neither ever asks a question again, so a later text
+    // cannot drop them back into the funnel and start the loop over.
+    //
+    // It must not swallow them either. "Make it Thursday instead" after
+    // a booking, or "actually I'm looking again" after a close, is
+    // exactly the message that matters, and a canned thank-you would
+    // bury it where nobody sees it. So anything past a bare pleasantry
+    // goes to the manager verbatim and gets a flat acknowledgement —
+    // no question back, nothing for Sarah to dig into.
+    if (conversation.stage === 'reengage_done' || conversation.stage === 'reengage_closed') {
+      const booked = conversation.stage === 'reengage_done';
+      const pleasantry = /^(ok|okay|k|kk|kool|cool|thanks|thank you|thanks!|ty|thx|great|perfect|sounds good|sweet|awesome|will do|no worries|np|cheers|yes|yep|yup|👍|👌|🙏|ok thanks|okay thanks|thank you!)[\s.!]*$/i.test(message.trim());
+      if (!pleasantry) {
+        try {
+          await notifyTenantManagers({
+            tenantId, fromNumber, twilioClient,
+            body: `REENGAGE — REPLY AFTER ${booked ? 'CALLBACK BOOKED' : 'CLOSE'}\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
+                  (booked && conversation.datetime ? `Was: ${conversation.datetime}\n` : '') +
+                  `They said: "${message.trim().slice(0, 160)}"`,
+          });
+        } catch(e) { console.error('❌ manager notify failed:', e.message); }
+        await logAnalytics('reengage_post_close_reply', phone, { stage: conversation.stage, reply: message.slice(0, 200) }, userId);
+        return first ? `Got it ${first} — I've passed that to ${mgr}.`
+                     : `Got it — I've passed that to ${mgr}.`;
+      }
+      return booked
+        ? `${Mgr} has your details and will call you.`
+        : 'Thanks — if anything changes down the road, just text me here.';
     }
 
     // ── STAGE: reengage_confirm — the one question ─────────────────
