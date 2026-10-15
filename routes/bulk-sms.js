@@ -1,7 +1,7 @@
 // routes/bulk-sms.js
 const { pool, filterOptedOut } = require('../lib/db');
 const { state, saveBulkCampaign, getBulkCampaignStats } = require('../lib/bulk');
-const { normalizePhone } = require('../lib/helpers');
+const { normalizePhone, fillTemplate, unresolvedTokens } = require('../lib/helpers');
 const { checkSpend, estimateSmsCost, getUsage } = require('../lib/spend-cap');
 
 module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
@@ -70,6 +70,34 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       }
       if (messageTemplate.length > 1600) {
         return res.status(400).json({ error: 'Message too long (max 1600 characters)' });
+      }
+
+      // Every token must resolve for EVERY contact, checked before a single
+      // row is queued. The processor refuses to send an unfilled message too,
+      // but by then the campaign is live and the operator is reading failures
+      // instead of fixing a list. A template saying "back in {month}" against
+      // contacts that don't all carry a month is a mistake worth catching
+      // here, not at message 119 of 262.
+      {
+        const probe = { name: 'x', dealership: 'x', city: 'x' };
+        const bad = [];
+        for (let i = 0; i < contacts.length; i++) {
+          const c = contacts[i] || {};
+          const missing = unresolvedTokens(
+            fillTemplate(messageTemplate, { ...probe, ...(c.merge && typeof c.merge === 'object' ? c.merge : {}) })
+          );
+          if (missing.length) bad.push({ row: i + 1, name: c.name || c.phone || '(unnamed)', missing });
+        }
+        if (bad.length) {
+          const tokens = [...new Set(bad.flatMap(b => b.missing))].join(' ');
+          const sample = bad.slice(0, 3).map(b => `row ${b.row} (${b.name})`).join(', ');
+          return res.status(400).json({
+            success: false, code: 'UNFILLED_TEMPLATE_TOKEN',
+            error: `${bad.length} of ${contacts.length} contacts have no value for ${tokens}. ` +
+                   `First: ${sample}. Add it to each contact's "merge" object, or take the token out of the message.`,
+            tokens, affected: bad.length, total: contacts.length, examples: bad.slice(0, 10),
+          });
+        }
       }
 
       // Spend-cap preflight: estimate entire campaign cost (STOP footer auto-
