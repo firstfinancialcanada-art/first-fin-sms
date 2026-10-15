@@ -730,11 +730,16 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
   .wiz-nav .btn{width:100%;padding:14px;font-size:13px;}
   .wiz-live-banner{gap:8px;padding:10px 12px;}
 
-  /* Presentation overlay */
+  /* Presentation overlay — the ladder stacks here, so the overlay has to scroll.
+     Four cards (48/60/72/84) plus the header run taller than a phone screen, and
+     openPresentation() locks body scroll, so without this the ends are unreachable. */
+  #presentationOverlay{justify-content:flex-start;overflow-y:auto;padding:64px 20px 28px;}
   .pres-pmt-card{min-width:120px;padding:16px 14px;}
   .pres-amount{font-size:30px;}
   .pres-pmt-card.featured{transform:scale(1.02);}
-  .pres-payment-ladder{flex-direction:column;align-items:center;gap:10px;}
+  .pres-payment-ladder{flex-direction:column;align-items:center;gap:10px;margin-bottom:24px;width:100%;}
+  .pres-sub{margin-bottom:24px;}
+  .pres-close{top:12px;right:12px;}
 
   /* Lender vehicle checker */
   .checker-grid{grid-template-columns:1fr !important;}
@@ -760,6 +765,14 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
    RESPONSIVE — SMALL MOBILE (≤ 480px)
 ══════════════════════════════════════════════ */
 @media(max-width:480px){
+  /* Presentation overlay — phone */
+  #presentationOverlay{padding:60px 16px 24px;}
+  .pres-dealership{font-size:11px;letter-spacing:2px;margin-bottom:12px;}
+  .pres-vehicle{font-size:clamp(26px,8vw,38px);letter-spacing:2px;}
+  .pres-sub{font-size:11px;letter-spacing:1.5px;margin-bottom:18px;}
+  .pres-pmt-card{width:100%;max-width:300px;}
+  .pres-close{padding:8px 12px;font-size:11px;}
+
   .platform-header{padding:0 8px;height:50px;}
   .platform-logo{font-size:16px;letter-spacing:1px;}
   .section{padding:8px;}
