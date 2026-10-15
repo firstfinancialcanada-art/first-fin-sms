@@ -1355,11 +1355,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // afternoon" into a timestamp and risking getting it wrong; the
     // manager reads what the customer actually wrote.
     if (conversation.stage === 'reengage_time' || conversation.stage === 'reengage_time_q') {
-      // A withdrawal here is not a time. Without this, "no actually never
-      // mind" becomes a callback booked for "no actually never mind" and
-      // the manager rings someone who just backed out. Closes instead —
-      // still no second question asked.
-      if (/^(no|nope|nah|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|dont worry|don't worry|no thanks|no thank you|im good|i'm good|all good)\b/i.test(message.trim())) {
+      // A withdrawal here is not a time. Without this, a refusal becomes a
+      // callback booked for the words of the refusal and the manager rings
+      // someone who just said no. Closes instead — still no second question.
+      //
+      // Anchoring this at ^ was the bug: Radi answered "Definitely not" on
+      // the live pilot and it sailed past, because the refusal didn't start
+      // with "no". A negative anywhere in a reply to "what time works?" is a
+      // negative — people don't decline by leading with the word every time.
+      const withdrawRe = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|not right now|no time|too busy)\b/i;
+      const bareNoRe   = /^(no|nope|nah|naw)\b/i;
+      if (withdrawRe.test(message) || bareNoRe.test(message.trim())) {
         await updateConversation(conversation.id, { stage: 'reengage_closed' });
         await logAnalytics('reengage_not_looking', phone, { reason: 'withdrew_at_time', reply: message.slice(0, 200) }, userId);
         return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
@@ -1482,6 +1488,18 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         `Good to hear. ${Mgr} will call you back — what time works today or tomorrow?`,
         `Great. ${Mgr} will call you back — what time suits you today or tomorrow?`
       );
+    }
+
+    // "Who is this?" / "I don't know you". Not an ambiguous buying signal —
+    // it's someone who doesn't recognise us, and on a list this old it may
+    // well be a recycled number. Pushing a callback at them is exactly the
+    // pushiness this mode exists to avoid, and it's how Radi ended up with
+    // a callback booked off "Definitely not" on the live pilot. Identify
+    // once, close, ask nothing.
+    if (/\b(who is this|whos this|who'?s this|who are you|i don'?t know you|dont know you|do i know you|who dis)\b/.test(lowerMsg)) {
+      await updateConversation(conversation.id, { stage: 'reengage_closed' });
+      await logAnalytics('reengage_not_looking', phone, { reason: 'did_not_recognise', reply: message.slice(0, 200) }, userId);
+      return `Sorry for the confusion — it's Sarah at ${dealerName}, you'd enquired with us about a vehicle a while back. I'll leave it there. All the best.`;
     }
 
     // Anything else — a question, a price ask, a specific unit, a story.
