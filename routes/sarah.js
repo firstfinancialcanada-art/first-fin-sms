@@ -1356,13 +1356,34 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // reengage_confirm below — on this list a bare "no" is an answer to
     // the question we asked, not a request to be removed. Conflating the
     // two is the 2026-05-08 acquisition bug all over again.
+    // "Please lose my number" was not in this list, and the yes-branch below
+    // matched the "Yes" that opened the sentence — so Ryan, who wrote "Yes I
+    // am but will not be dealing with anyone at house of cars. Please lose my
+    // number", was answered "Good to hear. Our sales manager Franco will call
+    // you back." A removal request has to be read before anything else in the
+    // message, because people put it at the END of a sentence that starts
+    // some other way. Checked first, and the vocabulary now covers the
+    // ordinary ways of saying it.
     if (lowerMsg.includes('not interested') || lowerMsg.includes('wrong number') ||
         lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
         lowerMsg.includes('do not contact') || lowerMsg.includes("don't text") ||
         lowerMsg.includes('stop texting') || lowerMsg.includes('please stop') ||
-        lowerMsg.includes('take me off')) {
+        lowerMsg.includes('take me off') ||
+        lowerMsg.includes('lose my number') || lowerMsg.includes('lose this number') ||
+        lowerMsg.includes('delete my number') || lowerMsg.includes('remove my number') ||
+        lowerMsg.includes('remove this number') || lowerMsg.includes('forget my number') ||
+        lowerMsg.includes("don't contact") || lowerMsg.includes('never contact') ||
+        lowerMsg.includes("don't call me again") || lowerMsg.includes('do not call me again') ||
+        lowerMsg.includes('unsubscribe')) {
       await updateConversation(conversation.id, { status: 'stopped' });
-      await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'reengage' }, userId);
+      // addOptOut as well as the conversation status. Only the STOP branch
+      // was writing the opt-out table, so someone who asked in words rather
+      // than by the keyword — "not interested", "lose my number" — was marked
+      // stopped on this conversation but left textable by the next campaign,
+      // because the bulk sender screens against isOptedOut(). Asking politely
+      // has to work as well as sending the magic word.
+      await addOptOut(phone, 'asked_to_be_removed');
+      await logAnalytics('conversation_stopped', phone, { reason: 'asked_to_be_removed', mode: 'reengage', reply: message.slice(0, 200) }, userId);
       return "No problem — I've taken you off the list. All the best.";
     }
 
