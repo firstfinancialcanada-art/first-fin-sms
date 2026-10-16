@@ -5700,6 +5700,12 @@ async function loadCreditFunnel(){
   let res;
   try { res = await FF.apiFetch('/api/reengage/credit-leads').then(r=>r.json()); }
   catch(e){ wrap.style.display='none'; return; }
+  // A failed query must not read as "no credit cases". Say so instead.
+  if(res && res.success === false){
+    wrap.style.display = '';
+    el.innerHTML = '<div style="padding:10px;color:var(--red);font-size:12px;">Credit list did not load.</div>';
+    return;
+  }
   const leads = (res && res.leads) || [];
   if(!leads.length){ wrap.style.display='none'; return; }
   wrap.style.display = '';
