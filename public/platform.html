@@ -2535,6 +2535,15 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
       <div style="font-size:12px;color:var(--muted);">Customers who requested a callback</div>
       <button class="btn btn-primary btn-sm" onclick="loadSarahDashboard()"><i data-lucide="refresh-cw" class="ico-sm"></i>Refresh</button>
     </div>
+    <!-- Credit funnel: reengage leads who said they were declined or that
+         their credit is bad. Shown above the callbacks because it is a
+         different call, not a worse one. Hidden entirely when empty. -->
+    <div id="creditFunnelWrap" style="display:none;margin-bottom:18px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+        Said they were declined or have bad credit <span id="creditFunnelCount" style="color:var(--amber);font-weight:700;"></span>
+      </div>
+      <div id="creditFunnelList"></div>
+    </div>
     <div id="callbacksList" style="max-height:600px;overflow-y:auto;">
       <div style="text-align:center;padding:40px;color:var(--muted);">Loading callbacks...</div>
     </div>

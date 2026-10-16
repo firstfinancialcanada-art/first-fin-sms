@@ -5401,6 +5401,9 @@ async function loadSarahDashboard(){
     document.getElementById('ss-appointments').textContent  = stats.stats.totalAppointments;
     document.getElementById('ss-callbacks').textContent     = stats.stats.totalCallbacks;
 
+    // Independent of the stats above — a failure here must not blank the page.
+    loadCreditFunnel();
+
     // Analytics
     try {
       const an = await FF.apiFetch('/api/analytics').then(r=>r.json());
@@ -5682,6 +5685,37 @@ function renderCallbacks(cbs){
         <span class="detail-label">Vehicle:</span> <span class="detail-val">${escapeHtml(c.vehicle_type||'—')}</span> &nbsp;·&nbsp;
         <span class="detail-label">Budget:</span> <span class="detail-val">${escapeHtml(c.budget||'—')}</span><br>
         <span class="detail-label">Preferred Time:</span> <span class="detail-val">${escapeHtml(c.datetime||'—')}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Credit funnel ─────────────────────────────────────────────────
+// Reengage leads who answered with a credit or affordability problem.
+// Their own words, verbatim — the desk decides what to do with them, and
+// Sarah never raised the subject with the customer.
+async function loadCreditFunnel(){
+  const wrap = document.getElementById('creditFunnelWrap');
+  const el   = document.getElementById('creditFunnelList');
+  if(!wrap || !el) return;
+  let res;
+  try { res = await FF.apiFetch('/api/reengage/credit-leads').then(r=>r.json()); }
+  catch(e){ wrap.style.display='none'; return; }
+  const leads = (res && res.leads) || [];
+  if(!leads.length){ wrap.style.display='none'; return; }
+  wrap.style.display = '';
+  const cnt = document.getElementById('creditFunnelCount');
+  if(cnt) cnt.textContent = leads.length;
+  el.innerHTML = leads.map(l=>`
+    <div class="appt-card" style="border-left:3px solid var(--red);">
+      <div class="appt-top">
+        <div>
+          <div class="appt-name">${escapeHtml(l.customer_name||'Unknown')} — ${l.customer_phone}</div>
+          <div class="appt-vehicle" style="color:var(--amber);">${escapeHtml(l.credit_note||'')}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <a class="btn btn-ghost btn-sm" href="tel:${l.customer_phone}">Call</a>
+          <button class="btn btn-primary btn-sm" onclick="loadConvToDeskCRM('${l.customer_phone}','${escapeHtml(l.customer_name||'')}','')">→ Desk</button>
+        </div>
       </div>
     </div>`).join('');
 }
