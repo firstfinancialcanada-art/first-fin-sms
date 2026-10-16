@@ -859,6 +859,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           }
 
           const aiResponse = await getJerryResponse(phone, message, conversation, WEBHOOK_USER_ID, TENANT_FROM_NUMBER, TENANT_ID, TENANT_DEALER_NAME, TENANT_DEALER_CITY, TENANT_INVENTORY, TENANT_DELIVERY, TENANT_SALES_NAME);
+
+          // An FSM can decline to answer by returning nothing. Used when a
+          // customer is mid-burst: they have sent a fragment and the rest of
+          // the thought is still coming, so replying to the fragment is how
+          // Irene's "It's all / Mine lol" got booked as her callback time
+          // while "He can call anytime" arrived a beat later. Staying quiet
+          // for one message lets the real answer land.
+          if (!aiResponse || !String(aiResponse).trim()) {
+            console.log('🤐 Holding for', phone, '— no reply sent, waiting for the rest');
+            return;
+          }
           await saveMessage(conversation.id, phone, 'assistant', aiResponse, WEBHOOK_USER_ID);
 
           try {
@@ -1391,7 +1402,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // Their words go through verbatim. Sarah isn't parsing "Tuesday
     // afternoon" into a timestamp and risking getting it wrong; the
     // manager reads what the customer actually wrote.
-    if (conversation.stage === 'reengage_time' || conversation.stage === 'reengage_time_q') {
+    //
+    // reengage_held_y / reengage_held_q are the same step one beat later:
+    // the customer sent a fragment, Sarah said nothing, and this is the
+    // message she waited for. Same decline vocabulary, same booking, but
+    // no second hold — the wait is bounded to exactly one message so
+    // nobody is left in silence.
+    const atTime = conversation.stage === 'reengage_time' || conversation.stage === 'reengage_time_q';
+    const atHeld = conversation.stage === 'reengage_held_y' || conversation.stage === 'reengage_held_q';
+    if (atTime || atHeld) {
       // A withdrawal here is not a time. Without this, a refusal becomes a
       // callback booked for the words of the refusal and the manager rings
       // someone who just said no. Closes instead — still no second question.
@@ -1422,7 +1441,31 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // Did they actually say yes, or did we route them here from the
       // catch-all? The manager plans a call differently for each, so the
       // alert must not claim "still looking" on his behalf.
-      const saidYes = conversation.stage === 'reengage_time';
+      const saidYes = conversation.stage === 'reengage_time' || conversation.stage === 'reengage_held_y';
+
+      // ── Burst hold ───────────────────────────
+      // People text in pieces. Irene answered "what time works?" with
+      // "It's all" then "Mine lol" then "He can call anytime" — three
+      // messages, one thought. Sarah booked the first fragment as the
+      // callback time and told her Franco would call her "It's all",
+      // then the real answer arrived at a stage that no longer asked.
+      // Robyn's "It's easier to text" did the same.
+      //
+      // So: a reply that does not look like a time gets no answer at all,
+      // once. The fragment is kept for the manager and the next message
+      // books the callback whatever it says. No timers, no guessing at
+      // typing speed — just one beat of silence, which is also what a
+      // human reading three texts in a row would do.
+      if (atTime && !looksLikeTime) {
+        const carried = [conversation.vehicle_detail, when].filter(Boolean).join(' / ').slice(0, 300);
+        await updateConversation(conversation.id, {
+          stage: saidYes ? 'reengage_held_y' : 'reengage_held_q',
+          vehicle_detail: carried,
+        });
+        await logAnalytics('reengage_held_for_burst', phone, { reply: message.slice(0, 200) }, userId);
+        return '';
+      }
+
       await saveCallback({
         phone, name: name || 'Reengage lead',
         vehicleType: conversation.vehicle_type || null,
@@ -1436,7 +1479,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           tenantId, fromNumber, twilioClient,
           body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
                 (saidYes ? 'Still looking.' : 'Not a clear yes.') +
-                (conversation.vehicle_detail ? `\nThey asked: "${conversation.vehicle_detail}"` : '') +
+                // "They asked" is right for the catch-all route, where the
+                // detail IS their question. A held fragment is not a
+                // question, so it gets a label that doesn’t claim to be one.
+                (conversation.vehicle_detail ? `\n${atHeld ? 'Also said' : 'They asked'}: "${conversation.vehicle_detail}"` : '') +
                 `\nCall them: ${when}`,
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
@@ -2368,5 +2414,118 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     return `Hey${name ? ' '+name : ''}! Is there anything else I can help with? Just text me anytime.`;
   }
 
-};
 
+  // ── Reengage hold flush ──────────────────────────────────────────
+  // The burst hold above buys one message of silence so a fragment is not
+  // mistaken for a callback time. That is only safe if something guarantees
+  // the second message is not required. Plenty of people send exactly one
+  // reply and never text again — Gabriel did, on the live pilot — and a
+  // lead sitting silently in a held stage is a lead nobody is told about.
+  //
+  // So the hold has a floor: after REENGAGE_HOLD_MAX_WAIT_SEC with nothing
+  // further, this books the callback from what they did say, alerts the
+  // manager, and sends the acknowledgement the hold withheld. The wait
+  // lives in the database, not in a timer, so a restart cannot lose it.
+  const HOLD_FLUSH_MS       = Number(process.env.REENGAGE_HOLD_FLUSH_MS || 60 * 1000);
+  const HOLD_MAX_WAIT_SEC   = Number(process.env.REENGAGE_HOLD_MAX_WAIT_SEC || 180);
+
+  async function flushReengageHolds() {
+    let rows = [];
+    try {
+      // Claim and advance in one statement. Two workers (or a worker and a
+      // customer's own next message) cannot both book the same person.
+      const claimed = await pool.query(
+        `WITH due AS (
+           SELECT id, stage AS held_stage
+             FROM conversations
+            WHERE mode = 'reengage'
+              AND stage IN ('reengage_held_y', 'reengage_held_q')
+              AND updated_at < NOW() - ($1 || ' seconds')::interval
+            ORDER BY updated_at ASC
+            LIMIT 25
+            FOR UPDATE SKIP LOCKED
+         ), upd AS (
+           UPDATE conversations c
+              SET stage = 'reengage_done', status = 'converted', intent = 'callback',
+                  datetime = LEFT(COALESCE(c.vehicle_detail, ''), 120),
+                  updated_at = CURRENT_TIMESTAMP
+             FROM due
+            WHERE c.id = due.id
+            RETURNING c.id, c.user_id, c.customer_phone, c.customer_name,
+                      c.vehicle_detail, c.vehicle_type, due.held_stage
+         )
+         SELECT * FROM upd`,
+        [String(HOLD_MAX_WAIT_SEC)]
+      );
+      rows = claimed.rows || [];
+    } catch (e) {
+      // A dead pool at boot, or the column set not migrated yet. Never throw
+      // out of an interval.
+      return;
+    }
+    if (!rows.length) return;
+    console.log(`⏱️ Flushing ${rows.length} held reengage repl${rows.length === 1 ? 'y' : 'ies'}`);
+
+    for (const row of rows) {
+      const saidYes = row.held_stage === 'reengage_held_y';
+      const words   = String(row.vehicle_detail || '').trim();
+      const name    = row.customer_name || '';
+      const first   = name ? name.split(' ')[0] : '';
+      let ts = null, tenantId = null;
+      try { ts = await getTenantSettings(row.user_id); } catch(e) {}
+      try {
+        const t = await pool.query(
+          `SELECT tenant_id FROM desk_members WHERE user_id = $1 AND active = TRUE ORDER BY id ASC LIMIT 1`,
+          [row.user_id]
+        );
+        tenantId = t.rows[0]?.tenant_id || null;
+      } catch(e) {}
+      const fromNumber = (ts && ts.twilioNumber) || null;
+      const _raw     = String((ts && ts.salesName) || '').trim().split(/\s+/)[0] || '';
+      const mgrFirst = _raw ? _raw.charAt(0).toUpperCase() + _raw.slice(1).toLowerCase() : '';
+      const mgr      = mgrFirst ? `our sales manager ${mgrFirst}` : 'our sales manager';
+
+      try {
+        await saveCallback({
+          phone: row.customer_phone, name: name || 'Reengage lead',
+          vehicleType: row.vehicle_type || null,
+          budget: null, budgetAmount: null,
+          datetime: words.slice(0, 120) || 'no time given', userId: row.user_id,
+        });
+      } catch(e) { console.error('❌ hold flush saveCallback failed:', e.message); }
+
+      try {
+        await notifyTenantManagers({
+          tenantId, fromNumber, twilioClient,
+          body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(row.customer_phone)}\n` +
+                (saidYes ? 'Still looking.' : 'Not a clear yes.') +
+                (words ? `\nThey said: "${words.slice(0, 160)}"` : '') +
+                `\nNo time given — call when you can.`,
+        });
+      } catch(e) { console.error('❌ hold flush notify failed:', e.message); }
+
+      // The acknowledgement the hold withheld. Same words the FSM uses for a
+      // reply that isn't a time, so the customer cannot tell a hold happened.
+      if (fromNumber) {
+        const reply = first
+          ? `Thanks ${first} — I've passed that to ${mgr} and he'll give you a call.`
+          : `Thanks — I've passed that to ${mgr} and he'll give you a call.`;
+        try {
+          const send = await guardedSmsSend(twilioClient, row.user_id, {
+            body: reply, from: fromNumber, to: row.customer_phone,
+          });
+          if (send.ok) await saveMessage(row.id, row.customer_phone, 'assistant', reply, row.user_id);
+        } catch(e) { console.error('❌ hold flush reply failed:', e.message); }
+      }
+
+      try {
+        await logAnalytics('reengage_callback', row.customer_phone,
+          { when: words.slice(0, 120), saidYes, flushed: true }, row.user_id);
+      } catch(e) {}
+    }
+  }
+
+  setInterval(flushReengageHolds, HOLD_FLUSH_MS).unref();
+
+
+};

@@ -179,12 +179,23 @@ T('STOP still works after a callback is booked', async () => {
 });
 
 
-T('Gabriel case: a non-time answer is NOT echoed back into the sentence', async () => {
+T('Gabriel case: a non-time answer is never echoed back into a sentence', async () => {
+  // His words used to come back as "Franco will call you Should of been
+  // negociable when I wanted to buy." They are now held for a beat instead,
+  // and the hold flush books him from them if he says nothing more.
   const r = await run('Should of been negociable when I wanted to buy.\nThanks', { stage: 'reengage_time_q' });
-  return calls.callback.length === 1
-      && !/will call you Should/.test(r)
-      && /passed that to/.test(r)
-      && /negociable/.test(calls.callback[0].datetime);
+  return r === ''
+      && db.stage === 'reengage_held_q'
+      && /negociable/.test(db.vehicle_detail || '')
+      && calls.notify.length === 0;
+});
+
+T('Gabriel case: if he does answer again, nothing of his first reply is echoed', async () => {
+  const rs = await seq(['Should of been negociable when I wanted to buy.', 'whatever'],
+                       { stage: 'reengage_time_q' });
+  return !/will call you Should/.test(rs[1])
+      && /passed that to/.test(rs[1])
+      && calls.callback.length === 1;
 });
 
 T('a real time IS still echoed back', async () => {
@@ -285,12 +296,13 @@ T('a genuine time is still not mistaken for a refusal', async () => {
 
 
 T('LOOP GUARD: stage only ever moves forward, never back to the opening question', async () => {
-  const ORDER = { reengage_confirm:0, reengage_time:1, reengage_time_q:1, reengage_done:2, reengage_closed:2 };
+  const ORDER = { reengage_confirm:0, reengage_time:1, reengage_time_q:1,
+                  reengage_held_y:1, reengage_held_q:1, reengage_done:2, reengage_closed:2 };
   // the march-2026 sales-funnel loop was: booked -> stray reply -> back to question one
   const chaos = ['Haha','ok','Chevy truck 3/4 ton to 1 ton','what do you have','yes','Who is this ?',
                  'tomorrow','My name is Jason','thanks','actually never mind','hello','$500 a month',
                  'still there?','👍','call me','Trucks','no','I am at work til 6:30'];
-  for (const start of ['reengage_confirm','reengage_time','reengage_time_q','reengage_done','reengage_closed']) {
+  for (const start of ['reengage_confirm','reengage_time','reengage_time_q','reengage_held_y','reengage_held_q','reengage_done','reengage_closed']) {
     reset({ stage: start });
     let prev = ORDER[start];
     for (const m of chaos) {
@@ -575,6 +587,83 @@ T('a plain purchase with no fresh search still closes', async () => {
     }
   }
   return true;
+});
+
+// ── Burst replies ────────────────────────────────────────────────
+// A sequence of messages down ONE conversation — reset once, then feed
+// them in order, so the stage carried between them is the real thing.
+const seq = (msgs, conv) => {
+  reset(conv);
+  return msgs.reduce((p, m) => p.then(async (acc) => {
+    acc.push(await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3,
+                                       'House of Cars', 'FRANCO'));
+    return acc;
+  }), Promise.resolve([]));
+};
+
+T('Irene case: a fragment at the time step gets no reply and books nothing', async () => {
+  const [r] = await seq(["It's all"], { stage: 'reengage_time' });
+  return r === ''
+      && db.stage === 'reengage_held_y'
+      && calls.callback.length === 0
+      && calls.notify.length === 0
+      && /It's all/.test(db.vehicle_detail || '');
+});
+
+T('Irene case: the real answer one message later books the right time', async () => {
+  const rs = await seq(["It's all", 'He can call anytime'], { stage: 'reengage_time' });
+  return rs[0] === ''
+      && calls.callback.length === 1
+      && calls.callback[0].datetime === 'He can call anytime'
+      && /Franco will call you He can call anytime/.test(rs[1])
+      && /Still looking\./.test(calls.notify[0])
+      && /Also said: "It's all"/.test(calls.notify[0])
+      && db.stage === 'reengage_done';
+});
+
+T('Robyn case: "It\'s easier to text" is held, not booked as a time', async () => {
+  const rs = await seq(["It's easier to text", 'any time works'], { stage: 'reengage_time' });
+  return rs[0] === ''
+      && calls.callback.length === 1
+      && calls.callback[0].datetime === 'any time works'
+      && /easier to text/.test(calls.notify[0]);
+});
+
+T('the hold is one message only — a second non-time reply still books', async () => {
+  const rs = await seq(['It is all', 'Mine lol'], { stage: 'reengage_time' });
+  return rs[0] === ''
+      && rs[1] !== ''
+      && calls.callback.length === 1
+      && db.stage === 'reengage_done'
+      && /passed that to our sales manager Franco/.test(rs[1]);
+});
+
+T('a real time is never held — it books on the first message', async () => {
+  for (const m of ['tomorrow at 4', 'anytime today', 'after 5pm', 'mon morning']) {
+    const [r] = await seq([m], { stage: 'reengage_time' });
+    if (r === '' || calls.callback.length !== 1) {
+      console.log('   \u21b3 wrongly held:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
+T('a withdrawal mid-burst closes instead of being held', async () => {
+  const [r] = await seq(['not interested anymore'], { stage: 'reengage_time' });
+  return r !== '' && db.stage !== 'reengage_held_y' && calls.callback.length === 0;
+});
+
+T('a held catch-all lead is still reported as "Not a clear yes"', async () => {
+  const rs = await seq(['do you still have the Escape', 'tomorrow at 2'], { stage: 'reengage_confirm' });
+  return db.stage === 'reengage_done'
+      && /Not a clear yes\./.test(calls.notify[0])
+      && /Escape/.test(calls.notify[0])
+      && calls.callback[0].datetime === 'tomorrow at 2';
+});
+
+T('a hold never sends an empty text to a customer', async () => {
+  const rs = await seq(['It is all', 'He can call anytime'], { stage: 'reengage_time' });
+  return rs.filter(r => r === '').length === 1 && rs[1].trim().length > 10;
 });
 
 (async () => {
