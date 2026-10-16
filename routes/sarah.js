@@ -1341,6 +1341,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     }
     if (conversation.status === 'stopped') return "You're currently unsubscribed. Reply START to receive messages again.";
 
+    // ── One decline vocabulary for the whole funnel ────────────────
+    // This used to be written out twice, at the opening question and at the
+    // time step, and the two lists drifted. "Not at the moment" was a decline
+    // at one and a callback time at the other, so the same words from the same
+    // person meant opposite things depending only on whether a stray message
+    // had nudged them a stage forward. Dale said exactly that on batch 2 and
+    // was handled correctly only by luck of timing. Declared once so they
+    // cannot disagree again.
+    const DECLINE_RE = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|not at the moment|not right now|not now|not today|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|no time|too busy|maybe later|some other time)\b/i;
+    const BARE_NO_RE = /^(n|no|nope|nah|naw|not)\b/i;
+
     // Hard "leave me alone". Kept separate from the plain "no" handled at
     // reengage_confirm below — on this list a bare "no" is an answer to
     // the question we asked, not a request to be removed. Conflating the
@@ -1368,9 +1379,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // the live pilot and it sailed past, because the refusal didn't start
       // with "no". A negative anywhere in a reply to "what time works?" is a
       // negative — people don't decline by leading with the word every time.
-      const withdrawRe = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|not right now|no time|too busy)\b/i;
-      const bareNoRe   = /^(no|nope|nah|naw)\b/i;
-      if (withdrawRe.test(message) || bareNoRe.test(message.trim())) {
+      // One vocabulary, not two. This list and the one at reengage_confirm
+      // below had drifted apart: "not at the moment" was recognised as a
+      // decline at the opening question but not here, so the same words from
+      // the same person meant "no" or meant "call me Thursday" depending only
+      // on whether a stray message had nudged them a stage forward. Dale said
+      // exactly that on batch 2 and was only handled right by luck of timing.
+      if (DECLINE_RE.test(message) || BARE_NO_RE.test(message.trim())) {
         await updateConversation(conversation.id, { stage: 'reengage_closed' });
         await logAnalytics('reengage_not_looking', phone, { reason: 'withdrew_at_time', reply: message.slice(0, 200) }, userId);
         return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
@@ -1478,7 +1493,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     }
 
     // Plain "no" / "nope" / "not right now" — an answer, not an opt-out.
-    if (/^(n|no|nope|nah|naw|no thanks|no thank you|not right now|not now|not at the moment|not anymore|not any more)\b/.test(lowerMsg)) {
+    // Shares DECLINE_RE with the time step so the two can never disagree.
+    if (BARE_NO_RE.test(message.trim()) || DECLINE_RE.test(message)) {
       await updateConversation(conversation.id, { stage: 'reengage_closed' });
       await logAnalytics('reengage_not_looking', phone, { reason: 'declined', reply: message.slice(0, 200) }, userId);
       return "No problem at all, thanks for letting me know. If anything changes, I'm here.";
