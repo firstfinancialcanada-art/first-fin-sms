@@ -1548,9 +1548,15 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     }
 
     // Still looking → ask for a time. The only booking this FSM makes.
+    // Anchored for the short answers — "y", "ok", "sure" only mean yes when
+    // they ARE the message. Unanchored for the unambiguous ones, because
+    // people lead with a greeting: Miguel wrote "Hi 👋 yes .. I am searching
+    // for what I need" and the anchor missed it, so he was logged as an
+    // unclear reply and Franco would have been told to read it rather than
+    // that the man said yes. Safe to look mid-sentence here because the
+    // removal, purchase and decline branches have all already run.
     if (/^(y|ya|yah|yes|yeah|yep|yup|sure|ok|okay|correct|still (looking|am|interested)|i am|we are|absolutely|definitely|kind of|kinda|maybe|possibly|sort of)\b/.test(lowerMsg) ||
-        lowerMsg.includes('still looking') || lowerMsg.includes('still interested') ||
-        lowerMsg.includes('yes please')) {
+        /\b(yes|yeah|yep|yup|still looking|still searching|still interested|still need|still want|looking for|searching for|in the hunt)\b/.test(lowerMsg)) {
       await updateConversation(conversation.id, { stage: 'reengage_time', intent: 'callback' });
       return pick(
         `Good to hear. ${Mgr} will call you back — what time works today or tomorrow?`,

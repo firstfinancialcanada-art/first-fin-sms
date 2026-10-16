@@ -440,6 +440,32 @@ T('something substantive after close STILL reaches the manager', async () => {
   return calls.notify.length === 1;
 });
 
+
+T('Miguel case: a yes behind a greeting is still a yes', async () => {
+  const r = await run('Hi \ud83d\udc4b yes .. I am searching for what I need.');
+  return db.stage === 'reengage_time' && /what time/i.test(r);
+});
+
+T('yes mid-sentence is recognised, and the alert says so', async () => {
+  for (const m of ['hey there yes still looking','Hello! Yep still need one','hi im still searching',
+                   'good morning, yes please']) {
+    const r = await run(m);
+    if (db.stage !== 'reengage_time') { console.log('   \u21b3 missed yes in:', JSON.stringify(m)); return false; }
+  }
+  // and the booking alert then claims "Still looking", not "read it"
+  reset({ stage: 'reengage_time' });
+  await getReengageResponse('+1403','tomorrow at 3', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  return /Still looking\./.test(calls.notify[0]);
+});
+
+T('a purchase or removal still beats a stray "yes"', async () => {
+  const a = await run('yes but I already bought one');
+  const boughtOk = db.stage === 'reengage_closed' && /Congrats/.test(a);
+  const b = await run('Yes I am but please lose my number');
+  const removeOk = db.status === 'stopped';
+  return boughtOk && removeOk;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
