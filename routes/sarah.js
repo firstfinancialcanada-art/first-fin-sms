@@ -486,32 +486,51 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   // valuable answers on it were credit answers. Re-reads what those people
   // actually said and flags them, so the list starts full instead of empty.
   // Idempotent: run it as often as you like.
+  async function backfillCreditFlags(uid) {
+    const SEP = String.fromCharCode(30);   // record separator — not typable on a phone
+    const r = await pool.query(`
+      SELECT c.id, c.customer_phone, c.credit_flag,
+             (SELECT string_agg(m.content, $2 ORDER BY m.created_at)
+                FROM messages m
+               WHERE m.conversation_id = c.id AND m.role = 'user') AS said
+        FROM conversations c
+       WHERE c.user_id = $1 AND c.mode = 'reengage' AND c.status <> 'stopped'
+    `, [uid, SEP]);
+    let flagged = 0, already = 0;
+    const hits = [];
+    for (const row of r.rows) {
+      const said = String(row.said || '');
+      if (!said) continue;
+      const hit = said.split(SEP).find(part => CREDIT_RE.test(part));
+      if (!hit) continue;
+      if (row.credit_flag) { already++; continue; }
+      const note = hit.trim().replace(/\s+/g, ' ').slice(0, 250);
+      await updateConversation(row.id, { credit_flag: true, credit_note: note });
+      flagged++;
+      hits.push({ phone: row.customer_phone, note });
+    }
+    return { success: true, scanned: r.rows.length, flagged, already, hits };
+  }
+
   app.post('/api/reengage/backfill-credit', requireAuth, async (req, res) => {
-    const uid = req.user.userId;
     try {
-      const SEP = String.fromCharCode(30);   // record separator — not typable on a phone
-      const r = await pool.query(`
-        SELECT c.id, c.customer_phone, c.credit_flag,
-               (SELECT string_agg(m.content, $2 ORDER BY m.created_at)
-                  FROM messages m
-                 WHERE m.conversation_id = c.id AND m.role = 'user') AS said
-          FROM conversations c
-         WHERE c.user_id = $1 AND c.mode = 'reengage' AND c.status <> 'stopped'
-      `, [uid, SEP]);
-      let flagged = 0, already = 0;
-      const hits = [];
-      for (const row of r.rows) {
-        const said = String(row.said || '');
-        if (!said) continue;
-        const hit = said.split(SEP).find(part => CREDIT_RE.test(part));
-        if (!hit) continue;
-        if (row.credit_flag) { already++; continue; }
-        const note = hit.trim().replace(/\s+/g, ' ').slice(0, 250);
-        await updateConversation(row.id, { credit_flag: true, credit_note: note });
-        flagged++;
-        hits.push({ phone: row.customer_phone, note });
-      }
-      res.json({ success: true, scanned: r.rows.length, flagged, already, hits });
+      res.json(await backfillCreditFlags(req.user.userId));
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Same backfill, admin-token authenticated, so it can be run for a tenant
+  // from the operator side without touching their password. userId is
+  // required and is the only tenant touched.
+  app.post('/api/admin/reengage/backfill-credit', async (req, res) => {
+    if (!process.env.ADMIN_TOKEN || req.headers['x-admin-token'] !== process.env.ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Forbidden: invalid token' });
+    }
+    const uid = Number(req.body && req.body.userId);
+    if (!uid) return res.status(400).json({ success: false, error: 'userId required' });
+    try {
+      res.json(await backfillCreditFlags(uid));
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
