@@ -4,21 +4,28 @@
 
 ---
 
-## ⏸ WAITING ON FRANCO — re-engage pilot, morning of 2026-10-16
+## ▶ RE-ENGAGE PILOT — first 25 returned ZERO leads
 
-**25 of 287 sent Oct 15. The other 262 are on hold until he decides.** He agreed to hold overnight and reevaluate.
+Sent Oct 15, final count Oct 16. **11 of 24 delivered replied — 46% engagement, 6 opt-outs (25%), and not one person still shopping.**
 
-First 24 hours, 24 delivered, 9 replies — a **37% reply rate but a 21% opt-out rate**, and **nobody said "yes, still looking"**: 5 STOP, 2 bought elsewhere, 2 not looking, 1 dead handset, 15 silent.
+| Outcome | n |
+|---|---|
+| Opted out | 6 |
+| Not looking | 3 |
+| Bought elsewhere | 1 |
+| Bad number | 1 |
+| Never replied | 13 |
+| **Still looking** | **0** |
 
-**The opt-out rate is the number the decision rests on**, not the reply rate. A STOP is permanent for that number across every future Sarah campaign on the line, so the full run burns roughly 55 numbers. So far that spend has bought referral conversations, not buyers.
+The only conversation worth having was **Gabriel** — a park & sell BMW M2 the desk couldn't move on, so he'd bought elsewhere. Franco called; no deal, but worth the call. That's why ambiguous replies route to a human instead of Sarah classifying them.
 
-**Gabriel is the case for running it anyway.** He replied that the desk should have been negotiable when he wanted to buy — a park & sell BMW M2, no room to move, so he bought elsewhere. Franco called, offered $500/referral, and said it was worth the call. Lesson recorded: **do not teach Sarah to classify brush-offs as declines**, or she bins the best lead in the batch.
+**A correction worth keeping.** This was first written up as though the pilot's yield were "referral conversations", with a recommendation to rebuild the campaign around referrals. **No customer mentioned a referral.** That came from Franco's own $500 offer on the Gabriel call and was reported back as a pattern in the replies. Franco: *"there is nothing regarding refferals i think you are lost."* The real result is zero leads and one call. Quote the customer or label it a guess.
 
-The funnel itself is new — a third Sarah mode, `reengage`, that asks one question and books callbacks only. Tracker: **HoC Re-engage Tracker — Aug/Sep 2026** (Google Sheets), 287 rows with outcomes filled for the 25.
+Funnel: a third Sarah mode, `reengage`, one question, callbacks only. Tracker: **HoC Re-engage Tracker — Aug/Sep 2026** (Google Sheets), 287 rows with the 25 filled in.
 
-**Before any further send, know two things.** Every contact on the list belongs to another rep — Frank owns exactly one Aug/Sep lead and it already sold; Franco chose to run it as sales manager. And the notify number moved to **+1 825 747 4442**; the old 587-834-6308 is retired.
+**Before any further send.** Every contact belongs to another rep — Frank owns one Aug/Sep lead and it already sold; Franco runs it as sales manager. Notify number is now **+1 825 747 4442**. One campaign can span both months (`merge_json` carries `{month}`; an unfilled token is refused before sending).
 
-**Tenant isolation was leaking and is now fixed.** An inbound to a number matching no tenant used to fall back to the `OWNER_EMAIL` account — Franco's — so another dealer's customer would get his Sarah, his alerts and his CRM. That is the Hunt Chrysler symptom. Unknown numbers are refused now, but **only Franco's account has a `twilio_number` set**: the moment Hunt or anyone else is provisioned, fill that column or their leads go silent.
+**Tenant isolation was leaking and is fixed.** Inbound to a number matching no tenant used to fall back to the `OWNER_EMAIL` account — Franco's — so another dealer's customer got his Sarah, his alerts and his CRM. That's the Hunt Chrysler symptom. Unknown numbers are refused now, but **only Franco's account has a `twilio_number` set**: fill that column when anyone else is provisioned or their leads go silent.
 
 ---
 
