@@ -466,6 +466,26 @@ T('a purchase or removal still beats a stray "yes"', async () => {
   return boughtOk && removeOk;
 });
 
+
+T('Chris case: the alert carries what they ASKED, not just the time', async () => {
+  reset({ stage: 'reengage_confirm' });
+  await getReengageResponse('+1403','Do you guys have Toyota Venza 2016 with V4 Engine (2.5) ?', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  const parked = db.stage === 'reengage_time_q' && /Venza/.test(db.vehicle_detail || '');
+  await getReengageResponse('+1403','Today, anytime...', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  const alert = calls.notify[0] || '';
+  return parked
+      && /They asked: "Do you guys have Toyota Venza 2016/.test(alert)
+      && /Call them: Today, anytime/.test(alert);
+});
+
+T('a plain yes still produces a clean alert with no asked-line', async () => {
+  reset({ stage: 'reengage_confirm' });
+  await getReengageResponse('+1403','yes', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  await getReengageResponse('+1403','tomorrow at 4', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  const alert = calls.notify[0] || '';
+  return /Still looking\./.test(alert) && !/They asked/.test(alert) && /Call them: tomorrow at 4/.test(alert);
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

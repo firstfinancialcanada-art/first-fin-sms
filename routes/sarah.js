@@ -1435,8 +1435,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         await notifyTenantManagers({
           tenantId, fromNumber, twilioClient,
           body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
-                (saidYes ? 'Still looking.' : 'Not a clear yes — read it.') +
-                ` They said: "${when}"`,
+                (saidYes ? 'Still looking.' : 'Not a clear yes.') +
+                (conversation.vehicle_detail ? `\nThey asked: "${conversation.vehicle_detail}"` : '') +
+                `\nCall them: ${when}`,
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
       await logAnalytics('reengage_callback', phone, { when, saidYes }, userId);
@@ -1581,7 +1582,16 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // whole point of the mode. Marked _q rather than reengage_time so the
     // callback alert doesn't tell the manager they said they're still
     // looking when all they did was fail to match a yes.
-    await updateConversation(conversation.id, { stage: 'reengage_time_q', intent: 'callback' });
+    // Keep what they actually said. The booking alert otherwise carries only
+    // their answer to "what time". Chris asked for a 2016 Toyota Venza 2.5 and
+    // the alert read 'Not a clear yes — read it. They said: "Today,
+    // anytime..."' — it told Franco to read something it never showed him.
+    // John's was worse: he wanted to SELL a car, and the alert said only
+    // "Tomorrow morning works."
+    await updateConversation(conversation.id, {
+      stage: 'reengage_time_q', intent: 'callback',
+      vehicle_detail: message.trim().slice(0, 160),
+    });
     return first
       ? `Let me get ${mgr} to call you on that, ${first} — what time works today or tomorrow?`
       : `Let me get ${mgr} to call you on that — what time works today or tomorrow?`;
