@@ -1577,6 +1577,26 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       return `Sorry for the confusion — it's Sarah at ${dealerName}, you'd enquired with us about a vehicle a while back. I'll leave it there. All the best.`;
     }
 
+    // A hard refusal stated as a fact rather than an answer. There was no
+    // category for this, so it fell to the catch-all — whose reply is always
+    // "when can we call you". Mohammed wrote "I'll never buy from house of
+    // cars" and was asked what time suited him. Ryan and Radi landed the same
+    // way in different words. Closed, not asked, and the manager is told,
+    // because a customer saying that about the dealership is worth his
+    // knowing even though there is no sale in it.
+    if (/\b(never (buy|buying|purchase|purchasing|shop|deal|do business)|won'?t (buy|deal|shop)|will not (buy|deal|shop)|wouldn'?t (buy|deal)|never again|not buying from|never going back|done with (you|house of cars))\b/i.test(message)) {
+      await updateConversation(conversation.id, { stage: 'reengage_closed' });
+      try {
+        await notifyTenantManagers({
+          tenantId, fromNumber, twilioClient,
+          body: `REENGAGE — COMPLAINT, NOT A LEAD\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
+                `They said: "${message.trim().slice(0, 160)}"\nClosed, no callback booked.`,
+        });
+      } catch(e) { console.error('❌ manager notify failed:', e.message); }
+      await logAnalytics('reengage_not_looking', phone, { reason: 'hard_refusal', reply: message.slice(0, 200) }, userId);
+      return "Understood — I'll close it off and leave you be. Sorry we didn't get it right.";
+    }
+
     // Anything else — a question, a price ask, a specific unit, a story.
     // Sarah does not field it. She routes it to a human, which is the
     // whole point of the mode. Marked _q rather than reengage_time so the

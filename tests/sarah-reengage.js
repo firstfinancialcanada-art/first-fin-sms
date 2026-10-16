@@ -486,6 +486,35 @@ T('a plain yes still produces a clean alert with no asked-line', async () => {
   return /Still looking\./.test(alert) && !/They asked/.test(alert) && /Call them: tomorrow at 4/.test(alert);
 });
 
+
+T('Mohammed case: "I\'ll never buy from house of cars" is not a callback ask', async () => {
+  const r = await run("I'll never buy from house of cars");
+  return db.stage === 'reengage_closed'
+      && !/what time/i.test(r)
+      && calls.callback.length === 0
+      && /COMPLAINT, NOT A LEAD/.test(calls.notify[0] || '')
+      && /never buy from house of cars/.test(calls.notify[0] || '');
+});
+
+T('other hard refusals close rather than ask for a time', async () => {
+  for (const m of ["I won't buy from you","never again","I will not deal with house of cars",
+                   "done with you guys","never going back"]) {
+    const r = await run(m);
+    if (db.stage !== 'reengage_closed' || /what time/i.test(r) || calls.callback.length) {
+      console.log('   \u21b3 asked for a time after:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
+T('a hard refusal is NOT confused with a normal purchase or question', async () => {
+  const a = await run('I already bought one');
+  const bought = /Congrats/.test(a) && !/COMPLAINT/.test(calls.notify[0] || '');
+  const b = await run('do you have any trucks');
+  const asked = db.stage === 'reengage_time_q';
+  return bought && asked;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
