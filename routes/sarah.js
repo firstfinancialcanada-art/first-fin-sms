@@ -62,6 +62,27 @@ const VEHICLE_VOCAB = {
 
 // All known makes — broad, includes spelling variants. Used to recognise
 // "do you have any 2020 Mustangs?" or "I'm selling my 2018 Civic".
+// ── Credit / affordability vocabulary ─────────────────────────────────
+// An aged lead who didn't buy often didn't buy for one reason, and it is
+// usually this one. Jefferson wrote "Yeah but my credit is still bad and no
+// cosigner"; four of the nine callbacks off the first reengage run were
+// credit or write-off cases. Those people are a different conversation from
+// a shopper who simply hasn't found the right truck yet, so they get their
+// own list for the desk to work.
+//
+// Sarah says NOTHING about any of this. She does not mention credit,
+// financing, debt or approval, does not ask a follow-up question about it,
+// and never suggests a product — she acknowledges it plainly and hands it
+// to a human, same as every other reply in the funnel. This regex only
+// decides which list the lead lands on.
+//
+// Generic words (declined, denied, turned down) are left unanchored on
+// purpose: on a list of people who enquired about a vehicle and didn't buy,
+// "I got declined" is about financing. A false positive costs one extra row
+// on a call list that shows the customer's own words, which is cheap. A
+// miss costs the lead.
+const CREDIT_RE = /\b(bad credit|poor credit|no credit|thin credit|credit score|credit challenged|credit (is|isn'?t|was|ain'?t)\s*(bad|poor|shot|rough|great|good|terrible|awful)?|my credit|rebuilding (my )?credit|subprime|no co-?signer|co-?signer|bankrupt|bankruptcy|consumer proposal|repo(ssession)?|in collections|collections|garnish(ment|ed)?|judge?ment|too much debt|debt|student loans?|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|not approved|wasn'?t approved|couldn'?t get (approved|financ(ed|ing))|can'?t get (approved|financ(ed|ing))|financing (fell|didn'?t|did not|was declined)|bank (said no|turned me down|declined)|no money|no down( payment)?|money('?s)? tight|tight on money)\b/i;
+
 const VEHICLE_MAKES = [
   'ford','chevrolet','chevy','gmc','dodge','ram','jeep','chrysler','fiat','alfa romeo','alfa-romeo','alfa',
   'toyota','honda','acura','lexus','infiniti','nissan','datsun','mazda','subaru','mitsubishi','suzuki','isuzu',
@@ -344,6 +365,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_model VARCHAR(80);
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_year  INTEGER;
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS trade_in_value INTEGER;
+        -- Phase 8b: the credit funnel. A reengage lead who says they were
+        -- declined, or that their credit is bad, is worth a different call
+        -- than a shopper still hunting, so the desk needs them as a list.
+        -- credit_note holds their own words -- the desk reads those, not a
+        -- label we invented for them.
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS credit_flag BOOLEAN DEFAULT FALSE;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS credit_note VARCHAR(255);
       `);
       // bulk_messages carries the campaign mode through to the processor so
       // the conversation it creates inherits the right mode.
@@ -417,6 +445,75 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       res.json({ error: error.message });
     } finally {
       client.release();
+    }
+  });
+
+  // ── Credit funnel — the list the desk works ───────────────────
+  // Everyone the reengage funnel heard a credit or affordability answer
+  // from, newest first, with their own words. Separate from the ordinary
+  // callback list because it is a different phone call.
+  //
+  // Opted-out numbers are left off. Someone who asked to be taken off the
+  // list is off it, and a list that quietly keeps them is the thing that
+  // gets a dealer in trouble.
+  app.get('/api/reengage/credit-leads', requireAuth, async (req, res) => {
+    const uid = req.user.userId;
+    try {
+      const r = await pool.query(`
+        SELECT DISTINCT ON (c.customer_phone)
+               c.customer_phone,
+               COALESCE(NULLIF(TRIM(cu.name), ''), NULLIF(TRIM(c.customer_name), '')) AS customer_name,
+               c.credit_note, c.stage, c.status, c.datetime, c.vehicle_detail, c.updated_at,
+               (SELECT m.content FROM messages m
+                 WHERE m.conversation_id = c.id AND m.role = 'user'
+                 ORDER BY m.created_at DESC LIMIT 1) AS last_inbound
+          FROM conversations c
+          LEFT JOIN customers cu ON cu.phone = c.customer_phone AND cu.user_id = $1
+         WHERE c.user_id = $1
+           AND c.credit_flag = TRUE
+           AND c.status <> 'stopped'
+         ORDER BY c.customer_phone, c.updated_at DESC
+      `, [uid]);
+      const leads = r.rows.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+      res.json({ success: true, count: leads.length, leads });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ── Credit funnel — backfill from replies already in hand ─────
+  // The first reengage run finished before the flag existed, and the most
+  // valuable answers on it were credit answers. Re-reads what those people
+  // actually said and flags them, so the list starts full instead of empty.
+  // Idempotent: run it as often as you like.
+  app.post('/api/reengage/backfill-credit', requireAuth, async (req, res) => {
+    const uid = req.user.userId;
+    try {
+      const SEP = String.fromCharCode(30);   // record separator — not typable on a phone
+      const r = await pool.query(`
+        SELECT c.id, c.customer_phone, c.credit_flag,
+               (SELECT string_agg(m.content, $2 ORDER BY m.created_at)
+                  FROM messages m
+                 WHERE m.conversation_id = c.id AND m.role = 'user') AS said
+          FROM conversations c
+         WHERE c.user_id = $1 AND c.mode = 'reengage' AND c.status <> 'stopped'
+      `, [uid, SEP]);
+      let flagged = 0, already = 0;
+      const hits = [];
+      for (const row of r.rows) {
+        const said = String(row.said || '');
+        if (!said) continue;
+        const hit = said.split(SEP).find(part => CREDIT_RE.test(part));
+        if (!hit) continue;
+        if (row.credit_flag) { already++; continue; }
+        const note = hit.trim().replace(/\s+/g, ' ').slice(0, 250);
+        await updateConversation(row.id, { credit_flag: true, credit_note: note });
+        flagged++;
+        hits.push({ phone: row.customer_phone, note });
+      }
+      res.json({ success: true, scanned: r.rows.length, flagged, already, hits });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
@@ -1363,6 +1460,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const DECLINE_RE = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|not at the moment|not right now|not now|not today|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|no time|too busy|maybe later|some other time)\b/i;
     const BARE_NO_RE = /^(n|no|nope|nah|naw|not)\b/i;
 
+    // One line on the alert, so the desk knows before it dials that this is
+    // a credit conversation and not a shopping one. Their own words, and not
+    // repeated if the detail line already carries them.
+    function creditLine(conv) {
+      if (!conv || !conv.credit_flag) return '';
+      const note = String(conv.credit_note || '').trim();
+      const detail = String(conv.vehicle_detail || '');
+      if (!note || detail.includes(note)) return `\nCREDIT CASE.`;
+      return `\nCREDIT: "${note.slice(0, 160)}"`;
+    }
+
     // Hard "leave me alone". Kept separate from the plain "no" handled at
     // reengage_confirm below — on this list a bare "no" is an answer to
     // the question we asked, not a request to be removed. Conflating the
@@ -1396,6 +1504,26 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       await addOptOut(phone, 'asked_to_be_removed');
       await logAnalytics('conversation_stopped', phone, { reason: 'asked_to_be_removed', mode: 'reengage', reply: message.slice(0, 200) }, userId);
       return "No problem — I've taken you off the list. All the best.";
+    }
+
+    // ── Credit flag ────────────────────────────────────────────────
+    // Checked on every inbound, not only on the yes, because people
+    // volunteer it wherever it lands: at the opening question, in the middle
+    // of giving a callback time, or in a reply days after the lead closed.
+    // Runs AFTER the removal and STOP branches above, so someone asking to
+    // be left alone is never added to a call list.
+    //
+    // Sarah's words do not change because of this. She does not raise
+    // credit, financing or debt with a customer, ever -- the flag is for the
+    // desk, which decides what to offer on the phone.
+    if (CREDIT_RE.test(message)) {
+      const quote = message.trim().replace(/\s+/g, ' ').slice(0, 240);
+      if (!conversation.credit_flag) {
+        await updateConversation(conversation.id, { credit_flag: true, credit_note: quote.slice(0, 250) });
+        await logAnalytics('reengage_credit_flag', phone, { stage: conversation.stage, reply: quote }, userId);
+        conversation.credit_flag = true;
+        conversation.credit_note = quote;
+      }
     }
 
     // ── STAGE: reengage_time — they said yes, we asked when ────────
@@ -1483,6 +1611,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
                 // detail IS their question. A held fragment is not a
                 // question, so it gets a label that doesn’t claim to be one.
                 (conversation.vehicle_detail ? `\n${atHeld ? 'Also said' : 'They asked'}: "${conversation.vehicle_detail}"` : '') +
+                creditLine(conversation) +
                 `\nCall them: ${when}`,
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
@@ -1532,7 +1661,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
             tenantId, fromNumber, twilioClient,
             body: `REENGAGE — REPLY AFTER ${booked ? 'CALLBACK BOOKED' : 'CLOSE'}\n${name || 'Unknown'}\n${formatPretty(phone)}\n` +
                   (booked && conversation.datetime ? `Was: ${conversation.datetime}\n` : '') +
-                  `They said: "${message.trim().slice(0, 160)}"`,
+                  `They said: "${message.trim().slice(0, 160)}"` +
+                  creditLine(conversation),
           });
         } catch(e) { console.error('❌ manager notify failed:', e.message); }
         await logAnalytics('reengage_post_close_reply', phone, { stage: conversation.stage, reply: message.slice(0, 200) }, userId);
@@ -2452,7 +2582,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
              FROM due
             WHERE c.id = due.id
             RETURNING c.id, c.user_id, c.customer_phone, c.customer_name,
-                      c.vehicle_detail, c.vehicle_type, due.held_stage
+                      c.vehicle_detail, c.vehicle_type, c.credit_flag, due.held_stage
          )
          SELECT * FROM upd`,
         [String(HOLD_MAX_WAIT_SEC)]
@@ -2500,6 +2630,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           body: `CALLBACK — REENGAGE\n${name || 'Unknown'}\n${formatPretty(row.customer_phone)}\n` +
                 (saidYes ? 'Still looking.' : 'Not a clear yes.') +
                 (words ? `\nThey said: "${words.slice(0, 160)}"` : '') +
+                (row.credit_flag ? `\nCREDIT CASE.` : '') +
                 `\nNo time given — call when you can.`,
         });
       } catch(e) { console.error('❌ hold flush notify failed:', e.message); }

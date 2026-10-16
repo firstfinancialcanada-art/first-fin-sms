@@ -13,7 +13,12 @@ if (start < 0) throw new Error('getReengageResponse not found');
 const endMarker = '\n  async function getJerryResponse(';
 const end = src.indexOf(endMarker, start);
 if (end < 0) throw new Error('end marker not found');
-const fnSrc = src.slice(start, end);
+// CREDIT_RE lives at module scope in sarah.js, outside the lifted function.
+// Lift the declaration too rather than copying the pattern here, so the test
+// can never be checking a vocabulary the live code no longer uses.
+const creditSrc = (src.match(/^const CREDIT_RE = .*$/m) || [])[0];
+if (!creditSrc) throw new Error('CREDIT_RE not found');
+const fnSrc = creditSrc + String.fromCharCode(10) + src.slice(start, end);
 
 // ── stubs ────────────────────────────────────────────────────────
 let db, calls;
@@ -664,6 +669,88 @@ T('a held catch-all lead is still reported as "Not a clear yes"', async () => {
 T('a hold never sends an empty text to a customer', async () => {
   const rs = await seq(['It is all', 'He can call anytime'], { stage: 'reengage_time' });
   return rs.filter(r => r === '').length === 1 && rs[1].trim().length > 10;
+});
+
+// ── Credit funnel (Phase 8b) ─────────────────────────────────────
+// Declined and bad-credit leads are a different call than a shopper who
+// hasn't found the right unit, so they get flagged into their own list.
+// Sarah's side of the conversation does not change at all.
+
+T('Jefferson case: a yes carrying bad credit is flagged, with his own words', async () => {
+  const r = await run('Yeah but my credit is still bad and no cosigner');
+  return db.credit_flag === true
+      && /credit is still bad/.test(db.credit_note || '')
+      && db.stage === 'reengage_time'
+      && calls.analytics.some(a => a.e === 'reengage_credit_flag');
+});
+
+T('a declined-at-the-bank reply is flagged', async () => {
+  for (const m of ['I got declined at the bank', 'financing fell through last time',
+                   'bankruptcy is still on my file', 'I am in collections right now',
+                   'lost my job in June', 'no down payment right now']) {
+    reset({ stage: 'reengage_confirm' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!db.credit_flag) { console.log('   \u21b3 missed:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('an ordinary lead is never flagged', async () => {
+  for (const m of ['yes still looking', 'do you have the Escape', 'tomorrow at 4',
+                   'already bought one', 'no thanks', 'looking for a 3/4 ton']) {
+    reset({ stage: 'reengage_confirm' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (db.credit_flag) { console.log('   \u21b3 wrongly flagged:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('someone asking to be removed is never put on the credit list', async () => {
+  const r = await run('lose my number, my credit is garbage anyway');
+  return db.status === 'stopped' && !db.credit_flag && calls.optOut.length === 1;
+});
+
+T('a flagged lead reaches the manager marked as a credit case', async () => {
+  const rs = await seq(['my credit is bad but yes I am still looking', 'tomorrow at 2'],
+                       { stage: 'reengage_confirm' });
+  return calls.notify.length === 1
+      && /CREDIT/.test(calls.notify[0])
+      && /Call them: tomorrow at 2/.test(calls.notify[0]);
+});
+
+T('credit mentioned at the time step still flags', async () => {
+  await run('after 5, I got turned down last time though', { stage: 'reengage_time' });
+  return db.credit_flag === true && calls.callback.length === 1
+      && /CREDIT/.test(calls.notify[0]);
+});
+
+T('credit mentioned after the lead closed still flags and still reaches the desk', async () => {
+  const r = await run('my situation changed, my credit is better now', { stage: 'reengage_closed' });
+  return db.credit_flag === true && calls.notify.length === 1 && /CREDIT/.test(calls.notify[0]);
+});
+
+T('Sarah never says credit, financing, debt, approval or consolidation to a customer', async () => {
+  const msgs = ['Yeah but my credit is still bad and no cosigner', 'I got declined at the bank',
+                'bankruptcy last year', 'no money for a down payment', 'I am in collections',
+                'yes still looking', 'tomorrow at 4', 'no thanks'];
+  for (const stage of ['reengage_confirm', 'reengage_time', 'reengage_time_q', 'reengage_done', 'reengage_closed']) {
+    for (const m of msgs) {
+      reset({ stage });
+      const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+      if (/credit|financ|debt|consolidat|approv|loan|interest rate|lender|bank/i.test(r || '')) {
+        console.log('   \u21b3 Sarah said it at', stage, '→', r);
+        return false;
+      }
+    }
+  }
+  return true;
+});
+
+T('Sarah never asks a follow-up question about the money', async () => {
+  const r = await run('yes still looking but my credit is bad');
+  // the one question she may ask is the callback time
+  const qs = (r.match(/\?/g) || []).length;
+  return qs <= 1 && /what time/i.test(r);
 });
 
 (async () => {
