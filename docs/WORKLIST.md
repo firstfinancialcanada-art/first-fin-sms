@@ -1,10 +1,36 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-15.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-16.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
 
 ---
 
-## ▶ RE-ENGAGE PILOT — first 25 returned ZERO leads
+## ▶ RE-ENGAGE — Aug/Sep run complete, June/July next
+
+**281 contacted, 91 replied (32.4%), 63 opted out (22.4%), 9 callbacks, ~$4 all in.**
+
+Live leads off it: Robyn, Irene, Michael, Miguel, Chris, John, Jefferson, Charmayne, Amy. Four are credit-declined or write-off cases. Call attempts still owed on Michael, Irene, Dale and Amy.
+
+**Credit funnel — shipped 2026-10-16.** Every inbound is checked against one credit vocabulary (declined, bad credit, bankruptcy, collections, repo, no cosigner, lost my job, no down) and the conversation is flagged with the customer's own words. The callback alert carries a `CREDIT` line; the list renders above Callbacks in the Sarah tab with Call and → Desk. `GET /api/reengage/credit-leads`, `POST /api/reengage/backfill-credit` (plus an admin-token variant).
+
+Backfill over the replies already in hand scanned 216 and flagged **3**:
+
+| Phone | Their words |
+|---|---|
+| 825-454-9932 | "Yes but I was declined, bad credit needed, and needed a co-signer." |
+| 306-526-8944 | "No I was declined" |
+| 825-583-7132 | "Yeah but my credit is still bad and no cosigner" |
+
+These are the Bromwich & Smith play — same channel as Saurabh and Owen. **Sarah never raises credit, financing, debt, approval or consolidation with a customer** and never asks a follow-up about money; the flag is for the desk, and the pitch happens on Franco's call. A test asserts that across every stage.
+
+**Burst replies — fixed 2026-10-16.** Irene answered "what time works?" with "It's all" / "Mine lol" / "He can call anytime", and the first fragment was booked as her callback time and read back to her. A reply that doesn't look like a time now gets no answer for one message. Silence alone would strand a single-reply lead (Gabriel did exactly that on the pilot), so the hold has a floor: a sweeper books anything held past `REENGAGE_HOLD_MAX_WAIT_SEC` (default 180), alerts the manager with their words, and sends the acknowledgement it withheld. The wait is a database stage, not a timer — a restart can't lose it.
+
+**Next: June 16 – July 31.** Aug 1–Sep 30 is done. CASL implied consent runs six months from the enquiry, so four months back is roughly the whole legal pool, not an arbitrary slice — anything before mid-April is out of bounds without express consent. Expect **~215 textable** (993 leads over 61 days in Aug/Sep, ~29% surviving the filters). **October is deliberately excluded** — those leads are days old and the reps are on them.
+
+One campaign, not one per month: `merge_json` carries `{month}` per contact and an unfilled token is refused before sending. 25 every 30 minutes, ~4.5 hours. Must exclude the 281 already texted (readable straight from Twilio) and the 63 opt-outs. At the first run's rates: ~70 replies, ~48 more opt-outs, ~7 callbacks, 2–3 credit cases, ~$3. After it, roughly 110 of the aged book is permanently unreachable by SMS — that is the real cost of running this list.
+
+---
+
+## The first 25 — kept for the record
 
 Sent Oct 15, final count Oct 16. **11 of 24 delivered replied — 46% engagement, 6 opt-outs (25%), and not one person still shopping.**
 
