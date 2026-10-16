@@ -391,8 +391,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       const result = await client.query(`
         SELECT DISTINCT ON (c.customer_phone)
           c.id, c.customer_phone,
-          cu.name as customer_name,
-          c.stage, c.status, c.vehicle_type, c.budget,
+          -- customers.name is only ever written by the sales and acquisition
+          -- FSMs, at the point Sarah asks "what's your name?". Reengage never
+          -- asks, because the campaign already supplied it — so the whole
+          -- pilot rendered as 25 rows of "Unknown" while the name sat in
+          -- conversations.customer_name the entire time. Read both.
+          COALESCE(NULLIF(TRIM(cu.name), ''), NULLIF(TRIM(c.customer_name), '')) as customer_name,
+          c.stage, c.status, c.vehicle_type, c.budget, c.mode,
           c.started_at, c.updated_at,
           (SELECT COUNT(*) FROM messages m
            JOIN conversations cx ON m.conversation_id = cx.id
