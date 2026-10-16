@@ -5496,6 +5496,17 @@ function renderConversations(convs){
   const el = document.getElementById('conversationList');
   if(!el) return;
   if(!convs.length){ el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);">No conversations found.</div>'; return; }
+  // Hold the reader's place across a re-render. Filtering, a manual refresh
+  // and a reply all rebuild this list, and without this each one scrolls them
+  // back to the top of 300 conversations.
+  const _scroller = el.scrollHeight > el.clientHeight ? el : (el.parentElement || null);
+  const _prevTop  = _scroller ? _scroller.scrollTop : window.scrollY;
+  const _restore  = () => {
+    if(!_prevTop) return;
+    if(_scroller && _scroller.scrollHeight > _scroller.clientHeight) _scroller.scrollTop = _prevTop;
+    else window.scrollTo(0, _prevTop);
+  };
+  setTimeout(_restore, 0);
   el.innerHTML = convs.map(c=>{
     const cleanPhone = (c.customer_phone||'').replace(/[^0-9]/g,'');
     const statusBadge = `<span class="conv-badge badge-${c.status||'active'}">${c.status||'active'}</span>`;
@@ -5527,12 +5538,40 @@ function renderConversations(convs){
   }).join('');
 }
 
+// Keeps the row you clicked visually still while the thread above or below it
+// grows and shrinks. Without this, collapsing a conversation reflows everything
+// under it and the list jumps — worst when several are open at once and you are
+// reading down them, which is exactly how you read a campaign's replies.
+function anchorRow(el){
+  let sc = el.parentElement;
+  while(sc && sc !== document.body){
+    const oy = getComputedStyle(sc).overflowY;
+    if((oy === 'auto' || oy === 'scroll') && sc.scrollHeight > sc.clientHeight) break;
+    sc = sc.parentElement;
+  }
+  const scroller = (sc && sc !== document.body) ? sc : null;
+  const before = el.getBoundingClientRect().top;
+  return () => {
+    const delta = el.getBoundingClientRect().top - before;
+    if(!delta) return;
+    if(scroller) scroller.scrollTop += delta; else window.scrollBy(0, delta);
+  };
+}
+
 async function toggleConversation(phone, cleanPhone){
   const thread = document.getElementById('thread-'+cleanPhone);
   if(!thread) return;
-  if(thread.classList.contains('open')){ thread.classList.remove('open'); return; }
+  const row = document.getElementById('convitem-'+cleanPhone) || thread;
+  const restore = anchorRow(row);
+  if(thread.classList.contains('open')){
+    thread.classList.remove('open');
+    thread.innerHTML = '';          // drop the old thread so a reopen refetches
+    restore();
+    return;
+  }
   thread.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px;">Loading...</div>';
   thread.classList.add('open');
+  restore();
   try {
     const data = await FF.apiFetch('/api/conversation/'+encodeURIComponent(phone)).then(r=>r.json());
     if(data.error||!data.messages?.length){ thread.innerHTML='<div style="padding:10px;color:var(--muted);font-size:12px;">No messages yet.</div>'; return; }
@@ -6034,11 +6073,18 @@ function escapeHtml(str){
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Auto-refresh Sarah every 30 seconds when on Sarah tab
+// Auto-refresh Sarah every 30 seconds when on Sarah tab.
+//
+// Skipped while a conversation is open. The refresh re-renders the whole list
+// with innerHTML, which closes every expanded thread and drops the reader back
+// to the top — so reading a campaign's replies meant being thrown out of the
+// thread every 30 seconds, and out of all of them at once if several were open.
+// Someone reading a customer's messages is the one person who must not have
+// the page pulled out from under them. The manual REFRESH button is unaffected.
 setInterval(()=>{
-  if(document.getElementById('section-sarah')?.classList.contains('active')){
-    loadSarahDashboard();
-  }
+  if(!document.getElementById('section-sarah')?.classList.contains('active')) return;
+  if(document.querySelector('.conv-thread.open')) return;
+  loadSarahDashboard();
 }, 30000);
 
 
