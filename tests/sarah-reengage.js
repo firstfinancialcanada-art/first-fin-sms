@@ -548,6 +548,35 @@ T('a yes now carries the customer words into the alert', async () => {
   return /credit is still bad/.test(calls.notify[0] || '');
 });
 
+
+T('Amy case: a write-off and "looking again" beats the word "bought"', async () => {
+  const r = await run('We bought one and it got hit and written off two days later so we are looking again');
+  return db.stage === 'reengage_time'
+      && !/Congrats|close it off/i.test(r)
+      && /what time/i.test(r);
+});
+
+T('a past purchase followed by a fresh search is never closed', async () => {
+  for (const m of ['bought one but it was totaled, looking again',
+                   'we purchased in August but need another now',
+                   'found one, insurance wrote it off, back to looking',
+                   'I bought a car but still looking for a second one']) {
+    const r = await run(m);
+    if (/Congrats|close it off/i.test(r)) { console.log('   \u21b3 wrongly closed:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('a plain purchase with no fresh search still closes', async () => {
+  for (const m of ['I already bought one','we bought one locally thanks','found a car, thanks']) {
+    const r = await run(m);
+    if (!/Congrats/.test(r) || db.stage !== 'reengage_closed') {
+      console.log('   \u21b3 should have closed:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

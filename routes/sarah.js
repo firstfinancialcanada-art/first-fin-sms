@@ -1523,8 +1523,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // Widened alongside the verb match above: "still looking" and "haven't
     // found anything yet" must never read as a purchase now that the bare
     // verb counts.
-    const notBoughtRe = /\b(haven'?t|have not|has not|hasn'?t|didn'?t|did not|never|not)\s+(yet\s+)?(bought|purchased|found)\b|\bstill (looking|searching|in the hunt)\b|\bhaven'?t found\b/;
-    if (boughtRe.test(lowerMsg) && !notBoughtRe.test(lowerMsg)) {
+    // A purchase in the past tense does not mean the search is over. Amy
+    // wrote "We bought one and it got hit and written off two days later so
+    // we are looking again" and was congratulated and closed, then told
+    // "I'm confused. I just said we are looking and you said you're closing
+    // the file." The verb match saw "bought" and nothing looked for what came
+    // after it. Any present-tense searching signal anywhere in the message
+    // outranks the purchase, because people explain the history before they
+    // get to the point.
+    const stillLookingRe = /\b(looking again|searching again|still (looking|searching|in the hunt|need|needs|want)|look(ing)? for another|need another|want another|back to (looking|square)|start(ing)? over|written off|wrote off|write[- ]?off|totall?ed|got hit|insurance (wrote|total)|back on the hunt|looking once more)\b/i;
+    const notBoughtRe = /\b(haven'?t|have not|has not|hasn'?t|didn'?t|did not|never|not)\s+(yet\s+)?(bought|purchased|found)\b|\bhaven'?t found\b/;
+    if (boughtRe.test(lowerMsg) && !notBoughtRe.test(lowerMsg) && !stillLookingRe.test(message)) {
       await updateConversation(conversation.id, { stage: 'reengage_closed' });
       await logAnalytics('reengage_not_looking', phone, { reason: 'already_bought', reply: message.slice(0, 200) }, userId);
       return first
@@ -1557,7 +1566,8 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // that the man said yes. Safe to look mid-sentence here because the
     // removal, purchase and decline branches have all already run.
     if (/^(y|ya|yah|yes|yeah|yep|yup|sure|ok|okay|correct|still (looking|am|interested)|i am|we are|absolutely|definitely|kind of|kinda|maybe|possibly|sort of)\b/.test(lowerMsg) ||
-        /\b(yes|yeah|yep|yup|still looking|still searching|still interested|still need|still want|looking for|searching for|in the hunt)\b/.test(lowerMsg)) {
+        /\b(yes|yeah|yep|yup|still looking|still searching|still interested|still need|still want|looking for|searching for|in the hunt)\b/.test(lowerMsg) ||
+        stillLookingRe.test(message)) {
       // Carry their words only when there are some. A bare "yes" would
       // otherwise reach Franco as 'They asked: "yes"', which is noise
       // dressed as context.
