@@ -381,6 +381,35 @@ T('a plain yes is still a yes', async () => {
   return db.stage === 'reengage_time' && /what time/i.test(r) && calls.optOut.length === 0;
 });
 
+
+T('Terrence case: "Found a car, thanks" reads as found, not as a callback ask', async () => {
+  const r = await run('Found a car, thanks');
+  return db.stage === 'reengage_closed'
+      && /Congrats/.test(r)
+      && !/what time/i.test(r)
+      && calls.callback.length === 0;
+});
+
+T('the verb "found" covers what people actually find', async () => {
+  for (const m of ['found a car','found a truck thanks','found something else','I found one last week',
+                   'picked one up already','went with another dealer']) {
+    const r = await run(m);
+    if (db.stage !== 'reengage_closed' || /what time/i.test(r)) {
+      console.log('   \u21b3 missed:', JSON.stringify(m), '->', r.slice(0,60));
+      return false;
+    }
+  }
+  return true;
+});
+
+T('"still looking" and "haven\'t found anything" are NOT purchases', async () => {
+  for (const m of ["still looking", "haven't found anything yet", "I have not found one"]) {
+    const r = await run(m);
+    if (/Congrats/.test(r)) { console.log('   \u21b3 wrongly congratulated:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

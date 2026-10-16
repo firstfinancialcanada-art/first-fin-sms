@@ -1495,8 +1495,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // conversation, was lost. Nobody says "bought" in answer to "are you
     // still looking?" unless they did, so the verb alone carries it, minus
     // the explicit negations.
-    const boughtRe    = /\b(bought|purchased|already (got|found)|found (one|something|another)|went with (another|someone|somewhere|a)|got (one|something) already|sorted now|already sorted)\b/;
-    const notBoughtRe = /\b(haven'?t|have not|has not|hasn'?t|didn'?t|did not|never|not)\s+(yet\s+)?(bought|purchased|found)\b/;
+    // "found" gets the same treatment as "bought" — the verb, not a list of
+    // things that can be found. It was left enumerated when bought was fixed,
+    // so Terrence's "Found a car, thanks" fell through to the catch-all and
+    // he was asked when Franco could call him. He sent STOP nineteen seconds
+    // later. Half-applying a fix to one verb and not the one beside it is how
+    // the same bug comes back wearing a different word.
+    const boughtRe    = /\b(bought|purchased|found|already (got|sorted)|went with (another|someone|somewhere|a)|got (one|something) already|sorted now|picked (one|something) up)\b/;
+    // Widened alongside the verb match above: "still looking" and "haven't
+    // found anything yet" must never read as a purchase now that the bare
+    // verb counts.
+    const notBoughtRe = /\b(haven'?t|have not|has not|hasn'?t|didn'?t|did not|never|not)\s+(yet\s+)?(bought|purchased|found)\b|\bstill (looking|searching|in the hunt)\b|\bhaven'?t found\b/;
     if (boughtRe.test(lowerMsg) && !notBoughtRe.test(lowerMsg)) {
       await updateConversation(conversation.id, { stage: 'reengage_closed' });
       await logAnalytics('reengage_not_looking', phone, { reason: 'already_bought', reply: message.slice(0, 200) }, userId);
