@@ -410,6 +410,36 @@ T('"still looking" and "haven\'t found anything" are NOT purchases', async () =>
   return true;
 });
 
+
+T('Barry case: "Ok. Thanks" is a courtesy, not a message for the manager', async () => {
+  const r = await run('Ok. Thanks ', { stage: 'reengage_closed' });
+  return calls.notify.length === 0;
+});
+
+T('a tapback is never forwarded to the manager', async () => {
+  for (const m of ['Liked \u201cGot it Barry \u2014 I\u2019ve passed that to our sales manager Franco.\u201d',
+                   'Loved \u201cThanks \u2014 if anything changes\u201d',
+                   'Emphasized \u201cCongrats!\u201d',
+                   'Laughed at \u201cNo problem at all\u201d']) {
+    const r = await run(m, { stage: 'reengage_done' });
+    if (calls.notify.length !== 0) { console.log('   \u21b3 forwarded a tapback:', JSON.stringify(m.slice(0,30))); return false; }
+  }
+  return true;
+});
+
+T('multi-word courtesies do not ping the manager', async () => {
+  for (const m of ['ok thanks','Thanks so much','thank you very much','got it thanks','sounds good thanks','\ud83d\udc4d\ud83d\udc4d']) {
+    const r = await run(m, { stage: 'reengage_closed' });
+    if (calls.notify.length !== 0) { console.log('   \u21b3 pinged on:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('something substantive after close STILL reaches the manager', async () => {
+  const r = await run('actually can you check if the Escape is still there', { stage: 'reengage_closed' });
+  return calls.notify.length === 1;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

@@ -1461,7 +1461,24 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // no question back, nothing for Sarah to dig into.
     if (conversation.stage === 'reengage_done' || conversation.stage === 'reengage_closed') {
       const booked = conversation.stage === 'reengage_done';
-      const pleasantry = /^(ok|okay|k|kk|kool|cool|thanks|thank you|thanks!|ty|thx|great|perfect|sounds good|sweet|awesome|will do|no worries|np|cheers|yes|yep|yup|👍|👌|🙏|ok thanks|okay thanks|thank you!)[\s.!]*$/i.test(message.trim());
+      // An iOS/Android tapback arrives as literal text — Liked "…",
+      // Loved "…", Emphasised "…". Nothing recognised it, so Barry's thumbs
+      // up on a closing message was forwarded to Franco's phone as though he
+      // had said something, and Sarah's reply to it can be tapbacked in turn.
+      const isTapback = /^(liked|loved|laughed at|emphas(i[sz])?ed|disliked|questioned|reacted to)\s*[“"'«]/i.test(message.trim());
+      // Courtesies come in more than one word. The old check wanted the whole
+      // message to be a single token, so "Ok. Thanks" — two words and a full
+      // stop — counted as substantive and pinged the manager. Strip the
+      // punctuation and ask whether EVERY word left is a courtesy.
+      const COURTESY = new Set(['ok','okay','k','kk','kool','cool','thanks','thank','thankyou','you','ty','thx',
+                                'great','perfect','sounds','good','sweet','awesome','will','do','no','worries',
+                                'np','cheers','yes','yep','yup','sure','alright','appreciate','it','much','so',
+                                'nice','gotcha','got','understood','noted','bye','goodbye','take','care',
+                                'very','really','lot','lots','again','anyway','anyways','fine','welcome','that','is','all']);
+      const words = message.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+      const allCourtesy = words.length > 0 && words.length <= 5 && words.every(w => COURTESY.has(w));
+      const emojiOnly   = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+$/u.test(message.trim());
+      const pleasantry  = isTapback || emojiOnly || allCourtesy;
       if (!pleasantry) {
         try {
           await notifyTenantManagers({
