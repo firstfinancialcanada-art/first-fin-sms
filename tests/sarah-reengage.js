@@ -515,6 +515,39 @@ T('a hard refusal is NOT confused with a normal purchase or question', async () 
   return bought && asked;
 });
 
+
+T('Jefferson case: a yes carrying a hardship is not answered with "Good to hear"', async () => {
+  const r = await run('Yeah but my credit is still bad and no cosigner');
+  return db.stage === 'reengage_time'
+      && !/Good to hear|Great\./.test(r)
+      && /Understood/.test(r)
+      && /what time/i.test(r);
+});
+
+T('Sarah never evaluates or promises on the hardship', async () => {
+  for (const m of ['yes but bad credit','yeah im in a consumer proposal','yes but i was declined before',
+                   'still looking, just laid off though','yes but no money down']) {
+    const r = await run(m);
+    if (/approv|qualify|no problem at all|we work with|credit situation|bad credit ok/i.test(r)) {
+      console.log('   \u21b3 Sarah editorialised on:', JSON.stringify(m), '->', r); return false;
+    }
+    if (/Good to hear|Great\./.test(r)) { console.log('   \u21b3 too cheerful for:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('a plain yes still gets the warm line', async () => {
+  const r = await run('yes still looking');
+  return /Good to hear|Great\./.test(r);
+});
+
+T('a yes now carries the customer words into the alert', async () => {
+  reset({ stage: 'reengage_confirm' });
+  await getReengageResponse('+1403','Yeah but my credit is still bad and no cosigner', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  await getReengageResponse('+1403','after 5', db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+  return /credit is still bad/.test(calls.notify[0] || '');
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

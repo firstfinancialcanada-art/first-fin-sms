@@ -1558,7 +1558,25 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // removal, purchase and decline branches have all already run.
     if (/^(y|ya|yah|yes|yeah|yep|yup|sure|ok|okay|correct|still (looking|am|interested)|i am|we are|absolutely|definitely|kind of|kinda|maybe|possibly|sort of)\b/.test(lowerMsg) ||
         /\b(yes|yeah|yep|yup|still looking|still searching|still interested|still need|still want|looking for|searching for|in the hunt)\b/.test(lowerMsg)) {
-      await updateConversation(conversation.id, { stage: 'reengage_time', intent: 'callback' });
+      // Carry their words only when there are some. A bare "yes" would
+      // otherwise reach Franco as 'They asked: "yes"', which is noise
+      // dressed as context.
+      const yesWords = message.trim().split(/\s+/).filter(Boolean);
+      await updateConversation(conversation.id, {
+        stage: 'reengage_time', intent: 'callback',
+        ...(yesWords.length >= 5 ? { vehicle_detail: message.trim().slice(0, 160) } : {}),
+      });
+      // A yes often arrives carrying a problem. Jefferson wrote "Yeah but my
+      // credit is still bad and no cosigner" and got "Good to hear." — the
+      // branch fired on his yes and used its cheerful line without reading
+      // the rest of the sentence. Same fault as answering "Sorry, not
+      // looking" with "Congrats". When someone volunteers a hardship, drop
+      // the brightness and acknowledge it; never evaluate it, never promise
+      // anything about approval — that is the closer's call, not Sarah's.
+      const hardship = /\b(bad credit|credit is (bad|poor|shot|rough)|poor credit|no co-?signer|bankrupt|bankruptcy|consumer proposal|repo(ssession)?|collections|garnish|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|no money|no down|tight)\b/i.test(message);
+      if (hardship) {
+        return `Understood${first ? ' ' + first : ''} — ${mgr} will give you a call. What time works today or tomorrow?`;
+      }
       return pick(
         `Good to hear. ${Mgr} will call you back — what time works today or tomorrow?`,
         `Great. ${Mgr} will call you back — what time suits you today or tomorrow?`
