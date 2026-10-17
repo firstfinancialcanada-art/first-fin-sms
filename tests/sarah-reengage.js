@@ -966,6 +966,43 @@ T('something that matters after a booking still reaches the manager', async () =
   return true;
 });
 
+T('Luc case: "Mercedes GT 4 doors" is a vehicle, not a time', async () => {
+  const r = await run('Only if it is a Mercedes GT 4 doors', { stage: 'reengage_time' });
+  return r === ''                                    // held, not echoed back
+      && db.stage === 'reengage_held_y'
+      && calls.callback.length === 0;
+});
+
+T('Luc case: once booked, the Mercedes is not his callback time', async () => {
+  const rs = await seq(['Mercedes GT 4 doors.... yes', 'Only if it is a Mercedes GT 4 doors'],
+                       { stage: 'reengage_time' });
+  return !/will call you Only if/.test(rs[rs.length - 1])
+      && calls.callback[0].datetime === 'no time given'
+      && /Mercedes/.test(calls.notify[0]);
+});
+
+T('a digit only means a time when it is shaped like one', async () => {
+  const notTimes = ['2019 Tundra', '3/4 ton truck', 'looking for a 2 door', 'my 2 kids need room',
+                    '$5000 down is all I have', 'a 4 door would be ideal'];
+  for (const m of notTimes) {
+    reset({ stage: 'reengage_time' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (/will call you/.test(r)) { console.log('   \u21b3 read as a time:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('clock times in every ordinary shape still book on the spot', async () => {
+  for (const m of ['4:30', '9am', '4 pm', 'at 4', '430', 'in 20 minutes', '4ish', 'after 5', 'noon']) {
+    reset({ stage: 'reengage_time' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!/will call you/.test(r) || calls.callback[0].datetime === 'no time given') {
+      console.log('   \u21b3 not read as a time:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {

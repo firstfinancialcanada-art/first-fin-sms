@@ -1598,7 +1598,13 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // John answered "Whenever is fine" and it was not recognised, so he sat
       // in the hold for three minutes waiting on the sweeper instead of
       // being booked on the spot. An open answer IS an answer.
-      const looksLikeTime = /\d|noon|tonight|today|tomorrow|morning|afternoon|evening|anytime|any time|when ?ever|any ?day|all day|asap|after|before|weekend|\b(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/i.test(when);
+      // A bare digit used to count as a time, so "Mercedes GT 4 doors" was one.
+      // Luc answered "Only if it is a Mercedes GT 4 doors" and was sent
+      // "Perfect Luc - our sales manager Franco will call you Only if it is a
+      // Mercedes GT 4 doors." A digit only means a time in a time SHAPE:
+      // 4:30, 9am, at 4, 4 o'clock, in 20 minutes, or the whole answer being
+      // a number. "2019 Tundra", "3/4 ton" and "$5000 down" are not times.
+      const looksLikeTime = /\d{1,2}\s*[:.]\d{2}|\d{1,2}\s*(am|pm|a\.m|p\.m)\b|\b(at|after|before|around|by|til|till|until|from)\s+\d{1,2}\b|\d{1,2}\s*(o'?clock|ish)\b|\bin\s+\d+\s*(min|mins|minutes|hour|hours|hrs)\b|^\s*\d{1,4}\s*$|noon|tonight|today|tomorrow|morning|afternoon|evening|anytime|any time|when ?ever|any ?day|all day|asap|after|before|weekend|\b(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/i.test(when);
       // Did they actually say yes, or did we route them here from the
       // catch-all? The manager plans a call differently for each, so the
       // alert must not claim "still looking" on his behalf.
