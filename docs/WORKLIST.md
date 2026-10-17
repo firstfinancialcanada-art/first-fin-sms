@@ -1,6 +1,54 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-16.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-16 (late).** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+
+---
+
+## ▶ TOMORROW MORNING — two runs, in this order
+
+| Time (Calgary) | What | From |
+|---|---|---|
+| **8:29am** | Alyssa McAullay (587) 219-9677 — AD funnel live test | Capital Auto Finance, +1 587-210-5135 |
+| **8:59am – 3:29pm** | June/July re-engage, 349 in 14 batches of 25 | Rolling with Franco, +1 587-330-3601 |
+
+Both queued and verified as pending. `stop-mine` cancels either tenant's rows.
+
+Alyssa's script — the lender/application angle, ending on the forward move:
+
+> Hi Alyssa, Sarah here with Capital Auto Finance. Your auto loan application is still open with our lenders. Should I close it out, or keep it moving for you?
+
+Watch for: does the reply land in Adil's tenant (not House of Cars), does the alert arrive stamped `CAPITAL AUTO FINANCE`, does the credit flag fire. Then decide whether the AD book gets the whole tracker.
+
+---
+
+## ▶ ADIL / CAPITAL AUTO FINANCE — stood up 2026-10-16
+
+Second **tenant**, per the 2026-10-12 plan — never merged into House of Cars.
+
+| | |
+|---|---|
+| User | id 8, `ad@tracker.com` (placeholder), "AD Test" |
+| Tenant | id 8, Capital Auto Finance, tier **single**, 1 seat |
+| Sarah number | **+1 587-210-5135** (403 was dry, overlay fallback gave 587) |
+| Lead inbox | capitalautofinance@firstfinancialcanada.com |
+| Notify | Franco's 825 **for now** — swap to Adil's cell when real |
+| Manager name | Adil |
+
+**Still open on this account:** real email instead of `ad@tracker.com`; Adil's own cell as the notify number; and Railway `EXEMPT_EMAILS` so the $18.50 allowance does not bill twice (the way STC was handled).
+
+### What the walkthrough found — five bugs, all shipped, none caught before
+
+1. **Admin user-create never provisioned a tenant** (`4a41d7b`). A `desk_users` row with no `desk_tenants` row resolves `tenantId` null, so `notifyTenantManagers` drops **every** booking and callback alert in silence. Stripe always called `ensureOwnerTenant`; the admin path never did.
+2. **`PUT /api/desk/settings` replaced instead of merging** (`747fa40`). Every real caller sends a partial object — the wizard's own step 2 posts three fields — so editing your city after setup nulled your Sarah number, notify phone, rates and hours. An absent `settings` wiped the lot and answered 200.
+3. **The wizard never asked for the notification phone** (`747fa40`). Finish all six panels exactly as designed, end with no notify target, get no alerts, see no error. Now required on step 2 with the manager name beside it.
+4. **Gold copy on every tier** (`a05507a`). "10 Seats — 3 managers + 7 sales reps" shown to a 1-seat account, which was then invited to fill nine seats the server refuses. Step list is data now, keyed off `desk_tenants.tier`; single renders 5 steps, the stepper dots follow, routing advice hides for a one-man shop. 15 tests in `tests/wizard-steps.js`, lifted from the shipped file.
+5. **`GET /api/desk/team` 500s for every tenant** (`4ce6e69`, `070bd70`) — two wrong columns in one endpoint: `plan` on desk_tenants (the field is `tier`) and `created_at` on desk_members (it is `invited_at`). **The Team modal has been broken platform-wide.** The plan badge also defaulted to `'gold'` whenever the value was missing, which — given the 500 — was always, so every dealer saw a GOLD badge.
+
+### Still to do here
+
+- **No regression test on the settings route.** Verified live against Adil's tenant instead (partial PUT keeps the Sarah number; empty body 400s). The route sits behind four middlewares in a 3,800-line file and a shallow mock would be fiction — build the harness properly or leave it on live verification, but decide.
+- **Audit the rest of the onboarding path the same way.** Five bugs from one walkthrough says this path was never exercised end to end. Voice, the extension handoff and lead routing have not been walked at all.
+- Business hours default sanely on a new tenant (Mon-Fri 9-6, Sat 9-5, Sun closed, America/Edmonton) — checked, not a gap.
 
 ---
 
