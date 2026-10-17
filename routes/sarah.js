@@ -1694,7 +1694,14 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
                                 'nice','gotcha','got','understood','noted','bye','goodbye','take','care',
                                 'very','really','lot','lots','again','anyway','anyways','fine','welcome','that','is','all']);
       const words = message.trim().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
-      const allCourtesy = words.length > 0 && words.length <= 5 && words.every(w => COURTESY.has(w));
+      // Nobody spells "thanks" one way. Jeff wrote "Ok thanku" after his
+      // callback was booked and it pinged Franco mid-call-block, because
+      // "thanku" was not on the list while "thankyou" was. A pattern for the
+      // two families that actually vary -- thanks and ok -- beats adding a
+      // spelling to the set every time someone invents one.
+      const COURTESY_RE = /^(thanks?|thanx|thankyou|thanku|thanks|thnx|thnks|tks|tysm|tyvm|ty|thx|kk+|oka?y?|okey|okies|cool|kool|aight|alright|roger|gotit)$/i;
+      const isCourtesy = (w) => COURTESY.has(w) || COURTESY_RE.test(w);
+      const allCourtesy = words.length > 0 && words.length <= 5 && words.every(isCourtesy);
       const emojiOnly   = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+$/u.test(message.trim());
       const pleasantry  = isTapback || emojiOnly || allCourtesy;
       if (!pleasantry) {

@@ -941,6 +941,31 @@ T('financing mentioned WITHOUT a negative is not a credit case', async () => {
   return !db.credit_flag;
 });
 
+T('Jeff case: "Ok thanku" after a booking does not ping the manager', async () => {
+  const r = await run('Ok thanku', { stage: 'reengage_done', datetime: 'Anytime' });
+  return calls.notify.length === 0 && /will call you/.test(r);
+});
+
+T('thanks spelled any of the usual ways is still just thanks', async () => {
+  for (const m of ['thanku','thnx','thx','ty','tysm','Ok thanku','okay thanks','kk','cool thanks',
+                   'alright thankyou','gotit']) {
+    reset({ stage: 'reengage_done', datetime: 'tomorrow' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (calls.notify.length) { console.log('   \u21b3 pinged the manager for:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('something that matters after a booking still reaches the manager', async () => {
+  for (const m of ['make it thursday instead', 'actually can we do monday', 'call my wife instead',
+                   'I found something else']) {
+    reset({ stage: 'reengage_done', datetime: 'tomorrow' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!calls.notify.length) { console.log('   \u21b3 swallowed:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
