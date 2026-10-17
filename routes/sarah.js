@@ -1510,6 +1510,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         lowerMsg.includes('lose my number') || lowerMsg.includes('lose this number') ||
         lowerMsg.includes('delete my number') || lowerMsg.includes('remove my number') ||
         lowerMsg.includes('remove this number') || lowerMsg.includes('forget my number') ||
+        // Enumerating the phrasings kept losing. Kyle wrote "can you get rid
+        // of my number please I don't like being bugged every month about a
+        // car when I've already bought on[e]" and, because "get rid of" was
+        // not on the list, it fell through to the purchase branch on the word
+        // "bought" and Sarah answered "Congrats Kyle!". Match the SHAPE of the
+        // ask -- a removal verb within a few words of "my/this number" --
+        // instead of guessing which verb they will use.
+        /\b(get(ting)? rid of|getting rid of|rid of|lose|loose|delete|remove|erase|scrub|forget|drop|ditch|take off)\b[^.!?]{0,24}?\b(my|this|the)\s+(number|phone|cell|contact|info)\b/i.test(message) ||
+        // "take my number off" splits the verb around the noun, so the
+        // pattern above walks straight past it.
+        /\btake\s+(my|this|the)\s+(number|phone|cell|contact|info)\s+(off|out)\b/i.test(message) ||
         lowerMsg.includes("don't contact") || lowerMsg.includes('never contact') ||
         lowerMsg.includes("don't call me again") || lowerMsg.includes('do not call me again') ||
         lowerMsg.includes('unsubscribe')) {
@@ -1584,7 +1595,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // "Should of been negociable when I wanted to buy" and got back
       // "Franco will call you Should of been negociable when I wanted to
       // buy." A neutral confirmation cannot embarrass anyone.
-      const looksLikeTime = /\d|am\b|pm\b|noon|tonight|today|tomorrow|morning|afternoon|evening|anytime|any time|asap|after|before|weekend|mon|tue|wed|thur|thu|fri|sat|sun/i.test(when);
+      // John answered "Whenever is fine" and it was not recognised, so he sat
+      // in the hold for three minutes waiting on the sweeper instead of
+      // being booked on the spot. An open answer IS an answer.
+      const looksLikeTime = /\d|am\b|pm\b|noon|tonight|today|tomorrow|morning|afternoon|evening|anytime|any time|when ?ever|any ?day|all day|asap|after|before|weekend|mon|tue|wed|thur|thu|fri|sat|sun/i.test(when);
       // Did they actually say yes, or did we route them here from the
       // catch-all? The manager plans a call differently for each, so the
       // alert must not claim "still looking" on his behalf.
@@ -1613,13 +1627,20 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         return '';
       }
 
+      // Only a time belongs in the time slot. Casey burst three messages at
+      // this step -- "Hey yes I am", "Do u have a car for me?", "I've already
+      // given my requirements" -- and the third was booked verbatim, so the
+      // alert read 'Call them: I've already given my requirements' and the
+      // callbacks list carried that as his preferred time. Their words still
+      // reach the manager, on their own line, which is where they belong.
+      const slot = looksLikeTime ? when : 'no time given';
       await saveCallback({
         phone, name: name || 'Reengage lead',
         vehicleType: conversation.vehicle_type || null,
-        budget: null, budgetAmount: null, datetime: when, userId,
+        budget: null, budgetAmount: null, datetime: slot, userId,
       });
       await updateConversation(conversation.id, {
-        status: 'converted', stage: 'reengage_done', intent: 'callback', datetime: when,
+        status: 'converted', stage: 'reengage_done', intent: 'callback', datetime: slot,
       });
       try {
         await notifyTenantManagers({
@@ -1631,7 +1652,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
                 // question, so it gets a label that doesn’t claim to be one.
                 (conversation.vehicle_detail ? `\n${atHeld ? 'Also said' : 'They asked'}: "${conversation.vehicle_detail}"` : '') +
                 creditLine(conversation) +
-                `\nCall them: ${when}`,
+                (looksLikeTime
+                  ? `\nCall them: ${when}`
+                  : `\nThey said: "${when}"` + `\nNo time given — call when you can.`),
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
       await logAnalytics('reengage_callback', phone, { when, saidYes }, userId);

@@ -753,6 +753,75 @@ T('Sarah never asks a follow-up question about the money', async () => {
   return qs <= 1 && /what time/i.test(r);
 });
 
+// ── From the June/July run, 2026-10-17 ──────────────────────────
+T('Kyle case: "get rid of my number" beats the word "bought"', async () => {
+  const r = await run("This is the second person to message me about a car I've asked him to stop and I'll do the same for you can you get rid of my number please I don't like being bugged every month about a car when I've already bought on");
+  return db.status === 'stopped'
+      && calls.optOut.length === 1
+      && !/Congrats/i.test(r)
+      && calls.notify.length === 0;
+});
+
+T('the whole removal family opts out, however they phrase it', async () => {
+  const asks = ['can you get rid of my number please', 'rid of my number', 'ditch this number',
+                'scrub my cell', 'delete my phone', 'please erase my contact', 'drop my number',
+                'getting rid of my number would be great', 'take my number off'];
+  for (const m of asks) {
+    reset({ stage: 'reengage_confirm' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (db.status !== 'stopped' || !calls.optOut.length) {
+      console.log('   \u21b3 missed removal ask:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
+T('a plain purchase is still congratulated, not read as a removal ask', async () => {
+  for (const m of ['I already bought one', 'bought a truck last month thanks', 'found a car, thanks']) {
+    reset({ stage: 'reengage_confirm' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (db.status === 'stopped' || !/Congrats/.test(r)) {
+      console.log('   \u21b3 wrongly treated as a removal ask:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
+T('John case: "Whenever is fine" books on the spot, no hold', async () => {
+  const r = await run('Whenever is fine', { stage: 'reengage_time_q' });
+  return r !== ''
+      && calls.callback.length === 1
+      && calls.callback[0].datetime === 'Whenever is fine'
+      && /will call you Whenever is fine/.test(r);
+});
+
+T('open-ended times are all recognised', async () => {
+  for (const m of ['whenever is fine', 'any day works', 'all day today', 'whenever you like']) {
+    reset({ stage: 'reengage_time' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (r === '' || calls.callback.length !== 1) { console.log('   \u21b3 not read as a time:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('Casey case: a non-time answer never becomes the callback TIME', async () => {
+  const rs = await seq(['Do u have a car for me?', "I've already given my requirements"],
+                       { stage: 'reengage_time' });
+  return rs[0] === ''
+      && calls.callback.length === 1
+      && calls.callback[0].datetime === 'no time given'
+      && db.datetime === 'no time given'
+      && /No time given/.test(calls.notify[0])
+      && /They said: "I've already given my requirements"/.test(calls.notify[0]);
+});
+
+T('a real time still goes in the slot and reads as a time to the manager', async () => {
+  await run('tomorrow at 4', { stage: 'reengage_time' });
+  return calls.callback[0].datetime === 'tomorrow at 4'
+      && /Call them: tomorrow at 4/.test(calls.notify[0])
+      && !/No time given/.test(calls.notify[0]);
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
