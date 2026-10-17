@@ -81,7 +81,7 @@ const VEHICLE_VOCAB = {
 // "I got declined" is about financing. A false positive costs one extra row
 // on a call list that shows the customer's own words, which is cheap. A
 // miss costs the lead.
-const CREDIT_RE = /\b(bad credit|poor credit|no credit|thin credit|credit score|credit challenged|credit (is|isn'?t|was|ain'?t)\s*(bad|poor|shot|rough|great|good|terrible|awful)?|my credit|rebuilding (my )?credit|subprime|no co-?signer|co-?signer|bankrupt|bankruptcy|consumer proposal|repo(ssession)?|in collections|collections|garnish(ment|ed)?|judge?ment|too much debt|debt|student loans?|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|not approved|wasn'?t approved|couldn'?t get (approved|financ(ed|ing))|can'?t get (approved|financ(ed|ing))|financing (fell|didn'?t|did not|was declined)|bank (said no|turned me down|declined)|no money|no down( payment)?|money('?s)? tight|tight on money)\b/i;
+const CREDIT_RE = /\b(bad credit|poor credit|no credit|thin credit|credit score|credit challenged|credit (is|isn'?t|was|ain'?t)\s*(bad|poor|shot|rough|great|good|terrible|awful)?|my credit|rebuilding (my )?credit|subprime|no co[- ]?signer|co[- ]?signer|bankrupt|bankruptcy|consumer proposal|repo(ssession)?|in collections|collections|garnish(ment|ed)?|judge?ment|too much debt|debt|student loans?|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|not approved|not approve|wasn'?t approved|need (a|an)? ?co[- ]?signer|couldn'?t get (approve|approved|financ(ed|ing))|can'?t get (approve|approved|financ(ed|ing))|cant get approve|financing (fell|didn'?t|did not|was declined)|bank (said no|turned me down|declined)|no money|no down( payment)?|money('?s)? tight|tight on money)\b/i;
 
 const VEHICLE_MAKES = [
   'ford','chevrolet','chevy','gmc','dodge','ram','jeep','chrysler','fiat','alfa romeo','alfa-romeo','alfa',
@@ -1476,7 +1476,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // had nudged them a stage forward. Dale said exactly that on batch 2 and
     // was handled correctly only by luck of timing. Declared once so they
     // cannot disagree again.
-    const DECLINE_RE = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|not at the moment|not right now|not now|not today|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|no time|too busy|maybe later|some other time)\b/i;
+    const DECLINE_RE = /\b(definitely not|absolutely not|certainly not|not interested|no thanks|no thank you|never ?mind|nvm|forget it|changed my mind|not anymore|not any more|not at the moment|not right now|not now|not today|for the time being|for now|don'?t call|do not call|don'?t bother|no need|i'?m good|all good|don'?t worry|no time|too busy|maybe later|some other time)\b/i;
     const BARE_NO_RE = /^(n|no|nope|nah|naw|not)\b/i;
 
     // One line on the alert, so the desk knows before it dials that this is
@@ -1801,7 +1801,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       // looking" with "Congrats". When someone volunteers a hardship, drop
       // the brightness and acknowledge it; never evaluate it, never promise
       // anything about approval — that is the closer's call, not Sarah's.
-      const hardship = /\b(bad credit|credit is (bad|poor|shot|rough)|poor credit|no co-?signer|bankrupt|bankruptcy|consumer proposal|repo(ssession)?|collections|garnish|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|no money|no down|tight)\b/i.test(message);
+      const hardship = CREDIT_RE.test(message);
       if (hardship) {
         return `Understood${first ? ' ' + first : ''} — ${mgr} will give you a call. What time works today or tomorrow?`;
       }

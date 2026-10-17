@@ -822,6 +822,50 @@ T('a real time still goes in the slot and reads as a time to the manager', async
       && !/No time given/.test(calls.notify[0]);
 });
 
+T('the 11:34 case: "cant get approve ... need a co signer" is a credit case, not a cheerful yes', async () => {
+  const r = await run("yes but i can't get approve they say i need a co signer");
+  return db.credit_flag === true
+      && db.stage === 'reengage_time'
+      && !/Good to hear|Great\./.test(r)
+      && /Understood/.test(r)
+      && /what time/i.test(r);
+});
+
+T('a co-signer is a co-signer however it is spelled', async () => {
+  for (const m of ['yes but i need a co signer', 'yes, need a cosigner', 'yes but no co-signer',
+                   "yes i can't get approve", 'yes but they would not approve me']) {
+    reset({ stage: 'reengage_confirm' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!db.credit_flag || /Good to hear|Great\./.test(r)) {
+      console.log('   \u21b3 missed or answered cheerfully:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
+T('one credit vocabulary — the tone check and the flag can never disagree', async () => {
+  // they used to be separate lists and the tone check had drifted far
+  // narrower, which is how "need a co signer" got "Great."
+  for (const m of ['yes, my credit is shot', 'yes but i was declined', 'yes, in collections',
+                   'yes but bankruptcy', 'yes, no down payment', 'yes but i lost my job']) {
+    reset({ stage: 'reengage_confirm' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (db.credit_flag !== true) { console.log('   \u21b3 not flagged:', JSON.stringify(m)); return false; }
+    if (/Good to hear|Great\./.test(r)) { console.log('   \u21b3 cheerful at a hardship:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('a clean yes still gets the warm line and no credit flag', async () => {
+  const r = await run('yes still looking for a truck');
+  return !db.credit_flag && /(Good to hear|Great\.)/.test(r);
+});
+
+T('Chadreeves case: "for the time being" is a decline, not a callback', async () => {
+  const r = await run('Hi Sarah, thanks for reaching out. I decided just to keep my Volvo for the time being.');
+  return db.stage === 'reengage_closed' && calls.callback.length === 0 && calls.notify.length === 0;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
