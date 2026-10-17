@@ -449,7 +449,7 @@
         <p>Install the First-Fin Extension, then visit your dealer site (e.g. yourdealer.ca/vehicles/used) and click Scan. Up to 1,000 vehicles can sync per dealership — typical lot of 200-500 imports in 5-15 minutes with full photos.</p>
       </div>
 
-      <div class="info-card" style="background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.25);">
+      <div class="info-card" id="w-next-routing" style="background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.25);">
         <div class="h" style="color:var(--amber);">Then: Set up your routing rules</div>
         <p>From the Lead Routing panel, decide how leads from each source (AutoTrader / Kijiji / CarCostCanada / TAQ) auto-assign to reps. Round-robin, by vehicle make, by lead source, or any combination.</p>
       </div>
@@ -476,26 +476,98 @@
     setTimeout(() => { t.className = 'toast' + (isErr ? ' err' : ''); }, 3000);
   }
 
-  // Seats the tenant actually paid for. Until this was read from the server
-  // the wizard told EVERY dealer "10 Seats -- 3 managers + 7 sales reps" and
-  // then asked a one-seat Solo account to invite ten people the server would
-  // refuse. Franco caught it on Capital Auto Finance, a single-seat tenant,
-  // on 2026-10-16.
+  // ── Which steps this dealer actually sees ────────────────────────────
+  // One wizard, not three. Three of the six panels are identical for every
+  // tier (dealership, lead inbox, Sarah's number), so separate files would
+  // mean the next required field gets added once and silently missing from
+  // two tiers. That is exactly how this wizard shipped asking every dealer
+  // for 3 managers and 7 reps, and how it finished without ever asking for
+  // a notification phone.
+  //
+  // So the step LIST is data, keyed off desk_tenants.tier — the same column
+  // billing writes, not the JWT and not settings.plan, so it cannot drift
+  // from what they are paying for.
+  //
+  //   panel 1 welcome · 2 dealership · 3 lead inbox · 4 team · 5 number · 6 done
+  const STEPS_BY_TIER = {
+    single:   [1, 2, 3, 5, 6],      // nobody to invite, nobody to route to
+    gold:     [1, 2, 3, 4, 5, 6],
+    platinum: [1, 2, 3, 4, 5, 6],
+  };
+  let STEPS = STEPS_BY_TIER.gold;   // replaced by applyTier() once the server answers
+  let tenantTier = null;
   let seatsAllowed = null;
 
+  // Redraw the stepper for the steps this dealer is actually walking. The
+  // dots were hardcoded 1..6, so skipping the team step left a Solo dealer
+  // watching the numbers jump 3 -> 5 and finish on "6 of 6" having done four.
+  function renderStepper() {
+    for (let i = 1; i <= 6; i++) {
+      const dot = document.getElementById('dot-' + i);
+      if (!dot) continue;
+      const shown = STEPS.includes(i);
+      dot.style.display = shown ? '' : 'none';
+      if (shown) dot.textContent = String(STEPS.indexOf(i) + 1);
+      // One line between each pair of visible dots, never two in a row.
+      const line = document.getElementById('line-' + i) || document.getElementById('line-' + (i - 1));
+      if (!shown && line) line.style.display = 'none';
+    }
+  }
+
+  function applyTier(tier, allowed) {
+    tenantTier   = tier || null;
+    seatsAllowed = allowed || null;
+    STEPS = STEPS_BY_TIER[tenantTier] || STEPS_BY_TIER.gold;
+    // A tier we don't recognise but only one seat still has nobody to invite.
+    if (!STEPS_BY_TIER[tenantTier] && seatsAllowed === 1) STEPS = STEPS_BY_TIER.single;
+    renderStepper();
+
+    const solo = STEPS === STEPS_BY_TIER.single;
+    const cnt = document.getElementById('w-seat-count');
+    const dsc = document.getElementById('w-seat-desc');
+    if (seatsAllowed) {
+      if (cnt) cnt.textContent = seatsAllowed === 1 ? '1 Seat' : seatsAllowed + ' Seats';
+      if (dsc) dsc.textContent = seatsAllowed === 1
+        ? 'Just you. Add seats any time as you hire.'
+        : 'You, plus ' + (seatsAllowed - 1) + ' more. Add or remove anytime.';
+    } else if (cnt && cnt.parentElement) {
+      // A wrong seat count is worse than no tile.
+      cnt.parentElement.style.display = 'none';
+    }
+    const sub = document.getElementById('w-team-sub');
+    if (sub && seatsAllowed > 1) {
+      sub.textContent = 'Add up to ' + (seatsAllowed - 1) + ' more '
+        + (seatsAllowed - 1 === 1 ? 'person' : 'people')
+        + '. Each gets an emailed setup link to choose their own password. You can add more later from the Team menu.';
+    }
+    // Routing rules need reps to route to.
+    const routing = document.getElementById('w-next-routing');
+    if (routing) routing.style.display = solo ? 'none' : '';
+    // If the tier arrived while sitting on a step this plan skips, move.
+    if (!STEPS.includes(currentStep)) goStep(currentStep);
+  }
+
   function goStep(n) {
-    // Nothing to invite on a one-seat plan, in either direction.
-    if (seatsAllowed === 1) {
-      if (n === 4) n = currentStep >= 5 ? 3 : 5;
+    // Buttons pass literal panel numbers. Resolve to the nearest step this
+    // plan actually has, in the direction the dealer is travelling.
+    if (!STEPS.includes(n)) {
+      const dir = n >= currentStep ? 1 : -1;
+      let m = n;
+      while (m >= 1 && m <= 6 && !STEPS.includes(m)) m += dir;
+      if (!STEPS.includes(m)) {
+        m = dir === 1 ? STEPS[STEPS.length - 1] : STEPS[0];
+      }
+      n = m;
     }
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + n).classList.add('active');
-    // Stepper visual
+    const pos = STEPS.indexOf(n);
     for (let i = 1; i <= 6; i++) {
       const dot  = document.getElementById('dot-' + i);
       const line = document.getElementById('line-' + i);
-      if (dot)  dot.className  = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
-      if (line) line.className = 'step-line' + (i < n ? ' done' : '');
+      const idx  = STEPS.indexOf(i);
+      if (dot)  dot.className  = 'step-dot' + (idx < 0 ? '' : idx < pos ? ' done' : idx === pos ? ' active' : '');
+      if (line) line.className = 'step-line' + (idx >= 0 && idx < pos ? ' done' : '');
     }
     currentStep = n;
     window.scrollTo(0, 0);
@@ -780,33 +852,20 @@
         const ac = _suggestAreaCode(s.dealerCity);
         if (ac) document.getElementById('w-areacode').value = ac;
 
-        // Real seat count, from the tenant row rather than hardcoded Gold copy.
+        // Tier drives the step list, the seat copy and the closing advice.
+        // desk_tenants.tier is the one source of truth here -- the same
+        // column billing writes.
         try {
           const tRes = await window.FF.apiFetch('/api/desk/team');
           if (tRes.status === 200) {
             const t = await tRes.json();
-            const allowed = (t.seatUsage && t.seatUsage.allowed) || null;
-            if (allowed) {
-              seatsAllowed = allowed;
-              const cnt = document.getElementById('w-seat-count');
-              const dsc = document.getElementById('w-seat-desc');
-              if (cnt) cnt.textContent = allowed === 1 ? '1 Seat' : allowed + ' Seats';
-              if (dsc) dsc.textContent = allowed === 1
-                ? 'Just you. Add seats any time as you hire.'
-                : 'You, plus ' + (allowed - 1) + ' more. Add or remove anytime.';
-              const sub = document.getElementById('w-team-sub');
-              if (sub && allowed > 1) {
-                sub.textContent = 'Add up to ' + (allowed - 1) + ' more ' + (allowed - 1 === 1 ? 'person' : 'people')
-                  + '. Each gets an emailed setup link to choose their own password. You can add more later from the Team menu.';
-              }
-            }
+            applyTier(t.tenant && t.tenant.tier, t.seatUsage && t.seatUsage.allowed);
+          } else {
+            console.warn('wizard: could not read tier (' + tRes.status + ') -- leaving the step list at its default');
+            applyTier(null, null);
           }
-        } catch (_) {}
-        // Never leave "Loading your plan..." sitting there. A wrong seat
-        // count is worse than no tile at all.
-        if (seatsAllowed === null) {
-          const tile = document.getElementById('w-seat-count');
-          if (tile && tile.parentElement) tile.parentElement.style.display = 'none';
+        } catch (e) {
+          applyTier(null, null);
         }
 
         // Tier-aware tagline + welcome heading. Tier comes from the JWT
