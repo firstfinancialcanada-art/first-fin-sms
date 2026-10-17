@@ -908,6 +908,39 @@ T('every real day and clock time still reads as a time', async () => {
   return true;
 });
 
+T('Jeff case: a repo and "won\u0027t be able to get financed" is a credit case', async () => {
+  const r = await run("Looking but won't b able to get 1 financed. My other card got repoed",
+                      { stage: 'reengage_confirm' });
+  return db.credit_flag === true
+      && /repoed/.test(db.credit_note || '')
+      && calls.notify.length === 0;          // routed to the time question first
+});
+
+T('a repossession counts however it is written', async () => {
+  for (const m of ['got repoed last year', 'my truck was repossessed', "it got repo'd",
+                   'repossession on my file', 'had a repo']) {
+    reset({ stage: 'reengage_confirm' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!db.credit_flag) { console.log('   \u21b3 missed:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('a negated "financed" anywhere in the sentence is a credit answer', async () => {
+  for (const m of ["won't be able to get financed", 'cant get financed', 'unable to finance anything',
+                   'not able to finance right now']) {
+    reset({ stage: 'reengage_confirm' });
+    await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!db.credit_flag) { console.log('   \u21b3 missed:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('financing mentioned WITHOUT a negative is not a credit case', async () => {
+  const r = await run('I financed it elsewhere already', { stage: 'reengage_confirm' });
+  return !db.credit_flag;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
