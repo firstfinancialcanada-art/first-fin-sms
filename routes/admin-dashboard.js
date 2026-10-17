@@ -753,7 +753,25 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
          VALUES ($1, $2, $3, 'owner', $4, 'active') RETURNING id, email, display_name`,
         [email.toLowerCase(), hash, name, JSON.stringify({ salesName: name, dealerName: dealerName || name + ' Auto' })]
       );
-      res.json({ success: true, user: result.rows[0] });
+      // A desk_users row on its own is a half-built tenant. Nothing resolves
+      // a tenant_id from it, so notifyTenantManagers gets null and EVERY
+      // callback and appointment alert for that dealer is silently skipped,
+      // their inventory is invisible to their own reps, and the Team modal
+      // has nobody in it. The Stripe path has always called ensureOwnerTenant
+      // for exactly this reason; the admin path never did, so any account
+      // created here looked fine and then dropped leads on the floor. Found
+      // while standing up Adil's account 2026-10-16.
+      const created = result.rows[0];
+      let tenantId = null;
+      try {
+        const t = await tenants.ensureOwnerTenant(created.id, dealerName || name + ' Auto', 'single');
+        tenantId = t.tenantId;
+      } catch (e) {
+        console.error('❌ admin create: ensureOwnerTenant failed:', e.message);
+      }
+      await auditLog('create_user', 'user', created.id, { email: created.email, tenantId }, req);
+      res.json({ success: true, user: created, tenantId,
+                 warning: tenantId ? undefined : 'User created but tenant provisioning failed — run onboarding-repair before using the account' });
     } catch(e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
