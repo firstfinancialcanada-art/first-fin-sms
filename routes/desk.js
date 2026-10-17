@@ -2580,11 +2580,22 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       if (!body) return res.status(400).json({ success: false, error: 'Note body is required' });
       if (body.length > 4000) return res.status(400).json({ success: false, error: 'Note too long (max 4000 chars)' });
 
+      // An optional method turns a note into a logged touch: Call, Text,
+      // Email, In Person, Voicemail. last_contact is already stamped below,
+      // so the pair gives the dialling view the sheet's Method column did --
+      // what happened, and when.
+      const method = req.body?.method ? String(req.body.method).trim() : null;
+      if (method && !crmHistory.TOUCH_METHODS.some(x => x.toLowerCase() === method.toLowerCase())) {
+        return res.status(400).json({ success: false, code: 'BAD_METHOD',
+          error: 'method must be one of: ' + crmHistory.TOUCH_METHODS.join(', ') });
+      }
+
       const r = await crmHistory.addNote({
         tenantId: scope.tenantId,
         leadId: parseInt(req.params.id, 10),
         authorId: req.user.userId,
         body,
+        method,
       });
       if (!r.ok) return res.status(400).json({ success: false, error: r.error });
 
@@ -2607,8 +2618,8 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         tenantId: scope.tenantId,
         leadId: parseInt(req.params.id, 10),
         userId: req.user.userId,
-        action: 'note_added',
-        changes: { note_id: r.note.id, body: body.slice(0, 200) },
+        action: method ? 'touch_logged' : 'note_added',
+        changes: { note_id: r.note.id, body: body.slice(0, 200), method: method || undefined },
       });
       res.json({ success: true, note: r.note });
     } catch (e) {

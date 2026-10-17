@@ -4082,7 +4082,7 @@ function renderCRM(){
       <button onclick="openCrmNotes(${c.id})" title="Notes & contact info${noteCount?' ('+noteCount+')':''}" style="background:none;border:none;cursor:pointer;font-size:14px;position:relative">&#128221;${noteCount>0?'<span style="position:absolute;top:-4px;right:-6px;background:var(--primary);color:white;border-radius:8px;font-size:8px;padding:1px 4px;font-weight:700">'+noteCount+'</span>':''}</button>
       ${undoable?`<button onclick="undoCrmChange(${c.id})" title="Undo last change" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--amber)">&#8630;</button>`:''}
       <select onchange="updateCRM(${c.id},this.value);this.blur()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 4px;font-size:8px;font-family:'Outfit',sans-serif;width:70px">
-        ${['Lead','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}
+        ${CRM_STATUSES.map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}${CRM_STATUSES.includes(c.status)||!c.status?'':`<option selected>${_esc(c.status)}</option>`}
       </select>
       <button onclick="deleteCRM(${c.id})" title="Delete (recoverable for 30 days)" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--dim)">&#10006;</button>
     </td>
@@ -4127,6 +4127,10 @@ function renderCRM(){
       <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Add a note</label>
       <textarea id="crmNoteNew" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0 6px" placeholder="What happened with this customer?"></textarea>
       <button onclick="addCrmNote()" style="width:100%;padding:6px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer;font-size:10px">Add Note</button>
+      <div style="display:flex;gap:4px;margin-top:5px">
+        ${['Call','Text','Email','Voicemail'].map(m=>`<button onclick="logCrmTouch('${m}')" title="Log a ${m.toLowerCase()} and stamp last contact" style="flex:1;padding:5px 2px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-weight:600;cursor:pointer;font-size:9px;font-family:'Outfit',sans-serif">${m}</button>`).join('')}
+      </div>
+      <div style="font-size:8px;color:var(--muted);margin-top:3px">Logs the note above with how it happened. Empty logs the attempt.</div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
         <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes timeline</label>
@@ -4319,7 +4323,8 @@ async function loadCrmNotes() {
     tl.innerHTML = notes.map(n => {
       const deleted = !!n.deleted_at;
       const author = n.author_name || (n.author_id ? 'User #'+n.author_id : 'system');
-      const meta = _esc(author) + ' · ' + _esc(_fmtTs(n.created_at));
+      const meta = (n.method ? '<span style="color:var(--primary);font-weight:700">' + _esc(n.method) + '</span> · ' : '')
+        + _esc(author) + ' · ' + _esc(_fmtTs(n.created_at));
       const delMeta = deleted
         ? '<div style="font-size:8px;color:var(--red);margin-top:3px">Deleted '+_esc(_fmtTs(n.deleted_at))+(n.deleted_by_name?' by '+_esc(n.deleted_by_name):'')+'</div>'
         : '';
@@ -4414,6 +4419,41 @@ async function saveCrmContact() {
   } catch (e) {
     console.error('saveCrmContact failed:', e);
     toast('Save failed');
+  }
+}
+
+// The dialling statuses matter as much as the pipeline ones. "No Answer" is
+// the most common state on a credit book worked by phone -- 17 of the 53 rows
+// on the AD sheet -- and it had no home here, which is half of why that sheet
+// could not be retired. Added rather than approximated as "Lead".
+//
+// A status the server holds that is NOT in this list used to vanish: the
+// select rendered without it, so the first save silently rewrote the row to
+// "Lead". Any unknown value is now appended and kept.
+const CRM_STATUSES = ['Lead','No Answer','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'];
+
+// Log a touch: a note plus HOW it happened. Stamps last_contact server-side.
+async function logCrmTouch(method) {
+  if (!_crmNotesId) return;
+  const el = document.getElementById('crmNoteNew');
+  const typed = (el && el.value || '').trim();
+  const body = typed || method + ' — no answer';
+  try {
+    const r = await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body, method })
+    });
+    const data = await r.json();
+    if (!data.success) { toast('Log failed: ' + (data.error || 'unknown')); return; }
+    if (el) el.value = '';
+    toast(method + ' logged');
+    await loadCrmNotes();
+    await _refreshCrmData();
+    openCrmNotes(_crmNotesId);
+  } catch (e) {
+    console.error('logCrmTouch failed:', e);
+    toast('Log failed');
   }
 }
 
