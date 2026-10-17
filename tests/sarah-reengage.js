@@ -866,6 +866,48 @@ T('Chadreeves case: "for the time being" is a decline, not a callback', async ()
   return db.stage === 'reengage_closed' && calls.callback.length === 0 && calls.notify.length === 0;
 });
 
+T('Tadesse case: "I moved to Edmonton" is not a time', async () => {
+  // It was, because "Edmonton" contains "mon". He was sent "Perfect Tadesse
+  // - our sales manager Franco will call you I moved to Edmonton."
+  const r = await run('I moved to Edmonton', { stage: 'reengage_time_q' });
+  return r === ''                                   // held, not answered
+      && db.stage === 'reengage_held_q'
+      && calls.callback.length === 0
+      && calls.notify.length === 0;
+});
+
+T('Tadesse case: once it books, his words are not the callback time', async () => {
+  const rs = await seq(['I moved to Edmonton', 'so not much use to you'], { stage: 'reengage_time_q' });
+  return !/will call you I moved/.test(rs[1])
+      && calls.callback.length === 1
+      && calls.callback[0].datetime === 'no time given'
+      && /No time given/.test(calls.notify[0]);
+});
+
+T('a weekday inside another word is not a time', async () => {
+  for (const m of ['I moved to Edmonton', 'satisfied with my current car', 'it was a sunny day',
+                   'my friend said to call', 'I have a wedding', 'I am not in Calgary']) {
+    reset({ stage: 'reengage_time' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (r === '') continue;                         // held for a burst, also fine
+    if (/will call you/.test(r)) { console.log('   \u21b3 read as a time:', JSON.stringify(m)); return false; }
+  }
+  return true;
+});
+
+T('every real day and clock time still reads as a time', async () => {
+  for (const m of ['monday at 4','tuesday','wednesday','thursday morning','friday','saturday','sunday',
+                   '9am','4 pm','noon','tomorrow after 4','any day works','whenever is fine',
+                   'today if his calling around 1 pm is good']) {
+    reset({ stage: 'reengage_time' });
+    const r = await getReengageResponse('+14035195567', m, db, 1, '+15873303601', 3, 'House of Cars', 'FRANCO');
+    if (!/will call you/.test(r) || calls.callback[0].datetime === 'no time given') {
+      console.log('   \u21b3 not read as a time:', JSON.stringify(m)); return false;
+    }
+  }
+  return true;
+});
+
 (async () => {
   let pass = 0, fail = 0;
   for (const c of checks) {
