@@ -2257,12 +2257,24 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // Wipe by tenant — covers all members' rows, not just the caller's
       await client.query('DELETE FROM desk_crm WHERE tenant_id = $1', [scope.tenantId]);
 
+      // last_contact and follow_up_date are the two columns an imported book
+      // arrives WITH. Leaving them off the insert meant a tracker coming off
+      // a spreadsheet lost when each lead was last touched -- the one thing a
+      // dialling book is sorted by -- and the rows all looked equally cold.
+      // Both are plain dates; anything unparseable is dropped rather than
+      // guessed at.
+      const asDate = (v) => {
+        if (!v) return null;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+      };
       for (const c of crm) {
         await client.query(
-          `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, email, beacon, income, obligations, status, source, notes, last_contact, follow_up_date)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [req.user.userId, scope.tenantId, null,  // bulk imports start unassigned (pool)
-           c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes]
+           c.name, c.phone, c.email, c.beacon, c.income, c.obligations, c.status || 'Lead', c.source, c.notes,
+           asDate(c.last_contact), asDate(c.follow_up_date)]
         );
       }
 
