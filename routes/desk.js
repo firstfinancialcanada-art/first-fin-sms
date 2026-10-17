@@ -954,6 +954,20 @@ const { sendCustomerSms } = require('../lib/customer-sms');
     try {
       const { settings } = req.body;
 
+      // An absent or empty settings object used to sail straight through:
+      // normalizeSettings({}) hands back a full set of defaults and the
+      // UPDATE below wrote them, so a malformed request reset the dealer's
+      // whole configuration -- dealership name back to "My Dealership" --
+      // and nulled twilio_number, taking their Sarah line offline. And it
+      // answered 200 success. Caught live on 2026-10-16 setting up Capital
+      // Auto Finance, from a request of mine with the fields at the top
+      // level instead of wrapped. A client bug should not be able to wipe a
+      // tenant.
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings) || !Object.keys(settings).length) {
+        return res.status(400).json({ success: false, code: 'EMPTY_SETTINGS',
+          error: 'No settings in the request body. Expected { settings: { ... } } with at least one field.' });
+      }
+
       // Refuse junk rather than store it. The setup wizard used to save
       // whatever was typed after stripping punctuation, which is how STC
       // ended up with a bare "5873066133" as its notify number while every
@@ -977,7 +991,25 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         return res.status(403).json({ success: false, error: 'Only managers can change dealership settings.' });
       }
 
-      const normalized = normalizeSettings(settings || {});
+      // Merge over what is already stored instead of replacing it. Every
+      // caller sends a PARTIAL object -- the welcome wizard's step 2 posts
+      // only { dealerName, dealerCity, logoUrl } -- and under replace
+      // semantics that silently cleared the Sarah number, the notification
+      // phone, the rate settings and the business hours. A dealer editing
+      // their city after setup would knock their own line out.
+      //
+      // A field the caller DOES send still wins, including when it is '',
+      // so clearing a value on purpose keeps working. Only keys the caller
+      // never mentioned are preserved.
+      let previous = {};
+      try {
+        const prevRow = await client.query('SELECT settings_json FROM desk_users WHERE id = $1', [req.user.userId]);
+        const raw = prevRow.rows[0] && prevRow.rows[0].settings_json;
+        previous = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+      } catch (e) {
+        console.warn('settings merge: could not read previous settings:', e.message);
+      }
+      const normalized = normalizeSettings(Object.assign({}, previous, settings));
 
       // Ensure twilio_number column exists (safe to run repeatedly)
       await client.query(`ALTER TABLE desk_users ADD COLUMN IF NOT EXISTS twilio_number TEXT`).catch(() => {});

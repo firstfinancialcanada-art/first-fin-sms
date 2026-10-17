@@ -281,8 +281,8 @@
 
       <div class="feature-grid">
         <div class="feature-tile">
-          <div class="name">10 Seats</div>
-          <div class="desc">3 managers + 7 sales reps. Add or remove anytime.</div>
+          <div class="name" id="w-seat-count">Your Seats</div>
+          <div class="desc" id="w-seat-desc">Loading your plan...</div>
         </div>
         <div class="feature-tile">
           <div class="name">Shared Inventory</div>
@@ -322,6 +322,14 @@
 
       <label>City</label>
       <input type="text" id="w-dealer-city" placeholder="e.g. Calgary, AB">
+
+      <label>Notification Phone</label>
+      <input type="tel" id="w-notify-phone" placeholder="e.g. (403) 555-0199">
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;">Where Sarah texts you every booking and callback. Without it, you get nothing.</div>
+
+      <label>Sales Manager Name</label>
+      <input type="text" id="w-sales-name" placeholder="e.g. Adil">
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;">Sarah uses this when she tells a customer who will be calling them back.</div>
 
       <label>Logo (optional — PNG, JPG, WebP or SVG, max 2MB)</label>
       <div style="display:flex;gap:10px;align-items:center;">
@@ -369,7 +377,7 @@
     <!-- ── STEP 4: INVITE TEAM ── -->
     <div class="panel" id="panel-4">
       <h1>Invite Your <span class="accent">Team</span></h1>
-      <p class="sub">Add your 3 managers and up to 7 sales reps. Each gets an emailed setup link to choose their own password. You can add more later from the Team menu.</p>
+      <p class="sub" id="w-team-sub">Each person you add gets an emailed setup link to choose their own password. You can add more later from the Team menu.</p>
 
       <div class="row">
         <div>
@@ -468,7 +476,18 @@
     setTimeout(() => { t.className = 'toast' + (isErr ? ' err' : ''); }, 3000);
   }
 
+  // Seats the tenant actually paid for. Until this was read from the server
+  // the wizard told EVERY dealer "10 Seats -- 3 managers + 7 sales reps" and
+  // then asked a one-seat Solo account to invite ten people the server would
+  // refuse. Franco caught it on Capital Auto Finance, a single-seat tenant,
+  // on 2026-10-16.
+  let seatsAllowed = null;
+
   function goStep(n) {
+    // Nothing to invite on a one-seat plan, in either direction.
+    if (seatsAllowed === 1) {
+      if (n === 4) n = currentStep >= 5 ? 3 : 5;
+    }
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + n).classList.add('active');
     // Stepper visual
@@ -492,14 +511,22 @@
 
   // Step 2 — save dealership info
   async function saveStep2() {
-    const dealerName = document.getElementById('w-dealer-name').value.trim();
-    const dealerCity = document.getElementById('w-dealer-city').value.trim();
-    const logoUrl    = document.getElementById('w-logo-url').value.trim();
+    const dealerName  = document.getElementById('w-dealer-name').value.trim();
+    const dealerCity  = document.getElementById('w-dealer-city').value.trim();
+    const logoUrl     = document.getElementById('w-logo-url').value.trim();
+    const notifyPhone = document.getElementById('w-notify-phone').value.trim();
+    const salesName   = document.getElementById('w-sales-name').value.trim();
     if (!dealerName) { showToast('Dealership name is required', true); return; }
+    // The wizard used to finish without ever asking for this, so a dealer
+    // who completed all six steps exactly as designed had no notification
+    // target at all -- notifyTenantManagers found nobody and every booking
+    // and callback alert was skipped in silence. Required here now.
+    if (!notifyPhone) { showToast('Notification phone is required -- without it you get no booking or callback alerts', true); return; }
+    if (notifyPhone.replace(/\D/g, '').length < 10) { showToast('Notification phone needs 10 digits', true); return; }
     try {
       const res = await window.FF.apiFetch('/api/desk/settings', {
         method: 'PUT',
-        body: JSON.stringify({ settings: { dealerName, dealerCity, logoUrl } })
+        body: JSON.stringify({ settings: { dealerName, dealerCity, logoUrl, notifyPhone, salesName } })
       });
       const d = await res.json();
       if (!d.success) throw new Error(d.error || 'Save failed');
@@ -743,6 +770,8 @@
         const s = d.settings || {};
         if (s.dealerName) document.getElementById('w-dealer-name').value = s.dealerName;
         if (s.dealerCity) document.getElementById('w-dealer-city').value = s.dealerCity;
+        if (s.notifyPhone) document.getElementById('w-notify-phone').value = s.notifyPhone;
+        if (s.salesName)   document.getElementById('w-sales-name').value   = s.salesName;
         if (s.logoUrl) {
           document.getElementById('w-logo-url').value = s.logoUrl;
           wShowLogoPreview(s.logoUrl);
@@ -750,6 +779,29 @@
         // Suggest area code for the Sarah-number step
         const ac = _suggestAreaCode(s.dealerCity);
         if (ac) document.getElementById('w-areacode').value = ac;
+
+        // Real seat count, from the tenant row rather than hardcoded Gold copy.
+        try {
+          const tRes = await window.FF.apiFetch('/api/desk/team');
+          if (tRes.status === 200) {
+            const t = await tRes.json();
+            const allowed = (t.seatUsage && t.seatUsage.allowed) || null;
+            if (allowed) {
+              seatsAllowed = allowed;
+              const cnt = document.getElementById('w-seat-count');
+              const dsc = document.getElementById('w-seat-desc');
+              if (cnt) cnt.textContent = allowed === 1 ? '1 Seat' : allowed + ' Seats';
+              if (dsc) dsc.textContent = allowed === 1
+                ? 'Just you. Add seats any time as you hire.'
+                : 'You, plus ' + (allowed - 1) + ' more. Add or remove anytime.';
+              const sub = document.getElementById('w-team-sub');
+              if (sub && allowed > 1) {
+                sub.textContent = 'Add up to ' + (allowed - 1) + ' more ' + (allowed - 1 === 1 ? 'person' : 'people')
+                  + '. Each gets an emailed setup link to choose their own password. You can add more later from the Team menu.';
+              }
+            }
+          }
+        } catch (_) {}
 
         // Tier-aware tagline + welcome heading. Tier comes from the JWT
         // payload via window.FF, falling back to settings.plan.
