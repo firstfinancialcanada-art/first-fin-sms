@@ -20,7 +20,8 @@ const MEMBERS = [
   { tenant_id: 9, user_id: 7, role: 'owner',   active: true },
   { tenant_id: 9, user_id: 8, role: 'rep',     active: true },   // rep: must NOT be alerted
 ];
-const TENANTS = [{ id: 3, owner_user_id: 1 }, { id: 9, owner_user_id: 7 }];
+const TENANTS = [{ id: 3, owner_user_id: 1, dealership: 'Rolling with Franco' },
+                 { id: 9, owner_user_id: 7, dealership: 'Hunt Chrysler' }];
 
 let noNotifyPhones = false;   // flips branch 1 off to exercise the settings fallback
 
@@ -34,6 +35,12 @@ async function fakeQuery(sql, params) {
       .filter(u => !noNotifyPhones && u.notify_phone && u.notify_phone.length >= 10)
       .map(u => ({ user_id: u.id, display_name: u.display_name, notify_phone: u.notify_phone, role: u.role }));
     return { rows };
+  }
+  // the dealership label query — matched BEFORE the notifyPhone fallback,
+  // which also reads desk_tenants
+  if (s.includes('t.dealership')) {
+    const t = TENANTS.find(x => x.id === params[0]);
+    return { rows: t ? [{ label: t.dealership || null }] : [] };
   }
   if (s.includes('FROM desk_tenants t')) {
     const tid = params[0];
@@ -63,7 +70,8 @@ stub(P('helpers.js'), realHelpers);
 const notify = require(P('notify.js'));
 
 const sentTo = [];
-const twilioClient = { messages: { create: async (o) => { sentTo.push(o.to); return { sid: 'SM1' }; } } };
+const sentBodies = [];
+const twilioClient = { messages: { create: async (o) => { sentTo.push(o.to); sentBodies.push(o.body); return { sid: 'SM1' }; } } };
 
 const checks = [];
 const T = (label, fn) => checks.push({ label, fn });
@@ -106,6 +114,31 @@ T('a null tenantId sends to nobody', async () => {
   sentTo.length = 0;
   const r = await notify.notifyTenantManagers({ tenantId: null, fromNumber: '+15873303601', body: 'x', twilioClient });
   return sentTo.length === 0 && r.sent === 0;
+});
+
+T('every alert is stamped with the store it came from', async () => {
+  sentTo.length = 0; sentBodies.length = 0;
+  notify.clearTenantLabel();
+  await notify.notifyTenantManagers({ tenantId: 9, fromNumber: '+15873303601', twilioClient,
+                                      body: 'CALLBACK — REENGAGE\nSomeone\n+15195551212' });
+  const b = sentBodies[0] || '';
+  return b.startsWith('HUNT CHRYSLER\n') && /CALLBACK/.test(b);
+});
+
+T('two tenants on the same notify phone are told apart', async () => {
+  sentBodies.length = 0;
+  notify.clearTenantLabel();
+  await notify.notifyTenantManagers({ tenantId: 3, fromNumber: '+15873303601', twilioClient, body: 'CALLBACK one' });
+  await notify.notifyTenantManagers({ tenantId: 9, fromNumber: '+15873303601', twilioClient, body: 'CALLBACK one' });
+  return sentBodies.length === 2 && sentBodies[0] !== sentBodies[1]
+      && /ROLLING WITH FRANCO/.test(sentBodies[0]) && /HUNT CHRYSLER/.test(sentBodies[1]);
+});
+
+T('a tenant with no dealership name still gets its alert', async () => {
+  sentBodies.length = 0;
+  notify.clearTenantLabel();
+  const r = await notify.notifyTenantManagers({ tenantId: 3, fromNumber: '+15873303601', twilioClient, body: 'CALLBACK two' });
+  return r.sent >= 1 && sentBodies[0].includes('CALLBACK two');
 });
 
 (async () => {
