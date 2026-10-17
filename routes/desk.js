@@ -3759,12 +3759,17 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       const t = await pool.query(`SELECT id, dealership, lead_intake_email, tier FROM desk_tenants WHERE id = $1`, [scope.tenantId]);
       if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant row missing' });
       const members = await pool.query(`
-        SELECT m.id, m.user_id, m.role, m.crm_mode, m.active, m.created_at,
+        -- desk_members records invited_at, not created_at. This was the
+        -- SECOND wrong column in this one endpoint: fixing the plan column above
+        -- only moved the 500 along to this line. Aliased so any caller
+        -- reading created_at still gets a date.
+        SELECT m.id, m.user_id, m.role, m.crm_mode, m.active,
+               m.invited_at, m.invited_at AS created_at,
                u.email, u.display_name, u.last_active
         FROM desk_members m
         JOIN desk_users u ON u.id = m.user_id
         WHERE m.tenant_id = $1
-        ORDER BY (CASE m.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END), m.created_at ASC
+        ORDER BY (CASE m.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END), m.invited_at ASC
       `, [scope.tenantId]);
       const seatUsage = await tenantsLib.getSeatUsage(scope.tenantId);
       res.json({
