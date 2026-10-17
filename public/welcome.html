@@ -802,6 +802,12 @@
             }
           }
         } catch (_) {}
+        // Never leave "Loading your plan..." sitting there. A wrong seat
+        // count is worse than no tile at all.
+        if (seatsAllowed === null) {
+          const tile = document.getElementById('w-seat-count');
+          if (tile && tile.parentElement) tile.parentElement.style.display = 'none';
+        }
 
         // Tier-aware tagline + welcome heading. Tier comes from the JWT
         // payload via window.FF, falling back to settings.plan.

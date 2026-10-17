@@ -3036,7 +3036,9 @@ async function refreshTeam() {
 
     const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     setTxt('team-dealership',  d.tenant?.dealership || 'Your Dealership');
-    setTxt('team-plan-badge',  (d.tenant?.plan || 'gold').toUpperCase());
+    // Defaulting this to 'gold' showed every dealer a GOLD badge, including
+    // single-seat accounts. The schema default is 'single'.
+    setTxt('team-plan-badge',  (d.tenant?.tier || d.tenant?.plan || 'single').toUpperCase());
     setTxt('team-seats-used',  d.seatUsage?.used    || 0);
     setTxt('team-seats-cap',   d.seatUsage?.allowed || 0);
 

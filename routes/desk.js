@@ -3750,7 +3750,13 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         return res.status(403).json({ success: false, code: 'FORBIDDEN_ROLE',
           error: 'Only managers + owners can view the team list' });
       }
-      const t = await pool.query(`SELECT id, dealership, lead_intake_email, plan FROM desk_tenants WHERE id = $1`, [scope.tenantId]);
+      // desk_tenants has no `plan` column and never has -- the field is
+      // `tier`. So this SELECT threw "column plan does not exist" and this
+      // endpoint answered 500 for EVERY tenant, meaning the Team modal has
+      // been broken platform-wide. Found while reading seat counts for the
+      // welcome wizard on 2026-10-16. `plan` is still returned as an alias
+      // because the front-end badge reads it.
+      const t = await pool.query(`SELECT id, dealership, lead_intake_email, tier FROM desk_tenants WHERE id = $1`, [scope.tenantId]);
       if (!t.rows.length) return res.status(404).json({ success: false, error: 'Tenant row missing' });
       const members = await pool.query(`
         SELECT m.id, m.user_id, m.role, m.crm_mode, m.active, m.created_at,
@@ -3767,7 +3773,8 @@ const { sendCustomerSms } = require('../lib/customer-sms');
           id:               t.rows[0].id,
           dealership:       t.rows[0].dealership,
           leadIntakeEmail:  t.rows[0].lead_intake_email,
-          plan:             t.rows[0].plan,
+          tier:             t.rows[0].tier,
+          plan:             t.rows[0].tier,
         },
         members: members.rows,
         seatUsage,
