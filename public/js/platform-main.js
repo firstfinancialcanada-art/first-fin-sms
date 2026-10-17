@@ -5603,12 +5603,60 @@ function anchorRow(el){
   };
 }
 
+// One bubble. Shared by the first paint and by the poller below so a message
+// that arrives later cannot render differently from one that was already there.
+function msgBubble(m){
+  return `
+      <div class="msg-bubble ${m.role}" data-mid="${m.id}">
+        <div class="msg-role">${m.role==='user'?'Customer':'Sarah AI'}</div>
+        <div style="color:var(--text);line-height:1.5;white-space:pre-wrap;">${escapeHtml(m.content)}</div>
+        <div class="msg-time">${new Date(m.created_at).toLocaleString()}</div>
+      </div>`;
+}
+
+// Open threads used to go stale. The 30-second list refresh is skipped while
+// one is open (it re-rendered the whole list and threw the reader out of
+// whatever they were reading) and nothing replaced it, so a conversation you
+// were WATCHING sat frozen while the customer was replying to it. Franco hit
+// this reading the June/July run on 2026-10-17.
+//
+// So each open thread polls itself and appends only what it has not already
+// got, keyed on message id. The list keeps its no-yank behaviour, and your
+// scroll position is only followed if you were already at the bottom - if you
+// have scrolled up to read something, new messages land quietly below you.
+const _threadPolls = new Map();
+
+function stopThreadPoll(cleanPhone){
+  const t = _threadPolls.get(cleanPhone);
+  if(t){ clearInterval(t); _threadPolls.delete(cleanPhone); }
+}
+
+async function pollThread(phone, cleanPhone){
+  const thread = document.getElementById('thread-'+cleanPhone);
+  const box    = document.getElementById('tm-'+cleanPhone);
+  if(!thread || !thread.classList.contains('open') || !box){ stopThreadPoll(cleanPhone); return; }
+  // Keep the timer but skip the request while the section is hidden - there is
+  // nobody looking at it, and a campaign day is long.
+  if(!document.getElementById('section-sarah')?.classList.contains('active')) return;
+  let data;
+  try { data = await FF.apiFetch('/api/conversation/'+encodeURIComponent(phone)).then(r=>r.json()); }
+  catch(e){ return; }                               // a blip is not a reason to stop watching
+  if(!data || data.error || !data.messages?.length) return;
+  const have = new Set([...box.querySelectorAll('[data-mid]')].map(el=>el.getAttribute('data-mid')));
+  const fresh = data.messages.filter(m=>!have.has(String(m.id)));
+  if(!fresh.length) return;
+  const atBottom = Math.abs(thread.scrollHeight - thread.scrollTop - thread.clientHeight) < 40;
+  box.insertAdjacentHTML('beforeend', fresh.map(msgBubble).join(''));
+  if(atBottom) thread.scrollTop = thread.scrollHeight;
+}
+
 async function toggleConversation(phone, cleanPhone){
   const thread = document.getElementById('thread-'+cleanPhone);
   if(!thread) return;
   const row = document.getElementById('convitem-'+cleanPhone) || thread;
   const restore = anchorRow(row);
   if(thread.classList.contains('open')){
+    stopThreadPoll(cleanPhone);
     thread.classList.remove('open');
     thread.innerHTML = '';          // drop the old thread so a reopen refetches
     restore();
@@ -5621,17 +5669,14 @@ async function toggleConversation(phone, cleanPhone){
     const data = await FF.apiFetch('/api/conversation/'+encodeURIComponent(phone)).then(r=>r.json());
     if(data.error||!data.messages?.length){ thread.innerHTML='<div style="padding:10px;color:var(--muted);font-size:12px;">No messages yet.</div>'; return; }
     const inputId = 'ri-'+cleanPhone, btnId = 'rb-'+cleanPhone;
-    thread.innerHTML = data.messages.map(m=>`
-      <div class="msg-bubble ${m.role}">
-        <div class="msg-role">${m.role==='user'?'Customer':'Sarah AI'}</div>
-        <div style="color:var(--text);line-height:1.5;white-space:pre-wrap;">${escapeHtml(m.content)}</div>
-        <div class="msg-time">${new Date(m.created_at).toLocaleString()}</div>
-      </div>`).join('') +
+    thread.innerHTML = `<div id="tm-${cleanPhone}">` + data.messages.map(msgBubble).join('') + `</div>` +
       `<div class="reply-bar">
         <input type="text" class="reply-input-field" id="${inputId}" placeholder="Reply to this customer..." onkeypress="if(event.key==='Enter'){event.preventDefault();sendThreadReply('${phone}','${inputId}','${btnId}');}">
         <button class="btn btn-primary" id="${btnId}" onclick="sendThreadReply('${phone}','${inputId}','${btnId}')">Send</button>
       </div>`;
     thread.scrollTop = thread.scrollHeight;
+    stopThreadPoll(cleanPhone);
+    _threadPolls.set(cleanPhone, setInterval(()=>pollThread(phone, cleanPhone), 10000));
   } catch(e){ thread.innerHTML='<div style="padding:10px;color:var(--red);font-size:12px;">Error loading messages</div>'; }
 }
 
