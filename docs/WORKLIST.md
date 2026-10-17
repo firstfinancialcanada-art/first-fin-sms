@@ -1,6 +1,35 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-16 (late).** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-17.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+
+---
+
+## ▶ UI IS BEHIND THE ENGINE — Franco's read, 2026-10-17
+
+*"you are able to do alot of these things but the UI doesn't really show it."* He is right, and the sharpest example is that **reengage cannot be selected from the UI at all** — the Outreach Type dropdown offers `sales` and `acquisition` only. The funnel that sent 349 texts today is API-only. Everything below was driven from the console, not the product.
+
+### A. Launch SMS — the engine has features the screen does not
+
+| Capability | Server | UI |
+|---|---|---|
+| `mode: reengage` | shipped | **missing from the dropdown** |
+| Script per mode (`_SARAH_OPENERS`) | one per mode | no way to hold the **three** reengage scripts (opener / application-open / pre-approval) — this is Franco's "no toggle for scripts" |
+| `startDelayMinutes` (batch scheduling) | shipped | **0 references** — every batch today was scheduled by hand |
+| Per-contact merge tokens (`{month}`) | shipped + guarded | no field; CSV parse only reads name + phone |
+| Batch size / interval | env vars | not surfaced |
+| `stop-mine` kill switch | shipped | present, but not next to a running campaign |
+
+**Plan.** Add `reengage` to the dropdown. Promote scripts from one-per-mode to a named library per mode, picked from a second select, stored in settings so Franco can edit them without a deploy. Add a batching block — size, spacing, first-send time — defaulting to the 25-every-30-minutes that has now worked twice. Extend the CSV parser to carry extra columns into `merge`, which the token guard already validates. Put live progress and the kill switch on the same screen as the campaign.
+
+### B. Sarah conversations — an open thread goes stale (my regression)
+
+Yesterday I stopped the 30-second auto-refresh while a thread is open, because the re-render was throwing Franco out of whatever he was reading. That half was right. The half I got wrong: **nothing then updates an open thread**, so a conversation he is watching sits frozen while the customer replies. That is his *"open message doesn't change when toggled."*
+
+**Plan.** Poll only the open thread, append only messages it does not already have, leave scroll alone. The list keeps its no-yank behaviour. Also: clicking a second conversation leaves the first expanded, which is what makes several-open confusing — collapse the others by default. And the list already returns `c.mode` but never shows it, so there is no way to tell which funnel a conversation belongs to.
+
+### C. Ordering
+
+B first — it is a live annoyance, it is small, and it is mine. Then A, as one pass, because the Launch screen wants rethinking rather than four more controls bolted on.
 
 ---
 
