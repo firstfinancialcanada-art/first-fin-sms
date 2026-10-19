@@ -1,6 +1,6 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-17.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-19.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
 
 ---
 
@@ -33,23 +33,59 @@ B first — it is a live annoyance, it is small, and it is mine. Then A, as one 
 
 ---
 
-## ▶ TOMORROW MORNING — two runs, in this order
+## ▶ BOTH RUNS DONE — the call lists are the live artefact
 
-| Time (Calgary) | What | From |
-|---|---|---|
-| **8:29am** | Alyssa McAullay (587) 219-9677 — AD funnel live test | Capital Auto Finance, +1 587-210-5135 |
-| **8:59am – 3:29pm** | June/July re-engage, 349 in 14 batches of 25 | Rolling with Franco, +1 587-330-3601 |
+Two lists, split per Franco 2026-10-19:
 
-Both queued and verified as pending. `stop-mine` cancels either tenant's rows.
+- **`docs/CALLBACK-HOUSE-OF-CARS.md`** — 20 live leads
+- **`docs/CALLBACK-CAPITAL-AND-SAAS.md`** — 7 live leads plus Gaurav
 
-Alyssa's script — the lender/application angle, ending on the forward move:
+Both built from the Twilio timestamps. Each row carries the time they **asked** for and the day/hour band they **actually text from** — Franco's idea, and it earns its place: the Capital Auto group clusters Saturday 16:00-17:00, Brent is a Friday-evening texter, Shawn Gordon a Sunday-morning one, Tesfai replied at 21:13. A time someone texted you is a time they were free and holding a phone.
 
-> Hi Alyssa, Sarah here with Capital Auto Finance. Your auto loan application is still open with our lenders. Should I close it out, or keep it moving for you?
+| Run | Sent | Replies | Opted out | Callbacks |
+|---|---|---|---|---|
+| House of Cars, June/July (Sat 17th, 08:59-15:29) | 349 | 147 | 75 (21%) | 10 |
+| Capital Auto pre-approval (Sat 17th, 16:00-16:31) | 33 | 16 | 2 (6%) | 5 |
 
-Watch for: does the reply land in Adil's tenant (not House of Cars), does the alert arrive stamped `CAPITAL AUTO FINANCE`, does the credit flag fire. Then decide whether the AD book gets the whole tracker.
+**The pre-approval script on a credit book booked 15% against the aged-car book's 2.9%.** Same FSM, same hour, six times the rate on a list a tenth the size. That is the finding of the whole exercise.
+
+**Due today:** David Mansfield (403) 608-3232 at **12 noon**, Andrea Sibbet (403) 896-1776 **Monday**.
+
+**Do NOT contact:** Wahid Ezzeddine — surrendered his SUV, *"dont let any one call me"*. Karen (780) 742-9815 — bought three weeks ago and said she does not need a call; her alert fired before she said it.
+
+**Eight credit files** across both books are a Bromwich conversation, not a car one.
+
+### Open from the weekend
+
+- **The AD tracker sheet needs one human click.** `AD-tracker-Oct17.csv` is in Downloads, built from the live sheet so it preserves Nicholas Lewis as Dead and the rows Franco moved to the top. File > Import > Upload > **Replace current sheet** > untick *Convert text to numbers, dates, and formulas*. Google's picker runs in a nested iframe: `file_upload` rejects the wrapper, a synthetic File attaches to the input but the picker ignores it, a simulated drop does not land. **First-Fin's CRM took every update by API without complaint; the spreadsheet is the half that cannot be automated** — which answers the question about retiring it from the other direction.
+- **One conversation may be stuck in a held stage.** Wahid's second message got no reply and never produced an alert — the signature of `reengage_held_q` with no flush. The sweeper demonstrably works (three flushes logged over the weekend), so this looks like a row it missed. **Nothing shows who is sitting in a held stage**, and the hold's whole justification is that nobody can be stranded in it. Worth an operator view.
+- **The reply-corpus test is still not built.** See below.
+
+### Shipped Saturday 17th — nine fixes, every one found by a live customer
+
+| Commit | What a customer saw |
+|---|---|
+| `15a362c` | Kyle: *"can you get rid of my number please... I've already bought on[e]"* → **"Congrats Kyle!"**. Removal asks match by shape now, not enumerated phrasing, and outrank a purchase. |
+| `15a362c` | John: *"Whenever is fine"* was not read as a time, so he waited three minutes for the sweeper. |
+| `15a362c` | Casey: a burst fragment became his callback time. Only a time goes in the time slot. |
+| `27ddc56` | *"yes but i can't get approve they say i need a co signer"* → **"Great."**, and no credit flag. The tone check kept its own narrower list; it calls `CREDIT_RE` now. One vocabulary. |
+| `9630557` | Tadesse: **"Perfect Tadesse — Franco will call you I moved to Edmonton."** Ed-**mon**-ton matched the unanchored weekday. Bare `am`/`pm` went too — *"I **am** not in Calgary"*. |
+| `50b8238` | Jeff: *"won't b able to get 1 financed. My other card got **repoed**"* — not flagged. `repo(ssession)?` never matched "repoed". |
+| `2f33bf3` | Jeff again: **"Ok thanku"** pinged Franco mid-call-block. Courtesy spellings are a pattern now, and three tests guard that a reschedule still gets through. |
+| `889d502` | Luc: **"Franco will call you Only if it is a Mercedes GT 4 doors."** A bare digit counted as a time. |
+| `d02dc1f` | An open conversation went stale while being read — my own regression from Friday. Each open thread polls itself now. |
+
+**That table is one bug nine times: a word enumerated in one spelling while customers write it in four.** The structural answer is a test that replays all 231 real replies against the vocabulary and asserts the invariants — never echo a customer's words back as a time, never congratulate a removal ask, never put a dollar figure in a reply. All nine would have been caught before anyone saw them. **Build it before the next blast, not after.**
+
+Also shipped: `d69ee7e` "No Answer" status + touches with a method, `0a820a7` CRM import carries `last_contact`, `4a41d7b` admin user-create provisions the tenant, `4ce6e69` + `070bd70` the Team endpoint had **two** non-existent columns and had been 500ing for every tenant on the platform, `5b7eb16` alerts stamped with the dealership name.
+
+### SaaS side
+
+**Gaurav Raval** (780) 802-4540, `source: facebook`, filled the ad Sun 11:58am — **the first new inquiry since Sep 22**, and the first evidence the Meta pipe delivers end to end after being written off as blocked on Lead Access Manager. Call and text logged, status contacted.
+
+**Still untouched:** the CASL expiry picture on the older inquiries. Implied consent runs six months and the April batch was lapsing through October while we did re-engage work.
 
 ---
-
 ## ▶ ADIL / CAPITAL AUTO FINANCE — stood up 2026-10-16
 
 Second **tenant**, per the 2026-10-12 plan — never merged into House of Cars.
