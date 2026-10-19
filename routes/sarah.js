@@ -1664,7 +1664,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         });
       } catch(e) { console.error('❌ manager notify failed:', e.message); }
       await logAnalytics('reengage_callback', phone, { when, saidYes }, userId);
-      if (looksLikeTime) {
+      // Reading it back only works when what they wrote IS a time phrase.
+      // David answered "Hold on. Talk to me Monday." — a time by the pattern,
+      // because of the "Monday" — and got "Perfect David — our sales manager
+      // Franco will call you Hold on. Talk to me Monday." Found by replaying
+      // the real replies in tests/sarah-reply-corpus.js, not by a customer.
+      //
+      // So: echo a short phrase with no sentence break in it. Anything that
+      // reads like two sentences gets the neutral line instead. The manager
+      // still receives their exact words either way.
+      const echoable = looksLikeTime && when.length <= 60 && !/[.!?]\s*\S*[A-Za-z]/.test(when);
+      if (echoable) {
         return first ? `Perfect ${first} — ${mgr} will call you ${when}.`
                      : `Perfect — ${mgr} will call you ${when}.`;
       }
