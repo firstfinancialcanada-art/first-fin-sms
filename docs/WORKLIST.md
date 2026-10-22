@@ -1,6 +1,105 @@
 # First-Fin — current worklist
 
-**Updated 2026-10-19.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+**Updated 2026-10-22.** This is the live list. `TODO-PLAN-v16.md` is the April 2026 product roadmap and is kept for reference only — it was never ticked off, so don't read it as current status.
+
+---
+
+## ▶ HOUSE OF CARS BOARD — pulled live from Tekion, 2026-10-22
+
+Franco asked where he sits "for the micromanagers". All of it is counted off leads that reached **Closed or Sold** with a sold date in range. Deals parked at Pending Finance are **not** counted.
+
+### October 2026 — 27 units, only nine reps have sold one
+
+| # | Rep | Units | Gross/unit | Total |
+|---|---|---|---|---|
+| 1 | Brennan Picard | 9 | $2,591 | $23,317 |
+| 2 | H El-Rafih | 6 | $5,140 | $30,839 |
+| **3** | **Frank Fannin** | **3** | **$3,554** | **$10,661** |
+| 4 | Abdallah Rafih | 3 | $4,045 | $12,136 |
+| 5 | Abdallah Al-Mahdawi | 2 | $2,678 | $5,356 |
+| 6 | Nemanja Lelic | 1 | $6,663 | $6,663 |
+| 7 | Roy Outh | 1 | $2,018 | $2,018 |
+| 8 | JJ Sian | 1 | $1,821 | $1,821 |
+| 9 | Stefan Lelic | 1 | $3,818 | $3,818 |
+
+There is no tenth place in October — nine sellers is the whole board. 27 units with nine days left is on pace for the usual month (Jan 36 · Feb 40 · Mar 48 · Apr 33 · May 42 · Jun 45 · Jul 40 · Aug 37 · Sep 44).
+
+### 2026 year to date — 379 units
+
+| # | Rep | Units | Gross/unit | Total |
+|---|---|---|---|---|
+| 1 | Brittany Bajada | 115 | $4,009 | $460,983 |
+| 2 | Stefan Lelic | 90 | $3,841 | $345,697 |
+| 3 | Brennan Picard | 71 | $3,419 | $242,760 |
+| 4 | Abdallah Al-Mahdawi | 30 | $4,165 | $124,964 |
+| 5 | H El-Rafih | 24 | $4,929 | $118,292 |
+| 6 | Nemanja Lelic | 21 | $3,791 | $79,618 |
+| 7 | Abdallah Rafih | 19 | $4,002 | $76,034 |
+| **8** | **Frank Fannin** | **3** | **$3,554** | **$10,661** |
+| 9 | Kelly Plausteiner | 2 | $2,089 | $4,177 |
+| 10 | Roy Outh | 1 | $2,018 | $2,018 |
+
+**Read the YTD rank with the date attached: all three of Franco's 2026 units are October.** He has been selling for about three weeks. October is the fair comparison and he is third on it.
+
+### The number that actually answers the micromanagers
+
+**99 of the 120 deals sitting in Pending Finance and Proposal store-wide are more than 90 days old.** Seven are under a week.
+
+| Rep | In flight | Touched in 30d | Oldest |
+|---|---|---|---|
+| Stefan Lelic | 35 | 6 | **1,885 days** |
+| Brennan Picard | 21 | 5 | 1,863 days |
+| John Stebbing | 14 | **0** | 1,683 days |
+| Brittany Bajada | 12 | **0** | 1,668 days |
+| Abdallah Al-Mahdawi | 5 | 0 | 1,584 days |
+| Cliff Dyck | 5 | 0 | 1,535 days |
+| **Frank Fannin** | **3** | **2** | **39 days** |
+
+Stefan is carrying a file opened in 2021 still marked in progress. Stebbing and Bajada hold 26 open files between them and have not touched one in a month. **Franco's board is the cleanest in the store and it is not close.** If overdue To-Dos are the yardstick, it is pointed at the wrong rep.
+
+Franco's three in flight: **Zoe Bungay** (2025 Nissan Sentra, deal 5168) · **Maya Hanevy** (2018 Hyundai Tucson, 5146) · **Alain Robichaud** (2024 VW Taos, 5132). All three booking puts him at six, level with second place in October.
+
+### Franco's top ten live deals — what to work, in order
+
+Book is **55 active leads**. Ranked by stage, whether the customer has ever answered, whether a unit is attached, and recency.
+
+| # | Who | Stage | Vehicle | Phone | Last answered | Note |
+|---|---|---|---|---|---|---|
+| 1 | **Maya Hanevy** | Pending Finance | 2018 Hyundai Tucson | 403-970-0808 | 11d | deal 5146, no email on file |
+| 2 | **Alain Robichaud** | Pending Finance | 2024 VW Taos | 403-909-0528 | **26d** | deal 5132, **39 days old, zero tasks** |
+| 3 | **Zoe Bungay** | Pending Finance | 2025 Nissan Sentra | 368-997-3993 | — | deal 5168, delivery pending |
+| 4 | **Rhonda Andreas** | Engage | – | 306-229-8426 | **today** | **Canada Drives, no email** |
+| 5 | **Jennifer Langlois** | Engage | – | 403-363-0580 | **today** | **Canada Drives, no email** |
+| 6 | Dawood Cheema | Engage | – | 587-500-4416 | today | WOD |
+| 7 | Anmol Rana | Engage | – | 780-245-2479 | 2d | WOD |
+| 8 | Niraj Makwana | Visit | – | 403-408-7836 | 13d | came in, nothing attached |
+| 9 | Michael Vance | Visit | – | **1111111111** | 14d | see duplicate note below |
+| 10 | Shane Prince | Engage | – | 778-385-8704 | 9d | WOD/TradePending |
+
+Then: Herman Mann, Marc-olivier Sevigny, Poojan Joshi (all Engage, WOD, answered 9d ago), plus **Kelsey Sallenbach** and **Tanya Anderson** — both WOD, both landed today, neither contacted yet.
+
+**Three things this list surfaces.**
+
+**Alain Robichaud is the one that dies quietly.** Pending Finance for 39 days, no contact in 26, and **zero pending tasks** — nothing in the system will ever remind anyone. A deal already in finance is the most expensive thing to lose.
+
+**Michael Vance is in the book twice.** He was delivered on deal 5140 on Oct 20 ($4,203, Location), yet a second lead sits at Visit with the placeholder phone `1111111111`. Needs merging or closing — it inflates the book and it carries an overdue task.
+
+**Canada Drives leads arrive with no email address.** Both of them. Phone only, so first contact there is a call or a text, never an email.
+
+**The tail:** 40 of 55 live leads have never engaged once. That is where the overdue-task count comes from, and it is cadence noise, not missed work.
+
+### Zoe Bungay — the speed number, and what the record will not support
+
+| | |
+|---|---|
+| Lead created | Tue Oct 21, 12:52:21 PM |
+| First contacted | Tue Oct 21, 1:01:33 PM — **9 min 12 sec** |
+| Quote logged | Tue Oct 21, 6:44:57 PM |
+| Deal | 5168, status RECAP, stage **Pending Finance** |
+| Vehicle | 2025 Nissan Sentra |
+| Source in Tekion | **"Fox - Finance Progress Form - Fox Dealer"** |
+
+Two cautions. Franco called it a Canada Drives lead; **Tekion labels the source Fox Dealer**, which matters for knowing what that channel is really producing. And *"sold in an hour"* is not visible in the timestamps — the quote was logged about six hours after the lead. Paperwork entered in the evening after an afternoon phone deal is ordinary, but the CRM will not show it. **Nine minutes to first contact is fully documented; lead with that.**
 
 ---
 
@@ -82,6 +181,8 @@ Also shipped: `d69ee7e` "No Answer" status + touches with a method, `0a820a7` CR
 ### SaaS side
 
 **Gaurav Raval** (780) 802-4540, `source: facebook`, filled the ad Sun 11:58am — **the first new inquiry since Sep 22**, and the first evidence the Meta pipe delivers end to end after being written off as blocked on Lead Access Manager. Call and text logged, status contacted.
+
+**Reached him Wed Oct 21, late morning — Franco's read: "went good."** First SaaS call to actually connect, so the Meta pipe is now proven past the form all the way to a live conversation. **No next step is recorded**, which is the one thing that decides whether this becomes a customer; it needs a date on it. Late morning has now worked twice and early morning has failed once, so that is the window.
 
 **Still untouched:** the CASL expiry picture on the older inquiries. Implied consent runs six months and the April batch was lapsing through October while we did re-engage work.
 

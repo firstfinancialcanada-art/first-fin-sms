@@ -42,4 +42,6 @@ _Your notes live in their own column and are carried across every rebuild. A not
 
 | Name | Phone | Source | Status | Notes |
 |---|---|---|---|---|
-| Gaurav Raval | (780) 802-4540 | facebook | contacted | Filled the ad **Sun 11:58am**. Called Mon morning, sounded asleep, texted. Awake and filling forms Sunday midday, so **late morning** beats early. First new inquiry since Sep 22. |
+| Gaurav Raval | (780) 802-4540 | facebook | **spoke Wed Oct 21 — went good** | Filled the ad **Sun 11:58am**. Called Mon morning, sounded asleep, texted. Reached him **Wed Oct 21 late morning and the call went well** — late morning is the window, confirmed twice now. First new inquiry since Sep 22. **Next step not captured — see below.** |
+
+**Gaurav — what the call needs behind it.** The call went well and nothing is written down, which is how a good first call turns into no second one. Whatever the next move is, it wants a date on it today. Open questions worth a line each when you have a second: what he runs (rooftop count and whether he has inventory online), what he reacted to, and whether anything is booked. Pricing is **Solo $225 / Gold $525 CAD** with the $18.50 messaging allowance either tier, and the no-promises rule holds — Solo "lets you" load your own inventory, only Gold+ is pre-loaded.
