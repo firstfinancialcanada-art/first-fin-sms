@@ -372,6 +372,17 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         -- label we invented for them.
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS credit_flag BOOLEAN DEFAULT FALSE;
         ALTER TABLE conversations ADD COLUMN IF NOT EXISTS credit_note VARCHAR(255);
+        -- Human takeover. The moment an operator types a reply themselves,
+        -- the thread stops being Sarah's. Without this she keeps running her
+        -- script on the customer's next message and answers on top of the
+        -- person who just spoke -- two voices in one thread, which is exactly
+        -- what confused Nick Foessel when the desk started calling a customer
+        -- whose documents were already collected.
+        --
+        -- One way only. Nothing in the FSM clears it; re-enabling automation
+        -- on a thread a human has entered is a deliberate act, not a timeout.
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_at TIMESTAMPTZ;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_by INTEGER;
       `);
       // bulk_messages carries the campaign mode through to the processor so
       // the conversation it creates inherits the right mode.
@@ -636,6 +647,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       }
       const conversation = await getOrCreateConversation(phone, req.user.userId);
       await saveMessage(conversation.id, phone, 'assistant', message, req.user.userId);
+      // A human has entered the thread. Stamp it before the send, not after:
+      // if Twilio is slow the customer can reply while we are still waiting,
+      // and the inbound must already know Sarah is off this conversation.
+      // Only the first takeover is recorded -- re-stamping on every manual
+      // reply would lose when the handoff actually happened.
+      if (!conversation.handoff_at) {
+        await pool.query(
+          'UPDATE conversations SET handoff_at = NOW(), handoff_by = $1 WHERE id = $2 AND handoff_at IS NULL',
+          [req.user.userId, conversation.id]
+        ).catch(() => {});
+        await logAnalytics('handoff_to_human', phone, { conversationId: conversation.id }, req.user.userId).catch(() => {});
+        console.log('🙋 Handoff to human for', phone, '— Sarah is off this thread');
+      }
       await logAnalytics('manual_reply_sent', phone, { message }, req.user.userId);
       // Use tenant's twilio number for outbound
       let manualFromNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -971,6 +995,32 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           // was read as the callback time. Record it, answer nothing.
           if (!message || !String(message).trim()) {
             console.log('📭 Empty inbound body from', phone, '— logged, no FSM, no reply');
+            return;
+          }
+
+          // A human has this thread. Once someone has typed a reply by hand,
+          // no script starts again on it — not reengage, not acquisition, and
+          // above all not the sales FSM, which is where an unrecognised mode
+          // lands and which opens a full discovery script.
+          //
+          // The message still reaches a person: it is saved above and the
+          // manager gets it verbatim here. Staying silent is the point — a
+          // canned acknowledgement on top of a live human conversation is the
+          // same two-voices problem, just politer.
+          //
+          // STOP and START are the exception and always pass through. Every
+          // addOptOut call lives inside the FSM, so a guard that swallowed
+          // them would leave a customer who texted STOP still subscribed —
+          // a CASL breach, and one nobody would notice until it mattered.
+          // Silence is for conversation, never for a legal instruction.
+          if (conversation.handoff_at && !isStopCmd && !isStartCmd) {
+            console.log('🙋 Handoff thread for', phone, '— human has it, no FSM, no reply');
+            try {
+              await notifyTenantManagers({
+                tenantId: TENANT_ID, fromNumber: TENANT_FROM_NUMBER, twilioClient,
+                body: `${formatPretty(phone)} replied:\n"${String(message).trim().slice(0, 300)}"\n\nYou have this conversation — Sarah did not answer.`,
+              });
+            } catch (e) { console.error('Handoff notify failed:', e.message); }
             return;
           }
 
