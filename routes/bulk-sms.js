@@ -140,8 +140,17 @@ module.exports = function bulkSmsRoutes(app, { requireAuth, requireBilling }) {
       if (placeholderCount > 3) {
         console.warn(`⚠️ Campaign "${campaignName}" has ${placeholderCount} {name} placeholders`);
       }
-      const messageIds = await saveBulkCampaign(campaignName, messageTemplate, contacts, req.user.userId, campaignMode, startDelayMinutes);
-      res.json({ success: true, campaignName, messageCount: messageIds.length, mode: campaignMode, startDelayMinutes: Math.max(0, Number(startDelayMinutes) || 0), estimatedTime: Math.ceil(contacts.length * 15 / 60) });
+      const { ids, skipped } = await saveBulkCampaign(campaignName, messageTemplate, contacts, req.user.userId, campaignMode, startDelayMinutes);
+      // skipped is reported, never silent. An operator who uploads 300 and
+      // sees 260 queued needs to know the other 40 were texted recently —
+      // otherwise the only reading is that the import lost them.
+      res.json({
+        success: true, campaignName, messageCount: ids.length, mode: campaignMode,
+        startDelayMinutes: Math.max(0, Number(startDelayMinutes) || 0),
+        estimatedTime: Math.ceil(ids.length * 15 / 60),
+        suppressedCount: skipped.length,
+        suppressed: skipped.map(s => s.name).filter(Boolean),
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

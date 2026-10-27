@@ -16,6 +16,7 @@ let nextId = 1;
 const sentLog = [];          // every number handed to Twilio
 const sentBodies = [];       // and the exact text each one got
 const handoffStamps = [];    // conversation ids handed to a human at send time
+const recentlySent = new Set();  // phones that already got a bulk text inside the window
 let hangNextSend = false;
 let failHandoffStamp = false;
 
@@ -65,6 +66,10 @@ async function fakeQuery(sql, params) {
       else if (s.includes("status = 'paused'")) r.status = 'paused';
     }
     return { rows: [] };
+  }
+  if (s.includes('SELECT DISTINCT recipient_phone')) {        // build-time suppression
+    const asked = params[0] || [];
+    return { rows: asked.filter(p => recentlySent.has(p)).map(p => ({ recipient_phone: p })) };
   }
   if (s.startsWith('UPDATE conversations')) {
     if (s.includes('handoff_at = NOW()')) {
@@ -256,6 +261,50 @@ T('a failed handoff stamp is loud, and never silently marks the send failed', as
   return rows[0].status === 'sent'                             // text went out, row is honest
       && errs.some(e => /HANDOFF STAMP FAILED/.test(e))        // and the failure is impossible to miss
       && errs.some(e => /NOT protected/.test(e));
+});
+
+// ── build-time suppression ───────────────────────────────────────
+// "Don't re-hit the people we just blasted." The 24h cooldown in the send
+// loop only RESCHEDULES, so without this a second overlapping campaign
+// still reaches everyone, a day late and invisibly.
+
+function probeInsert(onCapture) {
+  const orig = fakeQuery;
+  fakePool.connect = async () => ({ query: async (sql, params) => {
+    if (String(sql).includes('INSERT INTO bulk_messages')) { onCapture(params); return { rows: [{ id: 1 }] }; }
+    return orig(sql, params);
+  }, release() {} });
+  return () => { fakePool.connect = async () => ({ query: fakeQuery, release() {} }); };
+}
+
+T('a contact texted inside the window is DROPPED from the campaign, not queued', async () => {
+  recentlySent.clear(); recentlySent.add('+14035195567');
+  let captured = null;
+  const restore = probeInsert(p => { captured = p; });
+  const r = await bulk.saveBulkCampaign('blast2', 'Hi {name}',
+    [{ name: 'Gene', phone: '4035195567' }, { name: 'Fresh', phone: '4035550099' }], 1, 'notify');
+  restore(); recentlySent.clear();
+  return r.ids.length === 1
+      && r.skipped.length === 1 && r.skipped[0].name === 'Gene'
+      && captured && captured[2] === 'Fresh';          // only the un-texted one was inserted
+});
+
+T('suppression never silently empties a campaign — an all-suppressed list reports every name', async () => {
+  recentlySent.clear(); recentlySent.add('+14035195567');
+  let inserted = false;
+  const restore = probeInsert(() => { inserted = true; });
+  const r = await bulk.saveBulkCampaign('blast2', 'Hi {name}', [{ name: 'Gene', phone: '4035195567' }], 1, 'notify');
+  restore(); recentlySent.clear();
+  return r.ids.length === 0 && r.skipped.length === 1 && r.skipped[0].name === 'Gene' && !inserted;
+});
+
+T('nobody is suppressed when the window is clean', async () => {
+  recentlySent.clear();
+  let captured = null;
+  const restore = probeInsert(p => { captured = p; });
+  const r = await bulk.saveBulkCampaign('blast1', 'Hi {name}', [{ name: 'Gene', phone: '4035195567' }], 1, 'notify');
+  restore();
+  return r.ids.length === 1 && r.skipped.length === 0 && captured && captured[2] === 'Gene';
 });
 
 (async () => {
