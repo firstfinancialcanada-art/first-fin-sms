@@ -5998,9 +5998,15 @@ function processContactLines(lines) {
 // when the dealer flips the dropdown — swaps the textarea contents UNLESS
 // they've already customized it (we detect "customized" by checking
 // whether the current value matches one of the defaults verbatim).
+// The reengage and notify defaults use plain hyphens, not em dashes. An em
+// dash is outside GSM-7, which drops the whole message to UCS-2 and halves
+// the segment to 70 characters — so a one-segment opener silently becomes
+// two, at double the cost, on every contact in the list.
 const _SARAH_OPENERS = {
   sales: "Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)",
-  acquisition: "Hi {name}! I'm Sarah from the dealership. I wanted to reach out about your vehicle — are you considering selling it soon? (Reply STOP to opt out)"
+  acquisition: "Hi {name}! I'm Sarah from the dealership. I wanted to reach out about your vehicle — are you considering selling it soon? (Reply STOP to opt out)",
+  reengage: "Hi {name}, Sarah here at the dealership. You enquired about a vehicle with us - are you still looking? Reply STOP to opt out.",
+  notify: "Hi {name}, Sarah here at the dealership. You enquired about a vehicle with us - are you still looking? Reply STOP to opt out."
 };
 
 function onCampaignModeChange(newMode) {
@@ -6024,8 +6030,16 @@ async function launchBulkCampaign(){
   if(!tmpl){ toast('Enter a message template'); return; }
   if(!tmpl.includes('{name}')){ toast('Template must include {name}'); return; }
   if(!parsedContacts.length){ toast('Upload a CSV first'); return; }
-  const modeLabel = mode === 'acquisition' ? 'VEHICLE ACQUISITION' : 'SALES OUTREACH';
-  if(!confirm('Launch "'+name+'" ('+modeLabel+') to '+parsedContacts.length+' contacts?')) return;
+  const MODE_LABELS = {
+    sales: 'SALES OUTREACH', acquisition: 'VEHICLE ACQUISITION',
+    reengage: 'RE-ENGAGE', notify: 'NOTIFY ONLY'
+  };
+  const modeLabel = MODE_LABELS[mode] || MODE_LABELS.sales;
+  // Notify is the one mode where nothing answers the customer. Say so at the
+  // point of launch — an operator who expects Sarah to work the replies and
+  // gets silence instead finds out from the customer.
+  const note = mode === 'notify' ? '\n\nSarah sends once and does not reply. Every answer comes to you.' : '';
+  if(!confirm('Launch "'+name+'" ('+modeLabel+') to '+parsedContacts.length+' contacts?'+note)) return;
   try {
     const res = await FF.apiFetch('/api/bulk-sms/create-campaign',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -6034,7 +6048,12 @@ async function launchBulkCampaign(){
     if(res.success){
       document.getElementById('campaignForm').style.display='none';
       document.getElementById('progressTracker').style.display='block';
-      toast('Launched! '+res.messageCount+' messages (~'+res.estimatedTime+' min)');
+      // Say when contacts were held back, and why. Uploading 300 and seeing
+      // 260 queued otherwise reads as the import having lost forty of them.
+      const held = res.suppressedCount
+        ? ' — '+res.suppressedCount+' held back, texted in the last 30 days'
+        : '';
+      toast('Launched! '+res.messageCount+' messages (~'+res.estimatedTime+' min)'+held);
       trackBulkProgress(name);
     } else toast(res.error);
   } catch(e){ toast(e.message); }
