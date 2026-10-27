@@ -5555,6 +5555,12 @@ function renderConversations(convs){
   el.innerHTML = convs.map(c=>{
     const cleanPhone = (c.customer_phone||'').replace(/[^0-9]/g,'');
     const statusBadge = `<span class="conv-badge badge-${c.status||'active'}">${c.status||'active'}</span>`;
+    // No script runs on a handed-over thread, so stage and mode are stale
+    // labels for something that stopped. Say who has it instead.
+    const handoff = !!c.handoff_at;
+    const handoffBadge = handoff
+      ? `<span class="conv-badge" style="background:rgba(245,158,11,.15);color:var(--amber);border:1px solid rgba(245,158,11,.35);">Yours</span>`
+      : '';
     const vehicle = c.vehicle_type ? `${c.vehicle_type}` : '';
     const budget  = c.budget       ? ` · ${c.budget}`    : '';
     const msgs    = c.message_count? ` · ${c.message_count} msgs` : '';
@@ -5566,9 +5572,9 @@ function renderConversations(convs){
       <div class="conv-header" onclick="toggleConversation('${c.customer_phone}','${cleanPhone}')">
         <div class="conv-avatar">${(c.customer_name||'?')[0].toUpperCase()}</div>
         <div class="conv-info">
-          <div class="conv-name">${c.customer_name||'Unknown'} ${statusBadge}</div>
+          <div class="conv-name">${c.customer_name||'Unknown'} ${statusBadge}${handoffBadge}</div>
           <div class="conv-phone">${c.customer_phone||''}</div>
-          <div class="conv-meta">${vehicle}${budget}${msgs}${voiceTag} · Stage: ${c.stage||'—'}</div>
+          <div class="conv-meta">${vehicle}${budget}${msgs}${voiceTag}${handoff?' · Sarah is off this thread':` · Stage: ${c.stage||'—'}`}</div>
         </div>
         <div class="conv-right">
           <span class="conv-time">${c.updated_at?new Date(c.updated_at).toLocaleDateString():''}</span>

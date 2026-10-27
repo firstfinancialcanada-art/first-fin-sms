@@ -437,6 +437,12 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           -- conversations.customer_name the entire time. Read both.
           COALESCE(NULLIF(TRIM(cu.name), ''), NULLIF(TRIM(c.customer_name), '')) as customer_name,
           c.stage, c.status, c.vehicle_type, c.budget, c.mode,
+          -- A handed-over thread has no script running on it, so mode and
+          -- stage describe nothing. The list rendered them anyway and read
+          -- as "sales FSM, greeting stage" on conversations Sarah had
+          -- deliberately stopped answering. Send the flag so the row can
+          -- say who actually owns the thread.
+          c.handoff_at,
           c.started_at, c.updated_at,
           (SELECT COUNT(*) FROM messages m
            JOIN conversations cx ON m.conversation_id = cx.id
