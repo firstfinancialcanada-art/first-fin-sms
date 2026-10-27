@@ -15,7 +15,9 @@ let rows = [];
 let nextId = 1;
 const sentLog = [];          // every number handed to Twilio
 const sentBodies = [];       // and the exact text each one got
+const handoffStamps = [];    // conversation ids handed to a human at send time
 let hangNextSend = false;
+let failHandoffStamp = false;
 
 function addRow(phone, name, mode, tpl, merge) {
   rows.push({ id: nextId++, user_id: 1, campaign_name: 'c', message_template: tpl || 'Hi {name}',
@@ -64,7 +66,13 @@ async function fakeQuery(sql, params) {
     }
     return { rows: [] };
   }
-  if (s.startsWith('UPDATE conversations')) return { rows: [] };
+  if (s.startsWith('UPDATE conversations')) {
+    if (s.includes('handoff_at = NOW()')) {
+      if (failHandoffStamp) throw new Error('column "handoff_at" does not exist');
+      handoffStamps.push({ conversationId: params[1], by: params[0] });
+    }
+    return { rows: [] };
+  }
   return { rows: [] };
 }
 
@@ -196,6 +204,58 @@ T('merge values survive the saveBulkCampaign round trip', async () => {
   await bulk.saveBulkCampaign('c', 'Hi {name} {month}', [{ name: 'Ian', phone: '4035195567', merge: { month: 'August' } }], 1, 'reengage');
   fakePool.connect = async () => ({ query: fakeQuery, release() {} });
   return captured && JSON.parse(captured[7]).month === 'August';
+});
+
+// ── notify-only campaigns ────────────────────────────────────────
+// The Wipe Out Debt case: Sarah sends one opener and is then off the
+// thread for good, because every honest reply on that list is about debt
+// and she must never discuss credit with a customer.
+
+T("campaign mode 'notify' survives saveBulkCampaign", async () => {
+  let captured = null;
+  const orig = fakeQuery;
+  fakePool.connect = async () => ({ query: async (sql, params) => {
+    if (String(sql).includes('INSERT INTO bulk_messages')) { captured = params; return { rows: [{ id: 1 }] }; }
+    return orig(sql, params);
+  }, release() {} });
+  await bulk.saveBulkCampaign('wod', 'Hi {name}', [{ name: 'Gene', phone: '4035195567' }], 1, 'notify');
+  fakePool.connect = async () => ({ query: fakeQuery, release() {} });
+  return captured && captured[6] === 'notify';
+});
+
+T('a notify campaign stamps handoff_at at send time, so the FIRST reply goes to a human', async () => {
+  rows = []; nextId = 1; sentLog.length = 0; handoffStamps.length = 0;
+  addRow('+14035550010', 'Gene', 'notify');
+  const proc = bulk.makeBulkProcessor({});
+  await proc.processBulkMessages();
+  return sentLog.length === 1                      // the opener did go out
+      && handoffStamps.length === 1                // and the thread was handed over
+      && handoffStamps[0].conversationId === 99
+      && handoffStamps[0].by === 1;
+});
+
+T('a reengage campaign does NOT stamp handoff_at — its FSM still runs', async () => {
+  rows = []; nextId = 1; sentLog.length = 0; handoffStamps.length = 0;
+  addRow('+14035550011', 'Rick', 'reengage');
+  const proc = bulk.makeBulkProcessor({});
+  await proc.processBulkMessages();
+  return sentLog.length === 1 && handoffStamps.length === 0;
+});
+
+T('a failed handoff stamp is loud, and never silently marks the send failed', async () => {
+  rows = []; nextId = 1; sentLog.length = 0; handoffStamps.length = 0;
+  const errs = [];
+  const realErr = console.error;
+  console.error = (...a) => errs.push(a.join(' '));
+  failHandoffStamp = true;
+  addRow('+14035550012', 'Gene', 'notify');
+  const proc = bulk.makeBulkProcessor({});
+  await proc.processBulkMessages();
+  failHandoffStamp = false;
+  console.error = realErr;
+  return rows[0].status === 'sent'                             // text went out, row is honest
+      && errs.some(e => /HANDOFF STAMP FAILED/.test(e))        // and the failure is impossible to miss
+      && errs.some(e => /NOT protected/.test(e));
 });
 
 (async () => {
