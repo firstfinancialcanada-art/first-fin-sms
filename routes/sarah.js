@@ -4,7 +4,7 @@ const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveAppointment, saveCallback, logAnalytics,
         addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
 const { sendCustomerSms } = require('../lib/customer-sms');
-const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator } = require('../lib/helpers');
+const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator, isOptOutKeyword } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
 const { guardedSmsSend, recordSpend, reconcileSpend } = require('../lib/spend-cap');
 const { notifyTenantManagers, notifyRep } = require('../lib/notify');
@@ -960,7 +960,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
 
           const lowerBody = message.toLowerCase().trim();
           const isStartCmd = lowerBody === 'start' || lowerBody.includes('resubscribe');
-          const isStopCmd  = lowerBody === 'stop' || lowerBody.startsWith('stop') || lowerBody.includes('unsubscribe');
+          // See isOptOutKeyword in lib/helpers — the rule lives there so it
+          // can be tested directly rather than through the whole FSM.
+          const isStopCmd  = isOptOutKeyword(lowerBody);
 
           const recentConvResult = await pool.query(
             'SELECT * FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY started_at DESC LIMIT 1',
