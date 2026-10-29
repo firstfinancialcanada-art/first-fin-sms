@@ -14,7 +14,7 @@
     "postinstall": "node scripts/minify.js",
     "migrate": "node setup-database.js && node setup-database-v2.js",
     "seed": "node seed-inventory.js",
-    "test": "node tests/adf-parser.test.js && node tests/sarah-reengage.js && node tests/sarah-bulk.js && node tests/sarah-tenant-isolation.js && node tests/wizard-steps.js && node tests/sarah-optout.js && node tests/sarah-optout-api.js && node tests/desk-session-cookie.js && node tests/sarah-reply-corpus.js"
+    "test": "node tests/adf-parser.test.js && node tests/sarah-reengage.js && node tests/sarah-bulk.js && node tests/sarah-tenant-isolation.js && node tests/wizard-steps.js && node tests/sarah-optout.js && node tests/sarah-optout-api.js && node tests/desk-session-cookie.js && node tests/sarah-stop-sites.js && node tests/sarah-reply-corpus.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

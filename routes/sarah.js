@@ -710,9 +710,9 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
       let conversationsStopped = 0;
       try {
         const r = await pool.query(
-          `UPDATE conversations SET status = 'stopped'
+          `UPDATE conversations SET status = 'stopped', stop_reason = $3
             WHERE customer_phone = ANY($1) AND user_id = $2 AND status <> 'stopped'`,
-          [phoneKeys(to), req.user.userId]
+          [phoneKeys(to), req.user.userId, String(source).slice(0, 100)]
         );
         conversationsStopped = r.rowCount || 0;
       } catch (e) {
@@ -1317,7 +1317,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // STOP / unsubscribe
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
         lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'sms_stop' });
       await addOptOut(phone, 'sms_stop');
       await logAnalytics('conversation_stopped', phone, { mode: 'acquisition' }, userId);
       return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
@@ -1353,7 +1353,11 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         lowerMsg.includes('wrong number') || lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
         lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
         lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'not_interested' });
+      // The reply below tells them they are off the list. Without this they
+      // were not in the opt-out table, which is the only thing lib/bulk.js
+      // checks before sending — so the next blast texted them anyway.
+      await addOptOut(phone, 'not_interested');
       await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'acquisition' }, userId);
       return "No worries! I've taken you off our list. If anything changes — selling, buying, or trading — just text back anytime.";
     }
@@ -1637,7 +1641,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // ── STOP / START ───────────────────────────────────────────────
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
         lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'sms_stop' });
       await addOptOut(phone, 'sms_stop');
       await logAnalytics('conversation_stopped', phone, { mode: 'reengage' }, userId);
       return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
@@ -1710,7 +1714,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         lowerMsg.includes("don't contact") || lowerMsg.includes('never contact') ||
         lowerMsg.includes("don't call me again") || lowerMsg.includes('do not call me again') ||
         lowerMsg.includes('unsubscribe')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'asked_to_be_removed' });
       // addOptOut as well as the conversation status. Only the STOP branch
       // was writing the opt-out table, so someone who asked in words rather
       // than by the keyword — "not interested", "lose my number" — was marked
@@ -2157,7 +2161,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // ── STOP / UNSUBSCRIBE ────────────────────────────────────
     if (lowerMsg === 'stop' || /^stop[^a-z]/i.test(message.trim()) ||
         lowerMsg.includes('unsubscribe') || lowerMsg.includes('opt out') || lowerMsg.includes('opt-out')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'sms_stop' });
       await addOptOut(phone, 'sms_stop');
       await logAnalytics('conversation_stopped', phone, {}, userId);
       return "You've been unsubscribed and won't receive further messages. Reply START anytime to resume.";
@@ -2225,7 +2229,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
         lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
         lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
-      await updateConversation(conversation.id, { status: 'stopped' });
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'not_interested' });
+      // Same gap as the acquisition branch: the reply promises removal, so the
+      // opt-out table has to actually say so.
+      await addOptOut(phone, 'not_interested');
       await logAnalytics('conversation_stopped', phone, { reason: 'not_interested' }, userId);
       return "No worries at all! I've taken you off our list. If anything changes down the road, just text back anytime. Take care!";
     }

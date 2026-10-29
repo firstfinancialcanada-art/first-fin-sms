@@ -143,6 +143,25 @@ const INVARIANTS = [
       return calls.optOut.length ? null : 'STOP did not reach the opt-out table';
     },
   },
+  {
+    name: 'a stopped thread always reaches the opt-out table',
+    check: () => {
+      // Conversation status is not what gates a send. lib/bulk.js checks
+      // isOptedOut and nothing else, so a stopped thread with no opt-out row
+      // is still in the next campaign. Two branches did exactly that.
+      if (db.status !== 'stopped') return null;
+      return calls.optOut.length ? null : 'stopped the thread with no opt-out row';
+    },
+  },
+  {
+    name: 'never promises removal without recording it',
+    check: ({ reply }) => {
+      // "I've taken you off our list" is a written promise to the customer.
+      // It has to be true in the table the senders actually read.
+      if (!/taken you off|off our list|removed you from/i.test(reply)) return null;
+      return calls.optOut.length ? null : 'promised removal with no opt-out row';
+    },
+  },
 ];
 
 (async () => {
