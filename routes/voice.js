@@ -58,6 +58,12 @@ async function getCustomerSMSHistory(phone, userId, limit = 4) {
   } finally { client.release(); }
 }
 
+// A live caller rings the forward number straight away instead of being
+// asked to choose from a menu. Set VOICE_FORWARD_IMMEDIATE=0 to put the
+// menu back without a deploy.
+const FORWARD_IMMEDIATE = !['0', 'false', 'no', 'off'].includes(
+  String(process.env.VOICE_FORWARD_IMMEDIATE || '').toLowerCase());
+
 // ── Resolve tenant from inbound Twilio number ─────────────────────
 // forwardPhone NO LONGER falls back to process.env.FORWARD_PHONE /
 // OWNER_PHONE — that was the cross-tenant leak (Hunt's customers got
@@ -77,7 +83,7 @@ async function getTenantByNumber(toNumber) {
   if (!toNumber) return fallbackSettings;
   try {
     const r = await pool.query(
-      `SELECT id, settings_json FROM desk_users WHERE twilio_number = $1 LIMIT 1`,
+      `SELECT id, settings_json, notify_phone FROM desk_users WHERE twilio_number = $1 LIMIT 1`,
       [toNumber]
     );
     if (!r.rows.length) return fallbackSettings;
@@ -96,8 +102,17 @@ async function getTenantByNumber(toNumber) {
       userId:       row.id,
       tenantId,
       fromNumber:   s.twilioNumber  || process.env.TWILIO_PHONE_NUMBER,
-      // Unparseable → '' → callers skip the dial, same as unconfigured.
-      forwardPhone: normalizePhone(s.notifyPhone) || '',
+      // The column first, then settings. lib/notify.js treats notify_phone as
+      // the canonical value — it backfills it from settings_json and
+      // normalises it to E.164 — so reading only settings here meant voice and
+      // SMS notifications resolved the same number from two different places.
+      // Agreeing today is not the same as staying in step, and the failure is
+      // silent: a stale settings blob forwards the call nowhere.
+      //
+      // Still no env fallback. Unparseable or unset → '' → callers skip the
+      // dial, because a missed call is safer than one routed to another
+      // tenant's cell.
+      forwardPhone: normalizePhone(row.notify_phone) || normalizePhone(s.notifyPhone) || '',
       dealerName:   s.dealerName    || process.env.DEALER_NAME   || 'First Financial',
       // This tenant's own hours and zone. Reading them off the environment
       // meant an Ontario dealer's callers heard Alberta hours.
@@ -167,6 +182,46 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     return false;
   }
 
+  // The forwarded phone rings with no idea who is calling, so send what we
+  // already know first: their name, when they last spoke to us, and the last
+  // few messages either way. Used by both the immediate forward and the
+  // press-1 path so the two cannot drift apart.
+  async function sendCallContextPreview(tenant, caller) {
+    if (!tenant.forwardPhone || !caller) return;
+    try {
+      const history = await getCustomerSMSHistory(caller, tenant.userId, 4);
+      if (!history.length) return;
+      const callerFmt = caller.replace('+1', '');
+      const name      = history[0].customer_name || callerFmt;
+      const preview   = history.map(m => (m.role === 'user' ? '👤' : '🤖') +
+        ' "' + m.content.substring(0, 80) + (m.content.length > 80 ? '...' : '') + '"').join('\n');
+      const lastDate  = new Date(history[history.length - 1].created_at).toLocaleDateString();
+      await twilioClient.messages.create({
+        body: `📞 Incoming call — ${name} (${callerFmt})\nLast contact: ${lastDate}\n\n${preview}`,
+        from: tenant.fromNumber,
+        to: tenant.forwardPhone
+      });
+      console.log('📱 Call context preview sent for:', caller);
+    } catch (e) { console.error('❌ Call preview SMS error:', e.message); }
+  }
+
+  // action= points at /api/voice/call-complete, which is what answers when
+  // nobody picks up - it records a transcribed voicemail. Nothing after
+  // </Dial> is ever reached, so the fallback must live there, not here.
+  function forwardDialTwiml(baseUrl, forward, fromNum, spokenLine) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-CA">${spokenLine}</Say>
+  <Dial
+    action="${baseUrl}/api/voice/call-complete"
+    timeout="20"
+    callerId="${fromNum}"
+  >
+    <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
+  </Dial>
+</Response>`;
+  }
+
   async function alertInboundCall(tenant, caller, callSid, isOpen) {
     if (!tenant.tenantId || alreadyAlerted(callSid)) return;
     const callerFmt = String(caller || '').replace('+1', '') || 'unknown number';
@@ -183,7 +238,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
         body: `📞 Incoming call${when}${who}\n${callerFmt}\n\nCall them back — they rang ${tenant.dealerName}.`,
         twilioClient,
       });
-      if (r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenant.tenantId} has no notify_phone — inbound call alert skipped`);
+      if (r && r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenant.tenantId} has no notify_phone — inbound call alert skipped`);
     } catch(e) { console.error('❌ inbound call alert failed:', e.message); }
   }
 
@@ -193,11 +248,31 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
     const dealer   = twimlSafe(tenant.dealerName);
     const baseUrl  = process.env.BASE_URL || '';
     const isOpen   = hours.isOpenNow(tenant.businessHours);
+    const forward  = tenant.forwardPhone;
+    const fromNum  = tenant.fromNumber;
+    const caller   = req.body.From || req.body.Caller || '';
     res.type('text/xml');
 
     // Not awaited — Twilio is holding the line waiting for TwiML, and a slow
     // SMS must never delay the greeting.
     alertInboundCall(tenant, req.body.From || req.body.Caller || '', req.body.CallSid || '', isOpen);
+
+    // Nobody rings a dealership by accident. The menu asked a live caller to
+    // pick between a person, a machine and a text message, and anyone who
+    // hesitated for eight seconds got the machine. Ring the phone instead.
+    //
+    // Nothing is lost by it: an unanswered or busy forward lands in
+    // /api/voice/call-complete, which already takes a transcribed voicemail,
+    // and that path also catches the forwarded phone's own voicemail picking
+    // up. Hours are deliberately not consulted - a call after close is the
+    // one most likely to be missed, and the fallback covers a quiet phone.
+    if (forward && FORWARD_IMMEDIATE) {
+      await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:connecting | forwarded immediately`, 'user', tenant.userId);
+      // Not awaited: Twilio is holding the line waiting for TwiML.
+      sendCallContextPreview(tenant, caller);
+      return res.send(forwardDialTwiml(baseUrl, forward, fromNum,
+        `Thanks for calling ${dealer}. Connecting you now.`));
+    }
 
     if (isOpen) {
       res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -272,33 +347,9 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
 
     if (digit === '1' && forward) {
       await saveVoiceEvent(caller, `📞 CALL_INBOUND | status:connecting | pressed:1`, 'user', tenant.userId);
-      try {
-        const history = await getCustomerSMSHistory(caller, tenant.userId, 4);
-        if (history.length > 0) {
-          const callerFmt = caller.replace('+1','');
-          const name      = history[0].customer_name || callerFmt;
-          const preview   = history.map(m => (m.role === 'user' ? '👤' : '🤖') + ' \"' + m.content.substring(0, 80) + (m.content.length > 80 ? '...' : '') + '\"').join('\n');
-          const lastDate  = new Date(history[history.length-1].created_at).toLocaleDateString();
-          await twilioClient.messages.create({
-            body: `📞 Incoming call — ${name} (${callerFmt})\nLast contact: ${lastDate}\n\n${preview}`,
-            from: fromNum,
-            to: forward
-          });
-          console.log('📱 Call context preview sent for:', caller);
-        }
-      } catch(e) { console.error('❌ Call preview SMS error:', e.message); }
-
-      res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Joanna" language="en-CA">Please hold for just a moment while we connect you.</Say>
-  <Dial 
-    action="${baseUrl}/api/voice/call-complete"
-    timeout="20"
-    callerId="${fromNum}"
-  >
-    <Number url="${baseUrl}/api/voice/whisper">${forward}</Number>
-  </Dial>
-</Response>`);
+      await sendCallContextPreview(tenant, caller);
+      res.send(forwardDialTwiml(baseUrl, forward, fromNum,
+        'Please hold for just a moment while we connect you.'));
       // Nothing after </Dial>: with action= set, Twilio never reaches it.
       // A missed connection is handled in /api/voice/call-complete.
 
@@ -538,7 +589,7 @@ module.exports = function voiceRoutes(app, { twilioClient, requireAuth, requireB
               body: `📝 Voicemail transcript from ${callerFmt}:\n\n"${transcript.substring(0,280)}"`,
               twilioClient,
             });
-            if (r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenantId} has no notify_phone — transcript SMS skipped`);
+            if (r && r.reason === 'no_targets') console.warn(`⚠️ Tenant ${tenantId} has no notify_phone — transcript SMS skipped`);
           } else {
             console.warn(`⚠️ Voicemail user ${voicemailUserId} has no active membership — transcript SMS skipped`);
           }
