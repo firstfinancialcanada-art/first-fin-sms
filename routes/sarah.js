@@ -2,7 +2,7 @@
 const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveMessage, hasActiveConversation, deleteConversation,
         saveAppointment, saveCallback, logAnalytics,
-        addOptOut, removeOptOut, isOptedOut } = require('../lib/db');
+        addOptOut, removeOptOut, isOptedOut, phoneKeys } = require('../lib/db');
 const { sendCustomerSms } = require('../lib/customer-sms');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator, isOptOutKeyword } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
@@ -674,6 +674,93 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   });
 
   // ── Manual reply ──────────────────────────────────────────────
+  // ── Opt a customer out by hand ────────────────────────────────
+  //
+  // Until now the only road into the opt-out table was the FSM spotting a
+  // keyword in an inbound text. Anyone who said "stop texting me" on the
+  // phone, across the desk, or in an email could not be recorded at all.
+  // Worse, two customers whose written STOP the matcher missed — "Selling a
+  // vehicle. STOP" and "Actually....STOP." — had to be tracked on a note
+  // outside the system and screened out of every campaign by hand. A list
+  // kept in someone's head is not a compliance control.
+  //
+  // The opt-out table is written first and its failure is the only one that
+  // fails the request, because that table is what every sender checks:
+  // bulk.js, customer-sms.js and the inbound webhook all gate on
+  // isOptedOut(). The conversation status is bookkeeping for the UI — if
+  // that write fails the customer is still protected, so it must not take
+  // the request down with it.
+  app.post('/api/opt-out', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { phone, reason } = req.body || {};
+      const to = normalizePhone(phone) || toE164NorthAmerica(phone);
+      if (!to) return res.status(400).json({ success: false, error: 'A valid phone number is required' });
+
+      // Source is free text so the row says HOW they asked — "told me at the
+      // desk" reads very differently from "sms_stop" when someone audits this
+      // a year from now.
+      const source = String(reason || '').trim().slice(0, 60) || 'manual';
+      await addOptOut(to, source);
+      const confirmed = await isOptedOut(to);
+      if (!confirmed) {
+        console.error('🚨 MANUAL OPT-OUT DID NOT STICK for', to);
+        return res.status(500).json({ success: false, error: 'Opt-out was not recorded — try again' });
+      }
+
+      let conversationsStopped = 0;
+      try {
+        const r = await pool.query(
+          `UPDATE conversations SET status = 'stopped'
+            WHERE customer_phone = ANY($1) AND user_id = $2 AND status <> 'stopped'`,
+          [phoneKeys(to), req.user.userId]
+        );
+        conversationsStopped = r.rowCount || 0;
+      } catch (e) {
+        console.error('opt-out: conversation status update failed (customer still opted out):', e.message);
+      }
+      await logAnalytics('conversation_stopped', to, { source, manual: true }, req.user.userId).catch(() => {});
+      console.log(`🛑 Manual opt-out: ${to} (${source}) by user ${req.user.userId}`);
+      res.json({ success: true, phone: to, source, conversationsStopped });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Undo an opt-out. This is for correcting a mistake — a matcher false
+  // positive, a wrong number typed in — NOT for putting someone back on a
+  // list because you fancy another go. A customer who wants back on texts
+  // START themselves. Logged either way so the reason is on the record.
+  app.delete('/api/opt-out', requireAuth, requireBilling, async (req, res) => {
+    try {
+      const { phone, reason } = req.body || {};
+      const to = normalizePhone(phone) || toE164NorthAmerica(phone);
+      if (!to) return res.status(400).json({ success: false, error: 'A valid phone number is required' });
+      await removeOptOut(to);
+      const stillOut = await isOptedOut(to);
+      await pool.query(
+        `UPDATE conversations SET status = 'active'
+          WHERE customer_phone = ANY($1) AND user_id = $2 AND status = 'stopped'`,
+        [phoneKeys(to), req.user.userId]
+      ).catch(() => {});
+      console.log(`↩️  Opt-out removed: ${to} (${String(reason || 'no reason given').slice(0, 60)}) by user ${req.user.userId}`);
+      res.json({ success: !stillOut, phone: to, stillOptedOut: stillOut });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Is this number opted out? Lets a campaign be screened before it is built
+  // rather than discovering it one refused send at a time.
+  app.get('/api/opt-out', requireAuth, async (req, res) => {
+    try {
+      const to = normalizePhone(req.query.phone) || toE164NorthAmerica(req.query.phone);
+      if (!to) return res.status(400).json({ success: false, error: 'A valid phone number is required' });
+      res.json({ success: true, phone: to, optedOut: await isOptedOut(to) });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   app.post('/api/manual-reply', requireAuth, requireBilling, async (req, res) => {
     try {
       const { phone, message } = req.body;
