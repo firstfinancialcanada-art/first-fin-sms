@@ -2234,6 +2234,15 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         return res.status(401).json({ success: false, error: 'No tenant membership found' });
       }
       const { where, params } = buildCrmReadFilter(scope, 'c');
+      // ?month=YYYY-MM scopes the list to one month's tracker, the way the
+      // spreadsheet this replaces had a tab per month. No month means every
+      // row, which is what every existing caller already expects.
+      let monthClause = '';
+      const month = String(req.query.month || '').trim();
+      if (/^\d{4}-\d{2}$/.test(month)) {
+        params.push(month);
+        monthClause = ` AND c.tracker_month = $${params.length}`;
+      }
       // LATERAL join pulls the most-recent non-deleted note per lead for
       // the table-row preview without N+1. Soft-deleted leads excluded.
       const result = await client.query(
@@ -2252,11 +2261,14 @@ const { sendCustomerSms } = require('../lib/customer-sms');
               ORDER BY created_at DESC, id DESC LIMIT 1
            ) n ON TRUE
            LEFT JOIN desk_users ua ON ua.id = n.author_id
-          WHERE ${where} AND c.deleted_at IS NULL
-          -- board_rank is Franco's own ordering (the up/down arrows). It
-          -- seeds to the row id, so an untouched list still reads
-          -- newest-first; updated_at only breaks ties.
-          ORDER BY c.board_rank DESC NULLS LAST, c.updated_at DESC`,
+          WHERE ${where} AND c.deleted_at IS NULL${monthClause}
+          -- Sold at the top, then hottest to coldest. board_rank is
+          -- Franco's own ordering (the up/down arrows) and still decides
+          -- the order WITHIN a band; it no longer decides the bands. It
+          -- seeds to the row id, so an untouched band reads newest-first,
+          -- and updated_at only breaks ties.
+          ORDER BY ${crmBoard.TEMP_ORDER_SQL},
+                   c.board_rank DESC NULLS LAST, c.updated_at DESC`,
         params
       );
       res.json({ success: true, crm: result.rows });
@@ -2322,6 +2334,73 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       res.json({ success: true, count: crm.length });
     } catch (e) {
       await client.query('ROLLBACK');
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // Which months this tenant has a tracker for, newest first, with counts.
+  // Drives the month tabs; a month with nothing in it is not offered.
+  app.get('/api/desk/crm/months', requireAuthTracked, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      const { where, params } = buildCrmReadFilter(scope, 'c');
+      const r = await client.query(
+        `SELECT c.tracker_month AS month,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE c.temperature = 'Sold')::int AS sold,
+                COUNT(*) FILTER (WHERE c.temperature IN ('Hot','Warm'))::int AS live
+           FROM desk_crm c
+          WHERE ${where} AND c.deleted_at IS NULL AND c.tracker_month IS NOT NULL
+          GROUP BY c.tracker_month
+          ORDER BY c.tracker_month DESC`,
+        params
+      );
+      res.json({ success: true, months: r.rows });
+    } catch (e) {
+      res.status(500).json({ success: false, error: sanitizeError(e) });
+    } finally {
+      client.release();
+    }
+  });
+
+  // Start a new month. Open leads MOVE into it; Sold and Dead stay behind so
+  // the month they closed in keeps reporting what actually happened. Moving
+  // rather than copying keeps one row per person, so notes and audit history
+  // follow the lead instead of being split across two months.
+  app.post('/api/desk/crm/carry-forward', requireAuth, requireBilling, async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const scope = await resolveScope(req);
+      if (!scope) return res.status(401).json({ success: false, error: 'No tenant membership' });
+      if (!roleAtLeast(scope, 'manager')) {
+        return res.status(403).json({ success: false, error: 'Carry forward requires manager role' });
+      }
+      const from = String(req.body.from || '').trim();
+      const to   = String(req.body.to   || '').trim();
+      const ok = (m) => /^\d{4}-\d{2}$/.test(m);
+      if (!ok(from) || !ok(to)) {
+        return res.status(400).json({ success: false, error: 'from and to must be YYYY-MM' });
+      }
+      if (from === to) {
+        return res.status(400).json({ success: false, error: 'from and to are the same month' });
+      }
+      const r = await client.query(
+        `UPDATE desk_crm
+            SET tracker_month = $1, updated_at = NOW()
+          WHERE tenant_id = $2
+            AND tracker_month = $3
+            AND deleted_at IS NULL
+            AND COALESCE(temperature, 'Cold') NOT IN ('Sold', 'Dead')
+          RETURNING id, name, temperature`,
+        [to, scope.tenantId, from]
+      );
+      console.log('📅 Carry forward ' + from + ' -> ' + to + ': ' + r.rowCount + ' leads');
+      res.json({ success: true, from, to, moved: r.rowCount, leads: r.rows });
+    } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
@@ -2397,7 +2476,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       // happens automatically when an unassigned row is touched).
       const ALLOWED = ['status','phone','email','source','notes','name','beacon',
                         'income','obligations','vehicle_interest','budget_range',
-                        'follow_up_date','follow_up_note','last_contact',
+                        'follow_up_date','follow_up_note','last_contact','tracker_month',
                         'temperature','board_rank'];
 
       // A temperature outside the ladder would colour the row as nothing
