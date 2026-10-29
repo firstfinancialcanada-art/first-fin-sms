@@ -90,6 +90,9 @@ function stub(absPath, exports) {
 }
 
 const realHelpers = require(P('helpers.js'));
+// Tracker stamps, so a send that forgets the tracker is a test failure
+// rather than something only noticed in November.
+const crmBumps = [];
 stub(P('db.js'), {
   pool: fakePool,
   getOrCreateConversation: async (phone) => ({ id: 99, customer_name: null, mode: null, source: null }),
@@ -97,6 +100,7 @@ stub(P('db.js'), {
   saveMessage: async () => {},
   isOptedOut: async () => false,
   phoneKeys: (p) => [p],
+  bumpCrmLastContact: async (phone, userId) => { crmBumps.push({ phone, userId }); },
 });
 stub(P('spend-cap.js'), {
   guardedSmsSend: async (client, uid, opts) => {
@@ -237,6 +241,30 @@ T('a notify campaign stamps handoff_at at send time, so the FIRST reply goes to 
       && handoffStamps.length === 1                // and the thread was handed over
       && handoffStamps[0].conversationId === 99
       && handoffStamps[0].by === 1;
+});
+
+T('a campaign send stamps the tracker, so the row shows it was worked', async () => {
+  // Nothing in the send path touched desk_crm before. Running the month out
+  // of the in-system tracker means a blast has to move last_contact, or every
+  // row it touched still reads as never contacted.
+  rows = []; nextId = 1; sentLog.length = 0; crmBumps.length = 0;
+  addRow('+14035550012', 'Dana', 'notify');
+  const proc = bulk.makeBulkProcessor({});
+  await proc.processBulkMessages();
+  return sentLog.length === 1
+      && crmBumps.length === 1
+      && crmBumps[0].phone === '+14035550012'
+      && crmBumps[0].userId === 1;
+});
+
+T('a send that is never made does NOT stamp the tracker', async () => {
+  // An opt-out or a bad number must leave the row untouched — a tracker that
+  // claims contact nobody made is worse than one that misses it.
+  rows = []; nextId = 1; sentLog.length = 0; crmBumps.length = 0;
+  addRow('+1111111111', 'Bad Number', 'notify');
+  const proc = bulk.makeBulkProcessor({});
+  await proc.processBulkMessages();
+  return sentLog.length === 0 && crmBumps.length === 0;
 });
 
 T('a reengage campaign does NOT stamp handoff_at — its FSM still runs', async () => {

@@ -57,6 +57,7 @@ const realHelpers = require(P('helpers.js'));
 stub(P('helpers.js'), realHelpers);
 stub(P('db.js'), {
   pool: fakePool, phoneKeys,
+  bumpCrmLastContact: async () => {},
   addOptOut: async (phone, source) => { if (addOptOutShouldFail) return; const c = canon(phone); if (c) optOuts.set(c, source); },
   removeOptOut: async (phone) => { for (const k of phoneKeys(phone)) optOuts.delete(k); const c = canon(phone); if (c) optOuts.delete(c); },
   isOptedOut: async (phone) => phoneKeys(phone).some(k => optOuts.has(k)),

@@ -2,7 +2,8 @@
 const { pool, getOrCreateCustomer, getOrCreateConversation, updateConversation,
         saveMessage, hasActiveConversation, deleteConversation,
         saveAppointment, saveCallback, logAnalytics,
-        addOptOut, removeOptOut, isOptedOut, phoneKeys } = require('../lib/db');
+        addOptOut, removeOptOut, isOptedOut, phoneKeys,
+        bumpCrmLastContact } = require('../lib/db');
 const { sendCustomerSms } = require('../lib/customer-sms');
 const { normalizePhone, toE164NorthAmerica, formatPretty, makeTwilioWebhookValidator, isOptOutKeyword } = require('../lib/helpers');
 const { state } = require('../lib/bulk');
@@ -825,6 +826,10 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
         });
       }
       if (!sendResult.ok) throw sendResult.error || new Error('SMS send failed');
+      // Running the month out of the in-system tracker means a reply typed
+      // here has to move the row, exactly as an FSM reply does. Without this
+      // the only touches that registered were the ones Sarah made herself.
+      bumpCrmLastContact(phone, req.user.userId);
       console.log('✅ Manual reply sent to:', phone);
       res.json({ success: true, message: 'Reply sent!' });
     } catch (error) {
@@ -1087,16 +1092,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
           // SMS-first not ADF-first), in which case the UPDATE is a
           // no-op. Match on the last 10 digits so format variance
           // (+1 prefix, dashes, etc.) doesn't miss the row.
-          pool.query(
-            `UPDATE desk_crm
-             SET last_contact = NOW(), updated_at = NOW()
-             WHERE RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10)
-                 = RIGHT(REGEXP_REPLACE($1, '\\D', '', 'g'), 10)
-               AND tenant_id IN (
-                 SELECT tenant_id FROM desk_members WHERE user_id = $2 AND active = TRUE
-               )`,
-            [phone, WEBHOOK_USER_ID]
-          ).catch((e) => console.warn('crm last_contact bump failed:', e.message));
+          bumpCrmLastContact(phone, WEBHOOK_USER_ID);
 
           const lowerBody = message.toLowerCase().trim();
           const isStartCmd = lowerBody === 'start' || lowerBody.includes('resubscribe');
@@ -1195,16 +1191,7 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
               // Phase 6: bump CRM last_contact when Sarah successfully replies.
               // Together with the inbound bump above, this gives the manager's
               // 'Last Activity' column a true picture of engagement over time.
-              pool.query(
-                `UPDATE desk_crm
-                 SET last_contact = NOW(), updated_at = NOW()
-                 WHERE RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10)
-                     = RIGHT(REGEXP_REPLACE($1, '\\D', '', 'g'), 10)
-                   AND tenant_id IN (
-                     SELECT tenant_id FROM desk_members WHERE user_id = $2 AND active = TRUE
-                   )`,
-                [phone, WEBHOOK_USER_ID]
-              ).catch((e) => console.warn('crm last_contact bump (sarah reply) failed:', e.message));
+              bumpCrmLastContact(phone, WEBHOOK_USER_ID);
             } else if (sarahSend.reason === 'SPEND_CAP_EXCEEDED') {
               console.warn(`⚠️ SARAH reply BLOCKED by spend cap for user ${WEBHOOK_USER_ID} → ${phone}`);
               // Before this, the block only reached analytics: customer got
