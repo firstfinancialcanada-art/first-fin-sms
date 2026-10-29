@@ -2262,13 +2262,18 @@ const { sendCustomerSms } = require('../lib/customer-sms');
            ) n ON TRUE
            LEFT JOIN desk_users ua ON ua.id = n.author_id
           WHERE ${where} AND c.deleted_at IS NULL${monthClause}
-          -- Sold at the top, then hottest to coldest. board_rank is
-          -- Franco's own ordering (the up/down arrows) and still decides
-          -- the order WITHIN a band; it no longer decides the bands. It
-          -- seeds to the row id, so an untouched band reads newest-first,
-          -- and updated_at only breaks ties.
-          ORDER BY ${crmBoard.TEMP_ORDER_SQL},
-                   c.board_rank DESC NULLS LAST, c.updated_at DESC`,
+          -- board_rank alone, and deliberately so. It is the ONE source of
+          -- truth for order: the arrows and the drag-and-drop both work by
+          -- re-dealing board_rank across the visible rows, and "Sort by
+          -- heat" produces the Sold-first stack by WRITING board_rank
+          -- rather than by sorting at read time.
+          --
+          -- Sorting by temperature here instead looked right and broke
+          -- dragging: the list rendered in band order while the drag
+          -- computed in board_rank order, so a dropped row snapped back.
+          -- Franco, 2026-10-08: "can i physically move the lines up and
+          -- down like the google sheet" - any read-time sort fights that.
+          ORDER BY c.board_rank DESC NULLS LAST, c.updated_at DESC`,
         params
       );
       res.json({ success: true, crm: result.rows });
