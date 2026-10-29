@@ -3897,6 +3897,19 @@ async function crmWriteOrder(rows){
 // Dead leads are pushed to the bottom of their month rather than given a
 // separate tab; they still belong to the month they came in.
 function crmMonthKey(c){
+  // tracker_month is the month this lead is being worked in, which is what
+  // the tabs are for. It only matches created_at until a lead is carried
+  // forward; after that, creation date would strand a live November lead on
+  // the October tab forever - the thing copying rows between spreadsheet
+  // tabs was meant to avoid.
+  if (/^\d{4}-\d{2}$/.test(c.tracker_month || '')) {
+    const [y, m] = c.tracker_month.split('-').map(Number);
+    return {
+      key: c.tracker_month,
+      label: new Date(y, m - 1, 1)
+        .toLocaleDateString('en-CA', { month: 'long', year: 'numeric' }).toUpperCase()
+    };
+  }
   const raw = c.created_at || c.date;
   const d = raw ? new Date(raw) : null;
   if (!d || isNaN(d)) return { key:'0000-00', label:'No date' };
@@ -3911,7 +3924,7 @@ function crmMonthKey(c){
 // another month survives. Ranks are reused rather than invented, which keeps
 // every row's position relative to the rest of the list unchanged.
 async function sortCrmMonthByHeat(monthKey){
-  const MONTH_ORDER = ['Hot','Warm','Cold','Sold','Dead'];
+  const MONTH_ORDER = ['Sold','Hot','Warm','Cold','Dead'];
   const rank = Object.fromEntries(MONTH_ORDER.map((k,i) => [k, MONTH_ORDER.length - i]));
   const rows = crmData.filter(c => crmMonthKey(c).key === monthKey);
   if (rows.length < 2) return;
@@ -3956,7 +3969,7 @@ function renderCrmMonthly(){
   // auto-sorting by temperature would just fight him every time he moved one.
   // The colour still says what each row is, and "Sort by heat" re-stacks the
   // month Hot-first when he wants it tidied rather than hand-ordered.
-  const MONTH_ORDER = ['Hot','Warm','Cold','Sold','Dead'];
+  const MONTH_ORDER = ['Sold','Hot','Warm','Cold','Dead'];
   const keys = [...months.keys()].sort().reverse();
 
   host.innerHTML = keys.map(k => {
