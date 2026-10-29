@@ -7,7 +7,12 @@
 
   const API_BASE = '';
   let _accessToken = sessionStorage.getItem('ff_access') || null;
-  let _refreshToken = sessionStorage.getItem('ff_refresh') || null;
+  // The refresh token is an httpOnly cookie now — this script cannot read it,
+  // which is the point. What is read here is only the leftover from a session
+  // that started before that change, so those users carry through the deploy
+  // instead of being signed out by it. It is handed to the server once and
+  // then dropped; nothing writes this key any more.
+  let _legacyRefresh = sessionStorage.getItem('ff_refresh') || null;
   let _user = null;
   let _syncTimers = {};
 
@@ -28,7 +33,7 @@
       sessionStorage.removeItem('ff_access');
       sessionStorage.removeItem('ff_refresh');
       _accessToken = null;
-      _refreshToken = null;
+      _legacyRefresh = null;
     }
   });
 
@@ -103,7 +108,10 @@
     }
     if (_accessToken) headers['Authorization'] = 'Bearer ' + _accessToken;
     let res = await fetch(API_BASE + path, { ...opts, headers });
-    if (res.status === 401 && _refreshToken) {
+    // Nothing visible to this script says whether a session exists, so a 401
+    // has to be tried against the cookie rather than skipped for want of a
+    // token we are no longer allowed to see.
+    if (res.status === 401) {
       const refreshed = await _tryRefresh();
       if (refreshed) {
         headers['Authorization'] = 'Bearer ' + _accessToken;
@@ -140,12 +148,19 @@
     if (_isRefreshing) {
       return new Promise(resolve => _refreshQueue.push(resolve));
     }
+    // ?demo=1 must never resolve to a real session. The cookie cannot be
+    // cleared from this script, so the check has to happen here rather than
+    // relying on a variable demo mode wipes.
+    if (new URLSearchParams(location.search).get('demo') === '1') return false;
     _isRefreshing = true;
     try {
       const res = await fetch(API_BASE + '/api/desk/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: _refreshToken })
+        // The cookie carries it. The legacy copy is sent only while one is
+        // still sitting in sessionStorage from before the cookie existed.
+        credentials: 'same-origin',
+        body: JSON.stringify(_legacyRefresh ? { refreshToken: _legacyRefresh } : {})
       });
       // Only a REFUSAL means the token is no good. A 502/503/504 means the
       // server is restarting - which happens on every deploy - and throwing
@@ -154,16 +169,19 @@
       // deploy. Keep the tokens and let the caller see the failure; the next
       // request refreshes cleanly once the server is back.
       if (!res.ok) {
-        const refused = res.status === 400 || res.status === 401 || res.status === 403;
+        const refused = res.status === 401 || res.status === 403;
         if (refused) _logout();
         _refreshQueue.forEach(r => r(false)); _refreshQueue = [];
         return false;
       }
       const data = await res.json();
       _accessToken = data.accessToken;
-      _refreshToken = data.refreshToken;
       sessionStorage.setItem('ff_access', _accessToken);
-      sessionStorage.setItem('ff_refresh', _refreshToken);
+      // The new refresh token came back as a Set-Cookie. Retire the legacy
+      // sessionStorage copy now that it has served its one purpose — leaving
+      // it there would keep a long-lived credential in reach of page scripts.
+      _legacyRefresh = null;
+      sessionStorage.removeItem('ff_refresh');
       _refreshQueue.forEach(r => r(true));
       _refreshQueue = [];
       return true;
@@ -178,9 +196,12 @@
     }
   }
 
+  // Local teardown only. Use FF.logout() to end a session for real — this
+  // cannot clear an httpOnly cookie, so on its own it would leave the session
+  // resumable on the next page load.
   function _logout() {
     _accessToken = null;
-    _refreshToken = null;
+    _legacyRefresh = null;
     _user = null;
     sessionStorage.removeItem('ff_access');
     sessionStorage.removeItem('ff_refresh');
@@ -198,6 +219,31 @@
   }
 
   // ── LOGIN / REGISTER ───────────────────────────────────
+  // Clearing the browser side is no longer enough: the refresh cookie is
+  // httpOnly, so only the server can remove it. Skip this and Sign out leaves
+  // a cookie that signs the next person at that machine straight back in.
+  async function signOut() {
+    try {
+      await fetch(API_BASE + '/api/desk/logout', {
+        method: 'POST',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          _accessToken ? { 'Authorization': 'Bearer ' + _accessToken } : {}
+        ),
+        credentials: 'same-origin',
+        // Survives the page starting to unload — without it a reload racing
+        // this request leaves the cookie set and the session resumable.
+        keepalive: true,
+        body: JSON.stringify(_legacyRefresh ? { refreshToken: _legacyRefresh } : {})
+      });
+    } catch (e) {
+      // Offline. Tear the local session down regardless — but the cookie
+      // survives, so say so rather than letting it look complete.
+      console.warn('⚠️ Sign-out could not reach the server; session may resume when back online');
+    }
+    _logout();
+  }
+
   async function login(email, password) {
     const res = await fetch(API_BASE + '/api/desk/login', {
       method: 'POST',
@@ -207,11 +253,13 @@
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Login failed');
     _accessToken = data.accessToken;
-    _refreshToken = data.refreshToken;
     _user = data.user;
     if (data.billing) sessionStorage.setItem('ff_billing', JSON.stringify(data.billing));
     sessionStorage.setItem('ff_access', _accessToken);
-    sessionStorage.setItem('ff_refresh', _refreshToken);
+    // data.refreshToken is deliberately not stored — the server set it as an
+    // httpOnly cookie in the same response.
+    _legacyRefresh = null;
+    sessionStorage.removeItem('ff_refresh');
     return data;
   }
 
@@ -224,11 +272,13 @@
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Registration failed');
     _accessToken = data.accessToken;
-    _refreshToken = data.refreshToken;
     _user = data.user;
     if (data.billing) sessionStorage.setItem('ff_billing', JSON.stringify(data.billing));
     sessionStorage.setItem('ff_access', _accessToken);
-    sessionStorage.setItem('ff_refresh', _refreshToken);
+    // data.refreshToken is deliberately not stored — the server set it as an
+    // httpOnly cookie in the same response.
+    _legacyRefresh = null;
+    sessionStorage.removeItem('ff_refresh');
     return data;
   }
 
@@ -548,7 +598,7 @@
       sessionStorage.removeItem('ff_access');
       sessionStorage.removeItem('ff_refresh');
       _accessToken = null;
-      _refreshToken = null;
+      _legacyRefresh = null;
       _showLogin();
       return;
     }
@@ -575,6 +625,26 @@
       }
       return;
     }
+
+    // No access token in this tab — but the refresh token is a cookie now, so
+    // it outlived the tab that was closed and is already shared with every
+    // other tab. Ask the server whether the session is still good before
+    // showing a login nobody needs to fill in. This is the whole fix for
+    // "close the tab and sign in again".
+    if (await _tryRefresh()) {
+      _hideLogin();
+      try {
+        const me = await apiFetch('/api/desk/me').then(r => r.ok ? r.json() : null);
+        if (me && me.success && me.user) _user = me.user;
+        await loadAllData();
+        setTimeout(_triggerRenders, 300);
+        console.log('✅ Cloud data loaded (restored session)');
+      } catch (e) {
+        console.warn('⚠️ Restored session data load failed:', e.message);
+        setTimeout(_triggerRenders, 300);
+      }
+      return;
+    }
     _showLogin();
   }
 
@@ -584,7 +654,7 @@
   }
 
   window.FF = {
-    login, register, loadAllData, logout: _logout,
+    login, register, loadAllData, logout: signOut,
     get user()      { return _user; },
     getBilling,
     get isLoggedIn() { return !!_accessToken; },

@@ -1127,7 +1127,7 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
       <span id="usage-pill-text">Usage</span>
     </button>
     <button class="hbtn" id="hdr-settings" data-min-role="manager" onclick="openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i>Settings</button>
-    <button class="hbtn" onclick="if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
+    <button class="hbtn" onclick="if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout().then(()=>location.reload());}" style="color:#ef4444;" title="Sign Out"><i data-lucide="log-out" class="ico-sm"></i></button>
   </div>
 </header>
 
@@ -1153,7 +1153,7 @@ body.light-mode .whs-chip{color:#b91c1c;background:rgba(239,68,68,.12);border-co
   <button class="mobile-action-btn" data-min-role="manager" onclick="closeMobileMenu();openSettingsModal()"><i data-lucide="settings" class="ico-sm"></i> Settings</button>
   <button class="mobile-action-btn" data-min-role="manager" onclick="closeMobileMenu();openUsageModal()"><i data-lucide="activity" class="ico-sm"></i> Usage &amp; Billing</button>
   <div class="mobile-menu-divider"></div>
-  <button class="mobile-action-btn mobile-signout" onclick="closeMobileMenu();if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout();location.reload();}"><i data-lucide="log-out" class="ico-sm"></i> Sign Out</button>
+  <button class="mobile-action-btn mobile-signout" onclick="closeMobileMenu();if(window.DEMO_MODE){exitDemo();}else if(confirm('Sign out?')){FF.logout().then(()=>location.reload());}"><i data-lucide="log-out" class="ico-sm"></i> Sign Out</button>
 </div>
 
 <!-- ═══ DEAL DESK ═══ -->

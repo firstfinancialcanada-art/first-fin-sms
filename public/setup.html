@@ -203,7 +203,10 @@
       msg.className = 'msg ok';
       msg.textContent = 'Account activated — redirecting…';
       sessionStorage.setItem('ff_access',  d.accessToken);
-      sessionStorage.setItem('ff_refresh', d.refreshToken);
+      // d.refreshToken is not stored: /api/desk/setup/complete set it as an
+      // httpOnly cookie in the same response, which is what carries the
+      // session into /platform. Keeping a copy here would put a rotating
+      // credential back within reach of page scripts for no gain.
       // Gold-tier owners go to the welcome wizard for first-time setup;
       // everyone else (managers/reps invited later, or non-gold) goes
       // straight to the platform.

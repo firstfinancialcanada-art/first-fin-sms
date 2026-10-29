@@ -13,6 +13,7 @@ const {
   REFRESH_TTL_DAYS
 } = require('../middleware/auth');
 const { safeFetch } = require('../lib/url-guard'); // SSRF-guarded fetch for scrape/photo endpoints
+const { setRefreshCookie, clearRefreshCookie, readRefreshCookie } = require('../lib/refresh-cookie');
 
 const { EXEMPT_EMAILS, TENANT_CAPS, TIER_NUMBER_CAPS, WHOLESALE_SOURCES } = require('../lib/constants');
 const { checkInventoryCap, checkCrmCap, tenantCaps } = require('../lib/spend-cap');
@@ -477,11 +478,13 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         [user.id, rtHash]
       );
 
+      setRefreshCookie(req, res, refreshToken);
+
       console.log('🆕 Desk user registered:', cleanEmail);
       res.json({
         success: true,
         accessToken,
-        refreshToken,
+        refreshToken,   // deprecated — the cookie is the store the browser uses
         user: await userPayload(user)
       });
     } catch (e) {
@@ -541,6 +544,8 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         [user.id, rtHash]
       );
 
+      setRefreshCookie(req, res, refreshToken);
+
       console.log('🔑 Desk login:', cleanEmail);
 
       // Build billing status
@@ -550,7 +555,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       res.json({
         success: true,
         accessToken,
-        refreshToken,
+        refreshToken,   // deprecated — the cookie is the store the browser uses
         user: await userPayload(user),
         billing
       });
@@ -566,13 +571,17 @@ const { sendCustomerSms } = require('../lib/customer-sms');
   app.post('/api/desk/refresh', async (req, res) => {
     const client = await pool.connect();
     try {
-      const { refreshToken } = req.body;
+      // Cookie first — that is where the browser keeps it now. The body is
+      // still read so a client cached from before this change, and any
+      // non-browser caller, keeps working.
+      const refreshToken = readRefreshCookie(req) || req.body?.refreshToken;
       if (!refreshToken) return res.status(400).json({ success: false, error: 'refreshToken required' });
 
       let decoded;
       try {
         decoded = jwt.verify(refreshToken, JWT_SECRET);
       } catch {
+        clearRefreshCookie(req, res);
         return res.status(401).json({ success: false, error: 'Invalid refresh token' });
       }
 
@@ -584,6 +593,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       );
 
       if (rt.rows.length === 0) {
+        clearRefreshCookie(req, res);
         return res.status(401).json({ success: false, error: 'Refresh token expired or revoked' });
       }
 
@@ -591,7 +601,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       await client.query('DELETE FROM desk_refresh_tokens WHERE token_hash = $1', [rtHash]);
 
       const user = await client.query('SELECT * FROM desk_users WHERE id = $1', [decoded.userId]);
-      if (user.rows.length === 0) return res.status(401).json({ success: false, error: 'User not found' });
+      if (user.rows.length === 0) { clearRefreshCookie(req, res); return res.status(401).json({ success: false, error: 'User not found' }); }
 
       // Suspended / soft-deleted: the presented refresh token was already
       // deleted above (rotation), so refusing here leaves them with NO valid
@@ -616,6 +626,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         [decoded.userId, newHash]
       );
 
+      setRefreshCookie(req, res, newRefresh);
       res.json({ success: true, accessToken: newAccess, refreshToken: newRefresh });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
@@ -738,10 +749,37 @@ const { sendCustomerSms } = require('../lib/customer-sms');
   });
 
   // ── LOGOUT ───────────────────────────────────────────────
-  app.post('/api/desk/logout', requireAuth, async (req, res) => {
+  // No requireAuth. The cookie outlives the 4h access token, so gating logout
+  // on a live access token meant a user whose token had expired could click
+  // Sign out, get a 401, and walk away with the refresh cookie still set —
+  // the next page load would quietly sign them back in. On a shared desk
+  // machine that is the whole point of logging out. Identify the caller from
+  // whichever credential they still have, revoke, and clear the cookie no
+  // matter what: the only thing an unauthenticated caller can do here is log
+  // themselves out, and SameSite=Strict keeps it off cross-site requests.
+  app.post('/api/desk/logout', async (req, res) => {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [req.user.userId]);
+      let userId = null;
+      const bearer = String(req.headers.authorization || '');
+      if (bearer.startsWith('Bearer ')) {
+        try { userId = jwt.verify(bearer.slice(7), JWT_SECRET).userId; } catch (e) {}
+      }
+      const rt = readRefreshCookie(req) || req.body?.refreshToken;
+      if (rt) {
+        try {
+          const decoded = jwt.verify(rt, JWT_SECRET);
+          if (!userId) userId = decoded.userId;
+          // Revoke the presented token even when it belongs to someone other
+          // than the bearer — it is still a credential being handed back.
+          const rtHash = crypto.createHash('sha256').update(rt).digest('hex');
+          await client.query('DELETE FROM desk_refresh_tokens WHERE token_hash = $1', [rtHash]);
+        } catch (e) {}
+      }
+      if (userId) {
+        await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [userId]);
+      }
+      clearRefreshCookie(req, res);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
@@ -863,6 +901,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         );
         if (settingsRow.rows.length) userPayloadObj = await userPayload(settingsRow.rows[0]);
       } catch (_) { /* non-fatal — client will load full payload from /api/desk/load-all */ }
+      setRefreshCookie(req, res, refreshTok);
       res.json({ success: true, accessToken: accessTok, refreshToken: refreshTok, user: userPayloadObj });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
@@ -924,6 +963,7 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       await client.query('UPDATE desk_users SET password_hash = $1 WHERE id = $2', [hash, req.user.userId]);
       // Invalidate all refresh tokens so other sessions must re-auth
       await client.query('DELETE FROM desk_refresh_tokens WHERE user_id = $1', [req.user.userId]);
+      clearRefreshCookie(req, res);
       console.log('🔑 Password changed for userId:', req.user.userId);
       res.json({ success: true, message: 'Password changed successfully' });
     } catch (e) {

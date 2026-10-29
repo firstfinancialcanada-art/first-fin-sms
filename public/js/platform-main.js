@@ -6637,7 +6637,7 @@ async function changePassword() {
       msg.style.color = 'var(--green)';
       msg.textContent = '✓ Password updated. You will be logged out in 3 seconds.';
       setVal('pwCurrent', ''); setVal('pwNew', ''); setVal('pwConfirm', '');
-      setTimeout(() => { FF.logout(); location.reload(); }, 3000);
+      setTimeout(() => { FF.logout().then(() => location.reload()); }, 3000);
     } else {
       msg.style.color = 'var(--red)';
       msg.textContent = d.error || 'Failed to update password.';
