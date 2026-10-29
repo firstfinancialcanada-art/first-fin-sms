@@ -1,5 +1,43 @@
 // routes/analytics.js
-const { pool } = require('../lib/db');
+const { pool, migrationsReady } = require('../lib/db');
+
+// ── Columns the dashboard reads ─────────────────────────────
+// conversations.stop_reason is created in setup-database-v2.js, which only
+// runs under `npm run migrate` and never ran against production. The one
+// missing column made /api/analytics throw 'column "stop_reason" does not
+// exist', and since every metric in that response is assembled in a single
+// handler, the entire dashboard returned 500 for the whole of October — there
+// was no way to see how a campaign had performed.
+//
+// So it runs on boot here instead, following lib/notify.js. `source` and
+// `lead_score` are declared in the same block of that file and are read by
+// the same handler, so they are covered too rather than left to fail one at a
+// time. Each failure is logged: a silent .catch(() => {}) in the migration
+// script is what let this hide for a month.
+let _columnsPromise = null;
+function ensureAnalyticsColumns() {
+  if (_columnsPromise) return _columnsPromise;
+  _columnsPromise = (async () => {
+    try {
+      await migrationsReady;
+      // Separately, so the log names the column that actually failed.
+      await pool.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source VARCHAR(100)`);
+      await pool.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS stop_reason VARCHAR(100)`);
+      await pool.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0`);
+      console.log('✅ conversations analytics columns ready');
+    } catch (e) {
+      console.error('❌ analytics column migration:', e.message);
+      // Clear the memo so a transient failure is retried on the next request
+      // rather than cached for the life of the process.
+      _columnsPromise = null;
+      throw e;
+    }
+  })();
+  return _columnsPromise;
+}
+// Fire on boot; the handler awaits it as well, so a request that lands before
+// this settles waits for it rather than querying a column that is not there.
+ensureAnalyticsColumns().catch(() => {});
 
 // CSV formula injection prevention — prefix dangerous leading chars with tab
 function csvSafe(val) {
@@ -146,6 +184,7 @@ module.exports = function analyticsRoutes(app, { requireAuth, notifyOwner }) {
 
   // ── Analytics dashboard data ──────────────────────────────────
   app.get('/api/analytics', requireAuth, async (req, res) => {
+    await ensureAnalyticsColumns();
     const uid = req.user.userId;
     const client = await pool.connect();
     try {
