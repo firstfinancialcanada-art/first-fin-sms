@@ -5503,7 +5503,10 @@ async function loadSarahDashboard(){
     } catch(e){ console.warn('Analytics load error', e); }
 
     // Conversations
-    allConversations = await FF.apiFetch('/api/conversations').then(r=>r.json());
+    // Ask for the whole book, not the first page. The search box below filters
+    // what is loaded, so a 50-row default meant searching 50 threads out of
+    // hundreds and quietly finding nothing.
+    allConversations = await FF.apiFetch('/api/conversations?limit=500').then(r=>r.json());
     renderConversations(allConversations);
 
     // Appointments

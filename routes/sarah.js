@@ -425,9 +425,40 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
   // ── All conversations ─────────────────────────────────────────
   app.get('/api/conversations', requireAuth, async (req, res) => {
     const uid = req.user.userId;
+    // Paging and search.
+    //
+    // This used to pull every conversation, sort them in JS and return the
+    // newest 50 — so a tenant with hundreds of threads could see fifty of
+    // them and had no way to reach the rest. limit, offset and search were
+    // all silently ignored. The history was write-only: you could add to it
+    // and never read it back.
+    //
+    // The slice is now a real LIMIT/OFFSET in SQL, which also stops us
+    // building every row just to discard it. Total count goes in a header so
+    // the response body stays a plain array and existing callers keep working.
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const search = String(req.query.search || '').trim();
+    // Phone searches are typed every way a number can be written. Compare on
+    // digits alone so "403 555" and "(403)555" both find +14035550000.
+    const digits = search.replace(/\D/g, '');
+    const params = [uid];
+    let where = 'c.user_id = $1';
+    if (search) {
+      params.push('%' + search.toLowerCase() + '%');
+      const nameParam = '$' + params.length;
+      let clause = `(LOWER(COALESCE(cu.name, '')) LIKE ${nameParam}
+                     OR LOWER(COALESCE(c.customer_name, '')) LIKE ${nameParam})`;
+      if (digits.length >= 3) {
+        params.push('%' + digits + '%');
+        clause += ` OR regexp_replace(c.customer_phone, '\\D', '', 'g') LIKE $${params.length}`;
+      }
+      where += ` AND (${clause})`;
+    }
     const client = await pool.connect();
     try {
       const result = await client.query(`
+        SELECT * FROM (
         SELECT DISTINCT ON (c.customer_phone)
           c.id, c.customer_phone,
           -- customers.name is only ever written by the sales and acquisition
@@ -453,11 +484,21 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
            ORDER BY m2.created_at DESC LIMIT 1) as last_message
         FROM conversations c
         LEFT JOIN customers cu ON c.customer_phone = cu.phone AND cu.user_id = $1
-        WHERE c.user_id = $1
+        WHERE ${where}
         ORDER BY c.customer_phone, c.updated_at DESC
-      `, [uid]);
-      result.rows.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-      res.json(result.rows.slice(0, 50));
+        ) t
+        ORDER BY t.updated_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `, params);
+      // Total matching threads, so the caller knows whether to page again.
+      const countRes = await client.query(`
+        SELECT COUNT(DISTINCT c.customer_phone) AS n
+        FROM conversations c
+        LEFT JOIN customers cu ON c.customer_phone = cu.phone AND cu.user_id = $1
+        WHERE ${where}
+      `, params);
+      res.set('X-Total-Count', String(countRes.rows[0] ? countRes.rows[0].n : result.rows.length));
+      res.json(result.rows);
     } catch (error) {
       res.json({ error: error.message });
     } finally {
