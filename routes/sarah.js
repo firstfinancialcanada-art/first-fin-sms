@@ -83,6 +83,18 @@ const VEHICLE_VOCAB = {
 // miss costs the lead.
 const CREDIT_RE = /\b(bad credit|poor credit|no credit|thin credit|credit score|credit challenged|credit (is|isn'?t|was|ain'?t)\s*(bad|poor|shot|rough|great|good|terrible|awful)?|my credit|rebuilding (my )?credit|subprime|no co[- ]?signer|co[- ]?signer|bankrupt|bankruptcy|consumer proposal|repo(ed|s|'d|ssession|ssessed|ssessing)?|in collections|collections|garnish(ment|ed)?|judge?ment|too much debt|debt|student loans?|laid off|lost my job|no job|unemployed|on ei|disability|can'?t afford|cannot afford|struggling|turned down|declined|denied|not approved|not approve|wasn'?t approved|need (a|an)? ?co[- ]?signer|couldn'?t get (approve|approved|financ(ed|ing))|(won'?t|wont|can'?t|cant|cannot|unable to|not)[^.!?]{0,28}financ(e|ed|ing)|can'?t get (approve|approved|financ(ed|ing))|cant get approve|financing (fell|didn'?t|did not|was declined)|bank (said no|turned me down|declined)|no money|no down( payment)?|money('?s)? tight|tight on money)\b/i;
 
+// A removal ask and a soft no are not the same thing, and they used to share
+// one list. "Remove me" / "wrong number" means never again. "No thanks" /
+// "not at this time" means not now, and closing that thread with "I've taken
+// you off our list" threw away a lead that was still live - permanently, once
+// that branch started writing the opt-out table.
+//
+// HARD is tested first, so "not interested, take me off" reads as a removal.
+// No word boundaries on purpose: these are matched against a whole inbound
+// message, exactly as the .includes() chain they replace was.
+const HARD_REMOVAL_RE = /wrong number|leave me alone|remove me|take me off|take my (number|name) off|lose my number|do not contact|don'?t contact|never contact|do not text|don'?t text|stop texting|please stop|go away/i;
+const SOFT_NO_RE = /not interested|no thanks|no thank you|not at this time|not at the moment|not right now|not for now|maybe later|some other time|another time|not looking right now|too soon/i;
+
 const VEHICLE_MAKES = [
   'ford','chevrolet','chevy','gmc','dodge','ram','jeep','chrysler','fiat','alfa romeo','alfa-romeo','alfa',
   'toyota','honda','acura','lexus','infiniti','nissan','datsun','mazda','subaru','mitsubishi','suzuki','isuzu',
@@ -1349,17 +1361,20 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // replace it?" → "no" means no replacement, not opt-out). Bug caught
     // 2026-05-08 by Franco when his test reply "No" at acq_replacement
     // got interpreted as universal opt-out and stopped the conversation.
-    if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') || lowerMsg.includes('no thank you') ||
-        lowerMsg.includes('wrong number') || lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
-        lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
-        lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
-      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'not_interested' });
+    if (HARD_REMOVAL_RE.test(message)) {
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'asked_to_be_removed' });
       // The reply below tells them they are off the list. Without this they
       // were not in the opt-out table, which is the only thing lib/bulk.js
       // checks before sending — so the next blast texted them anyway.
-      await addOptOut(phone, 'not_interested');
-      await logAnalytics('conversation_stopped', phone, { reason: 'not_interested', mode: 'acquisition' }, userId);
+      await addOptOut(phone, 'asked_to_be_removed');
+      await logAnalytics('conversation_stopped', phone, { reason: 'asked_to_be_removed', mode: 'acquisition' }, userId);
       return "No worries! I've taken you off our list. If anything changes — selling, buying, or trading — just text back anytime.";
+    }
+
+    // Soft no: still a live lead. One question, nothing stopped or unsubscribed.
+    if (SOFT_NO_RE.test(message)) {
+      await logAnalytics('soft_no', phone, { mode: 'acquisition', stage: conversation.stage }, userId);
+      return 'No problem. Is it the timing, or the vehicle itself?';
     }
 
     // ── STAGE: acq_confirm — opener replied to ─────────────────────
@@ -2224,17 +2239,19 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     // "no" to legitimate binary stage questions (e.g. "got a trade?" →
     // "no" means no trade). Stage handlers below decide what bare "no"
     // means in context. Universal opt-out only fires on explicit phrases.
-    if (lowerMsg.includes('not interested') || lowerMsg.includes('no thanks') ||
-        lowerMsg.includes('no thank you') || lowerMsg.includes('wrong number') ||
-        lowerMsg.includes('leave me alone') || lowerMsg.includes('remove me') ||
-        lowerMsg.includes('do not contact') || lowerMsg.includes('go away') ||
-        lowerMsg.includes("don't text") || lowerMsg.includes('stop texting') || lowerMsg.includes('please stop')) {
-      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'not_interested' });
+    if (HARD_REMOVAL_RE.test(message)) {
+      await updateConversation(conversation.id, { status: 'stopped', stop_reason: 'asked_to_be_removed' });
       // Same gap as the acquisition branch: the reply promises removal, so the
       // opt-out table has to actually say so.
-      await addOptOut(phone, 'not_interested');
-      await logAnalytics('conversation_stopped', phone, { reason: 'not_interested' }, userId);
+      await addOptOut(phone, 'asked_to_be_removed');
+      await logAnalytics('conversation_stopped', phone, { reason: 'asked_to_be_removed' }, userId);
       return "No worries at all! I've taken you off our list. If anything changes down the road, just text back anytime. Take care!";
+    }
+
+    // Soft no: still a live lead. One question, nothing stopped or unsubscribed.
+    if (SOFT_NO_RE.test(message)) {
+      await logAnalytics('soft_no', phone, { stage: conversation.stage }, userId);
+      return 'No problem. Is it the timing, or the vehicle itself?';
     }
 
     // ── ODD QUESTIONS → funnel to callback ───────────────────
