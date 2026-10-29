@@ -37,6 +37,17 @@ async function fakeQuery(sql, params) {
     hit.forEach(c => { c.status = 'stopped'; });
     return { rowCount: hit.length };
   }
+  if (s.startsWith('SELECT * FROM conversations WHERE customer_phone = ANY')) {
+    const keys = params[0], uid = params[1];
+    const hit = conversations.filter(c => keys.includes(c.customer_phone) && c.user_id === uid);
+    return { rows: hit };
+  }
+  if (s.startsWith('SELECT id FROM conversations WHERE customer_phone = ANY')) {
+    const keys = params[0], uid = params[1];
+    return { rows: conversations.filter(c => keys.includes(c.customer_phone) && c.user_id === uid)
+               .map((c, i) => ({ id: i + 1 })) };
+  }
+  if (s.startsWith('SELECT * FROM messages WHERE conversation_id')) return { rows: [] };
   if (s.startsWith("UPDATE conversations SET status = 'active'")) {
     const keys = params[0], uid = params[1];
     const hit = conversations.filter(c => keys.includes(c.customer_phone) && c.user_id === uid && c.status === 'stopped');
@@ -87,13 +98,13 @@ require(path.join(ROOT, 'routes', 'sarah.js'))(app, {
   requireBilling: (q, s, n) => n && n(), notifyOwner: async () => {},
 });
 
-function call(route, { body = {}, query = {}, userId = 1 } = {}) {
+function call(route, { body = {}, query = {}, params = {}, userId = 1 } = {}) {
   return new Promise(resolve => {
     const res = { _s: 200, _h: {},
       status(c) { this._s = c; return this; },
       set(k, v) { this._h[k] = v; return this; },
       json(payload) { resolve({ status: this._s, body: payload, headers: this._h }); return this; } };
-    routes[route]({ body, query, user: { userId } }, res);
+    routes[route]({ body, query, params, user: { userId } }, res);
   });
 }
 
@@ -181,6 +192,30 @@ T('a number nobody opted out reads as not opted out', async () => {
   return r.status === 200 && r.body.optedOut === false;
 });
 
+T('a thread is found whatever way the number is written', async () => {
+  // desk_crm stores "(403) 835-4162" while conversations stores
+  // "+14038354162". An exact compare reported "No conversation found" for a
+  // customer who had a thread, which reads as never contacted rather than as
+  // a lookup miss - and that is how a real follow-up nearly went out blind.
+  reset();
+  conversations.push({ customer_phone: '+14038354162', user_id: 1, status: 'active' });
+  const spellings = ['(403) 835-4162', '403-835-4162', '4038354162', '+14038354162', '1-403-835-4162'];
+  for (const p of spellings) {
+    const r = await call('GET /api/conversation/:phone', { params: { phone: p } });
+    if (!r.body || r.body.error || !r.body.conversation) {
+      console.log('      missed the thread for ' + p);
+      return false;
+    }
+  }
+  return true;
+});
+
+T('a number with no thread still reports cleanly', async () => {
+  reset();
+  const r = await call('GET /api/conversation/:phone', { params: { phone: '+14035550000' } });
+  return !!(r.body && r.body.error);
+});
+
 T('the opt-out is logged for the audit trail', async () => {
   reset();
   await call('POST /api/opt-out', { body: { phone: '+14039190678', reason: 'phoned in' } });
@@ -193,7 +228,10 @@ T('the opt-out is logged for the audit trail', async () => {
   for (const c of checks) {
     let ok = false, err = null;
     try { ok = await c.fn(); } catch (e) { err = e.message; }
-    if (ok) { pass++; console.log('  PASS  ' + c.label); }
+    // Strict: a check that returns a descriptive failure string instead of
+    // false would otherwise be counted as a pass, which is exactly how a
+    // broken test sat here reporting green.
+    if (ok === true) { pass++; console.log('  PASS  ' + c.label); }
     else    { fail++; console.log('  FAIL  ' + c.label + (err ? ' — ' + err : '')); }
   }
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

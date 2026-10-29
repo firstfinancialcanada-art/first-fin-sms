@@ -613,16 +613,23 @@ module.exports = function sarahRoutes(app, { twilioClient, requireAuth, requireB
     const client = await pool.connect();
     try {
       const { phone } = req.params;
+      // Match every stored spelling of the number, not the exact string.
+      // desk_crm holds "(403) 835-4162" while conversations holds
+      // "+14038354162", so an exact compare reported "No conversation
+      // found" for a customer who had a thread - which reads as never
+      // contacted rather than as a lookup miss.
+      const keys = phoneKeys(phone);
+      if (!keys.length) return res.json({ error: 'No conversation found' });
       const conversation = await client.query(
-        'SELECT * FROM conversations WHERE customer_phone = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1',
-        [phone, uid]
+        'SELECT * FROM conversations WHERE customer_phone = ANY($1) AND user_id = $2 ORDER BY updated_at DESC LIMIT 1',
+        [keys, uid]
       );
       if (conversation.rows.length === 0) {
         return res.json({ error: 'No conversation found' });
       }
       const allConvIds = await client.query(
-        'SELECT id FROM conversations WHERE customer_phone = $1 AND user_id = $2',
-        [phone, uid]
+        'SELECT id FROM conversations WHERE customer_phone = ANY($1) AND user_id = $2',
+        [keys, uid]
       );
       const ids = allConvIds.rows.map(r => r.id);
       let messages;
