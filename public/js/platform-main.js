@@ -4783,15 +4783,39 @@ async function restoreCrmLead(id) {
     toast('Restore failed');
   }
 }
+// Asks first, then writes. The old version posted once and whatever came
+// back had already landed: on a book with a year of Sarah threads behind it
+// that meant hundreds of cold rows dropped into the working month with no
+// warning and no way back except deleting them one at a time. The endpoint
+// previews unless it is told to commit, so the count is shown before
+// anything is written.
+const SARAH_SYNC_DAYS = 30;
+
 async function syncSarahToCRM() {
+  const post = (body) => FF.apiFetch('/api/desk/crm/sync-sarah', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  }).then(r => r.json());
   try {
-    const r = await FF.apiFetch('/api/desk/crm/sync-sarah', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-    const data = await r.json();
-    if (data.success) {
-      toast(`Synced from SARAH: ${data.created} new, ${data.updated} updated`);
-      if (window.FF?.loadAllData) await window.FF.loadAllData();
-      renderCRM();
-    } else { toast('Sync failed: ' + (data.error || 'unknown')); }
+    const p = await post({ days: SARAH_SYNC_DAYS });
+    if (!p.success) { toast('Sync failed: ' + (p.error || 'unknown')); return; }
+    if (!p.created && !p.updated) {
+      toast('Nothing new in the last ' + p.days + ' days of Sarah threads');
+      return;
+    }
+    const bits = [];
+    if (p.created) bits.push(p.created + ' new lead' + (p.created === 1 ? '' : 's') + ' would be added');
+    if (p.updated) bits.push(p.updated + ' existing lead' + (p.updated === 1 ? '' : 's') + ' would gain vehicle or budget detail');
+    let msg = 'Sarah threads from the last ' + p.days + ' days: ' + bits.join(', ') + '.';
+    if (p.skippedDeleted) msg += ' ' + p.skippedDeleted + ' deleted lead' + (p.skippedDeleted === 1 ? '' : 's') + ' left alone.';
+    msg += ' Nothing has been written yet.';
+    const ok = await _confirmModal(msg, { okLabel: 'Sync ' + p.created + ' into the tracker' });
+    if (!ok) return;
+
+    const r = await post({ days: SARAH_SYNC_DAYS, commit: true });
+    if (!r.success) { toast('Sync failed: ' + (r.error || 'unknown')); return; }
+    toast('Synced from Sarah: ' + r.created + ' new, ' + r.updated + ' updated');
+    if (window.FF && window.FF.loadAllData) await window.FF.loadAllData();
+    _renderCrmActiveView();
   } catch (e) { toast('Sync failed'); }
 }
 // Mirrors setCrmTemp deliberately. The old version applied the new status

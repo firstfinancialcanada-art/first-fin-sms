@@ -2572,56 +2572,94 @@ const { sendCustomerSms } = require('../lib/customer-sms');
         return res.status(403).json({ success: false, error: 'Sync requires manager role' });
       }
 
-      // Pull conversations across the tenant (not just one user)
+      // Three faults made this button unsafe to press on a live book, found
+      // 2026-10-30 while wiring Sarah and the tracker together for November.
+      //
+      // It had no date window and no limit, so it offered every conversation
+      // the tenant had ever held - about 1,200 by then - against a 67-row
+      // month. Pressing it would have buried November under a year of cold
+      // threads. It now takes a window, defaulting to 30 days.
+      //
+      // It matched an existing lead on the phone STRING. Tracker numbers came
+      // off a spreadsheet as (403) 835-4162 while conversations are stored
+      // +14038354162, so a customer already in the book did not match and got
+      // a second row. Matching is on the last ten digits now, as elsewhere.
+      //
+      // It ignored deleted_at, so a lead deliberately deleted was resurrected
+      // on the next press. A deleted lead is now left alone entirely.
+      //
+      // And it wrote immediately. It previews by default: nothing lands
+      // unless the caller passes commit, so the count can be shown first.
+      const days   = Math.min(Math.max(parseInt(req.body && req.body.days, 10) || 30, 1), 365);
+      const commit = (req.body && req.body.commit) === true;
+
       const convs = await client.query(`
-        SELECT customer_phone, customer_name, vehicle_type, budget, budget_amount, status, updated_at
+        SELECT customer_phone, customer_name, vehicle_type, budget, status, updated_at
         FROM conversations
         WHERE tenant_id = $1 AND customer_phone IS NOT NULL
+          AND updated_at >= NOW() - ($2 || ' days')::interval
           AND (vehicle_type IS NOT NULL OR budget IS NOT NULL OR customer_name IS NOT NULL)
         ORDER BY updated_at DESC
-      `, [scope.tenantId]);
+      `, [scope.tenantId, String(days)]);
 
-      let created = 0, updated = 0;
+      let created = 0, updated = 0, unchanged = 0, skippedDeleted = 0, skippedBadPhone = 0;
+      const sample = [];
+      const note = (action, c) => { if (sample.length < 12) sample.push({ action, name: c.customer_name || '', phone: c.customer_phone }); };
+
       for (const c of convs.rows) {
-        const phone = c.customer_phone;
-        // Check if already in CRM (by tenant + phone)
+        const digits = String(c.customer_phone || '').replace(/[^0-9]/g, '').slice(-10);
+        if (digits.length < 10) { skippedBadPhone++; continue; }
+
         const existing = await client.query(
-          'SELECT id, notes, vehicle_interest, budget_range FROM desk_crm WHERE tenant_id = $1 AND phone = $2',
-          [scope.tenantId, phone]
+          `SELECT id, deleted_at, vehicle_interest, budget_range
+             FROM desk_crm
+            WHERE tenant_id = $1
+              AND right(regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $2
+            ORDER BY deleted_at NULLS FIRST
+            LIMIT 1`,
+          [scope.tenantId, digits]
         );
-        if (existing.rows.length > 0) {
+
+        if (existing.rows.length) {
           const row = existing.rows[0];
+          if (row.deleted_at) { skippedDeleted++; continue; }
           const updates = {};
           if (!row.vehicle_interest && c.vehicle_type) updates.vehicle_interest = c.vehicle_type;
-          if (!row.budget_range && c.budget) updates.budget_range = c.budget;
-          if (Object.keys(updates).length > 0) {
-            updates.last_contact = c.updated_at;
-            const SAFE_FIELDS = new Set(['vehicle_interest','budget_range','last_contact']);
-            const safeUpdates = Object.entries(updates).filter(([k]) => SAFE_FIELDS.has(k));
-            const sets = safeUpdates.map(([k], i) => `${k} = $${i+1}`);
-            const vals = safeUpdates.map(([,v]) => v);
-            vals.push(existing.rows[0].id);
-            await client.query(`UPDATE desk_crm SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
-            updated++;
-          }
+          if (!row.budget_range     && c.budget)       updates.budget_range     = c.budget;
+          if (!Object.keys(updates).length) { unchanged++; continue; }
+          updated++; note('update', c);
+          if (!commit) continue;
+          updates.last_contact = c.updated_at;
+          const SAFE_FIELDS = new Set(['vehicle_interest', 'budget_range', 'last_contact']);
+          const safeUpdates = Object.entries(updates).filter(([k]) => SAFE_FIELDS.has(k));
+          const sets = safeUpdates.map(([k], i) => `${k} = $${i + 1}`);
+          const vals = safeUpdates.map(([, v]) => v);
+          vals.push(row.id);
+          await client.query(`UPDATE desk_crm SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
         } else {
-          // New row lands unassigned (pool) — any rep can claim it
+          created++; note('create', c);
+          if (!commit) continue;
+          // New row lands unassigned (pool) so any rep can claim it.
           await client.query(
             `INSERT INTO desk_crm (user_id, tenant_id, assigned_rep_id, name, phone, vehicle_interest, budget_range, status, source, last_contact)
              VALUES ($1, $2, NULL, $3, $4, $5, $6, 'Lead', 'SARAH', $7)`,
-            [req.user.userId, scope.tenantId, c.customer_name || '', phone, c.vehicle_type, c.budget, c.updated_at]
+            [req.user.userId, scope.tenantId, c.customer_name || '', c.customer_phone, c.vehicle_type, c.budget, c.updated_at]
           );
-          created++;
         }
       }
-      res.json({ success: true, created, updated, total: convs.rows.length });
+
+      if (commit) console.log('🔄 Sarah sync (' + days + 'd): ' + created + ' created, ' + updated + ' updated');
+      res.json({
+        success: true, preview: !commit, days,
+        created, updated, unchanged, skippedDeleted, skippedBadPhone,
+        scanned: convs.rows.length, sample,
+      });
     } catch (e) {
       res.status(500).json({ success: false, error: sanitizeError(e) });
     } finally {
       client.release();
     }
   });
-
   // Soft delete — sets desk_crm.deleted_at instead of hard-deleting. Lead
   // disappears from the main /api/desk/crm list (filtered out via WHERE
   // c.deleted_at IS NULL) but stays restorable from the Recently Deleted
