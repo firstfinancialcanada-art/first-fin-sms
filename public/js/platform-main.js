@@ -3783,11 +3783,21 @@ function renderCrmTempBar(){
 
 function filterCrmTemp(t){ _crmTempFilter = t; renderCRM(); }
 
+// A lead can be changed from the Master CRM or from the Monthly Tracker, so
+// repaint whichever pane the click actually came from. setCrmTemp used to
+// call renderCRM() alone, which repainted Master CRM while the tracker - the
+// view Franco works November out of - kept showing the old colour and the
+// old position until a manual refresh.
+function _renderCrmActiveView(){
+  renderCRM();
+  if (document.getElementById('atab-crmmonth')?.classList.contains('active')) renderCrmMonthly();
+}
+
 async function setCrmTemp(id, temp){
   const row = crmData.find(c => c.id === id);
   const was = row ? row.temperature : null;
   if (row) row.temperature = temp;            // optimistic — the page stays responsive
-  renderCRM();
+  _renderCrmActiveView();
   try{
     const r = await FF.apiFetch('/api/desk/crm/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ temperature: temp })}).then(x=>x.json());
@@ -3795,7 +3805,7 @@ async function setCrmTemp(id, temp){
     toast(temp === 'Dead' ? 'Marked dead' : 'Moved to '+temp);
   }catch(e){
     if (row) row.temperature = was;           // put it back rather than lie about it
-    renderCRM();
+    _renderCrmActiveView();
     toast('Could not change temperature');
   }
 }
@@ -4006,8 +4016,16 @@ function renderCrmMonthly(){
         <td>${_esc(c.phone||'—')}</td>
         <td>${_esc(c.vehicle_interest||c.vehicle||'—')}</td>
         <td class="crm-sub" style="color:var(--muted)">${_esc(c.source||'—')}</td>
-        <td><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;${crmStatusBadge(c.status)}">${c.status||'Lead'}</span></td>
-        <td><span style="color:${CRM_TEMP_C[crmTempOf(c)]};font-weight:800;font-size:12px">${crmTempOf(c)}</span></td>
+        <td><select draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"
+            onchange="updateCRM(${c.id},this.value);this.blur()" title="Where the deal is"
+            style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;width:104px">
+          ${CRM_STATUSES.map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}${CRM_STATUSES.includes(c.status)||!c.status?'':`<option selected>${_esc(c.status)}</option>`}
+        </select></td>
+        <td><select draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"
+            onchange="setCrmTemp(${c.id},this.value);this.blur()" title="How live it feels today"
+            style="background:var(--surface2);border:1px solid ${CRM_TEMP_C[crmTempOf(c)]};border-radius:4px;color:${CRM_TEMP_C[crmTempOf(c)]};padding:3px 5px;font-size:11px;font-weight:800;font-family:'Outfit',sans-serif;width:82px">
+          ${CRM_TEMPS.map(t=>`<option value="${t.key}" ${crmTempOf(c)===t.key?'selected':''}>${t.label}</option>`).join('')}
+        </select></td>
       </tr>`).join('')}
       </tbody></table></div>
     </div>`;
@@ -4613,10 +4631,25 @@ async function syncSarahToCRM() {
     } else { toast('Sync failed: ' + (data.error || 'unknown')); }
   } catch (e) { toast('Sync failed'); }
 }
-async function updateCRM(id,status){
-  const c=crmData.find(x=>x.id===id);if(c)c.status=status;
-  try{await FF.apiFetch('/api/desk/crm/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});}
-  catch(e){console.error('CRM update failed:',e);}
+// Mirrors setCrmTemp deliberately. The old version applied the new status
+// optimistically and, when the PATCH failed, only wrote to console: the row
+// kept showing the status the server had just refused. A tracker that shows
+// a value the database does not hold is worse than one that shows an error.
+async function updateCRM(id, status){
+  const c   = crmData.find(x => x.id === id);
+  const was = c ? c.status : null;
+  if (c) c.status = status;                   // optimistic - the page stays responsive
+  _renderCrmActiveView();
+  try{
+    const r = await FF.apiFetch('/api/desk/crm/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status })}).then(x=>x.json());
+    if(!r.success) throw new Error(r.error||'save failed');
+    toast('Status set to '+status);
+  }catch(e){
+    if (c) c.status = was;                    // put it back rather than lie about it
+    _renderCrmActiveView();
+    toast('Could not change status');
+  }
 }
 async function deleteCRM(id){
   const ok = await _confirmModal(
