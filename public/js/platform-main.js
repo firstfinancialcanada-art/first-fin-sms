@@ -3952,6 +3952,81 @@ async function sortCrmMonthByHeat(monthKey){
   toast(changed ? 'Sorted by heat' : 'Already in order');
 }
 
+// ── Months ────────────────────────────────────────────────────────
+// A lead's month is a working decision, not a timestamp: a September lead
+// still being chased in November belongs in November. Three things follow
+// from that - the per-month heat filter, moving one lead between months,
+// and starting a new month in bulk.
+let _crmMonthTempFilter = {};   // { 'YYYY-MM': 'Hot' | null }
+
+function filterCrmMonthTemp(monthKey, temp){
+  _crmMonthTempFilter[monthKey] = (_crmMonthTempFilter[monthKey] === temp) ? null : temp;
+  renderCrmMonthly();
+}
+
+function _crmMonthLabel(key){
+  if (!/^\d{4}-\d{2}$/.test(key || '')) return key || '';
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+}
+
+function _nextMonthKey(key){
+  if (!/^\d{4}-\d{2}$/.test(key || '')) return key || '';
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m, 1);              // m is 1-based, so this lands on the next month
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function _thisMonthKey(){
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+}
+
+// Offers every month already in the book, plus this month and the next, so a
+// lead can always be pushed forward even when nothing lives there yet.
+function _fillCrmMonthSelect(current){
+  const el = document.getElementById('crmEditMonth');
+  if (!el) return;
+  const keys = new Set(crmData.map(c => crmMonthKey(c).key).filter(Boolean));
+  keys.add(_thisMonthKey());
+  keys.add(_nextMonthKey(_thisMonthKey()));
+  if (current) keys.add(current);
+  el.innerHTML = [...keys].sort().reverse()
+    .map(k => '<option value="' + k + '"' + (k === current ? ' selected' : '') + '>' + _crmMonthLabel(k) + '</option>')
+    .join('');
+}
+
+// Start a new month. The server moves open leads and leaves Sold and Dead
+// behind on purpose, so the month that closed keeps reporting what actually
+// happened in it. The count in the prompt is worked out here from the same
+// rule the server applies, so the number shown is the number that moves.
+async function carryForwardMonth(from){
+  const to = _nextMonthKey(from);
+  const moving = crmData.filter(c =>
+    crmMonthKey(c).key === from && !['Sold','Dead'].includes(crmTempOf(c)));
+  if (!moving.length){
+    toast('Nothing open to carry - Sold and Dead stay put');
+    return;
+  }
+  const ok = await _confirmModal(
+    moving.length + ' open lead' + (moving.length === 1 ? '' : 's') + ' will move from ' +
+    _crmMonthLabel(from) + ' into ' + _crmMonthLabel(to) +
+    '. Sold and Dead stay behind so ' + _crmMonthLabel(from) + ' keeps reporting what happened.',
+    { okLabel: 'Carry forward' }
+  );
+  if (!ok) return;
+  try{
+    const r = await FF.apiFetch('/api/desk/crm/carry-forward', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from, to })}).then(x=>x.json());
+    if(!r.success) throw new Error(r.error || 'carry forward failed');
+    await loadCRM();
+    _renderCrmActiveView();
+    toast('Moved ' + r.moved + ' lead' + (r.moved === 1 ? '' : 's') + ' into ' + _crmMonthLabel(to));
+  }catch(e){
+    toast('Could not carry forward');
+  }
+}
+
 function renderCrmMonthly(){
   const host = document.getElementById('crmMonthlyContainer');
   if (!host) return;
@@ -3985,11 +4060,19 @@ function renderCrmMonthly(){
   host.innerHTML = keys.map(k => {
     const m = months.get(k);
     // Hottest first within the month, dead last — the call list reads top-down.
-    const rows = m.rows.slice().sort((a,b) => (b.board_rank||0) - (a.board_rank||0));
+    const allRows = m.rows.slice().sort((a,b) => (b.board_rank||0) - (a.board_rank||0));
     const counts = {};
-    rows.forEach(c => { const t = crmTempOf(c); counts[t] = (counts[t]||0)+1; });
+    allRows.forEach(c => { const t = crmTempOf(c); counts[t] = (counts[t]||0)+1; });
+    // These counts used to be decoration. Master CRM's identical-looking
+    // chips filter, so these do too - but scoped to their own month, because
+    // filtering one block should not silently empty the others.
+    const tf   = _crmMonthTempFilter[k] || null;
+    const rows = tf ? allRows.filter(c => crmTempOf(c) === tf) : allRows;
     const pills = CRM_TEMPS.filter(t => counts[t.key]).map(t =>
-      `<span style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;background:${t.c}22;color:${t.c};border:1px solid ${t.c}66">${t.label} ${counts[t.key]}</span>`).join(' ');
+      `<button onclick="filterCrmMonthTemp('${k}','${t.key}')" title="Show only ${t.label} in this month"
+         style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;background:${tf===t.key?t.c:t.c+'22'};color:${tf===t.key?'#0b0f1a':t.c};border:1px solid ${t.c}66">${t.label} ${counts[t.key]}</button>`).join(' ')
+      + (tf ? ` <button onclick="filterCrmMonthTemp('${k}','${tf}')" title="Clear the filter"
+         style="padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;background:transparent;color:var(--muted);border:1px solid var(--border)">Show all ${allRows.length}</button>` : '');
 
     return `<div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -3998,6 +4081,7 @@ function renderCrmMonthly(){
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">${pills}
           <button onclick="sortCrmMonthByHeat('${k}')" title="Re-stack this month hottest first. Your hand order is replaced." style="margin-left:4px;padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;border:1px solid var(--border);background:transparent;color:var(--muted);">Sort by heat</button>
+          <button onclick="carryForwardMonth('${k}')" title="Move this month's open leads into the next month. Sold and Dead stay here." style="padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;border:1px solid var(--border);background:transparent;color:var(--muted);">Carry open &rarr; ${_crmMonthLabel(_nextMonthKey(k))}</button>
         </div>
       </div>
       <div class="table-wrap"><table class="data-table crm-table"><thead><tr>
@@ -4151,6 +4235,8 @@ function renderCRM(){
           <div><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Reason</label>
             <input id="crmEditFUNote" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px" placeholder="Follow-up reason..."></div>
         </div>
+        <div style="margin-top:6px"><label style="font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Tracker month</label>
+          <select id="crmEditMonth" title="Which month this lead is being worked in" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:10px;margin-top:2px"></select></div>
         <button onclick="saveCrmContact()" style="width:100%;padding:6px;background:var(--primary);color:white;border:none;border-radius:5px;font-weight:600;cursor:pointer;margin-top:8px;font-size:10px">Save Contact Info</button>
         <div id="crmContactSaved" style="text-align:center;font-size:9px;color:var(--green);margin-top:4px;display:none">Saved</div>
       </div>
@@ -4290,6 +4376,7 @@ function openCrmNotes(id) {
   document.getElementById('crmEditVehicle').value = c.vehicle_interest || c.vehicle || '';
   document.getElementById('crmEditFU').value      = c.follow_up_date || '';
   document.getElementById('crmEditFUNote').value  = c.follow_up_note || '';
+  _fillCrmMonthSelect(c.tracker_month || crmMonthKey(c).key);
   document.getElementById('crmNoteNew').value     = '';
   document.getElementById('crmContactSaved').style.display = 'none';
   document.getElementById('crmShowDeletedNotes').checked = false;
@@ -4436,6 +4523,7 @@ async function saveCrmContact() {
     vehicle_interest: document.getElementById('crmEditVehicle').value,
     follow_up_date:   document.getElementById('crmEditFU').value || null,
     follow_up_note:   document.getElementById('crmEditFUNote').value,
+    tracker_month:    document.getElementById('crmEditMonth').value || null,
   };
   try {
     await FF.apiFetch('/api/desk/crm/' + _crmNotesId, {

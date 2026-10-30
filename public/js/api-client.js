@@ -418,10 +418,22 @@
   // platform-main.js no longer reads from unscoped ffSettings at startup.
   function _rawSet(k, v) { _origSetItem(scopeKey(k), v); }
 
+  // ffCRM and ffDealLog are deliberately NOT in this map, and syncCRM /
+  // syncDealLog are therefore unreachable.
+  //
+  // Both bulk endpoints open with a DELETE of everything the tenant owns and
+  // then re-insert from the blob. Nothing in normal operation writes either
+  // key: the CRM persists one row at a time through POST/PATCH
+  // /api/desk/crm, and loadAllData refills localStorage through _rawSet,
+  // which bypasses this patched setItem on purpose. So the entries bought
+  // nothing, while a single stray setItem('ffCRM', ...) anywhere in the app
+  // would have wiped a live book.
+  //
+  // The bulk endpoints themselves stay. The register flow is the one caller
+  // that should ever replace a whole table - a brand-new account adopting
+  // whatever the browser was holding before signup.
   const SYNC_MAP = {
     'ffSettings':     syncSettings,
-    'ffCRM':          syncCRM,
-    'ffDealLog':      syncDealLog,
     'ffLenderRates':  syncLenderRates,
     'ffScenarios':    syncScenarios,
     'ffCurrentDeal':  syncCurrentDeal,
