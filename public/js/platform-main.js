@@ -4249,6 +4249,16 @@ function renderCRM(){
       </div>
       <div style="font-size:8px;color:var(--muted);margin-top:3px">Logs the note above with how it happened. Empty logs the attempt.</div>
 
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px;margin-top:10px">
+        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Text this customer</label>
+        <textarea id="crmSmsBody" rows="3" oninput="_crmSmsCount()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:6px 8px;font-family:'DM Mono',monospace;font-size:10px;resize:vertical;margin:4px 0" placeholder="Goes out from your Sarah number..."></textarea>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="crmSmsBtn" onclick="sendCrmText()" style="flex:1;padding:6px;background:var(--amber);color:#000;border:none;border-radius:5px;font-weight:700;cursor:pointer;font-size:10px">Send Text</button>
+          <span id="crmSmsCount" style="font-size:8px;color:var(--muted);white-space:nowrap"></span>
+        </div>
+        <div style="font-size:8px;color:var(--muted);margin-top:3px">Sends for real, files it in the Sarah thread and stamps last contact.</div>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
         <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Notes timeline</label>
         <label style="font-size:9px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -4552,6 +4562,71 @@ async function saveCrmContact() {
 const CRM_STATUSES = ['Lead','No Answer','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'];
 
 // Log a touch: a note plus HOW it happened. Stamps last_contact server-side.
+// ── Texting from the tracker ──────────────────────────────────────
+// The Sarah tab already had both a standalone reply form and a reply bar
+// inside each thread. Neither is where Franco works. Running the month out
+// of the tracker means a lead he wants to text is a row in front of him, and
+// reaching the existing box meant leaving the tracker, opening the Sarah
+// tab, finding the thread and expanding it. So he texted from his own cell
+// instead, and the system never saw it: the lead sat there looking untouched
+// while he was actively working it. Collin Furguson, 2026-10-30.
+//
+// Nothing new happens on the server. /api/manual-reply already files the
+// message in the thread, marks Sarah off the conversation, sends from the
+// tenant's own number, refuses anyone opted out, and stamps the CRM row.
+// This is only a second door onto it, next to the lead it is about.
+function _crmSmsCount(){
+  const el = document.getElementById('crmSmsBody'), out = document.getElementById('crmSmsCount');
+  if (!el || !out) return;
+  const v = el.value, n = v.length;
+  // Anything outside GSM-7 drops the segment from 160 characters to 70, so
+  // one curly apostrophe pasted out of an email doubles what a send costs.
+  const NL = String.fromCharCode(10), CR = String.fromCharCode(13);
+  const EXTRA = `@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}[~]|€`;
+  const gsm  = [...v].every(ch => (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
+    || (ch >= '0' && ch <= '9') || ch === NL || ch === CR || EXTRA.indexOf(ch) >= 0);
+  const size = gsm ? (n <= 160 ? 160 : 153) : (n <= 70 ? 70 : 67);
+  const seg  = n === 0 ? 0 : Math.ceil(n / size);
+  out.textContent = n + ' chars - ' + seg + ' seg' + (gsm ? '' : ' - unicode');
+}
+
+async function sendCrmText(){
+  if (!_crmNotesId) return;
+  const row = (window.crmData || []).find(c => c.id === _crmNotesId);
+  // Tracker phones are not all E.164 - some came off a spreadsheet as
+  // (403) 835-4162. Twilio will not take that, so normalise before sending
+  // rather than letting the send fail with something unreadable.
+  const phone = phoneInputToE164(String((row && row.phone) || ''));
+  if (!phone) { toast(row && row.phone ? 'That phone number is not a valid 10-digit number' : 'No phone number on this lead'); return; }
+  const el  = document.getElementById('crmSmsBody');
+  const msg = ((el && el.value) || '').trim();
+  if (!msg) { toast('Type the message first'); return; }
+  const btn = document.getElementById('crmSmsBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  try{
+    const r = await FF.apiFetch('/api/manual-reply', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone, message: msg }) }).then(x => x.json());
+    // The endpoint refuses an opted-out number with a sentence worth reading,
+    // so show what it said instead of a generic failure.
+    if (!r.success) { toast(r.error || 'Send failed'); return; }
+    // The send stamps last_contact and files the message in the Sarah
+    // thread by itself. The note is so the lead's own history reads straight
+    // through without opening the Sarah tab to find out what was said.
+    await FF.apiFetch('/api/desk/crm/' + _crmNotesId + '/notes', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ body: msg, method: 'Text' }) });
+    if (el) el.value = '';
+    _crmSmsCount();
+    toast('Text sent');
+    await loadCrmNotes();
+    await _refreshCrmData();
+    openCrmNotes(_crmNotesId);
+  }catch(e){
+    toast('Send failed');
+  }finally{
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Text'; }
+  }
+}
+
 async function logCrmTouch(method) {
   if (!_crmNotesId) return;
   const el = document.getElementById('crmNoteNew');
