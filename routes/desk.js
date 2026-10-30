@@ -2593,13 +2593,38 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       const days   = Math.min(Math.max(parseInt(req.body && req.body.days, 10) || 30, 1), 365);
       const commit = (req.body && req.body.commit) === true;
 
+      // Only threads the customer actually answered, and never anyone who
+      // has opted out.
+      //
+      // Measured on the live book 2026-10-30: a 30-day window scanned 904
+      // conversations and offered 871 of them against an 80-row month. 59%
+      // of threads are Sarah's opener with no reply - a number that was
+      // texted, not a lead. The old condition asked for a name, vehicle or
+      // budget, which nearly every blast recipient has, so it filtered
+      // almost nothing. An actual reply is the signal, and EXISTS on a
+      // message with role 'user' is how to ask for it.
+      //
+      // 114 of those 500 threads were stopped. Without the opt-out filter
+      // the sync would have filed every one of them as a lead that looks
+      // textable; the send would refuse them, but only after the row was
+      // sitting in the working month looking like somebody to call.
       const convs = await client.query(`
-        SELECT customer_phone, customer_name, vehicle_type, budget, status, updated_at
-        FROM conversations
-        WHERE tenant_id = $1 AND customer_phone IS NOT NULL
-          AND updated_at >= NOW() - ($2 || ' days')::interval
-          AND (vehicle_type IS NOT NULL OR budget IS NOT NULL OR customer_name IS NOT NULL)
-        ORDER BY updated_at DESC
+        SELECT c.customer_phone, c.customer_name, c.vehicle_type, c.budget, c.status, c.updated_at
+        FROM conversations c
+        WHERE c.tenant_id = $1
+          AND c.customer_phone IS NOT NULL
+          AND c.updated_at >= NOW() - ($2 || ' days')::interval
+          AND c.status <> 'stopped'
+          AND EXISTS (
+            SELECT 1 FROM messages m
+             WHERE m.conversation_id = c.id AND m.role = 'user'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM sms_opt_outs o
+             WHERE right(regexp_replace(COALESCE(o.phone, ''), '[^0-9]', '', 'g'), 10)
+                 = right(regexp_replace(c.customer_phone, '[^0-9]', '', 'g'), 10)
+          )
+        ORDER BY c.updated_at DESC
       `, [scope.tenantId, String(days)]);
 
       let created = 0, updated = 0, unchanged = 0, skippedDeleted = 0, skippedBadPhone = 0;
