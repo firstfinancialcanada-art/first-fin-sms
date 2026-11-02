@@ -2482,7 +2482,21 @@ const { sendCustomerSms } = require('../lib/customer-sms');
       const ALLOWED = ['status','phone','email','source','notes','name','beacon',
                         'income','obligations','vehicle_interest','budget_range',
                         'follow_up_date','follow_up_note','last_contact','tracker_month',
-                        'temperature','board_rank'];
+                        'temperature','board_rank','pinned'];
+
+      // Stage drives board order now, so a typo'd stage silently re-sorts the
+      // board. Unlike temperature this cannot 400 on anything unrecognised:
+      // live rows already carry values from the Tekion import that predate
+      // the ladder. Known stages are canonicalised to their exact casing,
+      // unknown ones are passed through and rank as 'Lead'.
+      if (req.body.status !== undefined && req.body.status !== null && req.body.status !== '') {
+        const s = crmBoard.normalizeStage(req.body.status);
+        if (s) req.body.status = s;
+      }
+
+      if (req.body.pinned !== undefined) {
+        req.body.pinned = !!req.body.pinned;
+      }
 
       // A temperature outside the ladder would colour the row as nothing
       // and quietly drop it off the board, so refuse it rather than store it.

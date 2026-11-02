@@ -3803,6 +3803,7 @@ async function setCrmTemp(id, temp){
       body: JSON.stringify({ temperature: temp })}).then(x=>x.json());
     if(!r.success) throw new Error(r.error||'save failed');
     toast(temp === 'Dead' ? 'Marked dead' : 'Moved to '+temp);
+    if (row) sortCrmMonthByStage(crmMonthKey(row).key, { quiet: true });
   }catch(e){
     if (row) row.temperature = was;           // put it back rather than lie about it
     _renderCrmActiveView();
@@ -3880,6 +3881,15 @@ async function crmDrop(ev, targetId, scope){
   if (to < 0) { rows.splice(from, 0, moved); return; }
   rows.splice(dropAbove ? to : to + 1, 0, moved);
 
+  // Dragging a row IS the pin. He moved it there because he knows something
+  // the stage ladder does not, and the next automatic sort has to leave it
+  // alone or the drag was pointless. Unpin with the pin button on the row.
+  if (!moved.pinned) {
+    moved.pinned = true;
+    FF.apiFetch('/api/desk/crm/'+moved.id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pinned: true })}).catch(()=>{});
+  }
+
   await crmWriteOrder(rows);
 }
 
@@ -3950,6 +3960,82 @@ async function sortCrmMonthByHeat(monthKey){
   }
   renderCrmMonthly();
   toast(changed ? 'Sorted by heat' : 'Already in order');
+}
+
+// Re-stack one month by how close each deal is to Sold. Same mechanic as the
+// heat sort — ranks are re-dealt, never invented — with two differences.
+//
+// 1. Stage leads, temperature breaks the tie. A deposit outranks a Hot lead
+//    who has not been called, which is the whole point.
+// 2. Pinned rows are lifted out first and put back at the top in their own
+//    order. Franco drags a row up because he knows something the board does
+//    not; an automatic sort that overrides that is worse than no sort. Rows
+//    only become pinned by being dragged or by the pin button.
+//
+// Sold and Dead sink. They are finished and the Top 10 is about what is still
+// moving, but they keep their slot in the month so the month's results stay
+// readable.
+const _CRM_TEMP_TIEBREAK = ['Dead','Cold','Warm','Hot','Sold'];
+
+function crmStageOrder(rows){
+  const heat = c => _CRM_TEMP_TIEBREAK.indexOf(crmTempOf(c));
+  const done = c => (crmTempOf(c) === 'Sold' || crmTempOf(c) === 'Dead') ? 1 : 0;
+  const pinned   = rows.filter(c => c.pinned).sort((a,b) => (b.board_rank||0) - (a.board_rank||0));
+  const unpinned = rows.filter(c => !c.pinned).sort((a,b) =>
+      (done(a) - done(b))                      // finished rows to the bottom
+   || (crmStageRank(b) - crmStageRank(a))      // then closest to Sold
+   || (heat(b) - heat(a))                      // then hottest
+   || ((b.board_rank||0) - (a.board_rank||0))  // then whatever order it was in
+  );
+  return pinned.concat(unpinned);
+}
+
+async function sortCrmMonthByStage(monthKey, opts){
+  const quiet = !!(opts && opts.quiet);
+  const rows = crmData.filter(c => crmMonthKey(c).key === monthKey);
+  if (rows.length < 2) return 0;
+  const slots  = rows.map(c => c.board_rank || c.id).sort((a,b) => b - a);
+  const wanted = crmStageOrder(rows);
+  const writes = [];
+  wanted.forEach((c, i) => {
+    if (c.board_rank === slots[i]) return;
+    c.board_rank = slots[i];
+    writes.push(FF.apiFetch('/api/desk/crm/'+c.id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ board_rank: slots[i] })}).catch(()=>{}));
+  });
+  if (writes.length) await Promise.all(writes);
+  _renderCrmActiveView();
+  if (!quiet) toast(writes.length ? 'Sorted by stage' : 'Already in order');
+  return writes.length;
+}
+
+// Pin keeps a row where it is when the board re-sorts itself.
+async function toggleCrmPin(id){
+  const c = crmData.find(x => x.id === id);
+  if (!c) return;
+  const was = !!c.pinned;
+  c.pinned = !was;                             // optimistic
+  _renderCrmActiveView();
+  try{
+    const r = await FF.apiFetch('/api/desk/crm/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pinned: c.pinned })}).then(x=>x.json());
+    if(!r.success) throw new Error(r.error||'save failed');
+    toast(c.pinned ? 'Pinned — stage sort will leave it here' : 'Unpinned');
+  }catch(e){
+    c.pinned = was;
+    _renderCrmActiveView();
+    toast('Could not pin that lead');
+  }
+}
+
+// The Top 10 is just the first ten live rows once the board is in stage
+// order. No separate list to keep up to date — if the board is right, this is
+// right, which is the only way it stays true.
+function crmTopTen(monthKey){
+  const key  = monthKey || _thisMonthKey();
+  const rows = crmData.filter(c => crmMonthKey(c).key === key
+                               && crmTempOf(c) !== 'Sold' && crmTempOf(c) !== 'Dead');
+  return crmStageOrder(rows).slice(0, 10);
 }
 
 // ── Months ────────────────────────────────────────────────────────
@@ -4080,6 +4166,7 @@ function renderCrmMonthly(){
           <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px;">${rows.length} lead${rows.length===1?'':'s'}</span>
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">${pills}
+          <button onclick="sortCrmMonthByStage('${k}')" title="Re-stack this month by how close each deal is to Sold. Pinned rows stay where they are." style="margin-left:4px;padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;border:1px solid var(--primary);background:transparent;color:var(--primary);">Sort by stage</button>
           <button onclick="sortCrmMonthByHeat('${k}')" title="Re-stack this month hottest first. Your hand order is replaced." style="margin-left:4px;padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;border:1px solid var(--border);background:transparent;color:var(--muted);">Sort by heat</button>
           <button onclick="carryForwardMonth('${k}')" title="Move this month's open leads into the next month. Sold and Dead stay here." style="padding:3px 10px;border-radius:12px;cursor:pointer;font-size:11px;font-weight:700;font-family:'Outfit',sans-serif;border:1px solid var(--border);background:transparent;color:var(--muted);">Carry open &rarr; ${_crmMonthLabel(_nextMonthKey(k))}</button>
         </div>
@@ -4096,7 +4183,7 @@ function renderCrmMonthly(){
           <button ${i===0?'disabled':''} onclick="moveCrmLead(${c.id},'up',${i>0?rows[i-1].id:0})" title="Move up" style="background:none;border:none;cursor:${i===0?'default':'pointer'};color:var(--${i===0?'border':'muted'});font-size:11px;padding:0">&#9650;</button>
           <button ${i===rows.length-1?'disabled':''} onclick="moveCrmLead(${c.id},'down',${i<rows.length-1?rows[i+1].id:0})" title="Move down" style="background:none;border:none;cursor:${i===rows.length-1?'default':'pointer'};color:var(--${i===rows.length-1?'border':'muted'});font-size:11px;padding:0">&#9660;</button>
         </span></td>
-        <td><strong style="cursor:pointer" onclick="openCrmNotes(${c.id})" title="Open notes">${_esc(c.name||'—')}</strong></td>
+        <td><strong style="cursor:pointer" onclick="openCrmNotes(${c.id})" title="Open notes">${_esc(c.name||'—')}</strong>${c.pinned?`<button draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();toggleCrmPin(${c.id})" title="Pinned — the stage sort leaves this row alone. Click to unpin." style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 0 0 5px;color:var(--amber)">&#128204;</button>`:`<button draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();toggleCrmPin(${c.id})" title="Pin this row so the stage sort leaves it where it is" style="background:none;border:none;cursor:pointer;font-size:10px;padding:0 0 0 5px;color:var(--border)">&#128204;</button>`}</td>
         <td>${_esc(c.phone||'—')}</td>
         <td>${_esc(c.vehicle_interest||c.vehicle||'—')}</td>
         <td class="crm-sub" style="color:var(--muted)">${_esc(c.source||'—')}</td>
@@ -4559,7 +4646,31 @@ async function saveCrmContact() {
 // A status the server holds that is NOT in this list used to vanish: the
 // select rendered without it, so the first save silently rewrote the row to
 // "Lead". Any unknown value is now appended and kept.
-const CRM_STATUSES = ['Lead','No Answer','Contacted','Qualified','Test Drive','Negotiating','Sold','Lost'];
+// The pipeline, lowest to highest — position in the array IS the rank. Must
+// stay in step with STAGES in lib/crm-board.js; the server ranks the same way.
+//
+// Temperature says how warm someone feels. Stage says how close the deal is to
+// delivery. They are not the same thing, and sorting the board on temperature
+// alone put a Hot lead nobody had phoned above a written deal with a deposit
+// down — so the top of the board was never the ten deals actually moving into
+// Sold. Franco's ladder, 2026-11-02.
+const CRM_STAGES = [
+  'Lost', 'Lead', 'No Answer', 'Attempted', 'Contacted', 'Qualified',
+  'Test Drive', 'Negotiating', 'Deal Written', 'Deposit',
+  'Finance Approved', 'Delivery Set', 'Sold',
+];
+// 'No Answer' and 'Negotiating' are still on live rows from the Tekion import
+// and the old picker. They rank, so those leads sort sanely, but they are not
+// offered any more so the list stops growing.
+const CRM_STATUSES = CRM_STAGES.filter(s => s !== 'No Answer' && s !== 'Negotiating');
+// At or above this a row is a deal in flight, not a lead being chased. This is
+// the line the Top 10 is drawn at.
+const CRM_STAGE_IN_FLIGHT = CRM_STAGES.indexOf('Deal Written');
+
+function crmStageRank(c){
+  const i = CRM_STAGES.findIndex(x => x.toLowerCase() === String(c?.status || '').trim().toLowerCase());
+  return i < 0 ? CRM_STAGES.indexOf('Lead') : i;   // unknown legacy value ranks as a fresh lead
+}
 
 // Log a touch: a note plus HOW it happened. Stamps last_contact server-side.
 // ── Texting from the tracker ──────────────────────────────────────
@@ -4832,6 +4943,10 @@ async function updateCRM(id, status){
       body: JSON.stringify({ status })}).then(x=>x.json());
     if(!r.success) throw new Error(r.error||'save failed');
     toast('Status set to '+status);
+    // Stage drives board order, so a stage change that left the row where it
+    // was would mean the board — and therefore the Top 10 — is quietly stale.
+    // Quiet: the status toast already said what happened.
+    if (c) sortCrmMonthByStage(crmMonthKey(c).key, { quiet: true });
   }catch(e){
     if (c) c.status = was;                    // put it back rather than lie about it
     _renderCrmActiveView();
