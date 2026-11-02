@@ -3833,20 +3833,55 @@ async function moveCrmLead(id, dir, swapWith){
 // not part of the drag. The arrows stay for touch and for one-place nudges.
 let _crmDragId = null;
 
+// A long month doesn't fit on screen, and HTML5 drag does not scroll the page
+// for you: carrying a row to the top or bottom edge just parked it there with
+// nowhere left to drop. So while a drag is live, track the pointer against the
+// viewport and scroll when it enters the top or bottom band, faster the closer
+// it gets to the edge.
+//
+// The pointer is tracked on document rather than on the rows, because once you
+// are past the last row there is no row under the cursor to fire dragover —
+// which is exactly the bottom-of-page case that was stuck.
+let _crmScrollTimer = null;
+let _crmPointerY    = 0;
+
+function _crmTrackPointer(ev){ _crmPointerY = ev.clientY; }
+
+function _crmAutoScrollStart(){
+  if (_crmScrollTimer) return;
+  document.addEventListener('dragover', _crmTrackPointer, true);
+  _crmScrollTimer = setInterval(() => {
+    const EDGE = 100, MAX = 24, h = window.innerHeight;
+    let dy = 0;
+    if (_crmPointerY > 0 && _crmPointerY < EDGE)            dy = -Math.ceil(MAX * (1 - _crmPointerY / EDGE));
+    else if (_crmPointerY > h - EDGE && _crmPointerY <= h)  dy =  Math.ceil(MAX * (1 - (h - _crmPointerY) / EDGE));
+    if (dy) window.scrollBy(0, dy);
+  }, 16);
+}
+function _crmAutoScrollStop(){
+  document.removeEventListener('dragover', _crmTrackPointer, true);
+  clearInterval(_crmScrollTimer);
+  _crmScrollTimer = null;
+}
+
 function crmDragStart(ev, id){
   _crmDragId = id;
   ev.dataTransfer.effectAllowed = 'move';
   try { ev.dataTransfer.setData('text/plain', String(id)); } catch(e){}
   const tr = ev.currentTarget;
   tr.style.opacity = '.4';
+  _crmPointerY = ev.clientY;
+  _crmAutoScrollStart();
 }
 function crmDragEnd(ev){
+  _crmAutoScrollStop();
   ev.currentTarget.style.opacity = '';
   document.querySelectorAll('tr[data-crm-row]').forEach(r => { r.style.boxShadow = ''; });
 }
 function crmDragOver(ev){
   ev.preventDefault();
   ev.dataTransfer.dropEffect = 'move';
+  _crmPointerY = ev.clientY;
   const tr = ev.currentTarget;
   if (String(tr.dataset.crmRow) === String(_crmDragId)) return;
   // A line on the edge you would land against, so the drop is predictable.
@@ -3858,6 +3893,7 @@ function crmDragLeave(ev){ ev.currentTarget.style.boxShadow = ''; }
 
 async function crmDrop(ev, targetId, scope){
   ev.preventDefault();
+  _crmAutoScrollStop();
   document.querySelectorAll('tr[data-crm-row]').forEach(r => { r.style.boxShadow = ''; });
   const dragId = _crmDragId; _crmDragId = null;
   if (!dragId || dragId === targetId) return;
@@ -3881,15 +3917,10 @@ async function crmDrop(ev, targetId, scope){
   if (to < 0) { rows.splice(from, 0, moved); return; }
   rows.splice(dropAbove ? to : to + 1, 0, moved);
 
-  // Dragging a row IS the pin. He moved it there because he knows something
-  // the stage ladder does not, and the next automatic sort has to leave it
-  // alone or the drag was pointless. Unpin with the pin button on the row.
-  if (!moved.pinned) {
-    moved.pinned = true;
-    FF.apiFetch('/api/desk/crm/'+moved.id, {method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pinned: true })}).catch(()=>{});
-  }
-
+  // Dragging does NOT pin. Tried it the other way on 2026-11-02 and Franco
+  // called it immediately: a drag is usually just tidying the list, and
+  // silently making every tidy permanent means the board slowly stops
+  // sorting itself and nobody can see why. Pinning is the pin button only.
   await crmWriteOrder(rows);
 }
 
