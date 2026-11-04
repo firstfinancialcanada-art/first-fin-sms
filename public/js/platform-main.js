@@ -6386,15 +6386,15 @@ function processContactLines(lines) {
 // when the dealer flips the dropdown — swaps the textarea contents UNLESS
 // they've already customized it (we detect "customized" by checking
 // whether the current value matches one of the defaults verbatim).
-// The reengage and notify defaults use plain hyphens, not em dashes. An em
+// Every default uses plain hyphens, not em dashes. An em
 // dash is outside GSM-7, which drops the whole message to UCS-2 and halves
 // the segment to 70 characters — so a one-segment opener silently becomes
 // two, at double the cost, on every contact in the list.
 const _SARAH_OPENERS = {
-  sales: "Hi {name}! We have some great vehicles in stock right now — are you still looking? Reply here or give us a call. (Reply STOP to opt out)",
-  acquisition: "Hi {name}! I'm Sarah from the dealership. I wanted to reach out about your vehicle — are you considering selling it soon? (Reply STOP to opt out)",
-  reengage: "Hi {name}, Sarah here at the dealership. You enquired about a vehicle with us - are you still looking? Reply STOP to opt out.",
-  notify: "Hi {name}, Sarah here at the dealership. You enquired about a vehicle with us - are you still looking? Reply STOP to opt out."
+  sales: "Hi {name}! We have some great vehicles in stock right now - are you still looking? Reply here or give us a call. (Reply STOP to opt out)",
+  acquisition: "Hi {name}! I'm Sarah from {dealership}. I wanted to reach out about your vehicle - are you considering selling it soon? (Reply STOP to opt out)",
+  reengage: "Hi {name}, Sarah here at {dealership}. Your application is still with the banks - still looking for a vehicle? Reply STOP to opt out.",
+  notify: "Hi {name}, Sarah here at {dealership}. Your application is still with the banks - still looking for a vehicle? Reply STOP to opt out."
 };
 
 function onCampaignModeChange(newMode) {
